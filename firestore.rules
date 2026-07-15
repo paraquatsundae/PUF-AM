@@ -1,0 +1,982 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - uid: string (required, immutable) - User's unique identifier
+    //   - email: string (required) - User's email address
+    //   - displayName: string (optional) - User's display name
+    //   - photoURL: string (optional) - User's profile photo URL
+    //   - role: string (required, immutable unless admin) - User's role ('admin', 'farmer', 'viewer')
+    //   - subscriptionTier: string (required, immutable unless admin) - 'free' or 'premium'
+    //   - createdAt: timestamp (required, immutable) - Creation timestamp
+    //
+    // Collection: users/{userId}/blocks
+    // Document ID: blockId
+    // Fields: id, name, cultivar, density, irrigation, areaHa (optional), geojson
+    //
+    // Collection: users/{userId}/pins
+    // Document ID: pinId
+    // Fields: id, name, type, status, lat, lng
+    //
+    // Collection: users/{userId}/viewport
+    // Document ID: current
+    // Fields: lat, lng, zoom
+    //
+    // Collection: farms/{farmId}/events
+    // Document ID: eventId
+    // Fields: id, date, type (spray|irrigation|work|nutrition), plus type-specific optional fields
+    //
+    // Collection: users/{userId}/settings
+    // Document ID: farm, integrations
+    //
+    // Collection: farms/{farmId}/tasks
+    // Document ID: taskId
+    // Fields: id, title, description, assignedTo, assignedToName, assignedTrackId, targetBlockId, issueIds, tools, notes, status, priority, safetyChecklistAccepted, acceptedAt, createdAt, updatedAt, completedAt
+    //
+    // Collection: farms/{farmId}/active_locations
+    // Document ID: userId
+    // Fields: uid, lat, lng, timestamp, activeTaskId
+    //
+    // Collection: farms/{farmId}/archived_issues
+    // Document ID: issueId
+    // Fields: same as issues
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.admin == true ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isWhitelisted() {
+      let hasEmail = isAuthenticated() && ('email' in request.auth.token);
+      let email = hasEmail ? request.auth.token.email.lower() : "";
+      let hasConfig = exists(/databases/$(database)/documents/config/accessControl);
+      let config = hasConfig ? get(/databases/$(database)/documents/config/accessControl).data : {};
+      let whitelistEnabled = hasConfig ? config.get('whitelistEnabled', false) : false;
+      
+      return isAdmin() || (hasEmail && (
+        !whitelistEnabled || 
+        exists(/databases/$(database)/documents/whitelist/$(email))
+      ));
+    }
+
+    function isNotBlacklisted() {
+      let hasEmail = isAuthenticated() && ('email' in request.auth.token);
+      let email = hasEmail ? request.auth.token.email.lower() : "";
+      
+      return isAdmin() || !hasEmail || !exists(/databases/$(database)/documents/blacklist/$(email));
+    }
+
+    function isAuthorized() {
+      return isAuthenticated() && isNotBlacklisted() && isWhitelisted();
+    }
+
+    function isFarmMember(farmId) {
+      return isAdmin() || isFarmOwner(farmId) || (
+        isAuthorized() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.farmId == farmId
+      );
+    }
+
+    function hasAgreedToTerms() {
+      return isAuthorized() && 
+        (isAdmin() || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('hasAgreedToTerms', false) == true));
+    }
+
+    function isFarmOwner(farmId) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/farms/$(farmId)) && 
+             get(/databases/$(database)/documents/farms/$(farmId)).data.ownerUid == request.auth.uid;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || 
+             !('uid' in resource.data) || 
+             request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isPositive(field) {
+      return request.resource.data[field] is number && request.resource.data[field] > 0;
+    }
+
+    function isUnchangedOrNew(field) {
+      return !(field in resource.data) || request.resource.data[field] == resource.data[field];
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'farmId', 'subscriptionTier', 'hasAgreedToTerms', 'agreedToTermsAt', 'createdAt']) &&
+             hasRequiredFields(['uid', 'email', 'role', 'subscriptionTier', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 500)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 5000)) &&
+             data.role in ['admin', 'farmer', 'viewer'] &&
+             (!('farmId' in data) || (data.farmId is string && data.farmId.size() < 100)) &&
+             data.subscriptionTier in ['free', 'premium'] &&
+             (!('hasAgreedToTerms' in data) || data.hasAgreedToTerms is bool) &&
+             (!('agreedToTermsAt' in data) || (data.agreedToTermsAt is string || data.agreedToTermsAt is timestamp)) &&
+             (data.createdAt is string || data.createdAt is timestamp);
+    }
+
+    function isValidUserPublic(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'photoURL', 'role', 'farmId']) &&
+             hasRequiredFields(['uid', 'role', 'farmId']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 500)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 5000)) &&
+             data.role in ['admin', 'farmer', 'viewer'] &&
+             data.farmId is string && data.farmId.size() < 100;
+    }
+
+    function isValidInvitation(data) {
+      return hasOnlyAllowedFields(['email', 'farmId', 'role', 'invitedBy', 'createdAt']) &&
+             hasRequiredFields(['email', 'farmId', 'role', 'invitedBy', 'createdAt']) &&
+             data.email is string && isValidEmail(data.email) &&
+             data.farmId is string && data.farmId.size() < 100 &&
+             data.role in ['farmer', 'viewer'] &&
+             data.invitedBy is string && isValidEmail(data.invitedBy) &&
+             data.createdAt is string;
+    }
+
+    function isValidFarm(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'ownerUid', 'createdAt']) &&
+             hasRequiredFields(['id', 'name', 'ownerUid', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.ownerUid is string && data.ownerUid.size() > 0 && data.ownerUid.size() < 100 &&
+             data.createdAt is string;
+    }
+
+    function isValidOrchardBlock(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'cultivar', 'density', 'irrigation', 'areaHa', 'geojson']) &&
+             hasRequiredFields(['id', 'geojson']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             (!('name' in data) || (data.name is string && data.name.size() < 100)) &&
+             (!('cultivar' in data) || (data.cultivar is string && data.cultivar.size() < 100)) &&
+             (!('density' in data) || (data.density is string && data.density.size() < 50)) &&
+             (!('irrigation' in data) || (data.irrigation is string && data.irrigation.size() < 50)) &&
+             (!('areaHa' in data) || (data.areaHa is number && data.areaHa >= 0)) &&
+             data.geojson is string && data.geojson.size() < 100000;
+    }
+
+    function isValidInfrastructurePin(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'type', 'status', 'lat', 'lng']) &&
+             hasRequiredFields(['id', 'lat', 'lng']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             (!('name' in data) || (data.name is string && data.name.size() < 100)) &&
+             (!('type' in data) || (data.type in ['weather', 'soil', 'irrigation', ''])) &&
+             (!('status' in data) || (data.status in ['active', 'warning', 'offline'])) &&
+             data.lat is number &&
+             data.lng is number;
+    }
+
+    function isValidMapViewport(data) {
+      return hasOnlyAllowedFields(['lat', 'lng', 'zoom']) &&
+             hasRequiredFields(['lat', 'lng', 'zoom']) &&
+             data.lat is number &&
+             data.lng is number &&
+             data.zoom is number;
+    }
+
+    function isValidDiaryEvent(data) {
+      return hasOnlyAllowedFields([
+               'id', 'date', 'type', 'status', 'blockId',
+               'sprayType', 'applicationMethod', 'agentName', 'carrier', 'adjuvant',
+               'irrigationAmount', 'durationMinutes', 'notes',
+               'productName', 'rate', 'rateUnit', 'nRate', 'pRate', 'kRate', 'nutritionMethod',
+               'title', 'assignedTo', 'assignedToName', 'priority',
+               'safetyChecklistAccepted', 'acceptedAt', 'completedAt', 'linkedIssueId'
+             ]) &&
+             hasRequiredFields(['id', 'date', 'type']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.type in ['spray', 'irrigation', 'work', 'nutrition'] &&
+             (!('status' in data) || data.status in ['planned', 'done', 'cancelled']) &&
+             (!('blockId' in data) || (data.blockId is string && data.blockId.size() < 100)) &&
+             (!('sprayType' in data) || data.sprayType in ['chem', 'bio', 'both']) &&
+             (!('applicationMethod' in data) || data.applicationMethod in ['ground', 'drone', 'helicopter', 'aeroplane']) &&
+             (!('agentName' in data) || (data.agentName is string && data.agentName.size() < 200)) &&
+             (!('carrier' in data) || (data.carrier is string && data.carrier.size() < 100)) &&
+             (!('adjuvant' in data) || (data.adjuvant is string && data.adjuvant.size() < 100)) &&
+             (!('irrigationAmount' in data) || (data.irrigationAmount is number && data.irrigationAmount >= 0)) &&
+             (!('durationMinutes' in data) || (data.durationMinutes is number && data.durationMinutes >= 0)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 2000)) &&
+             (!('productName' in data) || (data.productName is string && data.productName.size() < 200)) &&
+             (!('rate' in data) || (data.rate is number && data.rate >= 0)) &&
+             (!('rateUnit' in data) || data.rateUnit in ['kg/ha', 'L/ha', 'kg', 'L']) &&
+             (!('nRate' in data) || (data.nRate is number && data.nRate >= 0)) &&
+             (!('pRate' in data) || (data.pRate is number && data.pRate >= 0)) &&
+             (!('kRate' in data) || (data.kRate is number && data.kRate >= 0)) &&
+             (!('nutritionMethod' in data) || data.nutritionMethod in ['broadcast', 'fertigation', 'foliar', 'banding']) &&
+             (!('title' in data) || (data.title is string && data.title.size() < 500)) &&
+             (!('assignedTo' in data) || (data.assignedTo is string && data.assignedTo.size() < 100)) &&
+             (!('assignedToName' in data) || (data.assignedToName is string && data.assignedToName.size() < 200)) &&
+             (!('priority' in data) || data.priority in ['low', 'medium', 'high']) &&
+             (!('safetyChecklistAccepted' in data) || data.safetyChecklistAccepted is bool) &&
+             (!('acceptedAt' in data) || (data.acceptedAt is string && data.acceptedAt.size() < 50)) &&
+             (!('completedAt' in data) || (data.completedAt is string && data.completedAt.size() < 50)) &&
+             (!('linkedIssueId' in data) || (data.linkedIssueId is string && data.linkedIssueId.size() < 100));
+    }
+
+    function isValidFarmSettings(data) {
+      return hasOnlyAllowedFields(['irrigationSystemType', 'waterAllocationMl', 'farmName', 'customChemicals', 'customBiologicals', 'customCarriers', 'customAdjuvants']) &&
+             hasRequiredFields(['irrigationSystemType']) &&
+             data.irrigationSystemType in ['micro', 'surface_drip', 'sub_surface', 'flood'] &&
+             (!('waterAllocationMl' in data) || (data.waterAllocationMl is number && data.waterAllocationMl >= 0)) &&
+             (!('farmName' in data) || (data.farmName is string && data.farmName.size() < 200)) &&
+             (!('customChemicals' in data) || data.customChemicals is list) &&
+             (!('customBiologicals' in data) || data.customBiologicals is list) &&
+             (!('customCarriers' in data) || data.customCarriers is list) &&
+             (!('customAdjuvants' in data) || data.customAdjuvants is list);
+    }
+
+    function isValidModelParameters(data) {
+      return hasOnlyAllowedFields(['blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor', 'splashMultiplier', 'rainWashoffCoeff', 'bioColonizationEff']) &&
+             hasRequiredFields(['blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor', 'splashMultiplier', 'rainWashoffCoeff', 'bioColonizationEff']) &&
+             data.blightSensitivity is number && data.blightSensitivity >= 0 && data.blightSensitivity <= 1 &&
+             data.cropCoefficient is number && data.cropCoefficient >= 0 &&
+             data.gddBaseTemp is number &&
+             data.humidityGradientFactor is number &&
+             data.splashMultiplier is number &&
+             data.rainWashoffCoeff is number &&
+             data.bioColonizationEff is number && data.bioColonizationEff >= 0 && data.bioColonizationEff <= 1;
+    }
+
+    function isValidUsageTracking(data) {
+      return hasOnlyAllowedFields(['date', 'aiCalls', 'calculations']) &&
+             hasRequiredFields(['date']) &&
+             data.date is string &&
+             (!('aiCalls' in data) || (data.aiCalls is number && data.aiCalls >= 0)) &&
+             (!('calculations' in data) || (data.calculations is number && data.calculations >= 0));
+    }
+
+    function isValidNutritionReport(data) {
+      return hasOnlyAllowedFields(['id', 'fileName', 'fileUrl', 'fileType', 'reportType', 'sampleDate', 'labName', 'blockId', 'location', 'status', 'createdAt', 'createdBy']) &&
+             hasRequiredFields(['id', 'fileName', 'fileUrl', 'reportType', 'sampleDate', 'createdAt', 'createdBy']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.fileName is string && data.fileName.size() > 0 &&
+             data.fileUrl is string && data.fileUrl.size() > 0 &&
+             (!('fileType' in data) || data.fileType in ['xlsx', 'csv', 'image']) &&
+             data.reportType in ['soil', 'leaf', 'water'] &&
+             data.sampleDate is string &&
+             (!('labName' in data) || (data.labName is string && data.labName.size() < 500)) &&
+             (!('blockId' in data) || (data.blockId is string && data.blockId.size() < 200)) &&
+             (!('location' in data) || (data.location is map && data.location.lat is number && data.location.lng is number)) &&
+             (!('status' in data) || data.status in ['pending', 'parsed', 'error']) &&
+             data.createdAt is string &&
+             data.createdBy is string && data.createdBy == request.auth.uid;
+    }
+
+    function isValidNutrientData(data) {
+      return hasRequiredFields(['reportId']) &&
+             data.reportId is string &&
+             (!('nutrients' in data) || data.nutrients is map);
+    }
+
+    function isValidHarvestRecord(data) {
+      return hasOnlyAllowedFields(['id', 'date', 'blockId', 'totalWeight', 'moistureContent', 'qualityGrade', 'notes', 'blightImpactScore', 'createdAt', 'createdBy']) &&
+             hasRequiredFields(['id', 'date', 'blockId', 'totalWeight', 'createdAt', 'createdBy']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.blockId is string && data.blockId.size() > 0 && data.blockId.size() < 100 &&
+             data.totalWeight is number && data.totalWeight >= 0 &&
+             (!('moistureContent' in data) || (data.moistureContent is number && data.moistureContent >= 0 && data.moistureContent <= 100)) &&
+             (!('qualityGrade' in data) || (data.qualityGrade is string && data.qualityGrade.size() < 500)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 2000)) &&
+             (!('blightImpactScore' in data) || (data.blightImpactScore is number && data.blightImpactScore >= 0)) &&
+             data.createdAt is string &&
+             data.createdBy is string && data.createdBy == request.auth.uid;
+    }
+
+    function isValidFieldIssueShape(data) {
+      return hasOnlyAllowedFields(['id', 'lat', 'lng', 'category', 'priority', 'note', 'photoData', 'photoUrl', 'status', 'isMistake', 'reportedBy', 'reportedAt', 'resolvedAt', 'archivedAt', 'archivedBy']) &&
+             hasRequiredFields(['id', 'lat', 'lng', 'category', 'priority', 'status', 'reportedBy', 'reportedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.lat is number &&
+             data.lng is number &&
+             data.category in ['irrigation', 'pest', 'disease', 'damage', 'other'] &&
+             data.priority in ['low', 'medium', 'high'] &&
+             (!('note' in data) || (data.note == null || (data.note is string && data.note.size() < 2000))) &&
+             (!('photoData' in data) || (data.photoData == null || (data.photoData is string && data.photoData.size() < 1048576))) &&
+             (!('photoUrl' in data) || (data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() < 5000))) &&
+             data.status in ['open', 'in-progress', 'resolved', 'archived'] &&
+             (!('isMistake' in data) || data.isMistake is bool) &&
+             data.reportedBy is string && data.reportedBy.size() > 0 && data.reportedBy.size() < 100 &&
+             data.reportedAt is string &&
+             (!('resolvedAt' in data) || (data.resolvedAt == null || data.resolvedAt is string)) &&
+             (!('archivedAt' in data) || (data.archivedAt == null || data.archivedAt is string)) &&
+             (!('archivedBy' in data) || (data.archivedBy == null || data.archivedBy is string));
+    }
+
+    /** Create: reporter must be the signed-in user. */
+    function isValidFieldIssueCreate(data) {
+      return isValidFieldIssueShape(data) && data.reportedBy == request.auth.uid;
+    }
+
+    /** Update: any farm member; reporter identity stays immutable. */
+    function isValidFieldIssueUpdate(data) {
+      return isValidFieldIssueShape(data) &&
+             data.reportedBy == resource.data.reportedBy &&
+             data.reportedAt == resource.data.reportedAt &&
+             data.id == resource.data.id;
+    }
+
+    function isValidPathTrace(data) {
+      return hasOnlyAllowedFields(['id', 'recordedBy', 'startTime', 'endTime', 'coordinates']) &&
+             hasRequiredFields(['id', 'recordedBy', 'startTime', 'coordinates']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.recordedBy is string && data.recordedBy == request.auth.uid &&
+             data.startTime is string &&
+             (!('endTime' in data) || data.endTime is string) &&
+             data.coordinates is list && data.coordinates.size() < 10000;
+    }
+
+    function isValidFarmTrack(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'category', 'geojson', 'createdAt']) &&
+             hasRequiredFields(['id', 'category', 'geojson']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             (!('name' in data) || (data.name is string && data.name.size() < 200)) &&
+             data.category in ['primary', 'secondary', 'service'] &&
+             data.geojson is string && data.geojson.size() < 500000 &&
+             (!('createdAt' in data) || data.createdAt is string);
+    }
+
+    function isValidTask(data) {
+      return hasOnlyAllowedFields(['id', 'title', 'description', 'assignedTo', 'assignedToName', 'assignedTrackId', 'targetBlockId', 'issueIds', 'tools', 'notes', 'status', 'priority', 'safetyChecklistAccepted', 'acceptedAt', 'createdAt', 'updatedAt', 'completedAt']) &&
+             hasRequiredFields(['id', 'title', 'status', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 500 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 2000)) &&
+             (!('assignedTo' in data) || (data.assignedTo is string && data.assignedTo.size() < 100)) &&
+             (!('assignedToName' in data) || (data.assignedToName is string && data.assignedToName.size() < 200)) &&
+             (!('assignedTrackId' in data) || (data.assignedTrackId is string && data.assignedTrackId.size() < 100)) &&
+             (!('targetBlockId' in data) || (data.targetBlockId is string && data.targetBlockId.size() < 100)) &&
+             (!('issueIds' in data) || data.issueIds is list) &&
+             (!('tools' in data) || data.tools is list) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 2000)) &&
+             data.status in ['pending', 'accepted', 'in-progress', 'completed', 'cancelled'] &&
+             (!('priority' in data) || data.priority in ['low', 'medium', 'high']) &&
+             (!('safetyChecklistAccepted' in data) || data.safetyChecklistAccepted is bool) &&
+             (!('acceptedAt' in data) || data.acceptedAt is string) &&
+             data.createdAt is string &&
+             (!('updatedAt' in data) || data.updatedAt is string) &&
+             (!('completedAt' in data) || data.completedAt is string);
+    }
+
+    function isValidSafetyChecklist(data) {
+      return hasOnlyAllowedFields(['id', 'items', 'updatedAt', 'updatedBy']) &&
+             hasRequiredFields(['id', 'items']) &&
+             data.id is string &&
+             data.items is list &&
+             (!('updatedAt' in data) || data.updatedAt is string) &&
+             (!('updatedBy' in data) || data.updatedBy is string);
+    }
+
+    function isValidNotification(data) {
+      return hasOnlyAllowedFields(['id', 'userId', 'title', 'message', 'type', 'read', 'createdAt', 'metadata', 'link']) &&
+             hasRequiredFields(['id', 'userId', 'title', 'message', 'type', 'read', 'createdAt']) &&
+             data.id is string &&
+             data.userId is string &&
+             data.title is string &&
+             data.message is string &&
+             data.type in ['task_completed', 'task_assigned', 'task_update', 'system'] &&
+             data.read is bool &&
+             data.createdAt is string &&
+             (!('metadata' in data) || data.metadata is map) &&
+             (!('link' in data) || data.link is string);
+    }
+
+    function isValidUserLocation(data) {
+      return hasOnlyAllowedFields(['uid', 'lat', 'lng', 'timestamp', 'activeTaskId']) &&
+             (!('uid' in data) || (data.uid is string && data.uid == request.auth.uid)) &&
+             (!('lat' in data) || data.lat is number) &&
+             (!('lng' in data) || data.lng is number) &&
+             (!('timestamp' in data) || data.timestamp is number) &&
+             (!('activeTaskId' in data) || (data.activeTaskId == null || (data.activeTaskId is string && data.activeTaskId.size() < 100)));
+    }
+
+    function isValidUsageMetrics(data) {
+      return (!('totalAiCalls' in data) || data.totalAiCalls is number) &&
+             (!('totalWeatherCalls' in data) || data.totalWeatherCalls is number) &&
+             (!('totalFirestoreReads' in data) || data.totalFirestoreReads is number) &&
+             (!('totalFirestoreWrites' in data) || data.totalFirestoreWrites is number) &&
+             (!('userBreakdown' in data) || data.userBreakdown is map);
+    }
+
+    function isValidFinancialTransaction(data) {
+      return hasOnlyAllowedFields(['id', 'date', 'type', 'category', 'amount', 'description', 'referenceId', 'blockId', 'createdAt', 'createdBy']) &&
+             hasRequiredFields(['id', 'date', 'type', 'category', 'amount', 'description', 'createdAt', 'createdBy']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.type in ['income', 'expense'] &&
+             data.category in ['Paddock Inputs', 'Machinery', 'Labour', 'Energy', 'Production', 'Marketing', 'R&D', 'Other'] &&
+             data.amount is number && data.amount >= 0 &&
+             data.description is string && data.description.size() < 1000 &&
+             (!('referenceId' in data) || (data.referenceId is string && data.referenceId.size() < 100)) &&
+             (!('blockId' in data) || (data.blockId is string && data.blockId.size() < 100)) &&
+             data.createdAt is string &&
+             data.createdBy is string && data.createdBy == request.auth.uid;
+    }
+
+    function isValidFinancialSummary(data) {
+      return hasOnlyAllowedFields(['id', 'period', 'totalIncome', 'totalExpense', 'categoryTotals', 'updatedAt']) &&
+             hasRequiredFields(['id', 'period', 'totalIncome', 'totalExpense', 'categoryTotals', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.period is string && data.period.size() > 0 && data.period.size() < 50 &&
+             data.totalIncome is number && data.totalIncome >= 0 &&
+             data.totalExpense is number && data.totalExpense >= 0 &&
+             data.categoryTotals is map &&
+             data.updatedAt is string;
+    }
+
+    function isValidFinancialSettings(data) {
+      return hasOnlyAllowedFields(['defaultLabourRate', 'defaultFuelPrice', 'currency', 'financialYearStart']) &&
+             hasRequiredFields(['currency']) &&
+             (!('defaultLabourRate' in data) || (data.defaultLabourRate is number && data.defaultLabourRate >= 0)) &&
+             (!('defaultFuelPrice' in data) || (data.defaultFuelPrice is number && data.defaultFuelPrice >= 0)) &&
+             data.currency is string && data.currency.size() > 0 && data.currency.size() < 10 &&
+             (!('financialYearStart' in data) || (data.financialYearStart is string && data.financialYearStart.size() < 20));
+    }
+
+    function isValidInventoryItem(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'activeIngredient', 'type', 'category', 'quantity', 'unit', 'unitCost', 'updatedAt']) &&
+             hasRequiredFields(['id', 'name', 'type', 'category', 'quantity', 'unit', 'unitCost', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             (!('activeIngredient' in data) || (data.activeIngredient is string && data.activeIngredient.size() < 200)) &&
+             data.type in ["Herbicide", "Fertiliser", "Adjuvant/Surfactant", "Fungicide", "Bactercide", "Insecticide", "Biostimulant", "Biocontrol"] &&
+             data.category in ["Organic", "Conventional"] &&
+             data.quantity is number &&
+             data.unit is string && data.unit.size() < 50 &&
+             data.unitCost is number && data.unitCost >= 0 &&
+             data.updatedAt is string;
+    }
+
+    function isValidMachineryItem(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'type', 'hours', 'fuelUsed', 'maintenanceNotes', 'updatedAt']) &&
+             hasRequiredFields(['id', 'name', 'type', 'hours', 'fuelUsed', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.type is string && data.type.size() > 0 && data.type.size() < 100 &&
+             data.hours is number && data.hours >= 0 &&
+             data.fuelUsed is number && data.fuelUsed >= 0 &&
+             (!('maintenanceNotes' in data) || (data.maintenanceNotes is string && data.maintenanceNotes.size() < 5000)) &&
+             data.updatedAt is string;
+    }
+
+    function isValidEmployee(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'role', 'updatedAt']) &&
+             hasRequiredFields(['id', 'name', 'role', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.role is string && data.role.size() > 0 && data.role.size() < 100 &&
+             data.updatedAt is string;
+    }
+
+    function isValidEnergyLog(data) {
+      return hasOnlyAllowedFields(['id', 'type', 'month', 'volume', 'unitCost', 'updatedAt']) &&
+             hasRequiredFields(['id', 'type', 'month', 'volume', 'unitCost', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.type in ["Electricity", "Gas", "Diesel", "Petrol"] &&
+             data.month is string && data.month.size() == 7 &&
+             data.volume is number && data.volume >= 0 &&
+             data.unitCost is number && data.unitCost >= 0 &&
+             data.updatedAt is string;
+    }
+
+    function isValidRDProject(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'description', 'updatedAt']) &&
+             hasRequiredFields(['id', 'name', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 2000)) &&
+             data.updatedAt is string;
+    }
+
+    function isValidRDExpense(data) {
+      return hasOnlyAllowedFields(['id', 'projectId', 'date', 'description', 'amount', 'updatedAt']) &&
+             hasRequiredFields(['id', 'projectId', 'date', 'description', 'amount', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.projectId is string && data.projectId.size() > 0 && data.projectId.size() < 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 500 &&
+             data.amount is number && data.amount >= 0 &&
+             data.updatedAt is string;
+    }
+
+    function isValidMarketingCampaign(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'description', 'updatedAt']) &&
+             hasRequiredFields(['id', 'name', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 2000)) &&
+             data.updatedAt is string;
+    }
+
+    function isValidMarketingExpense(data) {
+      return hasOnlyAllowedFields(['id', 'campaignId', 'date', 'description', 'amount', 'updatedAt']) &&
+             hasRequiredFields(['id', 'campaignId', 'date', 'description', 'amount', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.campaignId is string && data.campaignId.size() > 0 && data.campaignId.size() < 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 500 &&
+             data.amount is number && data.amount >= 0 &&
+             data.updatedAt is string;
+    }
+
+    function isValidBudget(data) {
+      return hasOnlyAllowedFields(['id', 'year', 'category', 'amount', 'updatedAt']) &&
+             hasRequiredFields(['id', 'year', 'category', 'amount', 'updatedAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.year is string && data.year.size() == 4 &&
+             data.category in ["Paddock Inputs", "Machinery", "Labour", "Energy", "Production", "Marketing", "R&D", "Other", "Income"] &&
+             data.amount is number && data.amount >= 0 &&
+             data.updatedAt is string;
+    }
+
+    function isValidProcessingLog(data) {
+      return hasOnlyAllowedFields(['id', 'date', 'kilosDried', 'kilosCracked', 'kilosSorted', 'kilosOilKernel', 'notes', 'createdAt', 'createdBy']) &&
+             hasRequiredFields(['id', 'date', 'kilosDried', 'kilosCracked', 'kilosSorted', 'kilosOilKernel', 'createdAt', 'createdBy']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.kilosDried is number && data.kilosDried >= 0 &&
+             data.kilosCracked is number && data.kilosCracked >= 0 &&
+             data.kilosSorted is number && data.kilosSorted >= 0 &&
+             data.kilosOilKernel is number && data.kilosOilKernel >= 0 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 2000)) &&
+             data.createdAt is string &&
+             data.createdBy is string && data.createdBy == request.auth.uid;
+    }
+
+    function isValidPackingLog(data) {
+      return hasOnlyAllowedFields(['id', 'date', 'productType', 'packetSize', 'quantity', 'totalKilos', 'notes', 'createdAt', 'createdBy']) &&
+             hasRequiredFields(['id', 'date', 'productType', 'packetSize', 'quantity', 'totalKilos', 'createdAt', 'createdBy']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.date is string && data.date.size() > 0 && data.date.size() < 50 &&
+             data.productType in ["Shelled", "Inshell", "Oil"] &&
+             data.packetSize in ["250g Pouch", "5kg Bag", "10kg Carton", "500ml Bottle"] &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.totalKilos is number && data.totalKilos >= 0 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 2000)) &&
+             data.createdAt is string &&
+             data.createdBy is string && data.createdBy == request.auth.uid;
+    }
+
+    function isValidDryingSession(data) {
+      return hasOnlyAllowedFields(['id', 'binNumber', 'dryerId', 'blockId', 'harvestRecordId', 'status', 'targetMoisture', 'startTime', 'readings', 'temperatureReadings', 'generalComments']) &&
+             hasRequiredFields(['id', 'binNumber', 'status', 'targetMoisture', 'startTime', 'readings']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.binNumber is string && data.binNumber.size() > 0 &&
+             (!('dryerId' in data) || (data.dryerId is string && data.dryerId.size() < 100)) &&
+             (!('blockId' in data) || (data.blockId is string && data.blockId.size() < 100)) &&
+             (!('harvestRecordId' in data) || (data.harvestRecordId is string && data.harvestRecordId.size() < 100)) &&
+             data.status in ['active', 'completed'] &&
+             data.targetMoisture is number && data.targetMoisture > 0 &&
+             data.startTime is string &&
+             data.readings is list &&
+             (!('temperatureReadings' in data) || data.temperatureReadings is list) &&
+             (!('generalComments' in data) || (data.generalComments is string && data.generalComments.size() < 2000));
+    }
+
+    function isValidFarmAssets(data) {
+      return hasOnlyAllowedFields(['dryers']) &&
+             (!('dryers' in data) || data.dryers is list);
+    }
+
+    function isValidIntelligenceCache(data) {
+      return hasOnlyAllowedFields(['synthesis', 'insights', 'timestamp']) &&
+             hasRequiredFields(['synthesis', 'insights', 'timestamp']) &&
+             data.synthesis is map &&
+             data.insights is string &&
+             data.timestamp is string;
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+
+    match /weather_cache/{stationCode} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /users/{userId} {
+      // PII Protection: Only owner or admin can read the full user document (contains email)
+      allow read: if isOwner(userId) || isAdmin();
+      
+      allow create: if isAuthorized() && 
+                    isOwner(userId) && 
+                    isValidUser(request.resource.data) && 
+                    uidUnchanged() && 
+                    // Prevent self-promotion to admin unless default admin or farm owner
+                    (request.resource.data.role in ['farmer', 'viewer'] || 
+                     isAdmin() || 
+                     (request.resource.data.role == 'admin' && isFarmOwner(request.resource.data.farmId))) &&
+                     (request.resource.data.subscriptionTier == 'free' || isAdmin());
+                    
+      allow update: if isAuthorized() && 
+                    (isOwner(userId) || isAdmin()) && 
+                    isValidUser(request.resource.data) && 
+                    uidNotModified() && 
+                    isUnchangedOrNew('createdAt') &&
+                    // Prevent self-promotion to admin unless they are the farm owner
+                    (
+                      isAdmin() || 
+                      (request.resource.data.role == resource.data.role) || 
+                      (request.resource.data.role in ['farmer', 'viewer']) ||
+                      (isFarmOwner(request.resource.data.farmId) && request.resource.data.role == 'admin')
+                    );
+      allow delete: if isAdmin();
+
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow create: if isAuthorized() && isValidNotification(request.resource.data);
+        allow update: if isOwner(userId) && isValidNotification(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    match /users_public/{userId} {
+      // Public profiles: Readable by teammates or admins
+      allow read: if isAuthorized() && hasAgreedToTerms() && (isOwner(userId) || isAdmin() || (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && resource.data.farmId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.farmId));
+      allow write: if isOwner(userId) && isValidUserPublic(request.resource.data);
+    }
+
+    match /farms/{farmId} {
+      allow read: if isFarmMember(farmId);
+      allow create: if isAuthorized() && isValidFarm(request.resource.data) && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isFarmMember(farmId) && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+      allow delete: if isAdmin();
+
+      match /blocks/{blockId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidOrchardBlock(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidOrchardBlock(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /pins/{pinId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidInfrastructurePin(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidInfrastructurePin(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /viewport/current {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidMapViewport(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidMapViewport(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /events/{eventId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidDiaryEvent(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidDiaryEvent(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /settings/farm {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidFarmSettings(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidFarmSettings(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /settings/safety {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidSafetyChecklist(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidSafetyChecklist(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /settings/model_params {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
+        allow update: if isFarmMember(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
+        allow delete: if isFarmMember(farmId) && isAdmin();
+      }
+
+      match /settings/assets {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidFarmAssets(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidFarmAssets(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /usage/{date} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidUsageTracking(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidUsageTracking(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /harvests/{harvestId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidHarvestRecord(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidHarvestRecord(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /nutrition_reports/{reportId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidNutritionReport(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidNutritionReport(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /nutrition_data/{reportId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidNutrientData(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidNutrientData(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /issues/{issueId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidFieldIssueCreate(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidFieldIssueUpdate(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /archived_issues/{issueId} {
+        allow read: if isFarmMember(farmId);
+        // Archive copies keep original reportedBy — any farm member may archive.
+        allow create: if isFarmMember(farmId) &&
+                      isValidFieldIssueShape(request.resource.data) &&
+                      request.resource.data.status == 'archived';
+        allow update: if isFarmMember(farmId) && isValidFieldIssueUpdate(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /pathTraces/{traceId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidPathTrace(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidPathTrace(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /tracks/{trackId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidFarmTrack(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidFarmTrack(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidTask(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidTask(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /drying_sessions/{sessionId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidDryingSession(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidDryingSession(request.resource.data);
+        allow delete: if isFarmMember(farmId);
+      }
+
+      match /intelligence/{id} {
+        allow read: if isFarmMember(farmId);
+        allow write: if isFarmMember(farmId) && isValidIntelligenceCache(request.resource.data);
+      }
+
+      match /active_locations/{userId} {
+        allow read: if isFarmMember(farmId);
+        allow write: if isFarmMember(farmId) && isOwner(userId) && isValidUserLocation(request.resource.data);
+      }
+
+      match /financial_transactions/{transactionId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidFinancialTransaction(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidFinancialTransaction(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /financial_summaries/{summaryId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidFinancialSummary(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidFinancialSummary(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /settings/financial {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
+        allow update: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /budgets/{budgetId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidBudget(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidBudget(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /processing_logs/{logId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidProcessingLog(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidProcessingLog(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /packing_logs/{logId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidPackingLog(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidPackingLog(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /inventory/{itemId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidInventoryItem(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidInventoryItem(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /machinery/{machineId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidMachineryItem(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidMachineryItem(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /employees/{employeeId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidEmployee(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidEmployee(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /energy_logs/{logId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidEnergyLog(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidEnergyLog(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /rd_projects/{projectId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidRDProject(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidRDProject(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /rd_expenses/{expenseId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidRDExpense(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidRDExpense(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /marketing_campaigns/{campaignId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidMarketingCampaign(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidMarketingCampaign(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+
+      match /marketing_expenses/{expenseId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) && isValidMarketingExpense(request.resource.data);
+        allow update: if isFarmMember(farmId) && isValidMarketingExpense(request.resource.data);
+        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+      }
+      match /aggregates/{aggregateId} {
+        allow read: if isFarmMember(farmId);
+        allow write: if isFarmMember(farmId);
+      }
+      match /environmental_cache/{cacheId} {
+        allow read: if isFarmMember(farmId);
+        allow write: if isFarmMember(farmId);
+      }
+    }
+
+    match /invitations/{email} {
+      allow read: if isAuthorized() && (request.auth.token.email.lower() == email.lower() || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAuthorized() && (request.auth.token.email.lower() == email.lower() || isAdmin());
+    }
+
+    // Invite PINs are minted/redeemed via Admin SDK (Express / Functions).
+    // Clients must not read or write plaintext codes.
+    match /access_pins/{pinId} {
+      allow read, write: if false;
+    }
+
+    match /config/accessControl {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /whitelist/{email} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /blacklist/{email} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /metrics_global/all {
+      allow read: if isAdmin();
+      allow write: if isAuthenticated() && isValidUsageMetrics(request.resource.data);
+    }
+
+    match /metrics_daily/{date} {
+      allow read: if isAdmin();
+      allow write: if isAuthenticated() && isValidUsageMetrics(request.resource.data);
+    }
+
+    match /metrics_users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) && isValidUsageMetrics(request.resource.data);
+    }
+  }
+}

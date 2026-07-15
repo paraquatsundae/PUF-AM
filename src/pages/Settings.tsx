@@ -1,0 +1,838 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
+import { clsx } from 'clsx';
+import { 
+  Settings as SettingsIcon, 
+  Shield, 
+  Cpu, 
+  Save, 
+  RefreshCcw, 
+  AlertTriangle,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Database,
+  Zap,
+  Droplets,
+  ThermometerSun,
+  FileText,
+  ExternalLink,
+  Map as MapIcon,
+  DollarSign,
+  Lock,
+  Unlock,
+  Plus,
+  Minus
+} from 'lucide-react';
+import { useAuth, OperationType, handleFirestoreError } from '../contexts/AuthContext';
+import { db } from '../firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { InvitePinManager } from '../components/InvitePinManager';
+
+interface ModelParameters {
+  blightSensitivity: number;
+  cropCoefficient: number;
+  gddBaseTemp: number;
+  humidityGradientFactor: number;
+  splashMultiplier: number;
+  chemRainWashoffRate: number;
+  bioColonizationEff: number;
+  bioFavorableGrowthRate: number;
+  bioEnvDegradationCoef: number;
+  springStartingInoculum: number;
+  latencyGDDThreshold: number;
+  secondarySpreadMultiplier: number;
+  treeHeight: number;
+  canopyWidth: number;
+  rowSpacing: number;
+  chemEfficacy: number;
+  bioEfficacy: number;
+  marketPrice: number;
+  harvestCostPerKg: number;
+  waterCostPerML: number;
+}
+
+const DEFAULT_PARAMS: ModelParameters = {
+  blightSensitivity: 0.85,
+  cropCoefficient: 1.15,
+  gddBaseTemp: 10.0,
+  humidityGradientFactor: 1.2,
+  splashMultiplier: 1.5,
+  chemRainWashoffRate: 0.05,
+  bioColonizationEff: 0.75,
+  bioFavorableGrowthRate: 1.1,
+  bioEnvDegradationCoef: 0.75,
+  springStartingInoculum: 0.1,
+  latencyGDDThreshold: 120.0,
+  secondarySpreadMultiplier: 1.5,
+  treeHeight: 4.5,
+  canopyWidth: 4.0,
+  rowSpacing: 7.0,
+  chemEfficacy: 95,
+  bioEfficacy: 30,
+  marketPrice: 3.30,
+  harvestCostPerKg: 0.45,
+  waterCostPerML: 150
+};
+
+function ParameterGlossary() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="bg-[#E4E3E0] border border-[#141414] rounded-2xl overflow-hidden mt-6">
+      <div 
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-[#d6d5d2] transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-3">
+          <Info className="w-5 h-5 text-[#141414]" />
+          <h3 className="font-mono text-sm font-bold uppercase tracking-wider text-[#141414]">Parameter Glossary & Measurement Guide</h3>
+        </div>
+        {isOpen ? <ChevronUp className="w-5 h-5 text-[#141414]" /> : <ChevronDown className="w-5 h-5 text-[#141414]" />}
+      </div>
+      
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="p-6 pt-0 border-t border-[#141414]/20 space-y-8 text-sm text-[#141414] mt-4 font-sans">
+              
+              {/* Blight Risk Parameters */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#141414]/20 pb-2">
+                  <Zap className="w-4 h-4 text-amber-600" />
+                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider">Blight Risk Parameters</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Sensitivity Threshold</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> A modifier that adjusts the baseline susceptibility of the orchard to <em>Xanthomonas arboricola pv. juglandis</em>. It acts as a genetic or historical risk weight.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Determined by the specific walnut cultivar planted in the block (e.g., 'Chandler' vs. 'Franquette') and historical disease pressure. It is input as a relative decimal: <code>1.0</code> represents average susceptibility, <code>&lt; 1.0</code> indicates a highly resistant block, and <code>&gt; 1.0</code> indicates a highly susceptible block with a history of severe blight.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Humidity Gradient Factor</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> An environmental multiplier that accounts for the discrepancy between the relative humidity (RH) recorded by an open-air weather station and the actual RH trapped deep inside the orchard canopy.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Calibrated by temporarily placing micro-sensors inside the canopy and comparing their readings to the main farm weather station. A value of <code>1.0</code> assumes the canopy matches the weather station; a value like <code>1.2</code> simulates a microclimate that stays 20% more humid than the surrounding air.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Chemical Rain Washoff Rate</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The rate at which chemical protective barriers (such as copper sprays) are physically eroded and washed off the leaves by precipitation.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on the specific chemical formulation's manufacturer-rated "rainfastness" and the use of agricultural stickers/adjuvants. A higher value means the chemical washes off easily and requires frequent re-application after rain; a lower value indicates a highly rainfast chemical bond.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Application Method Penetration Penalty</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> A dynamic reduction in spray efficacy based on how the product is applied (Ground, Drone, Helicopter, Aeroplane) relative to the density of the orchard canopy.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Because blight is a top-down disease (originating in the upper canopy and washing down), aerial applications (Helicopters, Drones) that coat the top of the tree suffer lower penetration penalties in dense orchards. Ground sprayers (Airblast) suffer the highest penalties as they struggle to push product through dense lower canopies to reach the critical upper infection zones.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Splash Multiplier</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> A kinetic energy variable that simulates how effectively heavy rainfall physically disperses bacteria from infected tissues (like overwintering buds) to healthy tissues.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on regional weather patterns and storm intensity. If the orchard is in a region prone to sudden, violent downpours (high kinetic energy), this should be increased (e.g., <code>1.2</code> to <code>1.5</code>). If the region typically experiences light, misty rain, it should remain closer to <code>1.0</code>.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Horticultural Parameters */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#141414]/20 pb-2">
+                  <ThermometerSun className="w-4 h-4 text-emerald-600" />
+                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider">Horticultural Parameters</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Crop Coefficient (Kc)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> A horticultural metric representing the canopy's density, transpiration rate, and shading effect. It directly influences how much moisture is trapped inside the tree compared to the ambient air.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> This value is automatically calculated in real-time based on the tree spacing, row spacing, and canopy closure data you provide in your Orchard Map. This allows the model to generate highly accurate, block-specific microclimate profiles.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">GDD Base Temp (°C)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The minimum temperature threshold below which tree phenology and pathogen development effectively stall.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Scientifically established via phenological tracking. For Persian walnuts, this is standardly set at <code>10.0°C</code> (50°F). It should only be adjusted if calibrating the model for a specific, atypical micro-region or a newly introduced hybrid rootstock.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Bio-Establishment Rate (The Colonization Phase)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> When a grower sprays, what percentage of the biological agent actually survives, adheres to the canopy, and establishes a population? This is about the physical and environmental success of the application.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Influenced by the product's viability and the environmental conditions during application (e.g., did it wash off? was UV too high? was the tank mix good?). A value of <code>1.0</code> assumes optimal establishment. Lower values (e.g., <code>0.7</code>) should be used if the biologicals were applied under sub-optimal conditions.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Bio-Multiplication Rate</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The daily growth factor of the biological population when environmental conditions are favorable (Temp 15-25°C and RH &gt; 80%).</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on the specific biological strain's reproductive capacity. A value of <code>1.1</code> means the population grows by 10% each day under ideal conditions.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Bio-Survival Rate (Hostile Decay)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The percentage of the biological population that survives each day when environmental conditions are hostile (outside the favorable range).</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Determined by the strain's environmental resilience. A value of <code>0.75</code> means 25% of the population dies off daily when conditions are sub-optimal.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Inoculum & Latency */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#141414]/20 pb-2">
+                  <Database className="w-4 h-4 text-blue-600" />
+                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider">Inoculum & Latency</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Spring Starting Inoculum</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The baseline amount of bacterial inoculum present in the orchard at the beginning of the season (e.g., in dormant buds or catkins).</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Estimated based on the severity of blight in the previous season and the efficacy of dormant sprays. A value of <code>0.1</code> represents a clean orchard, while <code>1.0+</code> indicates high historical pressure.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Latency GDD Threshold</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The accumulated heat units (Growing Degree Days) required for a microscopic, invisible infection to incubate and erupt into a visible, oozing lesion.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on the pathogen's thermal biology. The default is typically around <code>120 GDD</code>. Adjusting this changes how quickly the model predicts symptom appearance after an infection event.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Secondary Spread Multiplier</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The exponential growth factor applied when latent infections erupt, releasing massive amounts of new bacteria back into the canopy.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Represents the explosive nature of secondary spread. A value of <code>1.5</code> means erupting lesions contribute 50% more inoculum to the active threat pool than primary sources, driving rapid epidemic development if weather is favorable.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Orchard Architecture & Genetics */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#141414]/20 pb-2">
+                  <Shield className="w-4 h-4 text-emerald-600" />
+                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider">Orchard Architecture & Genetics</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Tree Density (trees/ha)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The physical spacing and number of trees planted per hectare. It normalizes the Canopy Density Factor (CDF) to simulate airflow and moisture retention.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Calculated by dividing 10,000 by the product of row spacing and tree spacing (in meters). High density orchards (e.g., 300+ trees/ha) trap more humidity and amplify rain splash dispersal between adjacent canopies compared to traditional wide-spaced orchards.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Canopy Closure (%)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The percentage of the orchard floor shaded by the tree canopy at solar noon. It directly impacts microclimate humidity and leaf wetness duration.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Visually estimated or measured using aerial imagery/PAR sensors. A closed canopy (80-100%) severely restricts airflow and sunlight penetration, meaning morning dew or rain takes significantly longer to dry, drastically increasing the infection window.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Resistance Profile (Cultivar & Pathogen)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The combined genetic susceptibility of the walnut cultivar and the acquired chemical/biological resistance of the local bacterial population.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> 
+                      <br/>• <em>Chemical Efficacy:</em> Set based on lab testing (MIC values). High resistance (40-60%) means bacteria survive standard copper rates. Fully susceptible (90-100%) means standard sprays provide maximum protection.
+                      <br/>• <em>Biological Efficacy (The Antagonistic Phase):</em> Once established, how effectively does this specific biological agent suppress or outcompete the blight? A bio-control might colonize beautifully (high colonization), but if the local blight strain is resistant or the bio-control is just a weak competitor, its actual control over the disease is low (low efficacy).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+interface SliderControlProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (val: number) => void;
+  description?: string;
+  unit?: string;
+  isLocked: boolean;
+}
+
+function SliderControl({ label, value, min, max, step, onChange, description, unit, isLocked }: SliderControlProps) {
+  const handleIncrement = () => {
+    if (isLocked) return;
+    const newValue = Math.min(max, value + step);
+    onChange(Number(newValue.toFixed(3)));
+  };
+
+  const handleDecrement = () => {
+    if (isLocked) return;
+    const newValue = Math.max(min, value - step);
+    onChange(Number(newValue.toFixed(3)));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-end">
+        <label className="text-[10px] font-mono font-bold uppercase text-slate-700">{label}</label>
+        <span className="text-xs font-mono font-bold text-slate-900">{value}{unit}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleDecrement}
+          disabled={isLocked || value <= min}
+          className="p-1.5 bg-white border border-[#141414] rounded-md hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <Minus className="w-3 h-3" />
+        </button>
+        <input 
+          type="range" 
+          min={min} 
+          max={max} 
+          step={step}
+          value={value}
+          disabled={isLocked}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="flex-1 accent-[#141414] disabled:opacity-50 disabled:cursor-not-allowed h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <button
+          onClick={handleIncrement}
+          disabled={isLocked || value >= max}
+          className="p-1.5 bg-white border border-[#141414] rounded-md hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+      {description && <p className="text-[9px] italic opacity-60 leading-tight">{description}</p>}
+    </div>
+  );
+}
+
+export function Settings() {
+  const navigate = useNavigate();
+  const { userData, user, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<'general' | 'advanced'>('general');
+  const [params, setParams] = useState<ModelParameters>(DEFAULT_PARAMS);
+  const [isLocked, setIsLocked] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  useEffect(() => {
+    if (!userData?.farmId) return;
+
+    const docRef = doc(db, 'farms', userData.farmId, 'settings', 'model_params');
+    
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setParams({
+          ...DEFAULT_PARAMS,
+          ...docSnap.data()
+        } as ModelParameters);
+      } else {
+        // Initialize with defaults if not exists
+        setParams(DEFAULT_PARAMS);
+      }
+      setLoading(false);
+    }, (error) => {
+      setLoading(false);
+      try {
+        handleFirestoreError(error, OperationType.GET, `farms/${userData.farmId}/settings/model_params`);
+      } catch (e) {
+        // Error is already logged by handleFirestoreError
+      }
+    });
+
+    return () => unsubscribe();
+  }, [userData?.farmId]);
+
+  const handleSaveParams = async () => {
+    if (!userData?.farmId || !isAdmin) return;
+    
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const docRef = doc(db, 'farms', userData.farmId, 'settings', 'model_params');
+      await setDoc(docRef, params);
+      setIsLocked(true);
+      setMessage({ type: 'success', text: 'Model parameters updated successfully.' });
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to update parameters. Check permissions.' });
+      try {
+        handleFirestoreError(error, OperationType.WRITE, `farms/${userData.farmId}/settings/model_params`);
+      } catch (e) {
+        // Error is already logged by handleFirestoreError
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetDefaults = () => {
+    if (window.confirm('Are you sure you want to reset all parameters to regional defaults?')) {
+      setParams(DEFAULT_PARAMS);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500 font-mono">INITIALIZING ENGINE...</div>;
+  }
+
+  return (
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-8 pb-20">
+      <header className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+            <SettingsIcon className="w-8 h-8 text-slate-700" />
+            Settings
+          </h1>
+          <p className="text-slate-500">Manage your farm configuration and engine parameters.</p>
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+            activeTab === 'general' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          General
+          {activeTab === 'general' && (
+            <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('advanced')}
+          className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+            activeTab === 'advanced' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Advanced
+          {activeTab === 'advanced' && (
+            <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
+          )}
+        </button>
+      </div>
+
+      <div className="py-4">
+        {activeTab === 'general' ? (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-lg font-bold text-slate-900">Farm Profile</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Farm Name</label>
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={userData?.farmId || 'Loading...'} 
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed"
+                  />
+                  <p className="text-[10px] text-slate-400 italic">Farm ID is managed by the organization administrator.</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Subscription Tier</label>
+                  <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-700 font-bold uppercase text-xs flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    {userData?.subscriptionTier || 'Free'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {isAdmin && <InvitePinManager />}
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-lg font-bold text-slate-900">User Preferences</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl opacity-50">
+                  <div>
+                    <p className="font-medium text-slate-900">Email Notifications (Coming Soon)</p>
+                    <p className="text-xs text-slate-500">Receive daily risk summaries and critical alerts.</p>
+                  </div>
+                  <div className="w-12 h-6 bg-slate-300 rounded-full relative cursor-not-allowed">
+                    <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full" />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl opacity-50">
+                  <div>
+                    <p className="font-medium text-slate-900">SMS Alerts (Premium)</p>
+                    <p className="text-xs text-slate-500">Get instant SMS notifications for high-risk events.</p>
+                  </div>
+                  <div className="w-12 h-6 bg-slate-300 rounded-full relative cursor-not-allowed">
+                    <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-lg font-bold text-slate-900">Legal & Compliance</h2>
+              <div className="space-y-2">
+                <button 
+                  onClick={() => navigate('/privacy')}
+                  className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Shield className="w-5 h-5 text-emerald-600" />
+                    <span className="font-medium text-slate-900">Privacy Policy</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                </button>
+                <button 
+                  onClick={() => navigate('/terms')}
+                  className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-indigo-600" />
+                    <span className="font-medium text-slate-900">Terms of Service</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {!isAdmin ? (
+              <div className="bg-amber-50 border border-amber-200 p-8 rounded-2xl text-center space-y-4">
+                <Shield className="w-12 h-12 text-amber-600 mx-auto" />
+                <h2 className="text-xl font-bold text-amber-900">Restricted Access</h2>
+                <p className="text-amber-700 max-w-md mx-auto">
+                  The Model Modifier Menu is restricted to Farm Managers and Researchers with Administrative privileges.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Technical Header */}
+                <div className="bg-[#141414] text-[#E4E3E0] p-6 rounded-2xl border border-[#141414] shadow-xl space-y-4 font-mono">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <Cpu className="w-6 h-6 text-emerald-400" />
+                      <h2 className="text-lg font-bold uppercase tracking-wider">Model Modifier Engine v2.4</h2>
+                    </div>
+                    <button
+                      onClick={() => setIsLocked(!isLocked)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                        isLocked 
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      }`}
+                    >
+                      {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                      {isLocked ? 'Controls Locked' : 'Controls Active'}
+                    </button>
+                  </div>
+                  <p className="text-xs opacity-70 leading-relaxed max-w-2xl">
+                    CAUTION: Adjusting these parameters globally recalibrates the mechanistic risk engine. 
+                    Changes will propagate to all Farm Diary recommendations and Map visualizations within 5 minutes.
+                  </p>
+                </div>
+
+                {message && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium ${
+                      message.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}
+                  >
+                    {message.type === 'success' ? <Save className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                    {message.text}
+                  </motion.div>
+                )}
+
+                {/* Parameter Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Blight Parameters */}
+                  <div className="bg-[#E4E3E0] border border-[#141414] p-6 rounded-2xl space-y-6">
+                    <div className="flex items-center gap-2 border-b border-[#141414] pb-2">
+                      <Zap className="w-4 h-4" />
+                      <h3 className="font-mono text-xs font-bold uppercase">Blight Risk Parameters</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <SliderControl 
+                        label="Sensitivity Threshold"
+                        value={params.blightSensitivity}
+                        min={0} max={1} step={0.01}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, blightSensitivity: val})}
+                        description="Lower values increase alert frequency (Ji et al. baseline: 0.85)"
+                      />
+
+                      <SliderControl 
+                        label="Humidity Gradient Factor"
+                        value={params.humidityGradientFactor}
+                        min={1} max={2} step={0.05}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, humidityGradientFactor: val})}
+                        description="Weights LWD duration based on ambient RH levels."
+                      />
+
+                      <SliderControl 
+                        label="Chem Rain Washoff Rate"
+                        value={params.chemRainWashoffRate}
+                        min={0} max={0.2} step={0.01}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, chemRainWashoffRate: val})}
+                        description="Determines chemical degradation rate per mm of rainfall."
+                      />
+
+                      <SliderControl 
+                        label="Splash Multiplier"
+                        value={params.splashMultiplier || 1.0}
+                        min={1} max={3} step={0.1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, splashMultiplier: val})}
+                        description="Simulates bacterial dispersal from rain kinetic energy."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Horticultural Parameters */}
+                  <div className="bg-[#E4E3E0] border border-[#141414] p-6 rounded-2xl space-y-6">
+                    <div className="flex items-center gap-2 border-b border-[#141414] pb-2">
+                      <ThermometerSun className="w-4 h-4" />
+                      <h3 className="font-mono text-xs font-bold uppercase">Horticultural Parameters</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <SliderControl 
+                        label="GDD Base Temp (°C)"
+                        value={params.gddBaseTemp}
+                        min={5} max={15} step={0.5}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, gddBaseTemp: val})}
+                        description="Baseline temperature for chill and growth calculations."
+                      />
+
+                      <SliderControl 
+                        label="Bio-Establishment Rate"
+                        value={params.bioColonizationEff}
+                        min={0} max={1} step={0.05}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, bioColonizationEff: val})}
+                        description="Success rate of biological agent establishment."
+                      />
+
+                      <SliderControl 
+                        label="Bio-Multiplication Rate"
+                        value={params.bioFavorableGrowthRate || 1.1}
+                        min={1.0} max={1.5} step={0.01}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, bioFavorableGrowthRate: val})}
+                        description="Daily growth factor under favorable conditions."
+                      />
+
+                      <SliderControl 
+                        label="Bio-Survival Rate"
+                        value={params.bioEnvDegradationCoef || 0.75}
+                        min={0.5} max={1.0} step={0.01}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, bioEnvDegradationCoef: val})}
+                        description="Daily survival rate under hostile conditions."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Inoculum & Latency */}
+                  <div className="bg-[#E4E3E0] border border-[#141414] p-6 rounded-2xl space-y-6">
+                    <div className="flex items-center gap-2 border-b border-[#141414] pb-2">
+                      <Database className="w-4 h-4" />
+                      <h3 className="font-mono text-xs font-bold uppercase">Inoculum & Latency</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <SliderControl 
+                        label="Spring Starting Inoculum"
+                        value={params.springStartingInoculum || 0.1}
+                        min={0.1} max={5.0} step={0.1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, springStartingInoculum: val})}
+                        description="Historical blight pressure from the previous season."
+                      />
+
+                      <SliderControl 
+                        label="Latency GDD Threshold"
+                        value={params.latencyGDDThreshold || 120}
+                        min={50} max={300} step={5}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, latencyGDDThreshold: val})}
+                        description="Heat units required for invisible infections to erupt."
+                      />
+
+                      <SliderControl 
+                        label="Secondary Spread Mult."
+                        value={params.secondarySpreadMultiplier || 1.5}
+                        min={1.0} max={5.0} step={0.1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, secondarySpreadMultiplier: val})}
+                        description="Exponential growth factor when latent infections erupt."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Canopy Geometry & TRV Engine */}
+                  <div className="bg-[#E4E3E0] border border-[#141414] p-6 rounded-2xl space-y-6">
+                    <div className="flex items-center gap-2 border-b border-[#141414] pb-2">
+                      <Shield className="w-4 h-4" />
+                      <h3 className="font-mono text-xs font-bold uppercase">Canopy Geometry & TRV Engine</h3>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="p-3 bg-white border border-[#141414] rounded-xl space-y-2">
+                        <div className="flex justify-between items-center">
+                          <p className="text-[10px] font-bold text-slate-700 uppercase font-mono">Calculated TRV</p>
+                          <span className="text-sm font-bold text-indigo-600 font-mono">
+                            {Math.round((params.treeHeight * params.canopyWidth * 10000) / params.rowSpacing).toLocaleString()} m³/ha
+                          </span>
+                        </div>
+                        <p className="text-[9px] text-slate-500 italic leading-relaxed">
+                          Tree Row Volume (TRV) determines target spray volume and biological potential.
+                        </p>
+                      </div>
+
+                      <SliderControl 
+                        label="Tree Height (m)"
+                        value={params.treeHeight}
+                        min={1} max={20} step={0.1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, treeHeight: val})}
+                        unit="m"
+                      />
+
+                      <SliderControl 
+                        label="Canopy Width (m)"
+                        value={params.canopyWidth}
+                        min={1} max={10} step={0.1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, canopyWidth: val})}
+                        unit="m"
+                      />
+
+                      <SliderControl 
+                        label="Row Spacing (m)"
+                        value={params.rowSpacing}
+                        min={3} max={15} step={0.5}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, rowSpacing: val})}
+                        unit="m"
+                      />
+
+                      <SliderControl 
+                        label="Chemical Efficacy (%)"
+                        value={params.chemEfficacy || 95}
+                        min={0} max={100} step={1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, chemEfficacy: val})}
+                        unit="%"
+                        description="Adjust based on your latest orchard resistance testing."
+                      />
+
+                      <SliderControl 
+                        label="Biological Efficacy (%)"
+                        value={params.bioEfficacy || 30}
+                        min={0} max={100} step={1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, bioEfficacy: val})}
+                        unit="%"
+                        description="Adjust based on lab plaque assays or establishment rates."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Market & Economic Parameters - Distinct Styling for Clarity */}
+                  <div className="bg-white border border-indigo-100 p-6 rounded-2xl space-y-6 shadow-sm ring-1 ring-indigo-50 md:col-span-3 lg:col-span-1">
+                    <div className="flex items-center gap-3 border-b border-indigo-50 pb-3">
+                      <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
+                        <DollarSign className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Market & Economics</h3>
+                        <p className="text-[10px] text-slate-400 font-medium">FINANCIAL MODELING INPUTS</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-6">
+                      <SliderControl 
+                        label="Market Price (AUD/kg)"
+                        value={params.marketPrice || 3.30}
+                        min={1.0} max={10.0} step={0.1}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, marketPrice: val})}
+                        description="Projected farm gate price for Nut-In-Shell."
+                      />
+
+                      <SliderControl 
+                        label="Harvest Cost (AUD/kg)"
+                        value={params.harvestCostPerKg || 0.45}
+                        min={0.1} max={2.0} step={0.05}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, harvestCostPerKg: val})}
+                        description="Estimated cost per kg for harvesting and processing."
+                      />
+
+                      <SliderControl 
+                        label="Water Cost (AUD/ML)"
+                        value={params.waterCostPerML || 150}
+                        min={50} max={1000} step={10}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, waterCostPerML: val})}
+                        description="Current cost of irrigation water per Megalitre."
+                      />
+                    </div>
+
+                    <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
+                      <p className="text-[9px] text-indigo-700 leading-relaxed">
+                        <span className="font-bold uppercase">Note:</span> These values directly impact the <strong>Projected Season Profit</strong> and <strong>ROI</strong> calculations on your dashboard.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parameter Glossary */}
+                <ParameterGlossary />
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button
+                    onClick={handleSaveParams}
+                    disabled={saving}
+                    className="flex-1 bg-[#141414] text-[#E4E3E0] py-4 rounded-xl font-mono text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  >
+                    {saving ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    {saving ? 'Processing...' : 'Deploy Parameters'}
+                  </button>
+                  <button
+                    onClick={handleResetDefaults}
+                    className="px-6 py-4 border border-[#141414] text-[#141414] rounded-xl font-mono text-xs font-bold uppercase hover:bg-white transition-colors"
+                  >
+                    Reset to Defaults
+                  </button>
+                </div>
+
+                <div className="p-4 bg-slate-100 border border-slate-200 rounded-xl flex items-start gap-3">
+                  <Database className="w-5 h-5 text-slate-500 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-700 uppercase font-mono">Audit Log Active</p>
+                    <p className="text-[10px] text-slate-500 italic">
+                      All parameter changes are logged with timestamp and user ID: {user?.uid}. 
+                      Historical engine states are preserved for research reconciliation.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

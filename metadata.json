@@ -1,0 +1,8 @@
+{
+  "name": "Walnut Farm Manager",
+  "description": "A professional walnut farm management platform featuring blight risk forecasting, smart drying bin logistics with operator tracking, interactive orchard mapping, and multi-user team coordination.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

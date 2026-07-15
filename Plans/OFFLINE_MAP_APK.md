@@ -1,0 +1,121 @@
+# Offline Map + Android APK Roadmap
+
+**Created:** 13 July 2026  
+**Last updated:** 15 July 2026  
+**Status:** Phase 1 polished in-app; Phase 2 Capacitor Android scaffolded; Phase 3 planned
+
+---
+
+## Phase 1 — Local farm basemap (done)
+
+First open of **Orchard Map** without a local pack prompts:
+
+1. Location search (Nominatim)
+2. Region preview + size warning (auto maxZoom shrink; hard cap 20k tiles)
+3. Download Esri World Imagery (z12–max) into IndexedDB
+4. Map uses cached tiles first; works offline for that region
+5. **Skip for now** persists per farm; header shows Offline / Save / Update / Clear
+
+| Module | Path |
+|--------|------|
+| Pack store | `src/lib/basemapPack.ts` |
+| Downloader | `src/lib/tileDownloader.ts` |
+| Setup UI | `src/components/map/FarmBasemapSetup.tsx` |
+| Cached layer | `src/components/map/CachedTileLayer.tsx` |
+| Wire-up | `src/pages/OrchardMap.tsx` |
+
+Failed updates do **not** wipe an existing pack. When offline, the cached layer does not hit the network.
+
+### Farm geometry (local-first, done)
+
+Blocks, pins, tracks, and viewport use IndexedDB (`sentinut_farm_geometry`) the same way tiles do:
+
+| Module | Path |
+|--------|------|
+| IDB store + pending queue | `src/lib/farmGeometryIdb.ts` |
+| Load / persist / flush sync | `src/lib/farmGeometrySync.ts` |
+| UI store | `src/lib/mapStore.ts` |
+
+Writes always hit the device first; when online they mirror to Firestore. Offline edits queue and flush on `online`.
+
+---
+
+## Phase 2 — Capacitor Android APK (scaffold done)
+
+Installable paddock shell using the same Vite build. Tiles still live in **IndexedDB** (Filesystem migration later if quota bites).
+
+| Item | Value |
+|------|--------|
+| App ID | `com.sentinut.farm` |
+| App name | SentiNut |
+| Config | `capacitor.config.ts` |
+| Native project | `android/` |
+| Web dir | `dist` (Vite `base: './'`) |
+
+### Workshop build
+
+```powershell
+cd C:\Projects\Walnut_farm_manager
+npm run build:android
+npm run open:android
+```
+
+In Android Studio: run on a device/emulator. Set `VITE_WORKSHOP_MODE=true` in `.env` before `build:android` for demos without Google login.
+
+### DPIRD weather cache (historic + daily)
+
+Safeguard against the 100-day API page trap:
+
+| Layer | Behaviour |
+|-------|-----------|
+| `weather_cache/{station}` | Stores ~800 days of daily summaries |
+| Cloud Function hourly | Merges **last 14 days** only; backfills historic when thin |
+| Dev `POST /api/weather/ensure-cache` | Bootstraps/fills gaps into Firestore from Express |
+| Blight client | Reads cache first; calls ensure-cache in dev if coverage missing |
+
+### Invite PIN / API from the emulator
+
+By default Capacitor **live-loads** the app from your PC (`http://10.0.2.2:3000`) so invite PIN `/api` works:
+
+1. Keep `npm run dev` running (listens on `0.0.0.0:3000`).
+2. `npx cap sync android` (or `npm run build:android`) then Run ▶ in Android Studio.
+3. Emulator must have network (not airplane mode) while signing in.
+
+Packaged shell (no live server): `CAP_PACKAGED=1 npx cap sync android` — then API uses `http://10.0.2.2:3000` from `apiBase.ts`.
+
+Physical phone: `CAP_SERVER_URL=http://<pc-lan-ip>:3000` before sync, or set `VITE_API_BASE_URL` for packaged builds.
+
+### Airplane-mode check
+
+1. Online: open Orchard Map → download a farm pack for a tight place (e.g. Manjimup WA).
+2. Enable airplane mode.
+3. Confirm satellite imagery still paints inside the pack bounds; missing tiles stay dark.
+4. Confirm previously synced blocks/issues still load from local caches.
+
+### Still to do (later)
+
+- Move large tile packs to Capacitor Filesystem
+- Splash + icon polish
+- Play Store packaging
+
+---
+
+## Phase 3 — Sync adapters
+
+```
+Device outbox ──► Firebase Firestore (current)
+              └──► Local farm server (HTTP, future)
+```
+
+- Explicit outbox for creates/updates/deletes (map, diary)
+- `FirebaseSyncAdapter` wraps existing Firestore API
+- `LocalServerSyncAdapter` POSTs to workshop NAS / PC when online
+- v1 conflict: last-write-wins by `updatedAt`
+
+---
+
+## Not in Phase 1
+
+- Full offline weather / Storage photo queue
+- PWA service worker (APK path preferred for paddock)
+- NearMap / paid AU imagery
