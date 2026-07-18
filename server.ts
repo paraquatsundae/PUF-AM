@@ -8,12 +8,12 @@ dotenv.config();
 function warnMissingEnvKeys() {
   const checks: { name: string; present: boolean; note: string }[] = [
     {
-      name: 'VITE_DPIRD_API_KEY / DPIRD_API_KEY',
+      name: 'DPIRD_API_KEY',
       present: Boolean(
-        (process.env.VITE_DPIRD_API_KEY && process.env.VITE_DPIRD_API_KEY !== 'YOUR_DPIRD_API_KEY') ||
-        (process.env.DPIRD_API_KEY && process.env.DPIRD_API_KEY !== 'YOUR_DPIRD_API_KEY')
+        (process.env.DPIRD_API_KEY && process.env.DPIRD_API_KEY !== 'YOUR_DPIRD_API_KEY') ||
+        (process.env.VITE_DPIRD_API_KEY && process.env.VITE_DPIRD_API_KEY !== 'YOUR_DPIRD_API_KEY')
       ),
-      note: 'Weather proxy and blight risk will use fallback data',
+      note: 'Weather proxy and blight risk will use fallback data (server-only; do not use VITE_ prefix)',
     },
     {
       name: 'VITE_GOOGLE_MAPS_API_KEY',
@@ -21,7 +21,7 @@ function warnMissingEnvKeys() {
         process.env.VITE_GOOGLE_MAPS_API_KEY &&
         process.env.VITE_GOOGLE_MAPS_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY'
       ),
-      note: 'Google Maps satellite layer will not load (OpenStreetMap still works)',
+      note: 'Google Maps satellite layer will not load (OpenStreetMap still works). Restrict this key in Google Cloud — see Plans/API_KEY_SECURITY.md',
     },
   ];
 
@@ -38,7 +38,7 @@ function warnMissingEnvKeys() {
 async function startServer() {
   warnMissingEnvKeys();
   const app = createApiApp();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -52,13 +52,20 @@ async function startServer() {
     // Production static file serving
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    // SPA fallback — never shadow /api/*
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) return next();
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`LAN devices: http://<this-pc-ip>:${PORT} (same Wi‑Fi; keep this process running)`);
+    } else {
+      console.log(`PUFOM production listening on 0.0.0.0:${PORT}`);
+    }
   });
 }
 

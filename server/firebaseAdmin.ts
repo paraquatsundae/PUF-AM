@@ -44,6 +44,16 @@ export function getAdminApp(): admin.app.App {
   const projectId = process.env.FIREBASE_PROJECT_ID || config?.projectId;
   const saPath = resolveServiceAccountPath();
 
+  // Optional: full service-account JSON in env (Cloud Run secret) — never commit.
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  if (saJson) {
+    const cred = JSON.parse(saJson) as admin.ServiceAccount;
+    return admin.initializeApp({
+      credential: admin.credential.cert(cred),
+      projectId: projectId || (cred as { projectId?: string }).projectId,
+    });
+  }
+
   if (saPath && existsSync(saPath)) {
     const cred = JSON.parse(readFileSync(saPath, 'utf8'));
     return admin.initializeApp({
@@ -52,6 +62,7 @@ export function getAdminApp(): admin.app.App {
     });
   }
 
+  // Cloud Run / GCP: Application Default Credentials (no secrets/ file needed).
   return admin.initializeApp(projectId ? { projectId } : undefined);
 }
 

@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { runBlightModel, type WeatherData } from "./blightModel";
+import {
+  runBlightModel,
+  resolveCanopyGeometry,
+  hasExplicitCanopyGeometry,
+  growthStageFromDate,
+  resolveGrowthStageForDay,
+  SH_WALNUT_PHENOLOGY_BY_MONTH,
+  defaultCalibration,
+  type WeatherData,
+} from "./blightModel";
 
 function buildFavorableWeather(start: string, days: number): Record<string, WeatherData> {
   const weather: Record<string, WeatherData> = {};
@@ -151,8 +160,7 @@ describe("runBlightModel", () => {
     expect(dormantLast).toBeLessThanOrEqual(1.5);
   });
 
-  it("erupts latent infections after GDD latency threshold", () => {
-    // T=18 → ~8 GDD/day; threshold 120 → eruptions after ~15 days
+  it("does not run GDD latency / secondary eruptions by default", () => {
     const results = runBlightModel(
       new Date("2026-03-01"),
       new Date("2026-03-25"),
@@ -163,6 +171,24 @@ describe("runBlightModel", () => {
       "micro",
       undefined,
       { phenologyMode: "fixed" }
+    );
+
+    expect(results.every((r) => r.latentThreat === 0)).toBe(true);
+    expect(results.every((r) => r.eruptingThreat === 0)).toBe(true);
+  });
+
+  it("erupts latent infections when useSecondaryLatency is on", () => {
+    // T=18 → ~8 GDD/day; threshold 120 → eruptions after ~15 days
+    const results = runBlightModel(
+      new Date("2026-03-01"),
+      new Date("2026-03-25"),
+      "bloom",
+      {},
+      buildFavorableWeather("2026-03-01", 25),
+      {},
+      "micro",
+      undefined,
+      { phenologyMode: "fixed", useSecondaryLatency: true }
     );
 
     const withEruption = results.find((r) => r.eruptingThreat > 0);
@@ -187,11 +213,47 @@ describe("runBlightModel", () => {
     const july = results.find((r) => r.fullDate === "2025-07-15");
     const october = results.filter((r) => r.fullDate >= "2025-10-01" && r.fullDate <= "2025-10-31");
     const maxOctThreat = Math.max(...october.map((r) => r.threat));
-    const maxOctLatent = Math.max(...october.map((r) => r.latentThreat));
 
     expect(july?.threat ?? 0).toBeLessThan(0.2);
     expect(maxOctThreat).toBeGreaterThan(0.15);
-    expect(maxOctLatent).toBeGreaterThan(0);
+  });
+
+  it("applies scouting override only from scoutingEffectiveFrom onward", () => {
+    const weather = buildFavorableWeather("2025-07-01", 20);
+    const withScout = runBlightModel(
+      new Date("2025-07-01"),
+      new Date("2025-07-20"),
+      "dormant",
+      {},
+      weather,
+      {},
+      "micro",
+      undefined,
+      {
+        phenologyMode: "calendar",
+        scoutingStage: "bloom",
+        scoutingEffectiveFrom: "2025-07-10",
+      }
+    );
+    const calendarOnly = runBlightModel(
+      new Date("2025-07-01"),
+      new Date("2025-07-20"),
+      "dormant",
+      {},
+      weather,
+      {},
+      "micro",
+      undefined,
+      { phenologyMode: "calendar" }
+    );
+
+    const earlyScout = withScout.find((r) => r.fullDate === "2025-07-05")!;
+    const earlyCal = calendarOnly.find((r) => r.fullDate === "2025-07-05")!;
+    const lateScout = withScout.find((r) => r.fullDate === "2025-07-18")!;
+    const lateCal = calendarOnly.find((r) => r.fullDate === "2025-07-18")!;
+
+    expect(earlyScout.threat).toBeCloseTo(earlyCal.threat, 2);
+    expect(lateScout.threat).toBeGreaterThan(lateCal.threat);
   });
 
   it("still produces spring signal in a later season without inoculum gating", () => {
@@ -217,8 +279,114 @@ describe("runBlightModel", () => {
       (r) => r.fullDate >= "2024-10-01" && r.fullDate <= "2024-10-31"
     );
     const maxThreat = Math.max(...season2Bloom.map((r) => r.threat));
-    const maxLatent = Math.max(...season2Bloom.map((r) => r.latentThreat));
     expect(maxThreat).toBeGreaterThan(0.15);
-    expect(maxLatent).toBeGreaterThan(0);
+  });
+
+  it("keeps canopy microclimate off by default", () => {
+    const weather = buildFavorableWeather("2026-10-01", 10);
+    const denseCalib = {
+      ...defaultCalibration,
+      treeHeight: 8,
+      canopyWidth: 7,
+      rowSpacing: 5,
+    };
+
+    const off = runBlightModel(
+      new Date("2026-10-01"),
+      new Date("2026-10-10"),
+      "bloom",
+      {},
+      weather,
+      {},
+      "micro",
+      denseCalib,
+      { phenologyMode: "fixed" }
+    );
+    const on = runBlightModel(
+      new Date("2026-10-01"),
+      new Date("2026-10-10"),
+      "bloom",
+      {},
+      weather,
+      {},
+      "micro",
+      denseCalib,
+      { phenologyMode: "fixed", useCanopyMicroclimate: true }
+    );
+
+    const offThreat = off[off.length - 1]!.threat;
+    const onThreat = on[on.length - 1]!.threat;
+    expect(onThreat).toBeGreaterThan(offThreat);
+  });
+});
+
+describe("resolveCanopyGeometry", () => {
+  const fallback = {
+    treeHeight: defaultCalibration.treeHeight,
+    canopyWidth: defaultCalibration.canopyWidth,
+    rowSpacing: defaultCalibration.rowSpacing,
+  };
+
+  it("does not enable microclimate from fallback defaults alone", () => {
+    const g = resolveCanopyGeometry({ blocks: [], fallback });
+    expect(g.useCanopyMicroclimate).toBe(false);
+    expect(hasExplicitCanopyGeometry(fallback)).toBe(true); // defaults are positive numbers…
+    expect(g.treeHeight).toBe(fallback.treeHeight);
+  });
+
+  it("enables microclimate when a block has height, width, and spacing", () => {
+    const g = resolveCanopyGeometry({
+      selectedBlock: { treeHeight: 5, canopyWidth: 4, rowSpacing: 7 },
+      fallback,
+    });
+    expect(g.useCanopyMicroclimate).toBe(true);
+    expect(g.treeHeight).toBe(5);
+  });
+
+  it("enables microclimate only when sandbox overrides all three dimensions", () => {
+    const partial = resolveCanopyGeometry({
+      overrides: { treeHeight: 6, canopyWidth: null, rowSpacing: null },
+      fallback,
+    });
+    expect(partial.useCanopyMicroclimate).toBe(false);
+
+    const full = resolveCanopyGeometry({
+      overrides: { treeHeight: 6, canopyWidth: 5, rowSpacing: 8 },
+      fallback,
+    });
+    expect(full.useCanopyMicroclimate).toBe(true);
+    expect(full.treeHeight).toBe(6);
+  });
+});
+
+describe("SH calendar phenology", () => {
+  it("maps documented months to stages", () => {
+    expect(growthStageFromDate(new Date("2026-07-15T12:00:00"))).toBe("dormant");
+    expect(growthStageFromDate(new Date("2026-09-15T12:00:00"))).toBe("bud_break");
+    expect(growthStageFromDate(new Date("2026-10-15T12:00:00"))).toBe("bloom");
+    expect(growthStageFromDate(new Date("2026-12-15T12:00:00"))).toBe("post_bloom");
+    expect(growthStageFromDate(new Date("2026-03-15T12:00:00"))).toBe("shell_hardening");
+    expect(SH_WALNUT_PHENOLOGY_BY_MONTH).toHaveLength(5);
+  });
+
+  it("resolveGrowthStageForDay respects fixed, calendar, and scouting window", () => {
+    const jul = new Date("2025-07-05T12:00:00");
+    const julLate = new Date("2025-07-15T12:00:00");
+    expect(resolveGrowthStageForDay(jul, "bloom", { phenologyMode: "fixed" })).toBe("bloom");
+    expect(resolveGrowthStageForDay(jul, "bloom", { phenologyMode: "calendar" })).toBe("dormant");
+    expect(
+      resolveGrowthStageForDay(jul, "dormant", {
+        phenologyMode: "calendar",
+        scoutingStage: "bloom",
+        scoutingEffectiveFrom: "2025-07-10",
+      })
+    ).toBe("dormant");
+    expect(
+      resolveGrowthStageForDay(julLate, "dormant", {
+        phenologyMode: "calendar",
+        scoutingStage: "bloom",
+        scoutingEffectiveFrom: "2025-07-10",
+      })
+    ).toBe("bloom");
   });
 });

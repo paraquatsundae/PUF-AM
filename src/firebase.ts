@@ -1,5 +1,10 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, indexedDBLocalPersistence, initializeAuth } from 'firebase/auth';
+import {
+  getAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  initializeAuth,
+} from 'firebase/auth';
 import {
   initializeFirestore,
   doc,
@@ -31,11 +36,15 @@ export const db = initializeFirestore(
   firebaseConfig.firestoreDatabaseId
 );
 
-/** IndexedDB auth persistence is more reliable than defaults in Capacitor WebViews. */
+/**
+ * Remember-device: IndexedDB auth persistence on web and native so reopen
+ * skips invite PIN until explicit logout or app-data wipe.
+ */
 function createAuth() {
-  if (!isNative) return getAuth(app);
   try {
-    return initializeAuth(app, { persistence: indexedDBLocalPersistence });
+    return initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    });
   } catch {
     // HMR / second init — reuse existing Auth instance
     return getAuth(app);

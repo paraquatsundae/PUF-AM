@@ -2,19 +2,21 @@
   "name": "walnut-farm-manager",
   "private": true,
   "version": "0.1.0",
-  "description": "Walnut farm management platform with blight forecasting, orchard mapping, and team coordination.",
+  "description": "PUFOM — Orchard Manager. Walnut farm tools: blight forecasting, orchard mapping, and team coordination.",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "node server.ts",
+    "start": "tsx server.ts",
     "build": "vite build",
-    "build:android": "vite build && npx cap sync android",
+    "build:android": "powershell -Command \"$env:VITE_CAPACITOR='1'; npx vite build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npx cap sync android\"",
+    "sync:android:lan": "powershell -ExecutionPolicy Bypass -File scripts/sync-android-lan.ps1",
     "open:android": "npx cap open android",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "deploy:rules": "node scripts/deployFirestoreRules.mjs"
+    "deploy:rules": "node scripts/deployFirestoreRules.mjs",
+    "deploy:cloudrun": "powershell -ExecutionPolicy Bypass -File scripts/deploy-cloudrun.ps1"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",

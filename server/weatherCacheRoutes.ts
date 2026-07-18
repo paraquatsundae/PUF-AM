@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { getAdminDb } from './firebaseAdmin.ts';
+import { getDpirdApiKey } from './envSecrets.ts';
 import {
   WEATHER_HISTORIC_KEEP_DAYS,
   WEATHER_RECENT_REFRESH_DAYS,
@@ -32,9 +33,9 @@ function resolveStationMeta(stationCode: string) {
 export function registerWeatherCacheRoutes(app: Express) {
   app.post('/api/weather/ensure-cache', async (req: Request, res: Response) => {
     try {
-      const apiKey = process.env.VITE_DPIRD_API_KEY || process.env.DPIRD_API_KEY;
-      if (!apiKey || apiKey === 'YOUR_DPIRD_API_KEY') {
-        return res.status(401).json({ error: 'DPIRD API key missing' });
+      const apiKey = getDpirdApiKey();
+      if (!apiKey) {
+        return res.status(401).json({ error: 'DPIRD API key missing (set DPIRD_API_KEY in .env)' });
       }
 
       const stationCode = String(req.body?.stationCode || '').trim();

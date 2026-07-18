@@ -67,6 +67,11 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
+    // Invite-PIN custom tokens carry pinAuth + farmId; they must not depend on email whitelist.
+    function isPinAuthenticated() {
+      return isAuthenticated() && request.auth.token.pinAuth == true;
+    }
+
     function isWhitelisted() {
       let hasEmail = isAuthenticated() && ('email' in request.auth.token);
       let email = hasEmail ? request.auth.token.email.lower() : "";
@@ -88,20 +93,23 @@ service cloud.firestore {
     }
 
     function isAuthorized() {
-      return isAuthenticated() && isNotBlacklisted() && isWhitelisted();
+      return isAuthenticated() && isNotBlacklisted() && (isPinAuthenticated() || isWhitelisted());
     }
 
     function isFarmMember(farmId) {
       return isAdmin() || isFarmOwner(farmId) || (
-        isAuthorized() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.farmId == farmId
+        isAuthorized() && (
+          (isPinAuthenticated() && request.auth.token.farmId == farmId) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.farmId == farmId)
+        )
       );
     }
 
     function hasAgreedToTerms() {
       return isAuthorized() && 
         (isAdmin() || 
+         isPinAuthenticated() ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('hasAgreedToTerms', false) == true));
     }
@@ -190,7 +198,10 @@ service cloud.firestore {
     }
 
     function isValidOrchardBlock(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'cultivar', 'density', 'irrigation', 'areaHa', 'geojson']) &&
+      return hasOnlyAllowedFields([
+               'id', 'name', 'cultivar', 'density', 'irrigation', 'areaHa', 'geojson',
+               'rowSpacing', 'treeSpacing', 'treeHeight', 'canopyWidth', 'canopyClosure'
+             ]) &&
              hasRequiredFields(['id', 'geojson']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              (!('name' in data) || (data.name is string && data.name.size() < 100)) &&
@@ -198,6 +209,11 @@ service cloud.firestore {
              (!('density' in data) || (data.density is string && data.density.size() < 50)) &&
              (!('irrigation' in data) || (data.irrigation is string && data.irrigation.size() < 50)) &&
              (!('areaHa' in data) || (data.areaHa is number && data.areaHa >= 0)) &&
+             (!('rowSpacing' in data) || (data.rowSpacing is number && data.rowSpacing >= 0 && data.rowSpacing < 1000)) &&
+             (!('treeSpacing' in data) || (data.treeSpacing is number && data.treeSpacing >= 0 && data.treeSpacing < 1000)) &&
+             (!('treeHeight' in data) || (data.treeHeight is number && data.treeHeight >= 0 && data.treeHeight < 100)) &&
+             (!('canopyWidth' in data) || (data.canopyWidth is number && data.canopyWidth >= 0 && data.canopyWidth < 100)) &&
+             (!('canopyClosure' in data) || (data.canopyClosure is number && data.canopyClosure >= 0 && data.canopyClosure <= 1)) &&
              data.geojson is string && data.geojson.size() < 100000;
     }
 
@@ -946,6 +962,11 @@ service cloud.firestore {
     // Invite PINs are minted/redeemed via Admin SDK (Express / Functions).
     // Clients must not read or write plaintext codes.
     match /access_pins/{pinId} {
+      allow read, write: if false;
+    }
+
+    // Seasonal hourly chill series — Admin SDK only (Express chill endpoint).
+    match /chill_cache/{docId} {
       allow read, write: if false;
     }
 

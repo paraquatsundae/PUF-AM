@@ -298,4 +298,141 @@ export function registerAccessPinRoutes(app: Express) {
       });
     }
   });
+
+  app.get('/api/auth/members', async (req: Request, res: Response) => {
+    try {
+      const caller = await verifyBearer(req);
+      if (!caller.admin) {
+        return res.status(403).json({ error: 'Only farm admins can list members.' });
+      }
+
+      const userSnap = await getAdminDb().collection('users').doc(caller.uid).get();
+      const farmId = caller.farmId || userSnap.data()?.farmId;
+      if (!farmId) return res.json({ members: [] });
+
+      const snap = await getAdminDb().collection('users').where('farmId', '==', farmId).get();
+      const members = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          uid: d.id,
+          displayName: data.displayName || 'User',
+          email: data.email || null,
+          role: data.role || 'farmer',
+          farmId: data.farmId,
+          authMethod: data.authMethod || null,
+          createdAt: data.createdAt || null,
+        };
+      });
+
+      members.sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+      return res.json({ members });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Failed to list members',
+      });
+    }
+  });
+
+  app.post('/api/auth/update-member', async (req: Request, res: Response) => {
+    try {
+      const caller = await verifyBearer(req);
+      if (!caller.admin) {
+        return res.status(403).json({ error: 'Only farm admins can update members.' });
+      }
+
+      const targetUid = String(req.body?.uid || '');
+      const role = String(req.body?.role || '') as AccessPinRole;
+      if (!targetUid) return res.status(400).json({ error: 'uid required' });
+      if (!['admin', 'farmer', 'viewer'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role.' });
+      }
+      if (targetUid === caller.uid) {
+        return res.status(400).json({ error: 'You cannot change your own role here.' });
+      }
+
+      const db = getAdminDb();
+      const callerSnap = await db.collection('users').doc(caller.uid).get();
+      const farmId = caller.farmId || callerSnap.data()?.farmId;
+      if (!farmId) return res.status(400).json({ error: 'No farmId on admin profile.' });
+
+      const targetRef = db.collection('users').doc(targetUid);
+      const targetSnap = await targetRef.get();
+      if (!targetSnap.exists || targetSnap.data()?.farmId !== farmId) {
+        return res.status(404).json({ error: 'Member not found on this farm.' });
+      }
+
+      await targetRef.set({ role }, { merge: true });
+      await db.collection('users_public').doc(targetUid).set({ role, farmId }, { merge: true });
+
+      const authUser = await getAdminAuth().getUser(targetUid);
+      const prior = (authUser.customClaims || {}) as Record<string, unknown>;
+      await getAdminAuth().setCustomUserClaims(targetUid, {
+        ...prior,
+        admin: role === 'admin',
+        farmId,
+        role,
+        pinAuth:
+          prior.pinAuth === true || targetSnap.data()?.authMethod === 'invite_pin',
+      });
+
+      return res.json({ ok: true, uid: targetUid, role });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Failed to update member',
+      });
+    }
+  });
+
+  app.post('/api/auth/remove-member', async (req: Request, res: Response) => {
+    try {
+      const caller = await verifyBearer(req);
+      if (!caller.admin) {
+        return res.status(403).json({ error: 'Only farm admins can remove members.' });
+      }
+
+      const targetUid = String(req.body?.uid || '');
+      if (!targetUid) return res.status(400).json({ error: 'uid required' });
+      if (targetUid === caller.uid) {
+        return res.status(400).json({ error: 'You cannot remove yourself.' });
+      }
+
+      const db = getAdminDb();
+      const callerSnap = await db.collection('users').doc(caller.uid).get();
+      const farmId = caller.farmId || callerSnap.data()?.farmId;
+      if (!farmId) return res.status(400).json({ error: 'No farmId on admin profile.' });
+
+      const targetRef = db.collection('users').doc(targetUid);
+      const targetSnap = await targetRef.get();
+      if (!targetSnap.exists || targetSnap.data()?.farmId !== farmId) {
+        return res.status(404).json({ error: 'Member not found on this farm.' });
+      }
+
+      const privateFarmId = `farm_${targetUid}`;
+      await targetRef.set({ farmId: privateFarmId, role: 'admin' }, { merge: true });
+      await db.collection('users_public').doc(targetUid).set(
+        { farmId: privateFarmId, role: 'admin' },
+        { merge: true }
+      );
+
+      const authUser = await getAdminAuth().getUser(targetUid);
+      const prior = (authUser.customClaims || {}) as Record<string, unknown>;
+      await getAdminAuth().setCustomUserClaims(targetUid, {
+        ...prior,
+        admin: true,
+        farmId: privateFarmId,
+        role: 'admin',
+        pinAuth:
+          prior.pinAuth === true || targetSnap.data()?.authMethod === 'invite_pin',
+      });
+
+      return res.json({ ok: true, uid: targetUid });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Failed to remove member',
+      });
+    }
+  });
 }

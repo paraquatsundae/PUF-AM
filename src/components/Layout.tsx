@@ -52,7 +52,7 @@ export function Layout() {
 
       <div
         className={cn(
-          'fixed inset-y-0 left-0 z-[5001] w-64 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0',
+          'fixed inset-y-0 left-0 z-[5001] w-52 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -60,36 +60,39 @@ export function Layout() {
           <NavLink
             to="/"
             onClick={closeSidebar}
-            className="flex items-center justify-center h-16 px-4 bg-slate-950 gap-3 hover:bg-slate-900 transition-colors"
-            title="SentiNut home"
+            className="flex items-center justify-center h-14 px-3 bg-slate-950 gap-2.5 hover:bg-slate-900 transition-colors"
+            title="PUF Orchard Manager"
           >
             <img
               src="/logo.png"
-              alt="SentiNut Logo"
-              className="w-8 h-8 rounded-lg"
+              alt="PUF"
+              className="w-7 h-7 rounded-lg object-cover shrink-0"
               referrerPolicy="no-referrer"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <span className="text-xl font-bold text-white">SentiNut</span>
+            <div className="flex flex-col leading-tight min-w-0">
+              <span className="text-lg font-bold text-white">PUF</span>
+              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider truncate">Orchard Manager</span>
+            </div>
           </NavLink>
 
-          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-1.5 py-3 space-y-1 overflow-y-auto">
             <NavLink
               to={dashboardItem.href}
               end
               onClick={closeSidebar}
               className={({ isActive }) =>
                 cn(
-                  'group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors',
+                  'group flex items-center px-2 py-1.5 text-sm font-medium rounded-md transition-colors',
                   isActive
                     ? 'bg-emerald-600 text-white'
                     : 'hover:bg-slate-800 hover:text-white'
                 )
               }
             >
-              <dashboardItem.icon className="mr-3 flex-shrink-0 h-5 w-5" aria-hidden="true" />
+              <dashboardItem.icon className="mr-2.5 flex-shrink-0 h-4 w-4" aria-hidden="true" />
               {dashboardItem.name}
             </NavLink>
 
@@ -109,15 +112,15 @@ export function Layout() {
                       type="button"
                       onClick={() => toggleGroup(group.id)}
                       className={cn(
-                        'w-full flex items-center px-2 py-2 text-sm font-semibold rounded-md transition-colors',
+                        'w-full flex items-center px-2 py-1.5 text-sm font-semibold rounded-md transition-colors',
                         groupActive
                           ? 'text-emerald-400 bg-slate-800/80'
                           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       )}
                       aria-expanded={isOpen}
                     >
-                      <group.icon className="mr-3 flex-shrink-0 h-5 w-5" aria-hidden="true" />
-                      <span className="flex-1 text-left uppercase tracking-wider text-[11px]">
+                      <group.icon className="mr-2.5 flex-shrink-0 h-4 w-4" aria-hidden="true" />
+                      <span className="flex-1 text-left uppercase tracking-wider text-[10px]">
                         {group.name}
                       </span>
                       <ChevronDown
@@ -137,7 +140,7 @@ export function Layout() {
                             onClick={closeSidebar}
                             className={({ isActive }) =>
                               cn(
-                                'group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors',
+                                'group flex items-center px-2 py-1.5 text-sm font-medium rounded-md transition-colors',
                                 isActive
                                   ? item.adminOnly
                                     ? 'bg-purple-600 text-white'
@@ -147,7 +150,7 @@ export function Layout() {
                             }
                           >
                             <item.icon
-                              className="mr-3 flex-shrink-0 h-4 w-4"
+                              className="mr-2.5 flex-shrink-0 h-4 w-4"
                               aria-hidden="true"
                             />
                             {item.name}
@@ -195,14 +198,14 @@ export function Layout() {
           <div className="flex items-center gap-2">
             <img
               src="/logo.png"
-              alt="Logo"
-              className="w-6 h-6 rounded"
+              alt="PUF"
+              className="w-6 h-6 rounded object-cover"
               referrerPolicy="no-referrer"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <span className="text-lg font-bold text-slate-900 truncate">SentiNut</span>
+            <span className="text-lg font-bold text-slate-900 truncate">PUF</span>
           </div>
           <button
             type="button"

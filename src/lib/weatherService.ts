@@ -8,10 +8,12 @@ import {
   WEATHER_STATION_ANCHORS,
   cacheCoversRange,
   isCacheFresh,
+  resolveNearestAnchorStation,
   toLocalISOString,
   type CachedWeatherRecord,
   type DayWeather,
 } from '../../shared/weather/dpirdClient';
+import { estimateWetnessHoursProxy } from '../../shared/weather/jiBlightModel';
 
 export type WeatherSource = 'Manual' | 'DPIRD';
 
@@ -42,20 +44,7 @@ export async function fetchWithTimeout(
 }
 
 function resolveStationCode(stationCode?: string, lat?: number, lng?: number): string {
-  if (stationCode) return stationCode;
-  if (lat !== undefined && lng !== undefined) {
-    let bestCode: string = WEATHER_STATION_ANCHORS[0].stationCode;
-    let bestDist = Infinity;
-    for (const anchor of WEATHER_STATION_ANCHORS) {
-      const d = Math.hypot(anchor.lat - lat, anchor.lng - lng);
-      if (d < bestDist) {
-        bestDist = d;
-        bestCode = anchor.stationCode;
-      }
-    }
-    return bestCode;
-  }
-  return WEATHER_STATION_ANCHORS[0].stationCode;
+  return resolveNearestAnchorStation(lat, lng, stationCode).stationCode;
 }
 
 /** Read shared weather cache written by Cloud Scheduler / ensure-cache. */
@@ -336,10 +325,7 @@ function generateFallbackData(startDate: Date, endDate: Date): Record<string, We
     const maxHourlyRain = R > 0 ? R * (0.2 + seededRandom(seed + 6) * 0.6) : 0;
     const windSpeed = 5 + seededRandom(seed + 7) * 15 + (R > 0 ? 10 : 0);
 
-    let WD = 0;
-    if (R > 0) WD += 4 + seededRandom(seed + 4) * 8;
-    if (RH > 80) WD += 2 + seededRandom(seed + 5) * 6;
-    WD = Math.min(24, Math.max(0, WD));
+    const WD = estimateWetnessHoursProxy(R, RH);
 
     const ET0 = 3 + 4 * Math.sin((dayOfYear - 100) * (Math.PI / 182.5)) + (seededRandom(seed + 8) * 2 - 1);
 

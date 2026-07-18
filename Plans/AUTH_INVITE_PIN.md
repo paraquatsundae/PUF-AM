@@ -22,7 +22,9 @@ npx tsx scripts/createAccessPin.ts --farm farm_owner1 --role admin --label "Owne
 
 Copy the printed `CODE`, open `http://localhost:3000/login`, enter your name + code.
 
-Then create more PINs from **Settings → Invite PINs** while signed in as admin.
+Then create more PINs from **Farm Management → Team & Access** (or Settings → Invite PINs) while signed in as admin.
+
+Staff join the **same farm** by signing in with name + PIN. Firestore rules treat `pinAuth` custom tokens as authorized farm members (email whitelist does not apply).
 
 ## Requirements
 
@@ -38,3 +40,10 @@ Authentication → Sign-in method → disable Google. Custom tokens do not requi
 ## Workshop mode
 
 `VITE_WORKSHOP_MODE=true` still bypasses login for local UI-only work (no cloud farm data).
+
+## Device session vs unlock PIN (UX)
+
+See **DEVELOPER_NOTES.md §4.1**. Summary:
+
+- **Now (implemented):** After first invite PIN sign-in, Firebase Auth IndexedDB persistence keeps the session. Reopen skips `/login` until logout / app-data wipe. Last display name is prefilled via `src/lib/deviceSession.ts`.
+- **Later:** Personal unlock PIN (or biometric) after auth / on return — invite PIN stays for first join only.

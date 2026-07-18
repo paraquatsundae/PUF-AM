@@ -64,9 +64,9 @@ const DEFAULT_PARAMS: ModelParameters = {
   bioColonizationEff: 0.75,
   bioFavorableGrowthRate: 1.1,
   bioEnvDegradationCoef: 0.75,
-  springStartingInoculum: 0.1,
+  springStartingInoculum: 0.02,
   latencyGDDThreshold: 120.0,
-  secondarySpreadMultiplier: 1.5,
+  secondarySpreadMultiplier: 1.0,
   treeHeight: 4.5,
   canopyWidth: 4.0,
   rowSpacing: 7.0,
@@ -124,18 +124,6 @@ function ParameterGlossary() {
                   </div>
 
                   <div className="space-y-2">
-                    <h4 className="font-bold">Chemical Rain Washoff Rate</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The rate at which chemical protective barriers (such as copper sprays) are physically eroded and washed off the leaves by precipitation.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on the specific chemical formulation's manufacturer-rated "rainfastness" and the use of agricultural stickers/adjuvants. A higher value means the chemical washes off easily and requires frequent re-application after rain; a lower value indicates a highly rainfast chemical bond.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="font-bold">Application Method Penetration Penalty</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> A dynamic reduction in spray efficacy based on how the product is applied (Ground, Drone, Helicopter, Aeroplane) relative to the density of the orchard canopy.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Because blight is a top-down disease (originating in the upper canopy and washing down), aerial applications (Helicopters, Drones) that coat the top of the tree suffer lower penetration penalties in dense orchards. Ground sprayers (Airblast) suffer the highest penalties as they struggle to push product through dense lower canopies to reach the critical upper infection zones.</p>
-                  </div>
-
-                  <div className="space-y-2">
                     <h4 className="font-bold">Splash Multiplier</h4>
                     <p className="text-xs leading-relaxed"><strong>What it is:</strong> A kinetic energy variable that simulates how effectively heavy rainfall physically disperses bacteria from infected tissues (like overwintering buds) to healthy tissues.</p>
                     <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on regional weather patterns and storm intensity. If the orchard is in a region prone to sudden, violent downpours (high kinetic energy), this should be increased (e.g., <code>1.2</code> to <code>1.5</code>). If the region typically experiences light, misty rain, it should remain closer to <code>1.0</code>.</p>
@@ -153,33 +141,22 @@ function ParameterGlossary() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <h4 className="font-bold">Crop Coefficient (Kc)</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> A horticultural metric representing the canopy's density, transpiration rate, and shading effect. It directly influences how much moisture is trapped inside the tree compared to the ambient air.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> This value is automatically calculated in real-time based on the tree spacing, row spacing, and canopy closure data you provide in your Orchard Map. This allows the model to generate highly accurate, block-specific microclimate profiles.</p>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> A rough canopy-coverage factor used in water budgeting UI — not the blight TRV/CDF path.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Estimated from canopy width ÷ row spacing when those values are available.</p>
                   </div>
 
                   <div className="space-y-2">
                     <h4 className="font-bold">GDD Base Temp (°C)</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The minimum temperature threshold below which tree phenology and pathogen development effectively stall.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Scientifically established via phenological tracking. For Persian walnuts, this is standardly set at <code>10.0°C</code> (50°F). It should only be adjusted if calibrating the model for a specific, atypical micro-region or a newly introduced hybrid rootstock.</p>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The minimum temperature threshold below which pathogen GDD (and experimental latency) stalls — not the chill Dynamic Model base.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> Default <code>10.0°C</code> for Persian walnuts. Separate from the SH <strong>calendar phenology</strong> table (May–Aug dormant → Oct bloom) used on Forecast / Historical.</p>
                   </div>
 
                   <div className="space-y-2">
-                    <h4 className="font-bold">Bio-Establishment Rate (The Colonization Phase)</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> When a grower sprays, what percentage of the biological agent actually survives, adheres to the canopy, and establishes a population? This is about the physical and environmental success of the application.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Influenced by the product's viability and the environmental conditions during application (e.g., did it wash off? was UV too high? was the tank mix good?). A value of <code>1.0</code> assumes optimal establishment. Lower values (e.g., <code>0.7</code>) should be used if the biologicals were applied under sub-optimal conditions.</p>
+                    <h4 className="font-bold">Calendar phenology (not a slider)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Hard-coded Southern-Hemisphere month → stage schedule in the blight engine. Susceptibility: dormant 0.1, bud break 1.5, bloom 2.0, post-bloom 1.0, shell hardening 0.3.</p>
+                    <p className="text-xs leading-relaxed"><strong>Override:</strong> Blight Risk → <em>Scouted override</em> (from today forward, session-only). Sandbox locks a fixed stage. Diary-persisted scouting is later work.</p>
                   </div>
 
-                  <div className="space-y-2">
-                    <h4 className="font-bold">Bio-Multiplication Rate</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The daily growth factor of the biological population when environmental conditions are favorable (Temp 15-25°C and RH &gt; 80%).</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on the specific biological strain's reproductive capacity. A value of <code>1.1</code> means the population grows by 10% each day under ideal conditions.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="font-bold">Bio-Survival Rate (Hostile Decay)</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The percentage of the biological population that survives each day when environmental conditions are hostile (outside the favorable range).</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Determined by the strain's environmental resilience. A value of <code>0.75</code> means 25% of the population dies off daily when conditions are sub-optimal.</p>
-                  </div>
                 </div>
               </div>
 
@@ -187,26 +164,65 @@ function ParameterGlossary() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 border-b border-[#141414]/20 pb-2">
                   <Database className="w-4 h-4 text-blue-600" />
-                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider">Inoculum & Latency</h3>
+                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider">Threat start & latency</h3>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <h4 className="font-bold">Spring Starting Inoculum</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The baseline amount of bacterial inoculum present in the orchard at the beginning of the season (e.g., in dormant buds or catkins).</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Estimated based on the severity of blight in the previous season and the efficacy of dormant sprays. A value of <code>0.1</code> represents a clean orchard, while <code>1.0+</code> indicates high historical pressure.</p>
+                    <h4 className="font-bold">Initial threat floor</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The unitless threat value at the start of a blight model run. Weather then rebuilds (or decays) the curve from there.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> A plain calibration knob — <strong>not</strong> loaded from last season’s disease map, dormant sprays, or bud CFU. Default <code>0.02</code> is a small floor so the chart is not stuck at absolute zero before the first wet days. Raise it only if you want a higher baseline for what-ifs.</p>
                   </div>
 
                   <div className="space-y-2">
                     <h4 className="font-bold">Latency GDD Threshold</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The accumulated heat units (Growing Degree Days) required for a microscopic, invisible infection to incubate and erupt into a visible, oozing lesion.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Based on the pathogen's thermal biology. The default is typically around <code>120 GDD</code>. Adjusting this changes how quickly the model predicts symptom appearance after an infection event.</p>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Sandbox-only (experimental). Heat units before queued infection pressure “erupts” when Latency / secondary is on.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> Default <code>120 GDD</code> — not fitted to WA lesion timing. Forecast and Historical ignore this.</p>
                   </div>
 
                   <div className="space-y-2">
                     <h4 className="font-bold">Secondary Spread Multiplier</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The exponential growth factor applied when latent infections erupt, releasing massive amounts of new bacteria back into the canopy.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Represents the explosive nature of secondary spread. A value of <code>1.5</code> means erupting lesions contribute 50% more inoculum to the active threat pool than primary sources, driving rapid epidemic development if weather is favorable.</p>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Sandbox-only (experimental). Multiplier on erupting latent pressure.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> Default <code>1.0</code> = no extra bump. Raise only for what-ifs — not a field-validated secondary-inoculum model.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sandbox protection */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#141414]/20 pb-2">
+                  <Shield className="w-4 h-4 text-indigo-600" />
+                  <h3 className="font-mono text-sm font-bold uppercase tracking-wider">Sandbox protection (what-if)</h3>
+                </div>
+                <p className="text-xs leading-relaxed bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  These knobs only change the <strong>Blight → Sandbox</strong> chart (hypothetical chem/bio armour).
+                  Forecast and Historical stay weather-driven. Diary sprays are markers, not proof of field efficacy.
+                  Defaults are round numbers for exploration — not MIC assays or label rainfastness.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Chemical Rain Washoff Rate</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Sandbox knob for how fast hypothetical chemical cover decays after heavy rain days.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> Not manufacturer rainfastness. Higher = armour falls off faster in the what-if chart.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Application Method Penetration Penalty</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Sandbox reduction of spray “hit” by method (ground / drone / air) vs canopy size.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> Heuristic for comparing scenarios — not a deposition trial or certified coverage model.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Bio-Establishment / Multiplication / Survival</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Sandbox knobs for how a hypothetical biological agent establishes, grows in favourable weather, and decays when hostile.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> Simple daily factors for what-ifs — not CFU counts, plaque assays, or strain-specific biology for your orchard.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="font-bold">Chemical / Biological Efficacy (%)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Peak hypothetical suppression when a sandbox spray is applied (chem) or after bio “establishes” (bio).</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is set:</strong> Defaults (~95% chem / ~30% bio) are placeholders for scenario comparison. They are <strong>not</strong> lab MIC results, resistance surveys, or a claim that diary sprays delivered that control in the field.</p>
                   </div>
                 </div>
               </div>
@@ -220,9 +236,9 @@ function ParameterGlossary() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <h4 className="font-bold">Tree Density (trees/ha)</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The physical spacing and number of trees planted per hectare. It normalizes the Canopy Density Factor (CDF) to simulate airflow and moisture retention.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> Calculated by dividing 10,000 by the product of row spacing and tree spacing (in meters). High density orchards (e.g., 300+ trees/ha) trap more humidity and amplify rain splash dispersal between adjacent canopies compared to traditional wide-spaced orchards.</p>
+                    <h4 className="font-bold">Tree / canopy geometry (TRV → CDF)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Tree height, canopy width, and row spacing from the Orchard Map feed a rough TRV-style index used as CDF.</p>
+                    <p className="text-xs leading-relaxed"><strong>How it is used:</strong> Blight RH/wetness/splash microclimate modifiers stay <strong>off</strong> until all three are set on a block (or all three are overridden in the blight sandbox). Not a certified spray-volume TRV calculator.</p>
                   </div>
 
                   <div className="space-y-2">
@@ -232,12 +248,9 @@ function ParameterGlossary() {
                   </div>
 
                   <div className="space-y-2">
-                    <h4 className="font-bold">Resistance Profile (Cultivar & Pathogen)</h4>
-                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> The combined genetic susceptibility of the walnut cultivar and the acquired chemical/biological resistance of the local bacterial population.</p>
-                    <p className="text-xs leading-relaxed"><strong>How it is measured:</strong> 
-                      <br/>• <em>Chemical Efficacy:</em> Set based on lab testing (MIC values). High resistance (40-60%) means bacteria survive standard copper rates. Fully susceptible (90-100%) means standard sprays provide maximum protection.
-                      <br/>• <em>Biological Efficacy (The Antagonistic Phase):</em> Once established, how effectively does this specific biological agent suppress or outcompete the blight? A bio-control might colonize beautifully (high colonization), but if the local blight strain is resistant or the bio-control is just a weak competitor, its actual control over the disease is low (low efficacy).
-                    </p>
+                    <h4 className="font-bold">Cultivar sensitivity (vs “resistance profile”)</h4>
+                    <p className="text-xs leading-relaxed"><strong>What it is:</strong> Overall orchard sensitivity is mainly the <em>Sensitivity Threshold</em> knob under blight parameters — a relative weight, not a genotype × pathogen resistance matrix.</p>
+                    <p className="text-xs leading-relaxed"><strong>Chem/bio efficacy %:</strong> Those live under <strong>Sandbox protection</strong> above. They are what-if suppressors, not a measured resistance profile for your copper or bio product.</p>
                   </div>
                 </div>
               </div>
@@ -530,8 +543,9 @@ export function Settings() {
                     </button>
                   </div>
                   <p className="text-xs opacity-70 leading-relaxed max-w-2xl">
-                    CAUTION: Adjusting these parameters globally recalibrates the mechanistic risk engine. 
-                    Changes will propagate to all Farm Diary recommendations and Map visualizations within 5 minutes.
+                    Weather knobs (sensitivity, splash, humidity, geometry) affect Forecast / Historical threat.
+                    Chem/bio protection knobs only change Blight → Sandbox what-ifs — they do not rewrite diary history
+                    or claim field spray efficacy.
                   </p>
                 </div>
 
@@ -577,15 +591,6 @@ export function Settings() {
                       />
 
                       <SliderControl 
-                        label="Chem Rain Washoff Rate"
-                        value={params.chemRainWashoffRate}
-                        min={0} max={0.2} step={0.01}
-                        isLocked={isLocked}
-                        onChange={(val) => setParams({...params, chemRainWashoffRate: val})}
-                        description="Determines chemical degradation rate per mm of rainfall."
-                      />
-
-                      <SliderControl 
                         label="Splash Multiplier"
                         value={params.splashMultiplier || 1.0}
                         min={1} max={3} step={0.1}
@@ -610,34 +615,7 @@ export function Settings() {
                         min={5} max={15} step={0.5}
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, gddBaseTemp: val})}
-                        description="Baseline temperature for chill and growth calculations."
-                      />
-
-                      <SliderControl 
-                        label="Bio-Establishment Rate"
-                        value={params.bioColonizationEff}
-                        min={0} max={1} step={0.05}
-                        isLocked={isLocked}
-                        onChange={(val) => setParams({...params, bioColonizationEff: val})}
-                        description="Success rate of biological agent establishment."
-                      />
-
-                      <SliderControl 
-                        label="Bio-Multiplication Rate"
-                        value={params.bioFavorableGrowthRate || 1.1}
-                        min={1.0} max={1.5} step={0.01}
-                        isLocked={isLocked}
-                        onChange={(val) => setParams({...params, bioFavorableGrowthRate: val})}
-                        description="Daily growth factor under favorable conditions."
-                      />
-
-                      <SliderControl 
-                        label="Bio-Survival Rate"
-                        value={params.bioEnvDegradationCoef || 0.75}
-                        min={0.5} max={1.0} step={0.01}
-                        isLocked={isLocked}
-                        onChange={(val) => setParams({...params, bioEnvDegradationCoef: val})}
-                        description="Daily survival rate under hostile conditions."
+                        description="Baseline temperature for blight growing degree-days (not Dynamic Model chill)."
                       />
                     </div>
                   </div>
@@ -646,18 +624,23 @@ export function Settings() {
                   <div className="bg-[#E4E3E0] border border-[#141414] p-6 rounded-2xl space-y-6">
                     <div className="flex items-center gap-2 border-b border-[#141414] pb-2">
                       <Database className="w-4 h-4" />
-                      <h3 className="font-mono text-xs font-bold uppercase">Inoculum & Latency</h3>
+                      <h3 className="font-mono text-xs font-bold uppercase">Threat start & latency</h3>
                     </div>
                     
                     <div className="space-y-4">
                       <SliderControl 
-                        label="Spring Starting Inoculum"
-                        value={params.springStartingInoculum || 0.1}
-                        min={0.1} max={5.0} step={0.1}
+                        label="Initial threat floor"
+                        value={params.springStartingInoculum ?? 0.02}
+                        min={0} max={2} step={0.01}
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, springStartingInoculum: val})}
-                        description="Historical blight pressure from the previous season."
+                        description="Start-of-run threat floor only — not last year’s disease history."
                       />
+
+                      <p className="text-[11px] text-slate-600 leading-relaxed bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        Latency / secondary knobs below are <strong>experimental</strong>. They only apply when
+                        Sandbox → “Latency / secondary” is on. Forecast and Historical ignore them.
+                      </p>
 
                       <SliderControl 
                         label="Latency GDD Threshold"
@@ -665,16 +648,16 @@ export function Settings() {
                         min={50} max={300} step={5}
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, latencyGDDThreshold: val})}
-                        description="Heat units required for invisible infections to erupt."
+                        description="Sandbox only: heat units before latent pressure erupts (experimental)."
                       />
 
                       <SliderControl 
                         label="Secondary Spread Mult."
-                        value={params.secondarySpreadMultiplier || 1.5}
+                        value={params.secondarySpreadMultiplier ?? 1.0}
                         min={1.0} max={5.0} step={0.1}
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, secondarySpreadMultiplier: val})}
-                        description="Exponential growth factor when latent infections erupt."
+                        description="Sandbox only: multiplier on erupting latent pressure (1.0 = no extra bump)."
                       />
                     </div>
                   </div>
@@ -695,7 +678,7 @@ export function Settings() {
                           </span>
                         </div>
                         <p className="text-[9px] text-slate-500 italic leading-relaxed">
-                          Tree Row Volume (TRV) determines target spray volume and biological potential.
+                          Homemade size index for optional microclimate nudges when map geometry is explicit — not a certified spray-volume TRV.
                         </p>
                       </div>
 
@@ -725,6 +708,30 @@ export function Settings() {
                         onChange={(val) => setParams({...params, rowSpacing: val})}
                         unit="m"
                       />
+                    </div>
+                  </div>
+
+                  {/* Sandbox protection — what-if only */}
+                  <div className="bg-[#E4E3E0] border border-indigo-300 p-6 rounded-2xl space-y-6 md:col-span-3 lg:col-span-1">
+                    <div className="flex items-center gap-2 border-b border-[#141414] pb-2">
+                      <Shield className="w-4 h-4 text-indigo-600" />
+                      <h3 className="font-mono text-xs font-bold uppercase">Sandbox protection (what-if)</h3>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 leading-relaxed bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      Used only on <strong>Blight → Sandbox</strong>. Forecast / Historical ignore these.
+                      Placeholders for scenario comparison — not lab MIC, rainfastness labels, or proof that diary sprays worked.
+                    </p>
+                    
+                    <div className="space-y-4">
+                      <SliderControl 
+                        label="Chem Rain Washoff Rate"
+                        value={params.chemRainWashoffRate}
+                        min={0} max={0.2} step={0.01}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, chemRainWashoffRate: val})}
+                        description="Sandbox only: how fast hypothetical chem cover drops after heavy rain."
+                      />
 
                       <SliderControl 
                         label="Chemical Efficacy (%)"
@@ -733,7 +740,7 @@ export function Settings() {
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, chemEfficacy: val})}
                         unit="%"
-                        description="Adjust based on your latest orchard resistance testing."
+                        description="Sandbox only: peak hypothetical chem suppression — not orchard resistance testing."
                       />
 
                       <SliderControl 
@@ -743,7 +750,34 @@ export function Settings() {
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, bioEfficacy: val})}
                         unit="%"
-                        description="Adjust based on lab plaque assays or establishment rates."
+                        description="Sandbox only: peak hypothetical bio suppression — not plaque assays."
+                      />
+
+                      <SliderControl 
+                        label="Bio-Establishment Rate"
+                        value={params.bioColonizationEff}
+                        min={0} max={1} step={0.05}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, bioColonizationEff: val})}
+                        description="Sandbox only: fraction of bio that “takes” after a what-if spray."
+                      />
+
+                      <SliderControl 
+                        label="Bio-Multiplication Rate"
+                        value={params.bioFavorableGrowthRate || 1.1}
+                        min={1.0} max={1.5} step={0.01}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, bioFavorableGrowthRate: val})}
+                        description="Sandbox only: daily growth factor in favourable weather."
+                      />
+
+                      <SliderControl 
+                        label="Bio-Survival Rate"
+                        value={params.bioEnvDegradationCoef || 0.75}
+                        min={0.5} max={1.0} step={0.01}
+                        isLocked={isLocked}
+                        onChange={(val) => setParams({...params, bioEnvDegradationCoef: val})}
+                        description="Sandbox only: daily survival under hostile weather."
                       />
                     </div>
                   </div>

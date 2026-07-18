@@ -1,0 +1,52 @@
+{
+  "description": "32-day farm weather from Mathematica notebook (Modified Daily blight infection risk). Oct–Nov window; no sprays; no irrigation; 400 trees/ha.",
+  "source": "Documents/Agronomy'/2026/Walnut/Blight forecasting/Modified Daily blight infection risk.pdf",
+  "orchard": {
+    "k": 1,
+    "treeDensityPerHa": 400,
+    "densityRefPerHa": 150,
+    "alphaDensity": 0.28,
+    "densityExponent": 1.3
+  },
+  "doseMode": "cumulativeY",
+  "days": [
+    { "day": 1, "R": 0.2, "T": 19.0, "RH": 62 },
+    { "day": 2, "R": 0, "T": 24.5, "RH": 85 },
+    { "day": 3, "R": 0, "T": 21.7, "RH": 78 },
+    { "day": 4, "R": 15.8, "T": 17.7, "RH": 99 },
+    { "day": 5, "R": 5.6, "T": 15.9, "RH": 72 },
+    { "day": 6, "R": 0.2, "T": 17.6, "RH": 67 },
+    { "day": 7, "R": 0, "T": 17.5, "RH": 73 },
+    { "day": 8, "R": 3.6, "T": 16.0, "RH": 69 },
+    { "day": 9, "R": 0, "T": 16.5, "RH": 67 },
+    { "day": 10, "R": 0, "T": 16.5, "RH": 63 },
+    { "day": 11, "R": 0, "T": 20.2, "RH": 65 },
+    { "day": 12, "R": 0, "T": 21.3, "RH": 72 },
+    { "day": 13, "R": 0.4, "T": 22.0, "RH": 59 },
+    { "day": 14, "R": 0, "T": 21.2, "RH": 80 },
+    { "day": 15, "R": 0, "T": 22.1, "RH": 66 },
+    { "day": 16, "R": 0, "T": 23.6, "RH": 74 },
+    { "day": 17, "R": 0, "T": 24.0, "RH": 76 },
+    { "day": 18, "R": 1.0, "T": 18.2, "RH": 73 },
+    { "day": 19, "R": 0.2, "T": 14.0, "RH": 75 },
+    { "day": 20, "R": 2.6, "T": 18.1, "RH": 62 },
+    { "day": 21, "R": 4.4, "T": 16.7, "RH": 96 },
+    { "day": 22, "R": 0.2, "T": 18.3, "RH": 72 },
+    { "day": 23, "R": 0, "T": 20.9, "RH": 73 },
+    { "day": 24, "R": 0.2, "T": 16.8, "RH": 56 },
+    { "day": 25, "R": 9.0, "T": 18.7, "RH": 99 },
+    { "day": 26, "R": 0.4, "T": 20.7, "RH": 82 },
+    { "day": 27, "R": 0.2, "T": 23.3, "RH": 63 },
+    { "day": 28, "R": 0, "T": 29.4, "RH": 48 },
+    { "day": 29, "R": 0.6, "T": 19.1, "RH": 81 },
+    { "day": 30, "R": 1.6, "T": 21.3, "RH": 69 },
+    { "day": 31, "R": 2.2, "T": 20.6, "RH": 79 },
+    { "day": 32, "R": 20.2, "T": 17.0, "RH": 75 }
+  ],
+  "expectedDailyInfectionRisk": [
+    2.09682629e-8, 0, 0, 0.00370970494, 0.0274408253, 6.950e-6, 7.82e-6,
+    0.02632182, 2.404e-5, 2.404e-5, 1.2e-7, 1e-8, 4.8e-7, 1e-8, 0, 0, 0,
+    0.00235558, 0.00018636, 0.0027496, 0.01423433, 3.18e-6, 3e-8, 1.89e-5,
+    0.00126463, 2.984e-5, 0, 0, 0.00068626, 5.99e-6, 3.815e-5, 0.0109187041
+  ]
+}

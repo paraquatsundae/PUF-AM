@@ -429,34 +429,34 @@ export function FieldMode({ farmId, mapLayer, setMapLayer }: { farmId: string, m
     });
   }, [pins, map]);
 
-  // Draw farm tracks from Orchard Map
+  // Draw farm tracks from Orchard Map (rebuild so edits to geometry/style show up)
   useEffect(() => {
     if (!tracksLayerRef.current) return;
-    
-    const activeTrackIds = new Set(tracks.map(t => t.id));
 
-    // Remove old tracks
-    tracksMarkersMapRef.current.forEach((layer, id) => {
-      if (!activeTrackIds.has(id)) {
-        tracksLayerRef.current?.removeLayer(layer);
-        tracksMarkersMapRef.current.delete(id);
-      }
-    });
+    tracksLayerRef.current.clearLayers();
+    tracksMarkersMapRef.current.clear();
 
-    // Add new tracks
-    tracks.forEach(track => {
-      if (track.geojson && !tracksMarkersMapRef.current.has(track.id)) {
-        const color = track.category === 'primary' ? '#10b981' : track.category === 'secondary' ? '#3b82f6' : '#94a3b8';
+    tracks.forEach((track) => {
+      if (!track.geojson) return;
+      const color =
+        track.category === 'primary'
+          ? '#10b981'
+          : track.category === 'secondary'
+            ? '#3b82f6'
+            : '#94a3b8';
+      try {
         const layer = L.geoJSON(track.geojson, {
           style: {
-            color: color,
+            color,
             weight: 4,
             opacity: 0.8,
-            dashArray: track.category === 'service' ? '10, 10' : ''
-          }
+            dashArray: track.category === 'service' ? '10, 10' : '',
+          },
         });
         layer.addTo(tracksLayerRef.current!);
         tracksMarkersMapRef.current.set(track.id, layer);
+      } catch (err) {
+        console.warn('[FieldMode] Failed to render track', track.id, err);
       }
     });
   }, [tracks, map]);
@@ -499,10 +499,23 @@ export function FieldMode({ farmId, mapLayer, setMapLayer }: { farmId: string, m
         const track = tracks.find(t => t.id === task.assignedTrackId);
         if (track && track.geojson) {
           const isMyTask = task.assignedTo === userData?.uid;
-          const existingGroup = glowMarkersMapRef.current.get(task.id);
+          const trackSig = `${track.id}:${track.category}:${typeof track.geojson === 'string' ? track.geojson : JSON.stringify(track.geojson)}:${isMyTask ? 'me' : 'other'}`;
+          const existingGroup = glowMarkersMapRef.current.get(task.id) as
+            | (L.LayerGroup & { _trackSig?: string })
+            | undefined;
 
-          if (!existingGroup) {
-            const group = L.layerGroup();
+          // Keep existing glow unless the assigned track geometry/style identity changed
+          if (existingGroup && existingGroup._trackSig === trackSig) {
+            return;
+          }
+          if (existingGroup) {
+            glowLayerRef.current?.removeLayer(existingGroup);
+            glowMarkersMapRef.current.delete(task.id);
+          }
+
+          {
+            const group = L.layerGroup() as L.LayerGroup & { _trackSig?: string };
+            group._trackSig = trackSig;
             
             if (isMyTask) {
               // Fluoro Green Pulse Effect for current user

@@ -28,6 +28,23 @@ import {
 
 const online = () => typeof navigator === 'undefined' || navigator.onLine;
 
+export type GeometrySyncResult = {
+  synced: boolean;
+  queued: boolean;
+  message: string | null;
+};
+
+function syncFailureMessage(err: unknown): string {
+  const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: string }).code) : '';
+  if (code === 'permission-denied') {
+    return 'Cloud sync blocked (permission). Changes stay on this device until rules/membership allow write.';
+  }
+  if (!online()) {
+    return 'Offline — changes saved on this device and will sync when online.';
+  }
+  return 'Cloud sync failed — changes saved on this device and queued for retry.';
+}
+
 async function migrateLocalStorageIfNeeded(farmId: string, bundle: FarmGeometryBundle): Promise<FarmGeometryBundle> {
   const empty =
     bundle.blocks.length === 0 &&
@@ -127,12 +144,18 @@ async function tryCloudOrQueue(
   entityId: string,
   cloudFn: () => Promise<void>,
   payload?: PendingGeometryOp['payload']
-): Promise<void> {
+): Promise<GeometrySyncResult> {
   // Workshop: IndexedDB only (no cloud queue). Offline: queue for later sync.
-  if (isLocalOnlyFarmSession()) return;
+  if (isLocalOnlyFarmSession()) {
+    return { synced: true, queued: false, message: null };
+  }
   if (!online()) {
     await enqueuePending({ farmId, collection, op, entityId, payload });
-    return;
+    return {
+      synced: false,
+      queued: true,
+      message: 'Offline — changes saved on this device and will sync when online.',
+    };
   }
   try {
     await cloudFn();
@@ -142,45 +165,47 @@ async function tryCloudOrQueue(
         .filter((p) => p.collection === collection && p.entityId === entityId)
         .map((p) => removePending(p.id))
     );
+    return { synced: true, queued: false, message: null };
   } catch (err) {
     console.warn('[farmGeometry] Cloud write failed; queued', err);
     await enqueuePending({ farmId, collection, op, entityId, payload });
+    return { synced: false, queued: true, message: syncFailureMessage(err) };
   }
 }
 
-export async function persistBlock(farmId: string, block: OrchardBlock): Promise<void> {
+export async function persistBlock(farmId: string, block: OrchardBlock): Promise<GeometrySyncResult> {
   await upsertBlockLocal(farmId, block);
-  await tryCloudOrQueue(farmId, 'blocks', 'upsert', block.id, () => mapApi.saveBlock(farmId, block), block);
+  return tryCloudOrQueue(farmId, 'blocks', 'upsert', block.id, () => mapApi.saveBlock(farmId, block), block);
 }
 
-export async function removeBlockPersisted(farmId: string, id: string): Promise<void> {
+export async function removeBlockPersisted(farmId: string, id: string): Promise<GeometrySyncResult> {
   await deleteBlockLocal(farmId, id);
-  await tryCloudOrQueue(farmId, 'blocks', 'delete', id, () => mapApi.deleteBlock(farmId, id));
+  return tryCloudOrQueue(farmId, 'blocks', 'delete', id, () => mapApi.deleteBlock(farmId, id));
 }
 
-export async function persistPin(farmId: string, pin: InfrastructurePin): Promise<void> {
+export async function persistPin(farmId: string, pin: InfrastructurePin): Promise<GeometrySyncResult> {
   await upsertPinLocal(farmId, pin);
-  await tryCloudOrQueue(farmId, 'pins', 'upsert', pin.id, () => mapApi.savePin(farmId, pin), pin);
+  return tryCloudOrQueue(farmId, 'pins', 'upsert', pin.id, () => mapApi.savePin(farmId, pin), pin);
 }
 
-export async function removePinPersisted(farmId: string, id: string): Promise<void> {
+export async function removePinPersisted(farmId: string, id: string): Promise<GeometrySyncResult> {
   await deletePinLocal(farmId, id);
-  await tryCloudOrQueue(farmId, 'pins', 'delete', id, () => mapApi.deletePin(farmId, id));
+  return tryCloudOrQueue(farmId, 'pins', 'delete', id, () => mapApi.deletePin(farmId, id));
 }
 
-export async function persistTrack(farmId: string, track: FarmTrack): Promise<void> {
+export async function persistTrack(farmId: string, track: FarmTrack): Promise<GeometrySyncResult> {
   await upsertTrackLocal(farmId, track);
-  await tryCloudOrQueue(farmId, 'tracks', 'upsert', track.id, () => mapApi.saveTrack(farmId, track), track);
+  return tryCloudOrQueue(farmId, 'tracks', 'upsert', track.id, () => mapApi.saveTrack(farmId, track), track);
 }
 
-export async function removeTrackPersisted(farmId: string, id: string): Promise<void> {
+export async function removeTrackPersisted(farmId: string, id: string): Promise<GeometrySyncResult> {
   await deleteTrackLocal(farmId, id);
-  await tryCloudOrQueue(farmId, 'tracks', 'delete', id, () => mapApi.deleteTrack(farmId, id));
+  return tryCloudOrQueue(farmId, 'tracks', 'delete', id, () => mapApi.deleteTrack(farmId, id));
 }
 
-export async function persistViewport(farmId: string, viewport: MapViewport): Promise<void> {
+export async function persistViewport(farmId: string, viewport: MapViewport): Promise<GeometrySyncResult> {
   await saveViewportLocal(farmId, viewport);
-  await tryCloudOrQueue(
+  return tryCloudOrQueue(
     farmId,
     'viewport',
     'upsert',

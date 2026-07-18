@@ -34,13 +34,15 @@ import {
 } from '../lib/basemapPack';
 import { blocksToLeafletBounds } from '../lib/farmBounds';
 import { countOpenIssuesByBlock, issuesForBlock } from '../lib/blockIssueCounts';
-import { PLACEHOLDER_FARM_CHILL_PORTIONS } from '../lib/chillPortions';
+import { CULTIVARS } from '../lib/chillPortions';
+import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
 import { useFieldStore, type FieldIssue } from '../lib/fieldStore';
 import { cn } from '../lib/utils';
 import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import debounce from 'lodash/debounce';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
+import { cancelActiveDrawer, startActiveDrawer, type LeafletDrawHandler } from '../lib/mapDrawHelpers';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 
@@ -202,7 +204,31 @@ export function OrchardMap() {
   const [showHelp, setShowHelp] = useState(false);
   
   // Phase 2 & 3: Persistent Map State
-  const { blocks, pins, tracks, viewport, setViewport, setBounds, addBlock, updateBlock, removeBlock, addPin, updatePin, removePin, addTrack, updateTrack, removeTrack, isLoaded, canEdit } = useMapStore();
+  const {
+    blocks,
+    pins,
+    tracks,
+    viewport,
+    setViewport,
+    setBounds,
+    addBlock,
+    updateBlock,
+    removeBlock,
+    addPin,
+    updatePin,
+    removePin,
+    addTrack,
+    updateTrack,
+    removeTrack,
+    isLoaded,
+    canEdit,
+    pendingSyncCount,
+    syncError,
+    clearSyncError,
+    flushSync,
+  } = useMapStore();
+
+  const farmChill = useFarmChillPortions(viewport.lat, viewport.lng);
 
   /** Once we've framed the paddocks for this farm, don't keep re-zooming on edits. */
   const fittedToBlocksFarmRef = React.useRef<string | null>(null);
@@ -270,6 +296,8 @@ export function OrchardMap() {
   const [editingPinId, setEditingPinId] = useState<string | null>(null);
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [highlightedTrackId, setHighlightedTrackId] = useState<string | null>(null);
+  const highlightedTrackIdRef = React.useRef<string | null>(null);
+  highlightedTrackIdRef.current = highlightedTrackId;
   const [isConfirmingDeleteBlock, setIsConfirmingDeleteBlock] = useState(false);
   const [isConfirmingDeletePin, setIsConfirmingDeletePin] = useState(false);
   const [isConfirmingDeleteTrack, setIsConfirmingDeleteTrack] = useState(false);
@@ -277,6 +305,7 @@ export function OrchardMap() {
   
   const featureGroupRef = React.useRef<any>(null);
   const layerMapRef = React.useRef<Record<number, { type: 'block' | 'pin' | 'track'; id: string }>>({});
+  const activeDrawerRef = React.useRef<LeafletDrawHandler | null>(null);
   const [forceRender, setForceRender] = useState(0);
 
   // Phase 4.3: Farm Diary Integration
@@ -437,6 +466,18 @@ export function OrchardMap() {
           setShowSidebar(true);
         } else if (mapMode !== 'edit') {
           setShowSidebar(false);
+        }
+      } else if (mapping && mapping.type === 'track') {
+        if (e.originalEvent) {
+          e.originalEvent._stopped = true;
+        }
+        const next =
+          highlightedTrackIdRef.current === mapping.id ? null : mapping.id;
+        setHighlightedTrackId(next);
+        if (next && mapMode === 'edit') {
+          setActiveTab('tracks');
+          setShowSidebar(true);
+          setEditingTrackId(next);
         }
       }
     };
@@ -646,9 +687,26 @@ export function OrchardMap() {
       for (const track of tracks) {
         const key = `track:${track.id}`;
         wanted.add(key);
-        if (existing.has(key)) continue;
         const geo = normalizeGeojson(track.geojson);
         if (!geo) continue;
+        const existingLayer = existing.get(key);
+        if (existingLayer) {
+          // Keep layer identity; refresh geometry when the store track moves
+          try {
+            if (
+              existingLayer instanceof L.Polyline &&
+              !(existingLayer instanceof L.Polygon)
+            ) {
+              const fresh = L.geoJSON(geo).getLayers()[0] as L.Polyline | undefined;
+              if (fresh && typeof fresh.getLatLngs === 'function') {
+                existingLayer.setLatLngs(fresh.getLatLngs() as L.LatLng[]);
+              }
+            }
+          } catch (err) {
+            console.warn('[OrchardMap] Failed to update track layer', track.id, err);
+          }
+          continue;
+        }
         try {
           const layer = L.geoJSON(geo).getLayers()[0] as L.Layer | undefined;
           if (!layer) continue;
@@ -668,12 +726,17 @@ export function OrchardMap() {
       setForceRender((prev) => prev + 1);
     };
 
-    syncLayers();
-    // EditControl mount/unmount can clear FeatureGroup after our first sync
-    const t0 = window.setTimeout(syncLayers, 0);
-    const t1 = window.setTimeout(syncLayers, 80);
+    let cancelled = false;
+    const run = () => {
+      if (!cancelled) syncLayers();
+    };
+    run();
+    // EditControl mount can clear FeatureGroup after first paint — one rAF + one short retry
+    const raf = window.requestAnimationFrame(run);
+    const t1 = window.setTimeout(run, 100);
     return () => {
-      window.clearTimeout(t0);
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
       window.clearTimeout(t1);
     };
   }, [isLoaded, blocks, pins, tracks, mapInstance, mapMode, activeTab, getPinIcon, getPinTooltip]);
@@ -950,50 +1013,84 @@ export function OrchardMap() {
     }
   }, [fitFarmInView, mapInstance]);
 
+  const flyToTrack = useCallback(
+    (track: FarmTrack) => {
+      if (!mapInstance || !track.geojson) return;
+      try {
+        const layer = L.geoJSON(track.geojson as any);
+        const bounds = layer.getBounds();
+        if (bounds.isValid()) {
+          mapInstance.flyToBounds(bounds.pad(0.2), { maxZoom: 18, animate: true });
+        }
+      } catch (err) {
+        console.error('Failed to fly to track', err);
+      }
+    },
+    [mapInstance]
+  );
+
+  const debouncedUpdateTrackName = useMemo(
+    () =>
+      debounce((id: string, name: string) => {
+        updateTrack(id, { name });
+      }, 300),
+    [updateTrack]
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedUpdateTrackName.cancel();
+    };
+  }, [debouncedUpdateTrackName]);
+
+  // Cancel Quick Add drawers when leaving edit mode or switching tabs
+  useEffect(() => {
+    cancelActiveDrawer(activeDrawerRef);
+  }, [activeTab, mapMode]);
+
+  useEffect(() => {
+    return () => cancelActiveDrawer(activeDrawerRef);
+  }, []);
+
   // Phase 5.1: Quick Add Tool Trigger
   const handleQuickAdd = useCallback(() => {
-    if (!mapInstance || !canEdit) return;
+    if (!mapInstance || !canEdit || mapMode !== 'edit') return;
 
-    // Workaround for leaflet-draw: ensure the draw handlers are initialized
     if (!(L as any).Draw) {
       console.error("Leaflet Draw not initialized");
       return;
     }
 
-    if (activeTab === 'blocks') {
-      try {
-        const polygonDrawer = new (L as any).Draw.Polygon(mapInstance, {
-          shapeOptions: {
-            color: '#4f46e5',
-            fillOpacity: 0.4,
-            weight: 3
-          }
-        });
-        polygonDrawer.enable();
-      } catch (err) {
-        console.error("Failed to enable polygon draw", err);
+    try {
+      if (activeTab === 'blocks') {
+        startActiveDrawer(
+          activeDrawerRef,
+          new (L as any).Draw.Polygon(mapInstance, {
+            shapeOptions: {
+              color: '#4f46e5',
+              fillOpacity: 0.4,
+              weight: 3,
+            },
+          })
+        );
+      } else if (activeTab === 'tracks') {
+        startActiveDrawer(
+          activeDrawerRef,
+          new (L as any).Draw.Polyline(mapInstance, {
+            shapeOptions: {
+              color: '#10b981',
+              weight: 4,
+            },
+          })
+        );
+      } else if (activeTab === 'infrastructure') {
+        startActiveDrawer(activeDrawerRef, new (L as any).Draw.Marker(mapInstance));
       }
-    } else if (activeTab === 'tracks') {
-      try {
-        const polylineDrawer = new (L as any).Draw.Polyline(mapInstance, {
-          shapeOptions: {
-            color: '#10b981',
-            weight: 4
-          }
-        });
-        polylineDrawer.enable();
-      } catch (err) {
-        console.error("Failed to enable polyline draw", err);
-      }
-    } else if (activeTab === 'infrastructure') {
-      try {
-        const markerDrawer = new (L as any).Draw.Marker(mapInstance);
-        markerDrawer.enable();
-      } catch (err) {
-        console.error("Failed to enable marker draw", err);
-      }
+    } catch (err) {
+      console.error("Failed to enable draw handler", err);
+      cancelActiveDrawer(activeDrawerRef);
     }
-  }, [mapInstance, activeTab, canEdit]);
+  }, [mapInstance, activeTab, canEdit, mapMode]);
 
   // Phase 4.3: Geocoding Search
   const handleSearch = async (e: React.FormEvent) => {
@@ -1018,7 +1115,21 @@ export function OrchardMap() {
         }
       }
 
-      // 2. Search Infrastructure Pins
+      // 2. Search Tracks
+      const foundTrack = tracks.find((t) => t.name?.toLowerCase().includes(query));
+      if (foundTrack && foundTrack.geojson) {
+        flyToTrack(foundTrack);
+        setHighlightedTrackId(foundTrack.id);
+        setActiveTab('tracks');
+        if (mapMode === 'edit') {
+          setEditingTrackId(foundTrack.id);
+          setShowSidebar(true);
+        }
+        setSearchQuery('');
+        return;
+      }
+
+      // 3. Search Infrastructure Pins
       const foundPin = pins.find(p => p.name?.toLowerCase().includes(query));
       if (foundPin) {
         mapInstance.flyTo([foundPin.lat, foundPin.lng], 18);
@@ -1027,7 +1138,7 @@ export function OrchardMap() {
         return;
       }
 
-      // 3. Fallback to Geocoding (Towns, etc.)
+      // 4. Fallback to Geocoding (Towns, etc.)
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
       const data = await res.json();
       if (data && data.length > 0) {
@@ -1168,6 +1279,17 @@ export function OrchardMap() {
           <h1 className="text-sm sm:text-base font-bold text-slate-900 whitespace-nowrap shrink-0">
             {mapMode === 'operate' ? 'Orchard Map' : 'Edit paddocks'}
           </h1>
+          {pendingSyncCount > 0 && farmId && (
+            <button
+              type="button"
+              onClick={() => void flushSync(farmId)}
+              className="hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md bg-amber-50 text-amber-800 text-[10px] font-semibold hover:bg-amber-100"
+              title="Retry uploading queued map changes to the farm cloud"
+            >
+              <RefreshCw className="w-3 h-3" />
+              {pendingSyncCount} pending sync
+            </button>
+          )}
 
           <form
             onSubmit={handleSearch}
@@ -1294,6 +1416,30 @@ export function OrchardMap() {
           </nav>
         )}
       </div>
+
+      {syncError && (
+        <div className="shrink-0 z-20 flex items-start gap-2 px-3 py-2 bg-amber-50 border-b border-amber-200 text-amber-900 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p className="flex-1 min-w-0 leading-snug">{syncError}</p>
+          {farmId && pendingSyncCount > 0 && (
+            <button
+              type="button"
+              onClick={() => void flushSync(farmId)}
+              className="shrink-0 font-semibold underline underline-offset-2"
+            >
+              Retry
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => clearSyncError()}
+            className="shrink-0 p-0.5 rounded hover:bg-amber-100"
+            aria-label="Dismiss sync warning"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Main Workspace */}
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
@@ -1492,6 +1638,7 @@ export function OrchardMap() {
                     onClick={() => {
                       setEditingTrackId(track.id);
                       setHighlightedTrackId(track.id);
+                      flyToTrack(track);
                     }}
                     className={cn(
                       "p-3 border rounded-xl hover:shadow-md transition-all cursor-pointer bg-white group",
@@ -1524,7 +1671,9 @@ export function OrchardMap() {
             ) : activeTab === 'tracks' ? (
               <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center space-y-2">
                 <p className="text-sm text-slate-500">No tracks defined yet.</p>
-                <p className="text-xs text-slate-400">Select the polyline tool to draw pathways.</p>
+                <p className="text-xs text-slate-400">
+                  Use the <strong>+</strong> button or the polyline tool on the map to draw pathways.
+                </p>
               </div>
             ) : null}
 
@@ -1670,6 +1819,7 @@ export function OrchardMap() {
                 <EditControl
                   position="bottomleft"
                   onCreated={(e) => {
+                  cancelActiveDrawer(activeDrawerRef);
                   const layer = e.layer;
                   const id = crypto.randomUUID();
                   
@@ -1724,6 +1874,9 @@ export function OrchardMap() {
                     };
                     addTrack(newTrack);
                     setEditingTrackId(id);
+                    setHighlightedTrackId(id);
+                    setActiveTab('tracks');
+                    setShowSidebar(true);
                   }
                 }}
                 onEdited={(e) => {
@@ -1771,7 +1924,12 @@ export function OrchardMap() {
                   rectangle: false,
                   circle: false,
                   circlemarker: false,
-                  polyline: false,
+                  polyline: activeTab === 'tracks' ? {
+                    shapeOptions: {
+                      color: '#10b981',
+                      weight: 4,
+                    },
+                  } : false,
                   marker: activeTab === 'infrastructure' ? true : false,
                   polygon: activeTab === 'blocks' ? {
                     allowIntersection: false,
@@ -1948,7 +2106,13 @@ export function OrchardMap() {
                 <BlockOperateCard
                   block={selectedOperateBlock}
                   openIssues={openIssuesByBlock[selectedOperateBlock.id] || 0}
-                  chillPortions={PLACEHOLDER_FARM_CHILL_PORTIONS}
+                  chill={{
+                    portions: farmChill.data?.totalPortions ?? null,
+                    loading: farmChill.loading,
+                    error: farmChill.error,
+                    stationName: farmChill.data?.stationName,
+                    seasonLabel: farmChill.data?.seasonLabel,
+                  }}
                   onClose={() => setHighlightedBlockId(null)}
                   onViewIssues={() => {
                     setIssuesPanelBlockId(selectedOperateBlock.id);
@@ -2182,13 +2346,11 @@ export function OrchardMap() {
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
                         >
                           <option value="">Select cultivar...</option>
-                          <option value="Chandler">Chandler</option>
-                          <option value="Howard">Howard</option>
-                          <option value="Tulare">Tulare</option>
-                          <option value="Vina">Vina</option>
-                          <option value="Franquette">Franquette</option>
-                          <option value="Lara">Lara</option>
-                          <option value="Cisco">Cisco</option>
+                          {CULTIVARS.map((c) => (
+                            <option key={c.id} value={c.name}>
+                              {c.name} ({c.requiredCP} CP)
+                            </option>
+                          ))}
                           <option value="Other">Other / Mixed</option>
                         </select>
                       </div>
@@ -2553,8 +2715,15 @@ export function OrchardMap() {
                         <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Track Name</label>
                         <input 
                           type="text" 
-                          value={track.name}
-                          onChange={(e) => updateTrack(track.id, { name: e.target.value })}
+                          defaultValue={track.name}
+                          key={`track-name-${track.id}`}
+                          onChange={(e) => debouncedUpdateTrackName(track.id, e.target.value)}
+                          onBlur={(e) => {
+                            debouncedUpdateTrackName.flush();
+                            if (e.target.value !== track.name) {
+                              updateTrack(track.id, { name: e.target.value });
+                            }
+                          }}
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                           placeholder="e.g. Main Access Road"
                         />
@@ -2705,6 +2874,17 @@ export function OrchardMap() {
                 <section className="space-y-3">
                   <h3 className="font-bold text-slate-900 flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">3</div>
+                    Drawing Tracks
+                  </h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Open <strong>Tracks</strong>, then use the <strong>+</strong> button or the polyline tool to click along a pathway.
+                    Finish the line to save it. Tap a track on the map or in the list to rename it and set primary / secondary / service.
+                  </p>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">4</div>
                     Predictive Analytics
                   </h3>
                   <div className="flex gap-4 items-start">
@@ -2719,7 +2899,7 @@ export function OrchardMap() {
 
                 <section className="space-y-3">
                   <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">4</div>
+                    <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">5</div>
                     Search & edit
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed">

@@ -19,9 +19,9 @@ const DEFAULT_CALIBRATION = {
   splashMultiplier: 1.0,
   chemRainWashoffRate: 0.05,
   bioColonizationEff: 1.0,
-  springStartingInoculum: 0.1,
+  springStartingInoculum: 0.02,
   latencyGDDThreshold: 120.0,
-  secondarySpreadMultiplier: 1.5,
+  secondarySpreadMultiplier: 1.0,
   chemEfficacy: 95,
   bioEfficacy: 30,
   treeHeight: 4.5,
@@ -57,17 +57,12 @@ function runBlightModel(
   let currentThreat = calib.springStartingInoculum;
   let currentChem = 0;
   let currentBio = 0;
-  let accumulatedGDD = 0;
-  let latentQueue: Array<{ gdd: number; amount: number }> = [];
 
   for (let i = 0; i <= totalDays; i++) {
     const currentDate = new Date(startDate);
     currentDate.setDate(startDate.getDate() + i);
     const dateKey = toLocalISOString(currentDate);
     const w = weatherData[dateKey] || { T: 15, RH: 60, R: 0, WD: 4, maxHourlyRain: 0 };
-
-    const dailyGDD = Math.max(0, w.T - calib.gddBaseTemp);
-    accumulatedGDD += dailyGDD;
 
     const tempFactor = w.T > 12 && w.T < 24 ? calib.tempOptimumWeight : 0.5;
     const wetnessFactor = w.WD > 8 ? (w.WD - 8) * calib.wdCompoundingRate : 0;
@@ -84,20 +79,8 @@ function runBlightModel(
     const totalSuppression = Math.min(1, currentChem + currentBio * (calib.bioEfficacy / 100));
     const effectiveDailyInfection = dailyInfectionRate * 0.2 * (1 - totalSuppression);
 
-    if (effectiveDailyInfection > 0.01) {
-      latentQueue.push({ gdd: accumulatedGDD, amount: effectiveDailyInfection });
-    }
-
-    let eruptingAmount = 0;
-    latentQueue = latentQueue.filter((item) => {
-      if (accumulatedGDD - item.gdd >= calib.latencyGDDThreshold) {
-        eruptingAmount += item.amount;
-        return false;
-      }
-      return true;
-    });
-
-    currentThreat = currentThreat * 0.85 + effectiveDailyInfection + eruptingAmount * 1.5 * (1 - totalSuppression);
+    // Match client historical/forecast: no GDD latency / secondary eruption (experimental sandbox only).
+    currentThreat = currentThreat * 0.85 + effectiveDailyInfection;
     currentThreat = Math.min(1.5, currentThreat);
 
     data.push({ fullDate: dateKey, threat: Number(currentThreat.toFixed(2)) });

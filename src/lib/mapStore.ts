@@ -69,9 +69,12 @@ interface MapState {
   currentFarmId: string | null;
   bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null;
   pendingSyncCount: number;
+  /** Last cloud sync warning (queued / permission) — null when clear. */
+  syncError: string | null;
   setViewport: (viewport: MapViewport) => void;
   setLocked: (isLocked: boolean) => void;
   setBounds: (bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null) => void;
+  clearSyncError: () => void;
   addBlock: (farmId: string, canEdit: boolean, block: OrchardBlock) => Promise<void>;
   updateBlock: (farmId: string, canEdit: boolean, id: string, updates: Partial<OrchardBlock>) => Promise<void>;
   removeBlock: (farmId: string, canEdit: boolean, id: string) => Promise<void>;
@@ -119,9 +122,11 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
   currentFarmId: null,
   bounds: null,
   pendingSyncCount: 0,
+  syncError: null,
 
   setViewport: (viewport) => set({ viewport }),
   setLocked: (isLocked) => set({ isLocked }),
+  clearSyncError: () => set({ syncError: null }),
 
   setBounds: (bounds) => {
     set({ bounds });
@@ -130,15 +135,25 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
   refreshPendingCount: async (farmId: string) => {
     try {
       const count = await pendingGeometryCount(farmId);
-      set({ pendingSyncCount: count });
+      set({
+        pendingSyncCount: count,
+        syncError: count === 0 ? null : get().syncError,
+      });
     } catch {
       /* ignore */
     }
   },
 
   flushSync: async (farmId: string) => {
-    await flushPendingGeometry(farmId);
+    const result = await flushPendingGeometry(farmId);
     await get().refreshPendingCount(farmId);
+    if (result.failed > 0) {
+      set({
+        syncError: `${result.failed} map change(s) still waiting to sync to the farm cloud.`,
+      });
+    } else if (result.flushed > 0) {
+      set({ syncError: null });
+    }
   },
 
   loadData: async (farmId: string) => {
@@ -184,10 +199,13 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     loadGeneration += 1;
     set((state) => ({ blocks: [...state.blocks, block] }));
     try {
-      await persistBlock(farmId, block);
+      const sync = await persistBlock(farmId, block);
       await get().refreshPendingCount(farmId);
+      if (sync.message) set({ syncError: sync.message });
+      else if (sync.synced) set({ syncError: null });
     } catch (err) {
       console.error('Failed to save block:', err);
+      set({ syncError: 'Failed to save block on this device.' });
     }
   },
 
@@ -200,10 +218,13 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     set({ blocks: newBlocks });
     if (updatedBlock) {
       try {
-        await persistBlock(farmId, updatedBlock);
+        const sync = await persistBlock(farmId, updatedBlock);
         await get().refreshPendingCount(farmId);
+        if (sync.message) set({ syncError: sync.message });
+        else if (sync.synced) set({ syncError: null });
       } catch (err) {
         console.error('Failed to save block:', err);
+        set({ syncError: 'Failed to save block on this device.' });
       }
     }
   },
@@ -213,10 +234,13 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     loadGeneration += 1;
     set((state) => ({ blocks: state.blocks.filter((b) => b.id !== id) }));
     try {
-      await removeBlockPersisted(farmId, id);
+      const sync = await removeBlockPersisted(farmId, id);
       await get().refreshPendingCount(farmId);
+      if (sync.message) set({ syncError: sync.message });
+      else if (sync.synced) set({ syncError: null });
     } catch (err) {
       console.error('Failed to delete block:', err);
+      set({ syncError: 'Failed to delete block on this device.' });
     }
   },
 
@@ -225,8 +249,10 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     loadGeneration += 1;
     set((state) => ({ pins: [...state.pins, pin] }));
     try {
-      await persistPin(farmId, pin);
+      const sync = await persistPin(farmId, pin);
       await get().refreshPendingCount(farmId);
+      if (sync.message) set({ syncError: sync.message });
+      else if (sync.synced) set({ syncError: null });
     } catch (err) {
       console.error('Failed to save pin:', err);
     }
@@ -241,8 +267,10 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     set({ pins: newPins });
     if (updatedPin) {
       try {
-        await persistPin(farmId, updatedPin);
+        const sync = await persistPin(farmId, updatedPin);
         await get().refreshPendingCount(farmId);
+        if (sync.message) set({ syncError: sync.message });
+        else if (sync.synced) set({ syncError: null });
       } catch (err) {
         console.error('Failed to save pin:', err);
       }
@@ -266,10 +294,13 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     loadGeneration += 1;
     set((state) => ({ tracks: [...state.tracks, track] }));
     try {
-      await persistTrack(farmId, track);
+      const sync = await persistTrack(farmId, track);
       await get().refreshPendingCount(farmId);
+      if (sync.message) set({ syncError: sync.message });
+      else if (sync.synced) set({ syncError: null });
     } catch (err) {
       console.error('Failed to save track:', err);
+      set({ syncError: 'Failed to save track on this device.' });
     }
   },
 
@@ -282,10 +313,13 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     set({ tracks: newTracks });
     if (updatedTrack) {
       try {
-        await persistTrack(farmId, updatedTrack);
+        const sync = await persistTrack(farmId, updatedTrack);
         await get().refreshPendingCount(farmId);
+        if (sync.message) set({ syncError: sync.message });
+        else if (sync.synced) set({ syncError: null });
       } catch (err) {
         console.error('Failed to save track:', err);
+        set({ syncError: 'Failed to save track on this device.' });
       }
     }
   },
@@ -295,10 +329,13 @@ const useMapStoreInternal = create<MapState>((set, get) => ({
     loadGeneration += 1;
     set((state) => ({ tracks: state.tracks.filter((t) => t.id !== id) }));
     try {
-      await removeTrackPersisted(farmId, id);
+      const sync = await removeTrackPersisted(farmId, id);
       await get().refreshPendingCount(farmId);
+      if (sync.message) set({ syncError: sync.message });
+      else if (sync.synced) set({ syncError: null });
     } catch (err) {
       console.error('Failed to delete track:', err);
+      set({ syncError: 'Failed to delete track on this device.' });
     }
   },
 }));
@@ -427,6 +464,8 @@ export function useMapStore() {
     error: store.error,
     canEdit,
     pendingSyncCount: store.pendingSyncCount,
+    syncError: store.syncError,
+    clearSyncError: store.clearSyncError,
     flushSync: store.flushSync,
   };
 }

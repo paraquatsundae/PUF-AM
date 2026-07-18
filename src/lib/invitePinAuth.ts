@@ -113,3 +113,40 @@ export async function revokeInvitePin(pinId: string): Promise<void> {
   const data = await readJsonResponse(res);
   if (!res.ok) throw new Error(String(data.error || 'Failed to revoke PIN'));
 }
+
+export type FarmMember = {
+  uid: string;
+  displayName: string;
+  email: string | null;
+  role: PinRole;
+  farmId: string;
+  authMethod: string | null;
+  createdAt: string | null;
+};
+
+export async function listFarmMembers(): Promise<FarmMember[]> {
+  const res = await fetch(apiUrl('/api/auth/members'), { headers: await authHeaders() });
+  const data = await readJsonResponse(res);
+  if (!res.ok) throw new Error(String(data.error || 'Failed to list members'));
+  return (data.members as FarmMember[]) || [];
+}
+
+export async function updateFarmMemberRole(uid: string, role: PinRole): Promise<void> {
+  const res = await fetch(apiUrl('/api/auth/update-member'), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ uid, role }),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) throw new Error(String(data.error || 'Failed to update member'));
+}
+
+export async function removeFarmMember(uid: string): Promise<void> {
+  const res = await fetch(apiUrl('/api/auth/remove-member'), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ uid }),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) throw new Error(String(data.error || 'Failed to remove member'));
+}

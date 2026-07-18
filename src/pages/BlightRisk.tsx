@@ -12,26 +12,37 @@ import html2canvas from 'html2canvas';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { OperationType, handleFirestoreError } from '../contexts/AuthContext';
-import { runBlightModel, SprayType, ApplicationMethod, WeatherData, GrowthStage, CalibrationParams, defaultCalibration } from '../lib/blightModel';
-import { getBlightAggregate, isAggregateFresh } from '../services/aggregateService';
+import {
+  runBlightModel,
+  resolveCanopyGeometry,
+  growthStageFromDate,
+  growthStageLabel,
+  calendarMonthLabelsForStage,
+  SH_WALNUT_PHENOLOGY_BY_MONTH,
+  SprayType,
+  ApplicationMethod,
+  WeatherData,
+  GrowthStage,
+  CalibrationParams,
+  defaultCalibration,
+} from '../lib/blightModel';
+import { JI_HIGH_RISK_THRESHOLD, runJiBlightSeries } from '../lib/runJiBlightSeries';
 import { fetchEnvironmentalData, WeatherSource, fetchAllDPIRDStations, calculateDistance } from '../lib/weatherService';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useMapStore } from '../lib/mapStore';
-import { WALNUT_DISTRICTS, PHENOLOGY_STAGES, SEASONS } from '../constants';
+import { WALNUT_DISTRICTS, SEASONS } from '../constants';
 import { SandboxMatrix } from '../components/SandboxMatrix';
 
 const seasonMonthsList = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
 const availableSeasons = SEASONS;
 
-function getDefaultGrowthStage(date: Date): GrowthStage {
-  const month = date.getMonth(); // 0-11
-  // Southern Hemisphere Walnut Phenology
-  if (month >= 4 && month <= 7) return 'dormant'; // May, Jun, Jul, Aug
-  if (month === 8) return 'bud_break'; // Sep
-  if (month === 9) return 'bloom'; // Oct
-  if (month === 10 || month === 11 || month === 0) return 'post_bloom'; // Nov, Dec, Jan
-  return 'shell_hardening'; // Feb, Mar, Apr
-}
+const BLIGHT_STAGE_CHIP: Record<GrowthStage, { color: string; textColor: string }> = {
+  dormant: { color: 'bg-slate-200', textColor: 'text-slate-600' },
+  bud_break: { color: 'bg-lime-200', textColor: 'text-lime-800' },
+  bloom: { color: 'bg-emerald-200', textColor: 'text-emerald-700' },
+  post_bloom: { color: 'bg-blue-200', textColor: 'text-blue-700' },
+  shell_hardening: { color: 'bg-amber-200', textColor: 'text-amber-700' },
+};
 
 function getCurrentSeasonStr(date: Date): string {
   const year = date.getFullYear();
@@ -137,6 +148,8 @@ export function BlightRisk() {
   };
 
   const [sandboxView, setSandboxView] = useState<'forecast' | 'historical'>('forecast');
+  /** Experimental GDD latency + secondary eruption — sandbox only; off by default. */
+  const [sandboxUseSecondaryLatency, setSandboxUseSecondaryLatency] = useState(false);
   const [scenarios, setScenarios] = useState<SandboxScenario[]>([
     { id: '1', name: 'Scenario 1', sprays: {}, irrigation: {}, treeHeight: null, canopyWidth: null, rowSpacing: null, color: '#6366f1' },
     { id: '2', name: 'Scenario 2', sprays: {}, irrigation: {}, treeHeight: null, canopyWidth: null, rowSpacing: null, color: '#10b981' },
@@ -205,34 +218,30 @@ export function BlightRisk() {
     
     const startDate = new Date(`${startYear}-06-01T12:00:00Z`);
 
-    let avgHeight = debouncedParams.calib.treeHeight;
-    let avgWidth = debouncedParams.calib.canopyWidth;
-    let avgSpacing = debouncedParams.calib.rowSpacing;
-    
-    if (selectedBlockId) {
-      const block = blocks.find(b => b.id === selectedBlockId);
-      if (block) {
-        avgSpacing = block.rowSpacing || avgSpacing;
-      }
-    } else if (blocks.length > 0) {
-      const totalArea = blocks.reduce((sum, b) => sum + (b.areaHa || 0), 0) || 1;
-      let weightedSpacing = 0;
-      blocks.forEach(b => {
-        const area = b.areaHa || (totalArea / blocks.length);
-        const spacing = b.rowSpacing || debouncedParams.calib.rowSpacing;
-        weightedSpacing += spacing * area;
-      });
-      avgSpacing = weightedSpacing / totalArea;
-    }
+    const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
+    const canopy = resolveCanopyGeometry({
+      selectedBlock,
+      blocks,
+      overrides: {
+        treeHeight: activeScenario.treeHeight,
+        canopyWidth: activeScenario.canopyWidth,
+        rowSpacing: activeScenario.rowSpacing,
+      },
+      fallback: {
+        treeHeight: debouncedParams.calib.treeHeight,
+        canopyWidth: debouncedParams.calib.canopyWidth,
+        rowSpacing: debouncedParams.calib.rowSpacing,
+      },
+    });
 
-    const canopyCoverage = Math.min(1, avgWidth / avgSpacing);
+    const canopyCoverage = Math.min(1, canopy.canopyWidth / canopy.rowSpacing);
     const avgKc = 0.2 + (0.8 * canopyCoverage);
 
     const dynamicCalib = {
       ...debouncedParams.calib,
-      treeHeight: avgHeight,
-      canopyWidth: avgWidth,
-      rowSpacing: avgSpacing,
+      treeHeight: canopy.treeHeight,
+      canopyWidth: canopy.canopyWidth,
+      rowSpacing: canopy.rowSpacing,
       cropCoefficient: avgKc
     };
 
@@ -252,7 +261,7 @@ export function BlightRisk() {
         irrigationEvents,
         settings.irrigationSystemType,
         dynamicCalib,
-        { includeProtection: true }
+        { includeProtection: true, useCanopyMicroclimate: canopy.useCanopyMicroclimate }
       );
 
       // Find first breach in the relevant period
@@ -319,7 +328,13 @@ export function BlightRisk() {
   const [calculating, setCalculating] = useState(false);
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [lastCalculated, setLastCalculated] = useState<Date | null>(new Date());
-  const [growthStage, setGrowthStage] = useState<GrowthStage>(getDefaultGrowthStage(todayDate));
+  /** Sandbox fixed-stage what-if (ignored on Forecast/Historical calendar path). */
+  const [growthStage, setGrowthStage] = useState<GrowthStage>(growthStageFromDate(todayDate));
+  /**
+   * Optional scouted stage for Forecast days from today onward.
+   * `null` = calendar schedule only. Not persisted yet (diary hook later).
+   */
+  const [scoutingStage, setScoutingStage] = useState<GrowthStage | null>(null);
 
   // Developer Calibration
   const [showDevPanel, setShowDevPanel] = useState(false);
@@ -394,15 +409,7 @@ export function BlightRisk() {
   const [locationId, setLocationId] = useState('manjimup');
   const [weatherData, setWeatherData] = useState<Record<string, WeatherData>>({});
   const [weatherMeta, setWeatherMeta] = useState<{ lastUpdated?: string; isStale?: boolean; cacheSource?: string } | null>(null);
-  const [blightAggregate, setBlightAggregate] = useState<{ currentRiskScore: number; lastUpdated: string } | null>(null);
   const [isLoadingWeather, setIsLoadingWeather] = useState(true);
-
-  useEffect(() => {
-    if (!farmId) return;
-    getBlightAggregate(farmId).then((agg) => {
-      if (agg) setBlightAggregate(agg);
-    });
-  }, [farmId]);
 
   // Fetch DPIRD Stations and User Location
   useEffect(() => {
@@ -632,69 +639,61 @@ export function BlightRisk() {
     }
     
     const startDate = new Date(`${startYear}-06-01T12:00:00Z`);
-    
     const endDate = new Date(todayDate);
     endDate.setDate(endDate.getDate() + 30);
-    
-    // Calculate block averages or use selected block
-    let avgHeight = debouncedParams.calib.treeHeight;
-    let avgWidth = debouncedParams.calib.canopyWidth;
-    let avgSpacing = debouncedParams.calib.rowSpacing;
-    
-    if (selectedBlockId) {
-      const block = blocks.find(b => b.id === selectedBlockId);
-      if (block) {
-        avgSpacing = block.rowSpacing || avgSpacing;
-      }
-    } else if (blocks.length > 0) {
-      const totalArea = blocks.reduce((sum, b) => sum + (b.areaHa || 0), 0) || 1; // avoid div by 0
-      
-      let weightedSpacing = 0;
-      
-      blocks.forEach(b => {
-        const area = b.areaHa || (totalArea / blocks.length);
-        const spacing = b.rowSpacing || debouncedParams.calib.rowSpacing;
-        weightedSpacing += spacing * area;
+
+    // Production tabs: Ji et al. 2025. Sandbox baseline must match legacy scenario scale.
+    if (activeTab === 'sandbox') {
+      const selectedBlock = selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null;
+      const canopy = resolveCanopyGeometry({
+        selectedBlock,
+        blocks,
+        fallback: {
+          treeHeight: debouncedParams.calib.treeHeight,
+          canopyWidth: debouncedParams.calib.canopyWidth,
+          rowSpacing: debouncedParams.calib.rowSpacing,
+        },
       });
-      
-      avgSpacing = weightedSpacing / totalArea;
+      const canopyCoverage = Math.min(1, canopy.canopyWidth / canopy.rowSpacing);
+      return runBlightModel(
+        startDate,
+        endDate,
+        debouncedParams.growthStage,
+        {},
+        weatherData,
+        irrigationEvents,
+        settings.irrigationSystemType,
+        {
+          ...debouncedParams.calib,
+          treeHeight: canopy.treeHeight,
+          canopyWidth: canopy.canopyWidth,
+          rowSpacing: canopy.rowSpacing,
+          cropCoefficient: 0.2 + 0.8 * canopyCoverage,
+        },
+        {
+          includeProtection: false,
+          phenologyMode: 'calendar',
+          useCanopyMicroclimate: canopy.useCanopyMicroclimate,
+        }
+      );
     }
 
-    const canopyCoverage = Math.min(1, avgWidth / avgSpacing);
-    const avgKc = 0.2 + (0.8 * canopyCoverage);
-
-    const dynamicCalib = {
-      ...debouncedParams.calib,
-      treeHeight: avgHeight,
-      canopyWidth: avgWidth,
-      rowSpacing: avgSpacing,
-      cropCoefficient: avgKc
-    };
-    
-    // Forecast / historical: weather epidemiology only (no chem/bio armour).
-    // Calendar phenology so Historical isn't stuck on today's stage (e.g. July dormant).
-    return runBlightModel(
-      startDate, 
-      endDate, 
-      debouncedParams.growthStage, 
-      {}, 
-      weatherData, 
-      irrigationEvents,
-      settings.irrigationSystemType,
-      dynamicCalib,
-      { includeProtection: false, phenologyMode: 'calendar' }
-    );
+    return runJiBlightSeries(startDate, endDate, weatherData, {
+      orchard: { k: 1 },
+      // cumulativeY within each SH budbreak season — deltaY went flat after Y≈1
+      doseMode: 'cumulativeY',
+    });
   }, [
-    debouncedParams,
-    irrigationEvents,
-    settings.irrigationSystemType,
     weatherData,
     activeTab,
     sandboxView,
-    blocks,
-    selectedBlockId,
     todayDate,
     availableSeasons,
+    selectedBlockId,
+    blocks,
+    debouncedParams,
+    irrigationEvents,
+    settings.irrigationSystemType,
   ]);
 
   // Split data into historical and forecast
@@ -717,42 +716,35 @@ export function BlightRisk() {
     const endDate = new Date(todayDate);
     endDate.setDate(endDate.getDate() + 30);
     
-    // Calculate block averages
-    let baseHeight = debouncedParams.calib.treeHeight;
-    let baseWidth = debouncedParams.calib.canopyWidth;
-    let baseSpacing = debouncedParams.calib.rowSpacing;
-    
-    if (blocks.length > 0) {
-      const totalArea = blocks.reduce((sum, b) => sum + (b.areaHa || 0), 0) || 1; 
-      let weightedSpacing = 0;
-      
-      blocks.forEach(b => {
-        const area = b.areaHa || (totalArea / blocks.length);
-        const spacing = b.rowSpacing || debouncedParams.calib.rowSpacing;
-        weightedSpacing += spacing * area;
-      });
-      
-      baseSpacing = weightedSpacing / totalArea;
-    }
-
     const results: Record<string, any[]> = {};
 
     scenarios.forEach(scenario => {
       // Only calculate for active scenario OR all if compareAllScenarios is true
       if (!compareAllScenarios && scenario.id !== activeScenarioId) return;
 
-      let scenarioHeight = scenario.treeHeight !== null ? scenario.treeHeight : baseHeight;
-      let scenarioWidth = scenario.canopyWidth !== null ? scenario.canopyWidth : baseWidth;
-      let scenarioSpacing = scenario.rowSpacing !== null ? scenario.rowSpacing : baseSpacing;
-      
-      const scenarioCoverage = Math.min(1, scenarioWidth / scenarioSpacing);
+      const canopy = resolveCanopyGeometry({
+        selectedBlock: selectedBlockId ? blocks.find((b) => b.id === selectedBlockId) : null,
+        blocks,
+        overrides: {
+          treeHeight: scenario.treeHeight,
+          canopyWidth: scenario.canopyWidth,
+          rowSpacing: scenario.rowSpacing,
+        },
+        fallback: {
+          treeHeight: debouncedParams.calib.treeHeight,
+          canopyWidth: debouncedParams.calib.canopyWidth,
+          rowSpacing: debouncedParams.calib.rowSpacing,
+        },
+      });
+
+      const scenarioCoverage = Math.min(1, canopy.canopyWidth / canopy.rowSpacing);
       const scenarioKc = 0.2 + (0.8 * scenarioCoverage);
 
       const dynamicCalib = {
         ...debouncedParams.calib,
-        treeHeight: scenarioHeight,
-        canopyWidth: scenarioWidth,
-        rowSpacing: scenarioSpacing,
+        treeHeight: canopy.treeHeight,
+        canopyWidth: canopy.canopyWidth,
+        rowSpacing: canopy.rowSpacing,
         cropCoefficient: scenarioKc
       };
 
@@ -768,12 +760,31 @@ export function BlightRisk() {
         combinedIrrigation,
         settings.irrigationSystemType,
         dynamicCalib,
-        { includeProtection: true, phenologyMode: 'fixed' }
+        {
+          includeProtection: true,
+          phenologyMode: 'fixed',
+          useCanopyMicroclimate: canopy.useCanopyMicroclimate,
+          useSecondaryLatency: sandboxUseSecondaryLatency,
+        }
       );
     });
 
     return results;
-  }, [debouncedParams, sprayEvents, irrigationEvents, settings.irrigationSystemType, weatherData, activeTab, blocks, scenarios, activeScenarioId, compareAllScenarios, sandboxView]);
+  }, [
+    debouncedParams,
+    sprayEvents,
+    irrigationEvents,
+    settings.irrigationSystemType,
+    sandboxUseSecondaryLatency,
+    weatherData,
+    activeTab,
+    blocks,
+    selectedBlockId,
+    scenarios,
+    activeScenarioId,
+    compareAllScenarios,
+    sandboxView,
+  ]);
 
   const sandboxModelData = useMemo(() => sandboxScenariosData[activeScenarioId] || [], [sandboxScenariosData, activeScenarioId]);
 
@@ -806,7 +817,7 @@ export function BlightRisk() {
         seasonData = seasonData.slice(-daysToSubtract);
       }
 
-      const highRiskDays = seasonData.filter(d => d.threat > 0.8).length;
+      const highRiskDays = seasonData.filter((d) => d.threat > JI_HIGH_RISK_THRESHOLD).length;
       const totalSprays = seasonData.filter(d => d.isSprayDay).length;
       const avgThreat = seasonData.length 
         ? (seasonData.reduce((acc, curr) => acc + curr.threat, 0) / seasonData.length).toFixed(2)
@@ -890,22 +901,18 @@ export function BlightRisk() {
 
   // Calculate summary stats for the historical view
   const historicalStats = useMemo(() => {
-    const highRiskDays = filteredHistoricalData.filter(d => d.threat > 0.8).length;
+    const highRiskDays = filteredHistoricalData.filter((d) => d.threat > JI_HIGH_RISK_THRESHOLD).length;
     const dateSet = new Set(filteredHistoricalData.map(d => d.fullDate));
     const totalSprays = events.filter(e => e.type === 'spray' && dateSet.has(e.date)).length;
     const avgThreat = filteredHistoricalData.length 
       ? (filteredHistoricalData.reduce((acc, curr) => acc + curr.threat, 0) / filteredHistoricalData.length).toFixed(2)
       : '0.00';
 
-    // Stage-Aware Aggregation
-    const stageBreakdown = PHENOLOGY_STAGES.map(stage => {
-      const stageData = filteredHistoricalData.filter(d => {
-        const date = new Date(d.timestamp);
-        const month = date.getUTCMonth();
-        const day = date.getUTCDate();
-        const seasonMonthIndex = month >= 6 ? month - 6 : month + 6;
-        const progress = seasonMonthIndex + (day / 31);
-        return progress >= stage.startMonth && progress < stage.endMonth;
+    // Breakdown using the same SH calendar the engine uses (not a separate season UI scale).
+    const stageBreakdown = SH_WALNUT_PHENOLOGY_BY_MONTH.map((row) => {
+      const stageData = filteredHistoricalData.filter((d) => {
+        const date = new Date(`${d.fullDate}T12:00:00Z`);
+        return growthStageFromDate(date) === row.stage;
       });
 
       const avgStageThreat = stageData.length
@@ -914,10 +921,14 @@ export function BlightRisk() {
       
       const stageDates = new Set(stageData.map(d => d.fullDate));
       const stageSprays = events.filter(e => e.type === 'spray' && stageDates.has(e.date)).length;
-      const stageHighRiskDays = stageData.filter(d => d.threat > 0.8).length;
+      const stageHighRiskDays = stageData.filter((d) => d.threat > JI_HIGH_RISK_THRESHOLD).length;
+      const chip = BLIGHT_STAGE_CHIP[row.stage];
 
       return {
-        ...stage,
+        name: `${growthStageLabel(row.stage)} (${row.monthLabels})`,
+        stage: row.stage,
+        color: chip.color,
+        textColor: chip.textColor,
         avgThreat: avgStageThreat,
         sprays: stageSprays,
         highRiskDays: stageHighRiskDays,
@@ -967,13 +978,11 @@ export function BlightRisk() {
   const isOverLimit = !usageLoading && !checkLimit('calculations');
   const currentWeather = forecastData[0] || { T: 0, RH: 0, R: 0, WD: 0 };
   
-  // Find if there is a critical day in the next 7 days (weather risk only — no modelled armour)
-  const criticalDay = forecastData.slice(0, 7).find(d => d.threat > 0.8);
+  // High-index day in next 7 (Ji daily infection risk — no modelled armour)
+  const criticalDay = forecastData.slice(0, 7).find((d) => d.threat > JI_HIGH_RISK_THRESHOLD);
 
-  // Summary stats for glanceable header
-  const modelCurrentRisk = forecastData[0]?.threat || 0;
-  const useAggregate = blightAggregate && isAggregateFresh(blightAggregate.lastUpdated);
-  const currentRisk = useAggregate ? blightAggregate!.currentRiskScore : modelCurrentRisk;
+  // Live Ji model (Cloud Function aggregate still legacy — BV-09).
+  const currentRisk = forecastData[0]?.threat || 0;
 
   // Sort historical sprays (descending) — diary reference, not model efficacy
   const historicalSprays = events
@@ -1028,7 +1037,7 @@ export function BlightRisk() {
         startY: 65,
         head: [['Metric', 'Value']],
         body: [
-          ['High Risk Days (> 0.8)', historicalStats.highRiskDays.toString()],
+          [`High index days (> ${JI_HIGH_RISK_THRESHOLD})`, historicalStats.highRiskDays.toString()],
           ['Sprays Applied', historicalStats.totalSprays.toString()],
           ['Average Threat Level', historicalStats.avgThreat],
           ['Location', weatherSource === 'DPIRD' ? (processedStations.find(s => (s.stationCode || s.code) === locationId)?.stationName || locationId) : (WALNUT_DISTRICTS.find(d => d.id === locationId)?.name || locationId)]
@@ -1071,7 +1080,7 @@ export function BlightRisk() {
       
       // High Risk Events Table (Reduced Summary)
       const highRiskEvents = filteredHistoricalData
-        .filter(d => d.threat > 0.8)
+        .filter((d) => d.threat > JI_HIGH_RISK_THRESHOLD)
         .map(d => [
           d.dateStr,
           d.threat.toFixed(2),
@@ -1086,7 +1095,7 @@ export function BlightRisk() {
         doc.setFontSize(14);
         doc.text('High Risk Events Summary', 14, 22);
         doc.setFontSize(10);
-        doc.text('Detailed data for days where threat exceeded 0.8 threshold.', 14, 28);
+        doc.text(`Detailed data for days where Ji infection index exceeded ${JI_HIGH_RISK_THRESHOLD}.`, 14, 28);
         
         autoTable(doc, {
           startY: 35,
@@ -1099,7 +1108,7 @@ export function BlightRisk() {
       } else {
         doc.setFontSize(10);
         doc.setTextColor(100, 116, 139);
-        doc.text('No high-risk events (threat > 0.8) recorded during this period.', 14, 220);
+        doc.text(`No high-index days (Ji risk > ${JI_HIGH_RISK_THRESHOLD}) in this period.`, 14, 220);
       }
       
       doc.save(`Blight_Risk_Report_${selectedSeason}_${timeRange}.pdf`);
@@ -1117,7 +1126,7 @@ export function BlightRisk() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Blight risk</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Do you need to spray, and is protection still holding?
+              Ji et al. 2025 infection risk — spray efficacy is sandbox what-if only.
               {lastCalculated ? ` · Updated ${lastCalculated.toLocaleTimeString()}` : ''}
             </p>
           </div>
@@ -1151,22 +1160,66 @@ export function BlightRisk() {
             </select>
           </label>
 
-          <label className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide" title="Sandbox only — Forecast/Historical use calendar phenology">
-              Growth stage (sandbox)
-            </span>
-            <select
-              value={growthStage}
-              onChange={(e) => setGrowthStage(e.target.value as GrowthStage)}
-              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-400 min-w-[140px] max-w-[200px]"
-            >
-              <option value="dormant">Dormant</option>
-              <option value="bud_break">Bud break</option>
-              <option value="bloom">Bloom</option>
-              <option value="post_bloom">Post-bloom</option>
-              <option value="shell_hardening">Shell hardening</option>
-            </select>
-          </label>
+          {activeTab === 'sandbox' ? (
+            <label className="flex flex-col gap-0.5 min-w-0">
+              <span
+                className="text-[9px] font-bold text-slate-400 uppercase tracking-wide"
+                title="Locks every sandbox day to this stage (what-if). Forecast/Historical use the SH calendar."
+              >
+                Growth stage (sandbox)
+              </span>
+              <select
+                value={growthStage}
+                onChange={(e) => setGrowthStage(e.target.value as GrowthStage)}
+                className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-400 min-w-[140px] max-w-[200px]"
+              >
+                <option value="dormant">Dormant</option>
+                <option value="bud_break">Bud break</option>
+                <option value="bloom">Bloom</option>
+                <option value="post_bloom">Post-bloom</option>
+                <option value="shell_hardening">Shell hardening</option>
+              </select>
+            </label>
+          ) : (
+            <>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span
+                  className="text-[9px] font-bold text-slate-400 uppercase tracking-wide"
+                  title="Coarse WA / SH month schedule — not scouting-confirmed"
+                >
+                  Calendar stage
+                </span>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 min-w-[140px]">
+                  {growthStageLabel(growthStageFromDate(todayDate))}
+                  <span className="text-slate-400 font-normal">
+                    {' '}· {calendarMonthLabelsForStage(growthStageFromDate(todayDate))}
+                  </span>
+                </div>
+              </div>
+              <label className="flex flex-col gap-0.5 min-w-0">
+                <span
+                  className="text-[9px] font-bold text-slate-400 uppercase tracking-wide"
+                  title="Optional: from today forward only. Past Historical days stay on the calendar. Not saved yet."
+                >
+                  Scouted override
+                </span>
+                <select
+                  value={scoutingStage ?? ''}
+                  onChange={(e) =>
+                    setScoutingStage(e.target.value ? (e.target.value as GrowthStage) : null)
+                  }
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-400 min-w-[140px] max-w-[200px]"
+                >
+                  <option value="">Calendar only</option>
+                  <option value="dormant">Dormant</option>
+                  <option value="bud_break">Bud break</option>
+                  <option value="bloom">Bloom</option>
+                  <option value="post_bloom">Post-bloom</option>
+                  <option value="shell_hardening">Shell hardening</option>
+                </select>
+              </label>
+            </>
+          )}
 
           <label className="flex flex-col gap-0.5 min-w-0">
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Weather</span>
@@ -1237,16 +1290,15 @@ export function BlightRisk() {
           <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase tracking-wide truncate">
             <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
             Risk
-            {useAggregate && <span className="text-slate-400 font-medium normal-case tracking-normal">· agg</span>}
           </div>
           <div className="flex items-baseline gap-1.5 mt-0.5">
             <span className={cn(
               "text-lg font-black tracking-tight leading-none",
-              currentRisk > 0.7 ? "text-rose-600" : currentRisk > 0.4 ? "text-amber-600" : "text-emerald-600"
+              currentRisk > JI_HIGH_RISK_THRESHOLD ? "text-rose-600" : currentRisk > JI_HIGH_RISK_THRESHOLD * 0.4 ? "text-amber-600" : "text-emerald-600"
             )}>
-              {(currentRisk * 100).toFixed(0)}%
+              {currentRisk.toFixed(3)}
             </span>
-            <span className="text-[9px] font-medium text-slate-400 truncate">/ 80%</span>
+            <span className="text-[9px] font-medium text-slate-400 truncate">index</span>
           </div>
         </div>
 
@@ -1270,10 +1322,10 @@ export function BlightRisk() {
               "text-lg font-black tracking-tight leading-none",
               isProtected ? "text-emerald-600" : "text-slate-700"
             )}>
-              {lastSprayDate === 'N/A' ? 'None' : (isProtected ? 'Recent' : 'Older')}
+              {lastSprayDate === 'N/A' ? 'None' : (isProtected ? '≤14d' : 'Older')}
             </span>
             <span className="text-[9px] font-medium text-slate-400 truncate">
-              {lastSprayDate === 'N/A' ? 'diary' : lastSprayDate}
+              {lastSprayDate === 'N/A' ? 'diary only' : `${lastSprayDate} · not modelled`}
             </span>
           </div>
         </div>
@@ -1338,10 +1390,10 @@ export function BlightRisk() {
                 <AlertTriangle className="w-6 h-6 text-rose-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-rose-900 mb-1">Critical blight window</h3>
+                <h3 className="text-lg font-bold text-rose-900 mb-1">Elevated infection risk</h3>
                 <p className="text-rose-800 font-medium leading-relaxed">
-                  High infection pressure ({criticalDay.threat}) on {criticalDay.dateStr}
-                  — {criticalDay.T}°C and {criticalDay.WD} wetness hours in the weather drivers.
+                  High Ji infection index ({criticalDay.threat}) on {criticalDay.dateStr}
+                  — {criticalDay.T}°C and {criticalDay.WD} h wetness (proxy) in the weather drivers.
                 </p>
               </div>
             </div>
@@ -1353,19 +1405,22 @@ export function BlightRisk() {
                     <div className="flex flex-col items-center text-emerald-700">
                       <Loader2 className="w-8 h-8 animate-spin mb-2" />
                       <p className="font-medium">
-                        {loadingParams ? 'Initializing engine parameters...' : 
-                         isLoadingWeather ? `Fetching ${weatherSource} weather data...` : 
-                         isDebouncing ? 'Waiting for input stabilization...' :
-                         'Recalculating epidemiological models...'}
+                        {loadingParams ? 'Initializing…' :
+                         isLoadingWeather ? `Fetching ${weatherSource} weather…` :
+                         isDebouncing ? 'Waiting for input…' :
+                         'Updating Ji infection risk…'}
                       </p>
                     </div>
                   </div>
                 )}
                 
                 <div className="mb-4">
-                  <h2 className="text-lg font-bold text-slate-900">Infection risk (weather-driven)</h2>
+                  <h2 className="text-lg font-bold text-slate-900">Infection risk (Ji et al. 2025)</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Temperature · wetness · phenology · latency · secondary spread. Spray efficacy is sandbox-only.
+                    Primary inoculum × f(T) × f(WD) from budbreak · wetness is a rain/RH proxy until sensors
+                    {scoutingStage
+                      ? ` · scouted ${growthStageLabel(scoutingStage)} (phenology UI only for now)`
+                      : ''}. No chem/bio armour — use Sandbox for spray what-ifs.
                   </p>
                 </div>
                 
@@ -1402,18 +1457,21 @@ export function BlightRisk() {
                         dy={10}
                         tickFormatter={(ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       />
-                      <YAxis 
-                        domain={[0, 1.5]} 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#64748b', fontSize: 12 }} 
+                      <YAxis
+                        domain={[0, 'auto']}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#64748b', fontSize: 12 }}
                       />
                       <Tooltip content={<BlightChartTooltip />} />
                       <Legend verticalAlign="top" height={36} iconType="circle" />
-                      
-                      <Area type="monotone" dataKey="threat" name="Infectious pressure" fill="#ef4444" fillOpacity={0.8} stroke="#ef4444" strokeWidth={2} />
-                      <Area type="monotone" dataKey="latentThreat" name="Incubating infections" fill="#fef3c7" fillOpacity={0.5} stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" />
-                      <Bar dataKey="eruptingThreat" name="Symptom eruptions" fill="#b91c1c" barSize={4} />
+                      <ReferenceLine
+                        y={JI_HIGH_RISK_THRESHOLD}
+                        stroke="#f43f5e"
+                        strokeDasharray="4 4"
+                        label={{ value: 'High', fill: '#f43f5e', fontSize: 10 }}
+                      />
+                      <Area type="monotone" dataKey="threat" name="Infection risk (Ji)" fill="#ef4444" fillOpacity={0.8} stroke="#ef4444" strokeWidth={2} />
                     </ComposedChart>
                   </ResponsiveContainer>
                   )}
@@ -1522,7 +1580,7 @@ export function BlightRisk() {
                     <p className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-1">High Risk Days</p>
                     <div className="flex items-end gap-2">
                       <p className="text-3xl font-bold text-rose-600 leading-none">{historicalStats.highRiskDays}</p>
-                      <p className="text-sm text-slate-500 mb-0.5">days &gt; 0.8 threat</p>
+                      <p className="text-sm text-slate-500 mb-0.5">days &gt; {JI_HIGH_RISK_THRESHOLD} Ji index</p>
                     </div>
                   </div>
                   <div className="h-px bg-slate-100 w-full"></div>
@@ -1573,7 +1631,7 @@ export function BlightRisk() {
                                 <div className="group relative">
                                   <AlertTriangle className="w-3 h-3 text-amber-500 cursor-help" />
                                   <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                    Simultaneous chemical and biological application may reduce biological colonization efficiency.
+                                    Tank-mix note for operators — not modelled as reduced efficacy on this historical chart.
                                   </div>
                                 </div>
                               )}
@@ -1612,9 +1670,9 @@ export function BlightRisk() {
                 )}
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-bold text-slate-900">Historical Blight Pressure & Protection</h2>
+                    <h2 className="text-xl font-bold text-slate-900">Historical blight pressure</h2>
                     <p className="text-sm text-slate-500 mt-1">
-                      Reviewing {timeRange === 'Custom' ? `${seasonMonthsList[customStartMonth]} - ${seasonMonthsList[customEndMonth]}` : `past ${timeRange}`} for Season {selectedSeason}
+                      Weather-driven threat for {timeRange === 'Custom' ? `${seasonMonthsList[customStartMonth]} - ${seasonMonthsList[customEndMonth]}` : `past ${timeRange}`} · Season {selectedSeason}. Diary sprays are markers only.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-4">
@@ -1649,8 +1707,11 @@ export function BlightRisk() {
                 <div className="mb-8">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-emerald-500" />
-                    Risk Breakdown by Growth Stage
+                    Risk by calendar phenology stage
                   </h3>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    Same May–Aug dormant → Oct bloom schedule the model uses — not a separate harvest calendar.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {historicalStats.stageBreakdown.map((stage) => (
                       <div key={stage.name} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
@@ -1703,23 +1764,12 @@ export function BlightRisk() {
                       <Area 
                         type="monotone" 
                         dataKey="threat" 
-                        name="Infectious pressure" 
+                        name="Infection risk (Ji)" 
                         fill="#ef4444" 
                         fillOpacity={0.3} 
                         stroke="#ef4444" 
                         strokeWidth={1} 
                       />
-                      <Area 
-                        type="monotone" 
-                        dataKey="latentThreat" 
-                        name="Incubating infections" 
-                        fill="#fef3c7" 
-                        fillOpacity={0.5} 
-                        stroke="#f59e0b" 
-                        strokeWidth={1} 
-                        strokeDasharray="5 5"
-                      />
-                      <Bar dataKey="eruptingThreat" name="Symptom eruptions" fill="#b91c1c" barSize={4} />
                       {compareWithPrevious && (
                         <Area 
                           type="monotone" 
@@ -1765,6 +1815,7 @@ export function BlightRisk() {
           <p className="text-xs text-slate-500 flex items-center gap-1.5">
             <Settings2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
             What-if sprays and hypothetical chem/bio efficacy — not used on Forecast or Historical.
+            Optional “Latency / secondary” is experimental and also sandbox-only.
           </p>
 
           <div className="flex items-center justify-between">
@@ -1824,7 +1875,20 @@ export function BlightRisk() {
                 </button>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-xs font-medium text-slate-500" title="Experimental GDD latency queue + secondary threat bump. Off on Forecast/Historical.">
+                    Latency / secondary
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSandboxUseSecondaryLatency(!sandboxUseSecondaryLatency)}
+                    className={`w-10 h-5 rounded-full transition-colors relative ${sandboxUseSecondaryLatency ? 'bg-amber-500' : 'bg-slate-300'}`}
+                    aria-pressed={sandboxUseSecondaryLatency}
+                  >
+                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${sandboxUseSecondaryLatency ? 'left-6' : 'left-1'}`}></div>
+                  </button>
+                </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
                   <span className="text-xs font-medium text-slate-500">Compare All</span>
                   <button 
@@ -2186,6 +2250,30 @@ export function BlightRisk() {
                                   dot={false}
                                   activeDot={{ r: 4 }}
                                 />
+                                {sandboxUseSecondaryLatency && (
+                                  <>
+                                    <Area
+                                      type="monotone"
+                                      data={filteredData}
+                                      dataKey="latentThreat"
+                                      xAxisId="baseline"
+                                      name="Incubating (exp.)"
+                                      fill="#fef3c7"
+                                      fillOpacity={0.4}
+                                      stroke="#f59e0b"
+                                      strokeWidth={1}
+                                      strokeDasharray="5 5"
+                                    />
+                                    <Bar
+                                      data={filteredData}
+                                      dataKey="eruptingThreat"
+                                      xAxisId="baseline"
+                                      name="Eruptions (exp.)"
+                                      fill="#b91c1c"
+                                      barSize={4}
+                                    />
+                                  </>
+                                )}
                               </>
                             )}
                           </React.Fragment>
@@ -2379,9 +2467,10 @@ export function BlightRisk() {
               </div>
             </div>
 
-            {/* Chemical Protection */}
+            {/* Chemical Protection — sandbox what-if only */}
             <div className="space-y-3 pt-4 border-t border-slate-700">
-              <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">3. Chemical Protection Multipliers</h3>
+              <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">3. Chemical (sandbox what-if)</h3>
+              <p className="text-[10px] text-amber-300/90 leading-tight">Affects Sandbox only — not Forecast / Historical threat.</p>
               
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Base Decay Rate (Half-life)</label>
@@ -2391,13 +2480,14 @@ export function BlightRisk() {
                   onChange={(e) => setCalib({...calib, chemBaseDecayRate: Number(e.target.value)})}
                   className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 leading-tight">The daily percentage drop in chemical efficacy due to UV breakdown and natural degradation.</p>
+                <p className="text-[10px] text-slate-400 mt-1 leading-tight">Daily drop in hypothetical chem cover (sandbox). Not a measured UV half-life.</p>
               </div>
             </div>
 
-            {/* Biological Protection */}
+            {/* Biological Protection — sandbox what-if only */}
             <div className="space-y-3 pt-4 border-t border-slate-700">
-              <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">4. Biological Protection Multipliers</h3>
+              <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">4. Biological (sandbox what-if)</h3>
+              <p className="text-[10px] text-amber-300/90 leading-tight">Affects Sandbox only — placeholders for scenario comparison.</p>
               
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Bio-Establishment Rate</label>
@@ -2407,7 +2497,7 @@ export function BlightRisk() {
                   onChange={(e) => setCalib({...calib, bioColonizationEff: Number(e.target.value)})}
                   className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 leading-tight">The Establishment Phase: Defines the baseline survival and colonization rate immediately following the spray event.</p>
+                <p className="text-[10px] text-slate-400 mt-1 leading-tight">Hypothetical take-rate after a sandbox bio spray — not CFU / plaque data.</p>
               </div>
               
               <div>
@@ -2418,7 +2508,7 @@ export function BlightRisk() {
                   onChange={(e) => setCalib({...calib, bioFavorableGrowthRate: Number(e.target.value)})}
                   className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 leading-tight">The multiplier dictating how aggressively the biological population multiplies and spreads when environmental conditions are ideal.</p>
+                <p className="text-[10px] text-slate-400 mt-1 leading-tight">Sandbox daily growth factor in favourable weather.</p>
               </div>
 
               <div>
@@ -2429,7 +2519,7 @@ export function BlightRisk() {
                   onChange={(e) => setCalib({...calib, bioEnvDegradationCoef: Number(e.target.value)})}
                   className="w-full px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 leading-tight">The rate at which the biological agent survives when conditions turn hostile.</p>
+                <p className="text-[10px] text-slate-400 mt-1 leading-tight">Sandbox daily survival when weather turns hostile.</p>
               </div>
             </div>
             

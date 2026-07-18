@@ -54,6 +54,10 @@ export type CalibrationParams = {
   splashMultiplier: number;
   chemRainWashoffRate: number;
   bioColonizationEff: number;
+  /**
+   * Initial threat at the start of a model run (unitless floor).
+   * Not loaded from last season’s disease or bud CFU — just a calibration knob.
+   */
   springStartingInoculum: number;
   latencyGDDThreshold: number;
   /** Reserved for future calendar-latency experiments; core uses GDD. */
@@ -82,10 +86,11 @@ export const defaultCalibration: CalibrationParams = {
   splashMultiplier: 1.0,
   chemRainWashoffRate: 0.05,
   bioColonizationEff: 1.0,
-  springStartingInoculum: 0.1,
+  springStartingInoculum: 0.02,
   latencyGDDThreshold: 120.0,
   latencyDays: 18,
-  secondarySpreadMultiplier: 1.5,
+  /** Only used when `useSecondaryLatency` is on; 1.0 = no extra amplification. */
+  secondarySpreadMultiplier: 1.0,
   chemEfficacy: 95,
   bioEfficacy: 30,
   treeHeight: 4.5,
@@ -94,19 +99,135 @@ export const defaultCalibration: CalibrationParams = {
 };
 
 /**
- * Product options layered on the SentiNut weather-driven core.
+ * Product options layered on the PUFOM weather-driven core.
  * Protection is sandbox-only; phenology calendar mode fixes Historical.
  */
 export type BlightModelOptions = {
   includeProtection?: boolean;
-  /** Canopy TRV/CDF RH–WD modifiers. Default true (pre–Ji rewrite behaviour). */
+  /**
+   * Canopy TRV/CDF RH–WD modifiers.
+   * Default **false** — only turn on when orchard geometry is explicitly set
+   * (see `hasExplicitCanopyGeometry`), not when using calibration defaults alone.
+   */
   useCanopyMicroclimate?: boolean;
+  /**
+   * Experimental GDD latency queue + secondary “eruption” feedback into threat.
+   * Default **false** — historical/forecast use weather-driven threat only.
+   * Enable in sandbox when you want to explore lag / secondary bumps.
+   */
+  useSecondaryLatency?: boolean;
   /**
    * `calendar` (default): stage from each day's month — required for multi-month historical.
    * `fixed`: use the growthStage argument every day (sandbox what-ifs).
    */
   phenologyMode?: 'calendar' | 'fixed';
+  /**
+   * Optional scouting override (Forecast “from today” path).
+   * When set with `phenologyMode: 'calendar'`, days on/after `scoutingEffectiveFrom`
+   * (YYYY-MM-DD, default: first day of the run that is ≥ today if omitted by caller)
+   * use this stage instead of the month schedule. Past days stay on the calendar.
+   * Reserved for diary/scouted phenology later — not persisted yet.
+   */
+  scoutingStage?: GrowthStage;
+  /** Inclusive YYYY-MM-DD; required for a stable override window when `scoutingStage` is set. */
+  scoutingEffectiveFrom?: string;
 };
+
+/** True when height, width, and row spacing are all positive (not missing / zero). */
+export function hasExplicitCanopyGeometry(g: {
+  treeHeight?: number | null;
+  canopyWidth?: number | null;
+  rowSpacing?: number | null;
+}): boolean {
+  return (
+    typeof g.treeHeight === 'number' &&
+    g.treeHeight > 0 &&
+    typeof g.canopyWidth === 'number' &&
+    g.canopyWidth > 0 &&
+    typeof g.rowSpacing === 'number' &&
+    g.rowSpacing > 0
+  );
+}
+
+export type CanopyGeomFields = {
+  treeHeight?: number | null;
+  canopyWidth?: number | null;
+  rowSpacing?: number | null;
+  areaHa?: number;
+};
+
+/**
+ * Resolve canopy geometry for blight runs.
+ * TRV/CDF microclimate is **off** unless geometry comes from map blocks (or a full sandbox override),
+ * not from calibration defaults alone.
+ */
+export function resolveCanopyGeometry(input: {
+  selectedBlock?: CanopyGeomFields | null;
+  blocks?: CanopyGeomFields[];
+  /** Sandbox sliders — null means “use base”. */
+  overrides?: CanopyGeomFields | null;
+  fallback: { treeHeight: number; canopyWidth: number; rowSpacing: number };
+}): {
+  treeHeight: number;
+  canopyWidth: number;
+  rowSpacing: number;
+  useCanopyMicroclimate: boolean;
+} {
+  const blocks = input.blocks || [];
+  const overrides = input.overrides;
+  const selected = input.selectedBlock;
+
+  let base = { ...input.fallback };
+  let baseFromBlocks = false;
+
+  if (selected && hasExplicitCanopyGeometry(selected)) {
+    base = {
+      treeHeight: selected.treeHeight as number,
+      canopyWidth: selected.canopyWidth as number,
+      rowSpacing: selected.rowSpacing as number,
+    };
+    baseFromBlocks = true;
+  } else {
+    const complete = blocks.filter(hasExplicitCanopyGeometry);
+    if (complete.length > 0) {
+      const totalArea =
+        complete.reduce((sum, b) => sum + (b.areaHa && b.areaHa > 0 ? b.areaHa : 0), 0) ||
+        complete.length;
+      let h = 0;
+      let w = 0;
+      let s = 0;
+      for (const b of complete) {
+        const area = b.areaHa && b.areaHa > 0 ? b.areaHa : totalArea / complete.length;
+        h += (b.treeHeight as number) * area;
+        w += (b.canopyWidth as number) * area;
+        s += (b.rowSpacing as number) * area;
+      }
+      base = {
+        treeHeight: h / totalArea,
+        canopyWidth: w / totalArea,
+        rowSpacing: s / totalArea,
+      };
+      baseFromBlocks = true;
+    }
+  }
+
+  const merged = {
+    treeHeight: overrides?.treeHeight != null ? overrides.treeHeight : base.treeHeight,
+    canopyWidth: overrides?.canopyWidth != null ? overrides.canopyWidth : base.canopyWidth,
+    rowSpacing: overrides?.rowSpacing != null ? overrides.rowSpacing : base.rowSpacing,
+  };
+
+  const fullSandboxOverride =
+    overrides != null &&
+    overrides.treeHeight != null &&
+    overrides.canopyWidth != null &&
+    overrides.rowSpacing != null;
+
+  const useCanopyMicroclimate =
+    hasExplicitCanopyGeometry(merged) && (baseFromBlocks || fullSandboxOverride);
+
+  return { ...merged, useCanopyMicroclimate };
+}
 
 function stageSusceptibility(growthStage: GrowthStage): number {
   switch (growthStage) {
@@ -123,14 +244,76 @@ function stageSusceptibility(growthStage: GrowthStage): number {
   }
 }
 
+/**
+ * Coarse Southern-Hemisphere WA walnut schedule used by Forecast / Historical.
+ * Month index 0 = January … 11 = December. Not scouting-confirmed.
+ *
+ * | Months (SH)   | Stage            | Susceptibility |
+ * |---------------|------------------|----------------|
+ * | May–Aug       | dormant          | 0.1            |
+ * | Sep           | bud_break        | 1.5            |
+ * | Oct           | bloom            | 2.0            |
+ * | Nov–Jan       | post_bloom       | 1.0            |
+ * | Feb–Apr       | shell_hardening  | 0.3            |
+ */
+export const SH_WALNUT_PHENOLOGY_BY_MONTH: ReadonlyArray<{
+  months: readonly number[];
+  monthLabels: string;
+  stage: GrowthStage;
+  susceptibility: number;
+}> = [
+  { months: [4, 5, 6, 7], monthLabels: 'May–Aug', stage: 'dormant', susceptibility: 0.1 },
+  { months: [8], monthLabels: 'Sep', stage: 'bud_break', susceptibility: 1.5 },
+  { months: [9], monthLabels: 'Oct', stage: 'bloom', susceptibility: 2.0 },
+  { months: [10, 11, 0], monthLabels: 'Nov–Jan', stage: 'post_bloom', susceptibility: 1.0 },
+  { months: [1, 2, 3], monthLabels: 'Feb–Apr', stage: 'shell_hardening', susceptibility: 0.3 },
+] as const;
+
+const STAGE_LABELS: Record<GrowthStage, string> = {
+  dormant: 'Dormant',
+  bud_break: 'Bud break',
+  bloom: 'Bloom',
+  post_bloom: 'Post-bloom',
+  shell_hardening: 'Shell hardening',
+};
+
+export function growthStageLabel(stage: GrowthStage): string {
+  return STAGE_LABELS[stage];
+}
+
 /** Southern-hemisphere walnut phenology from calendar month (0–11). */
 export function growthStageFromDate(date: Date): GrowthStage {
   const month = date.getMonth();
-  if (month >= 4 && month <= 7) return 'dormant'; // May–Aug
-  if (month === 8) return 'bud_break'; // Sep
-  if (month === 9) return 'bloom'; // Oct
-  if (month === 10 || month === 11 || month === 0) return 'post_bloom'; // Nov–Jan
-  return 'shell_hardening'; // Feb–Apr
+  for (const row of SH_WALNUT_PHENOLOGY_BY_MONTH) {
+    if (row.months.includes(month)) return row.stage;
+  }
+  return 'shell_hardening';
+}
+
+/** Month labels for the calendar row that owns this stage (e.g. bloom → "Oct"). */
+export function calendarMonthLabelsForStage(stage: GrowthStage): string {
+  return SH_WALNUT_PHENOLOGY_BY_MONTH.find((r) => r.stage === stage)?.monthLabels ?? '';
+}
+
+/**
+ * Resolve stage for one model day.
+ * - `fixed`: always `growthStage` (sandbox).
+ * - `calendar`: month schedule, optionally overridden from `scoutingEffectiveFrom` onward.
+ */
+export function resolveGrowthStageForDay(
+  date: Date,
+  growthStage: GrowthStage,
+  options: Pick<BlightModelOptions, 'phenologyMode' | 'scoutingStage' | 'scoutingEffectiveFrom'> = {}
+): GrowthStage {
+  const phenologyMode = options.phenologyMode ?? 'calendar';
+  if (phenologyMode === 'fixed') return growthStage;
+
+  const calendarStage = growthStageFromDate(date);
+  const { scoutingStage, scoutingEffectiveFrom } = options;
+  if (!scoutingStage || !scoutingEffectiveFrom) return calendarStage;
+
+  const dateKey = toLocalISOString(date);
+  return dateKey >= scoutingEffectiveFrom ? scoutingStage : calendarStage;
 }
 
 export function runBlightModel(
@@ -145,7 +328,8 @@ export function runBlightModel(
   options: BlightModelOptions = {}
 ): DailyData[] {
   const includeProtection = options.includeProtection === true;
-  const useCanopyMicroclimate = options.useCanopyMicroclimate !== false;
+  const useCanopyMicroclimate = options.useCanopyMicroclimate === true;
+  const useSecondaryLatency = options.useSecondaryLatency === true;
   const phenologyMode = options.phenologyMode ?? 'calendar';
 
   const data: DailyData[] = [];
@@ -249,13 +433,16 @@ export function runBlightModel(
       }
     }
 
-    // Weather-driven infection (SentiNut core — not inoculum-gated)
+    // Weather-driven infection (PUFOM core — not inoculum-gated)
     const tempFactor = T > 12 && T < 24 ? calib.tempOptimumWeight : 0.5;
     const wetnessFactor = modifiedWD > 8 ? (modifiedWD - 8) * calib.wdCompoundingRate : 0;
     const humidityFactor = modifiedRH > 85 ? 1.2 * calib.humidityGradientFactor : 1.0;
 
-    const dayStage =
-      phenologyMode === 'fixed' ? growthStage : growthStageFromDate(currentDate);
+    const dayStage = resolveGrowthStageForDay(currentDate, growthStage, {
+      phenologyMode,
+      scoutingStage: options.scoutingStage,
+      scoutingEffectiveFrom: options.scoutingEffectiveFrom,
+    });
     const stageFactor = stageSusceptibility(dayStage);
     const sensitivityModifier = 0.85 / Math.max(0.1, calib.blightSensitivity);
 
@@ -334,30 +521,36 @@ export function runBlightModel(
     }
 
     const effectiveDailyInfection = dailyInfectionRate * 0.2 * (1 - totalSuppression);
-    if (effectiveDailyInfection > 0.01) {
-      latentQueue.push({ gdd: accumulatedGDD, amount: effectiveDailyInfection, date: dateKey });
+
+    let currentLatentThreat = 0;
+    let secondaryInfection = 0;
+    let daysToEruption: number | null = null;
+
+    if (useSecondaryLatency) {
+      if (effectiveDailyInfection > 0.01) {
+        latentQueue.push({ gdd: accumulatedGDD, amount: effectiveDailyInfection, date: dateKey });
+      }
+
+      let nextEruptionGDD: number | null = null;
+      let eruptingAmount = 0;
+      latentQueue = latentQueue.filter((item) => {
+        const gddRemaining = calib.latencyGDDThreshold - (accumulatedGDD - item.gdd);
+        if (gddRemaining <= 0) {
+          eruptingAmount += item.amount;
+          return false;
+        }
+        if (nextEruptionGDD === null || gddRemaining < nextEruptionGDD) {
+          nextEruptionGDD = gddRemaining;
+        }
+        return true;
+      });
+
+      currentLatentThreat = latentQueue.reduce((sum, item) => sum + item.amount, 0);
+      daysToEruption =
+        nextEruptionGDD !== null ? Math.ceil(nextEruptionGDD / Math.max(1, dailyGDD)) : null;
+      secondaryInfection =
+        eruptingAmount * (calib.secondarySpreadMultiplier || 1.0) * (1 - totalSuppression);
     }
-
-    let nextEruptionGDD: number | null = null;
-    let eruptingAmount = 0;
-    latentQueue = latentQueue.filter((item) => {
-      const gddRemaining = calib.latencyGDDThreshold - (accumulatedGDD - item.gdd);
-      if (gddRemaining <= 0) {
-        eruptingAmount += item.amount;
-        return false;
-      }
-      if (nextEruptionGDD === null || gddRemaining < nextEruptionGDD) {
-        nextEruptionGDD = gddRemaining;
-      }
-      return true;
-    });
-
-    const currentLatentThreat = latentQueue.reduce((sum, item) => sum + item.amount, 0);
-    const daysToEruption =
-      nextEruptionGDD !== null ? Math.ceil(nextEruptionGDD / Math.max(1, dailyGDD)) : null;
-
-    const secondaryInfection =
-      eruptingAmount * (calib.secondarySpreadMultiplier || 1.5) * (1 - totalSuppression);
 
     currentThreat = currentThreat * 0.85 + effectiveDailyInfection + secondaryInfection;
     currentThreat = Math.min(1.5, currentThreat);

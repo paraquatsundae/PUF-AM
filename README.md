@@ -1,8 +1,12 @@
-# Walnut Farm Manager (SentiNut)
+# PUFOM — Orchard Manager
 
 Paddock-first farm tools for walnut orchards — map issues, diary plans, mechanistic blight risk, and block-level seasonal records.
 
-**Published app:** Not yet published on AI Studio. Run locally at [http://localhost:3000](http://localhost:3000). After **Publish → App URL**, set `VITE_APP_URL` in `.env` to the Cloud Run URL.
+**Brand:** PUFOM = **PUF** (Prototype Until Failure workshop) + **OM** (Orchard Manager). In-app mark is the PUF emu; the Android launcher uses a green orchard variant so it stays distinct from other PUF apps.
+
+**Live app:** [https://pufom-quby5ye5pa-ts.a.run.app](https://pufom-quby5ye5pa-ts.a.run.app) (Cloud Run, `australia-southeast1`). Redeploy: `npm run deploy:cloudrun`. Details: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
+
+**Local:** [http://localhost:3000](http://localhost:3000) via `npm run dev`.
 
 **AI Studio share link** (project collaborators): [https://ai.studio/apps/143a17d7-b431-4490-8302-3a5ff176bb96](https://ai.studio/apps/143a17d7-b431-4490-8302-3a5ff176bb96)
 
@@ -64,8 +68,8 @@ Home shows open issues, plans, and a blight snapshot. Financials and team tools 
    ```
    Edit `firebase-applet-config.json` with your Firebase project credentials.
    Edit `.env` with your API keys:
-   - `VITE_DPIRD_API_KEY` — WA DPIRD weather API
-   - `VITE_GOOGLE_MAPS_API_KEY` — Google Maps tiles (optional)
+   - `DPIRD_API_KEY` — WA DPIRD weather API (**server only** — never `VITE_`)
+   - `VITE_GOOGLE_MAPS_API_KEY` — Google Maps tiles (optional; restrict in Google Cloud — see `Plans/API_KEY_SECURITY.md`)
    - `APP_URL` — `http://localhost:3000` for local dev; Cloud Run URL after publish
    - `VITE_APP_URL` — optional; set to Cloud Run **App URL** after publish
 

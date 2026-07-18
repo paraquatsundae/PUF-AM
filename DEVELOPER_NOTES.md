@@ -138,11 +138,43 @@ classDiagram
 ### Key module explanations
 *   **Paddock loop:** Map (blocks + issue pins) → Diary (plans / sprays / water / nutrition) → Blight (protection vs threat). Home surfaces open issues and plans.
 *   **Farm setup:** Dryers, water allocation (ML), irrigation method — rare edits; Water and drying read these.
-*   **Blight risk engine:** Deterministic SEI / microclimate math over DPIRD-backed weather + diary sprays.
+*   **Blight risk engine:** Migrating to **Ji et al. 2025** process model (see §4.2). Legacy PUFOM multiplicative index remains for Research / what-if until cut over is complete.
 *   **Dryer engine:** Exponential decay fit on moisture readings for configured dryers.
 *   **Nutrition / water pages:** Application diaries writing `DiaryEvent` records (soil lab XLSX deferred; `nutritionService` retained for later).
-*   **Auth:** Invite PIN sessions (not Google-only). Workshop mode can run UI without Firestore.
+*   **Auth:** Invite PIN sessions (not Google-only). Workshop mode can run UI without Firestore. See §4.1 Auth UX.
 *   **Weather:** Prefer Firestore cache + Cloud Functions refresh; client may ensure/backfill in dev.
+
+### 4.1 Auth UX (invite PIN → device session → unlock PIN)
+
+**Decision (July 2026):** Keep farm access via **invite PIN** (admin-minted). Do not add password / email recovery for `@sentinut.local` accounts.
+
+| Phase | Behaviour | Status |
+|-------|-----------|--------|
+| **Now** | After first successful invite PIN + name sign-in, **remember this device**: Firebase Auth uses IndexedDB persistence (web + native). Reopening skips login until explicit logout or app-data wipe. Login prefills last display name (`src/lib/deviceSession.ts`). | Implemented |
+| **Later** | After authentication (or when returning to a remembered device), require a short personal **unlock PIN** (or biometric) for local re-entry — not a second invite code. Invite PIN remains for joining / first device only. | Planned — not implemented |
+
+Rationale: orchard tablets should stay open without re-typing the farm invite code every shift; unlock PIN later adds a light privacy gate without inventing passwords for synthetic Auth emails.
+
+Details: [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md).
+
+### 4.2 Blight engine — Ji et al. 2025 core (July 2026)
+
+**Decision:** Production Forecast / Historical blight risk will use the **Ji et al. 2025** mechanistic weather-based model (*Plant Disease* 109:1130–1141), not the homemade PUFOM T×W multiplicative index.
+
+| Piece | Approach |
+|-------|----------|
+| Primary inoculum | \(Y_i = k(1-a^{\sum R})\), \(a=0.916\); orchard \(k\) from history / buds (later) |
+| Infection | \(INFR = f(T)\times f(WD)\) — Beta (\(T_{\min}=10\), \(T_{\max}=24\)) × Gompertz wetness (published params frozen) |
+| Incubation | 15–21 day delay (secondary inoculum) — next slice |
+| Wetness (interim) | Rain + high-RH proxy (from local Mathematica notebook); target = hourly / on-farm LWD |
+| Protection / chem-bio | Research sandbox only — not on Forecast/Historical |
+| AU second track | Lang moisture-intensity overlay later (Ji notes XanthoCast weak in wet AU seasons) |
+
+**Authoritative plan:** [`Plans/BLIGHT_VALIDATION.md`](Plans/BLIGHT_VALIDATION.md)  
+**Code (in progress):** `shared/weather/jiBlightModel.ts` · golden fixture from notebook 32-day series  
+**Local research pack:** `Documents\Agronomy'\2026\Walnut\Blight forecasting\` (Ji PDF + Mathematica notebooks)
+
+Do **not** expose published Ji coefficients as farm “calibration” knobs — only orchard \(k\) (and optional density extension) are farm-tunable.
 
 ---
 

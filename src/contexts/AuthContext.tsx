@@ -6,6 +6,11 @@ import { trackMetric } from '../services/metricsService';
 import { resolveIsAdmin } from '../lib/adminAuth';
 import { isWorkshopMode, WORKSHOP_USER_DATA } from '../lib/workshopMode';
 import { redeemInvitePin } from '../lib/invitePinAuth';
+import {
+  clearDeviceRememberedFlag,
+  getLastDisplayName,
+  markDeviceRemembered,
+} from '../lib/deviceSession';
 
 export enum OperationType {
   CREATE = 'create',
@@ -158,6 +163,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (currentUser) {
+          // Restored session = device already remembered (skip login until logout).
+          markDeviceRemembered(currentUser.displayName?.trim() || getLastDisplayName());
+
           const email = currentUser.email;
           let pinAuth = false;
           try {
@@ -443,6 +451,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { token } = await redeemInvitePin(pin, displayName);
     try {
       await signInWithCustomToken(auth, token);
+      markDeviceRemembered(displayName);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes('offline') || msg.includes('network')) {
@@ -456,6 +465,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      clearDeviceRememberedFlag();
       await signOut(auth);
     } catch (error) {
       console.error('Error signing out', error);

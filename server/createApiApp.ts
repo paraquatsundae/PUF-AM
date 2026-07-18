@@ -2,6 +2,8 @@ import express, { Express } from "express";
 import { runBlightModel, defaultCalibration } from "../src/lib/blightModel.ts";
 import { registerAccessPinRoutes } from "./accessPinRoutes.ts";
 import { registerWeatherCacheRoutes } from "./weatherCacheRoutes.ts";
+import { registerChillRoutes } from "./chillRoutes.ts";
+import { getDpirdApiKey } from "./envSecrets.ts";
 import {
   fetchDpirdDailySummaries,
 } from "../shared/weather/dpirdClient.ts";
@@ -36,6 +38,7 @@ export function createApiApp(): Express {
 
   registerAccessPinRoutes(app);
   registerWeatherCacheRoutes(app);
+  registerChillRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
@@ -49,10 +52,10 @@ export function createApiApp(): Express {
     }
 
     try {
-      const apiKey = process.env.VITE_DPIRD_API_KEY || process.env.DPIRD_API_KEY;
+      const apiKey = getDpirdApiKey();
       let weatherData: Record<string, unknown> = {};
 
-      if (apiKey && apiKey !== "YOUR_DPIRD_API_KEY") {
+      if (apiKey) {
         let stationsToTry: Array<{ stationCode?: string; code?: string }> = [];
         if (stationCode) {
           stationsToTry = [{ stationCode }];
@@ -181,8 +184,8 @@ export function createApiApp(): Express {
 
   app.get("/api/weather/dpird/*", async (req, res) => {
     try {
-      const apiKey = process.env.VITE_DPIRD_API_KEY || process.env.DPIRD_API_KEY;
-      if (!apiKey || apiKey === "YOUR_DPIRD_API_KEY") {
+      const apiKey = getDpirdApiKey();
+      if (!apiKey) {
         return res.status(401).json({ error: "API key missing" });
       }
 

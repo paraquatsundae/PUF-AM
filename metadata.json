@@ -1,6 +1,6 @@
 {
-  "name": "Walnut Farm Manager",
-  "description": "A professional walnut farm management platform featuring blight risk forecasting, smart drying bin logistics with operator tracking, interactive orchard mapping, and multi-user team coordination.",
+  "name": "PUFOM",
+  "description": "PUFOM — Orchard Manager (PUF workshop). Blight risk forecasting, drying logistics, orchard mapping, and multi-user team coordination for walnut farms.",
   "requestFramePermissions": [
     "camera",
     "geolocation"

@@ -1,3 +1,5 @@
+import { estimateWetnessHoursProxy } from './jiBlightModel';
+
 /** Regional DPIRD station anchors refreshed by Cloud Scheduler (Step 9). */
 export const WEATHER_STATION_ANCHORS = [
   { stationCode: 'MA002', name: 'Manjimup', lat: -34.24, lng: 116.14 },
@@ -5,6 +7,33 @@ export const WEATHER_STATION_ANCHORS = [
   { stationCode: 'BA001', name: 'Balingup', lat: -33.78, lng: 115.98 },
   { stationCode: 'DN001', name: 'Donnybrook', lat: -33.58, lng: 115.82 },
 ] as const;
+
+export type WeatherStationAnchor = (typeof WEATHER_STATION_ANCHORS)[number];
+
+/** Same nearest-anchor pick used by blight cache / farm chill (Euclidean on lat/lng). */
+export function resolveNearestAnchorStation(
+  lat?: number,
+  lng?: number,
+  stationCode?: string
+): WeatherStationAnchor {
+  if (stationCode) {
+    const hit = WEATHER_STATION_ANCHORS.find((s) => s.stationCode === stationCode);
+    if (hit) return hit;
+  }
+  if (lat === undefined || lng === undefined || Number.isNaN(lat) || Number.isNaN(lng)) {
+    return WEATHER_STATION_ANCHORS[0];
+  }
+  let best: WeatherStationAnchor = WEATHER_STATION_ANCHORS[0];
+  let bestDist = Infinity;
+  for (const anchor of WEATHER_STATION_ANCHORS) {
+    const d = Math.hypot(anchor.lat - lat, anchor.lng - lng);
+    if (d < bestDist) {
+      bestDist = d;
+      best = anchor;
+    }
+  }
+  return best;
+}
 
 /** How fresh the hourly “recent” slice must be for clients. */
 export const WEATHER_CACHE_MAX_AGE_HOURS = 2;
@@ -149,12 +178,15 @@ export async function fetchDpirdDailySummaries(
     for (const obs of summaries) {
       if (!obs.period) continue;
       const dateKey = toDateKey(obs.period.year, obs.period.month, obs.period.day);
+      const R = obs.rainfall ?? 0;
+      const RH = obs.relativeHumidity?.avg ?? 60;
       weatherData[dateKey] = {
         T: obs.airTemperature?.avg ?? 15,
-        RH: obs.relativeHumidity?.avg ?? 60,
-        R: obs.rainfall ?? 0,
-        WD: obs.rainfall > 0 ? 10 : 0,
-        maxHourlyRain: obs.rainfall > 0 ? obs.rainfall * 0.2 : 0,
+        RH,
+        R,
+        // Interim LWD proxy (Ji notebook) until hourly / on-farm wetness — not rain?10:0
+        WD: estimateWetnessHoursProxy(R, RH),
+        maxHourlyRain: R > 0 ? R * 0.2 : 0,
         windSpeed: obs.wind?.[0]?.avg?.speed ?? 10,
         ET0: obs.evapotranspiration?.shortCrop ?? 3,
       };
@@ -171,6 +203,140 @@ export function isCacheFresh(lastUpdated: string, maxAgeHours = WEATHER_CACHE_MA
   const updated = new Date(lastUpdated);
   const hours = (Date.now() - updated.getTime()) / (1000 * 60 * 60);
   return hours < maxAgeHours;
+}
+
+export type HourlyTempPoint = {
+  time: string;
+  temperature: number;
+};
+
+function toDpirdDateTimeParam(d: Date): string {
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/** DPIRD hourly default page is tiny (~25); request/paginate explicitly. */
+export const DPIRD_HOURLY_PAGE_LIMIT = 100;
+
+type DpirdHourlySummary = {
+  period?: { to?: string; from?: string };
+  airTemperature?: { avg?: number };
+};
+
+/**
+ * Fetch DPIRD hourly air temperatures with limit/offset pagination.
+ * Uses airTemperature.avg (°C) — required for Dynamic Model chill portions.
+ *
+ * Windows are chunked (~4 days ≈ 96 hours) so each page stays under the API limit.
+ */
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchDpirdJsonWithRetry(
+  url: string,
+  apiKey: string,
+  options?: { retryOn429?: boolean; label?: string }
+): Promise<unknown> {
+  const retryOn429 = options?.retryOn429 !== false;
+  let attempt = 0;
+  while (true) {
+    const response = await fetch(url, {
+      headers: { 'api-key': apiKey, Accept: 'application/json' },
+    });
+    if (response.ok) return response.json();
+
+    if (response.status === 429 && retryOn429 && attempt < 6) {
+      const backoff = Math.min(30_000, 1500 * 2 ** attempt);
+      console.warn(`[dpird] 429 ${options?.label || ''} — retry in ${backoff}ms`);
+      await sleep(backoff);
+      attempt += 1;
+      continue;
+    }
+
+    throw new Error(
+      `DPIRD hourly failed${options?.label ? ` (${options.label})` : ''}: HTTP ${response.status}`
+    );
+  }
+}
+
+export async function fetchDpirdHourlyTemps(
+  apiKey: string,
+  stationCode: string,
+  start: Date,
+  end: Date,
+  options?: {
+    chunkDays?: number;
+    maxPagesPerChunk?: number;
+    concurrency?: number;
+    retryOn429?: boolean;
+  }
+): Promise<HourlyTempPoint[]> {
+  if (end.getTime() <= start.getTime()) return [];
+
+  const chunkDays = options?.chunkDays ?? 4;
+  const chunkMs = chunkDays * 86400000;
+  const maxPages = options?.maxPagesPerChunk ?? 20;
+  const concurrency = Math.max(1, options?.concurrency ?? 1);
+  const points: HourlyTempPoint[] = [];
+  const seen = new Set<string>();
+
+  const chunks: Array<{ start: Date; end: Date }> = [];
+  for (let cursor = start.getTime(); cursor < end.getTime(); cursor += chunkMs) {
+    chunks.push({
+      start: new Date(cursor),
+      end: new Date(Math.min(cursor + chunkMs, end.getTime())),
+    });
+  }
+
+  const fetchChunkPages = async (chunkStart: Date, chunkEnd: Date): Promise<DpirdHourlySummary[]> => {
+    const out: DpirdHourlySummary[] = [];
+    let offset = 0;
+    for (let page = 0; page < maxPages; page++) {
+      const dataUrl =
+        `https://api.agric.wa.gov.au/v2/weather/stations/summaries/hourly` +
+        `?startDateTime=${encodeURIComponent(toDpirdDateTimeParam(chunkStart))}` +
+        `&endDateTime=${encodeURIComponent(toDpirdDateTimeParam(chunkEnd))}` +
+        `&stationCode=${encodeURIComponent(stationCode)}` +
+        `&limit=${DPIRD_HOURLY_PAGE_LIMIT}&offset=${offset}`;
+
+      const dataJson = (await fetchDpirdJsonWithRetry(dataUrl, apiKey, {
+        retryOn429: options?.retryOn429,
+        label: `${stationCode} ${toLocalISOString(chunkStart)}→${toLocalISOString(chunkEnd)} offset=${offset}`,
+      })) as { collection?: Array<{ summaries?: DpirdHourlySummary[] }> };
+
+      const summaries = dataJson.collection?.[0]?.summaries || [];
+      if (summaries.length === 0) break;
+      out.push(...summaries);
+      if (summaries.length < DPIRD_HOURLY_PAGE_LIMIT) break;
+      offset += DPIRD_HOURLY_PAGE_LIMIT;
+    }
+    return out;
+  };
+
+  for (let i = 0; i < chunks.length; i += concurrency) {
+    const batch = chunks.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(({ start: chunkStart, end: chunkEnd }) => fetchChunkPages(chunkStart, chunkEnd))
+    );
+
+    for (const summaries of batchResults) {
+      for (const s of summaries) {
+        const time = s.period?.to || s.period?.from;
+        const temperature = s.airTemperature?.avg;
+        if (!time || temperature === null || temperature === undefined) continue;
+        const key = String(time);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        points.push({ time: key, temperature: Number(temperature) });
+      }
+    }
+
+    // Small pause between batches to stay under DPIRD rate limits
+    if (i + concurrency < chunks.length) await sleep(350);
+  }
+
+  points.sort((a, b) => a.time.localeCompare(b.time));
+  return points;
 }
 
 /**

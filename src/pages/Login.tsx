@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getLastDisplayName } from '../lib/deviceSession';
 import { Loader2, KeyRound } from 'lucide-react';
 
 export function Login() {
@@ -8,7 +9,7 @@ export function Login() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [pin, setPin] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(() => getLastDisplayName());
   const navigate = useNavigate();
 
   const error = localError || authError;
@@ -24,7 +25,7 @@ export function Login() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-emerald-600 animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 font-medium">Loading SentiNut...</p>
+          <p className="text-slate-500 font-medium">Loading PUFOM...</p>
         </div>
       </div>
     );
@@ -47,10 +48,10 @@ export function Login() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl">
         <div>
-          <div className="mx-auto h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden shadow-sm">
+          <div className="mx-auto h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden shadow-sm ring-1 ring-emerald-900/20">
             <img
               src="/logo.png"
-              alt="SentiNut Logo"
+              alt="PUFOM"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
               onError={(e) => {
@@ -58,12 +59,16 @@ export function Login() {
               }}
             />
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">Welcome to SentiNut</h2>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">Welcome to PUF</h2>
+          <p className="mt-1 text-center text-sm font-medium text-emerald-800">Orchard Manager</p>
           <p className="mt-2 text-center text-sm text-slate-600">
             Paddock-first walnut farm tools — map issues, diary plans, blight risk, and seasonal records.
           </p>
+          <p className="mt-1 text-center text-[11px] text-slate-400">
+            PUF workshop · Prototype Until Failure
+          </p>
           <p className="mt-3 text-center text-xs text-slate-500">
-            Enter the invite PIN from your farm manager
+            Enter the invite PIN from your farm manager once. This device stays signed in until you log out.
           </p>
         </div>
 
@@ -90,7 +95,7 @@ export function Login() {
               className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
             <p className="text-[11px] text-slate-400">
-              Use the same name next time to reopen your session with this PIN.
+              Use the same name if you need to sign in again on this device.
             </p>
           </div>
 

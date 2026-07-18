@@ -46,8 +46,10 @@ Installable paddock shell using the same Vite build. Tiles still live in **Index
 
 | Item | Value |
 |------|--------|
-| App ID | `com.sentinut.farm` |
-| App name | SentiNut |
+| App ID | `com.sentinut.farm` (unchanged for install continuity) |
+| App name | PUFOM |
+| Launcher icon | `PUFom_icon.png` → `assets/pufom-apk-icon-master.png` (emu in orchard circle) |
+| In-app logo | Same mark (`public/logo.png`) |
 | Config | `capacitor.config.ts` |
 | Native project | `android/` |
 | Web dir | `dist` (Vite `base: './'`) |
@@ -83,7 +85,19 @@ By default Capacitor **live-loads** the app from your PC (`http://10.0.2.2:3000`
 
 Packaged shell (no live server): `CAP_PACKAGED=1 npx cap sync android` — then API uses `http://10.0.2.2:3000` from `apiBase.ts`.
 
-Physical phone: `CAP_SERVER_URL=http://<pc-lan-ip>:3000` before sync, or set `VITE_API_BASE_URL` for packaged builds.
+Physical phone / tablet (same Wi‑Fi as the PC):
+
+```powershell
+# Keep npm run dev running, then:
+npm run sync:android:lan
+npm run open:android
+```
+
+That detects the PC Wi‑Fi IP and sets Capacitor `server.url` (e.g. `http://192.168.x.x:3000`). Or set manually: `$env:CAP_SERVER_URL="http://<pc-lan-ip>:3000"; npx cap sync android`.
+
+Phone **browser** (no APK): open `http://<pc-lan-ip>:3000` while `npm run dev` is up.
+
+Packaged APK (no live server): `CAP_PACKAGED=1` before sync, and set `VITE_API_BASE_URL=http://<pc-lan-ip>:3000` before `vite build`.
 
 ### Airplane-mode check
 

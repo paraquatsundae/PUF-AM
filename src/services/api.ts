@@ -159,18 +159,28 @@ export const mapApi = {
     }
     try {
       const path = `farms/${farmId}/blocks`;
-      // Firestore doesn't support nested arrays, so we stringify geojson
-      const dataToSave = {
-        ...block,
+      // Project to Firestore-allowlisted fields only (rules reject unknown keys).
+      // GeoJSON is stringified — Firestore cannot store nested arrays.
+      const dataToSave: Record<string, unknown> = {
+        id: block.id,
+        name: block.name || '',
+        cultivar: block.cultivar || '',
+        density: block.density || '',
+        irrigation: block.irrigation || '',
+        areaHa: typeof block.areaHa === 'number' && !isNaN(block.areaHa) ? block.areaHa : 0,
         geojson: JSON.stringify(block.geojson),
-        areaHa: typeof block.areaHa === 'number' && !isNaN(block.areaHa) ? block.areaHa : 0
       };
-      // Remove undefined fields
-      Object.keys(dataToSave).forEach(key => {
-        if ((dataToSave as any)[key] === undefined) {
-          delete (dataToSave as any)[key];
-        }
-      });
+      const optionalNums: (keyof OrchardBlock)[] = [
+        'rowSpacing',
+        'treeSpacing',
+        'treeHeight',
+        'canopyWidth',
+        'canopyClosure',
+      ];
+      for (const key of optionalNums) {
+        const v = block[key];
+        if (typeof v === 'number' && !isNaN(v)) dataToSave[key] = v;
+      }
       await setDoc(doc(db, path, block.id), dataToSave);
     } catch (error) {
       // Always throw so local-first sync can queue the write
@@ -325,15 +335,13 @@ export const mapApi = {
     }
     try {
       const path = `farms/${farmId}/tracks`;
-      const dataToSave = {
-        ...track,
-        geojson: JSON.stringify(track.geojson)
+      const dataToSave: Record<string, unknown> = {
+        id: track.id,
+        name: track.name || '',
+        category: track.category,
+        geojson: JSON.stringify(track.geojson),
       };
-      Object.keys(dataToSave).forEach(key => {
-        if ((dataToSave as any)[key] === undefined) {
-          delete (dataToSave as any)[key];
-        }
-      });
+      if (track.createdAt) dataToSave.createdAt = track.createdAt;
       await setDoc(doc(db, path, track.id), dataToSave);
     } catch (error) {
       if (isBenignFirestoreFailure(error)) {

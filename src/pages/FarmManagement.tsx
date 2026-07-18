@@ -1,37 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
-  Shield, 
-  Mail, 
-  UserPlus, 
-  Settings, 
   Copy, 
   CheckCircle2, 
-  AlertCircle, 
   Loader2, 
   Trash2, 
   Edit2,
   Database,
-  RefreshCw,
-  CloudRain,
-  Key,
-  Link as LinkIcon,
-  Cpu,
-  Activity,
-  Save,
-  Clock,
   ShieldCheck,
   Building2,
-  Settings2
+  Settings2,
+  KeyRound,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useAuth, UserData } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { mapApi } from '../services/api';
 import { SafetyManagement } from '../components/SafetyManagement';
+import { InvitePinManager } from '../components/InvitePinManager';
+import {
+  listFarmMembers,
+  removeFarmMember,
+  updateFarmMemberRole,
+  type FarmMember,
+  type PinRole,
+} from '../lib/invitePinAuth';
 import { clsx } from 'clsx';
 
+function memberSubtitle(member: FarmMember): string {
+  if (member.authMethod === 'invite_pin' || member.email?.endsWith('@sentinut.local')) {
+    return 'Invite PIN account';
+  }
+  return member.email || 'Account';
+}
+
 export function FarmManagement() {
-  const { userData, user } = useAuth();
+  const { userData } = useAuth();
   const farmId = userData?.farmId;
   const isAdmin = userData?.role === 'admin';
   
@@ -39,17 +42,40 @@ export function FarmManagement() {
 
   // --- Organization State ---
   const [farm, setFarm] = useState<any>(null);
-  const [members, setMembers] = useState<UserData[]>([]);
+  const [members, setMembers] = useState<FarmMember[]>([]);
   const [isLoadingOrg, setIsLoadingOrg] = useState(true);
   const [isSavingOrg, setIsSavingOrg] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [editName, setEditName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'farmer' | 'viewer'>('farmer');
-  const [isInviting, setIsInviting] = useState(false);
-  const [inviteStatus, setInviteStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [teamError, setTeamError] = useState<string | null>(null);
+
+  const loadMembers = useCallback(async () => {
+    if (!farmId) return;
+    try {
+      if (isAdmin) {
+        setMembers(await listFarmMembers());
+      } else {
+        const publicMembers = await mapApi.getMembers(farmId);
+        setMembers(
+          publicMembers.map((m: any) => ({
+            uid: m.uid,
+            displayName: m.displayName || 'User',
+            email: m.email || null,
+            role: (m.role || 'farmer') as PinRole,
+            farmId: m.farmId || farmId,
+            authMethod: m.authMethod || null,
+            createdAt: m.createdAt || null,
+          }))
+        );
+      }
+      setTeamError(null);
+    } catch (error) {
+      console.error('Failed to load members:', error);
+      setTeamError(error instanceof Error ? error.message : 'Failed to load members');
+    }
+  }, [farmId, isAdmin]);
 
   // Load Organization Data
   useEffect(() => {
@@ -57,21 +83,18 @@ export function FarmManagement() {
     const loadOrgData = async () => {
       setIsLoadingOrg(true);
       try {
-        const [farmData, membersData] = await Promise.all([
-          mapApi.getFarm(farmId),
-          mapApi.getMembers(farmId)
-        ]);
+        const farmData = await mapApi.getFarm(farmId);
         setFarm(farmData);
-        setMembers(membersData);
         setEditName(farmData?.name || '');
+        await loadMembers();
       } catch (error) {
         console.error("Failed to load organization data:", error);
       } finally {
         setIsLoadingOrg(false);
       }
     };
-    loadOrgData();
-  }, [farmId]);
+    void loadOrgData();
+  }, [farmId, loadMembers]);
 
   // --- Handlers ---
   const handleCopyId = () => {
@@ -95,44 +118,28 @@ export function FarmManagement() {
     }
   };
 
-  const handleSendInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!farmId || !inviteEmail.trim() || !user?.email) return;
-    setIsInviting(true);
-    setInviteStatus(null);
-    try {
-      await mapApi.createInvitation(inviteEmail.trim(), farmId, inviteRole, user.email);
-      setInviteStatus({ type: 'success', message: `Invitation sent to ${inviteEmail}` });
-      setInviteEmail('');
-    } catch (error) {
-      setInviteStatus({ type: 'error', message: 'Failed to send invitation.' });
-    } finally {
-      setIsInviting(false);
-    }
-  };
-
   const handleRemoveMember = async (targetUid: string) => {
-    if (!window.confirm("Remove this member from the organization? They will be reverted to their own private farm ID.")) return;
+    if (!window.confirm("Remove this member from the farm? They will lose access until invited again.")) return;
     setIsUpdating(targetUid);
     try {
-      await mapApi.removeMember(targetUid);
+      await removeFarmMember(targetUid);
       setMembers(prev => prev.filter(m => m.uid !== targetUid));
     } catch (error) {
       console.error("Failed to remove member:", error);
-      alert("Failed to remove member. Check console for details.");
+      alert(error instanceof Error ? error.message : "Failed to remove member.");
     } finally {
       setIsUpdating(null);
     }
   };
 
-  const handleUpdateRole = async (targetUid: string, newRole: 'admin' | 'farmer' | 'viewer') => {
+  const handleUpdateRole = async (targetUid: string, newRole: PinRole) => {
     setIsUpdating(targetUid);
     try {
-      await mapApi.updateMemberRole(targetUid, newRole);
+      await updateFarmMemberRole(targetUid, newRole);
       setMembers(prev => prev.map(m => m.uid === targetUid ? { ...m, role: newRole } : m));
     } catch (error) {
       console.error("Failed to update role:", error);
-      alert("Failed to update role.");
+      alert(error instanceof Error ? error.message : "Failed to update role.");
     } finally {
       setIsUpdating(null);
     }
@@ -240,29 +247,33 @@ export function FarmManagement() {
           >
             <div className="lg:col-span-8 space-y-8">
               <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-10 border-b border-slate-100 flex items-center justify-between bg-white">
-                  <div className="flex items-center gap-4">
-                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <div className="p-10 border-b border-slate-100 flex items-center justify-between bg-white gap-4">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                     <h2 className="text-xl font-bold text-slate-900 tracking-tight">Active Team Members</h2>
                   </div>
-                  <span className="px-4 py-1.5 bg-slate-50 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-100">{members.length} Members</span>
+                  <span className="px-4 py-1.5 bg-slate-50 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest border border-slate-100 shrink-0">
+                    {isLoadingOrg ? '…' : `${members.length} Members`}
+                  </span>
                 </div>
+                {teamError && (
+                  <div className="px-10 py-4 text-sm text-rose-700 bg-rose-50 border-b border-rose-100">{teamError}</div>
+                )}
                 <div className="divide-y divide-slate-100">
+                  {!isLoadingOrg && members.length === 0 && (
+                    <div className="p-10 text-sm text-slate-500">
+                      No members yet. Create an invite PIN and have staff sign in with their name + code.
+                    </div>
+                  )}
                   {members.map((member) => (
-                    <div key={member.uid} className="p-10 flex items-center justify-between hover:bg-slate-50/50 transition-colors group">
+                    <div key={member.uid} className="p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
                       <div className="flex items-center gap-6">
-                        <div className="w-14 h-14 rounded-[20px] bg-slate-100 overflow-hidden border-2 border-white shadow-sm">
-                          {member.photoURL ? (
-                            <img src={member.photoURL} alt={member.displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-300">
-                              <Users className="w-7 h-7" />
-                            </div>
-                          )}
+                        <div className="w-14 h-14 rounded-[20px] bg-slate-100 overflow-hidden border-2 border-white shadow-sm flex items-center justify-center text-slate-300">
+                          <Users className="w-7 h-7" />
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 text-lg">{member.displayName || 'Anonymous User'}</p>
-                          <p className="text-sm text-slate-400 font-medium">{member.email}</p>
+                          <p className="text-sm text-slate-400 font-medium">{memberSubtitle(member)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-6">
@@ -270,7 +281,7 @@ export function FarmManagement() {
                           <div className="flex items-center gap-3">
                             <select
                               value={member.role}
-                              onChange={(e) => handleUpdateRole(member.uid, e.target.value as any)}
+                              onChange={(e) => handleUpdateRole(member.uid, e.target.value as PinRole)}
                               disabled={isUpdating === member.uid}
                               className={clsx(
                                 "px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border outline-none cursor-pointer disabled:opacity-50",
@@ -305,63 +316,17 @@ export function FarmManagement() {
             </div>
 
             <div className="lg:col-span-4 space-y-8">
-              {isAdmin && (
-                <div className="bg-slate-900 rounded-[40px] p-10 text-white shadow-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-10 opacity-10">
-                    <UserPlus className="w-32 h-32" />
+              {isAdmin ? (
+                <InvitePinManager onCreated={() => void loadMembers()} />
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-3">
+                  <div className="flex items-center gap-2 text-slate-800 font-semibold">
+                    <KeyRound className="w-4 h-4 text-emerald-600" />
+                    Team access
                   </div>
-                  <div className="relative z-10">
-                    <div className="bg-amber-500 w-14 h-14 rounded-[20px] flex items-center justify-center mb-8 shadow-lg shadow-amber-500/20">
-                      <UserPlus className="w-7 h-7 text-white" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-3 tracking-tight">Invite Team</h3>
-                    <p className="text-slate-400 text-sm mb-10 leading-relaxed font-medium">Add collaborators to your farm organization with specific access levels.</p>
-                    
-                    <form onSubmit={handleSendInvite} className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Email Address</label>
-                        <input 
-                          type="email" 
-                          value={inviteEmail} 
-                          onChange={(e) => setInviteEmail(e.target.value)} 
-                          placeholder="colleague@example.com" 
-                          className="w-full bg-white/5 border border-white/10 rounded-[20px] px-6 py-4 text-sm outline-none focus:border-amber-500 transition-all font-medium"
-                          required 
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Access Role</label>
-                        <select 
-                          value={inviteRole} 
-                          onChange={(e) => setInviteRole(e.target.value as any)} 
-                          className="w-full bg-white/5 border border-white/10 rounded-[20px] px-6 py-4 text-sm outline-none focus:border-amber-500 appearance-none font-medium"
-                        >
-                          <option value="farmer" className="bg-slate-900">Farmer (Edit Access)</option>
-                          <option value="viewer" className="bg-slate-900">Viewer (Read Only)</option>
-                        </select>
-                      </div>
-
-                      {inviteStatus && (
-                        <div className={clsx(
-                          "p-4 rounded-[20px] text-xs font-bold flex items-center gap-3",
-                          inviteStatus.type === 'success' ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
-                        )}>
-                          <AlertCircle className="w-4 h-4" />
-                          {inviteStatus.message}
-                        </div>
-                      )}
-
-                      <button 
-                        type="submit" 
-                        disabled={isInviting || !inviteEmail} 
-                        className="w-full py-5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-[20px] font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-amber-500/10 active:scale-95 flex items-center justify-center gap-3"
-                      >
-                        {isInviting ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
-                        Send Invitation
-                      </button>
-                    </form>
-                  </div>
+                  <p className="text-sm text-slate-500">
+                    Ask a farm admin to create an invite PIN if you need to add another person to this farm.
+                  </p>
                 </div>
               )}
             </div>

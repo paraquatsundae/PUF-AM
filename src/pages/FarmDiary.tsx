@@ -13,6 +13,7 @@ import {
   Download,
   ShieldCheck,
   AlertTriangle,
+  LayoutGrid,
 } from 'lucide-react';
 import { useFarmDiary, SprayType, ApplicationMethod, getDefaultDiaryStartDate, WorkPriority } from '../lib/farmDiary';
 import { useMapStore } from '../lib/mapStore';
@@ -20,6 +21,7 @@ import { useFieldStore, type FieldIssue } from '../lib/fieldStore';
 import { useAuth } from '../contexts/AuthContext';
 import { SafetyAcceptModal } from '../components/SafetyAcceptModal';
 import { DiaryIssuesPanel } from '../components/diary/DiaryIssuesPanel';
+import { issuesForBlock } from '../lib/blockIssueCounts';
 import { DEFAULT_CHEMICALS, DEFAULT_BIOLOGICALS, DEFAULT_CARRIERS, DEFAULT_ADJUVANTS } from '../constants';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,6 +60,23 @@ export function FarmDiary() {
     else next.delete('view');
     setSearchParams(next, { replace: true });
   };
+
+  const setFocusBlock = (blockId: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (blockId) next.set('block', blockId);
+    else next.delete('block');
+    setSearchParams(next, { replace: true });
+  };
+
+  const focusBlock = useMemo(
+    () => (focusBlockId ? blocks.find((b) => b.id === focusBlockId) : undefined),
+    [blocks, focusBlockId]
+  );
+
+  const blocksSorted = useMemo(
+    () => [...blocks].sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    [blocks]
+  );
 
   const openIssueCount = useMemo(
     () => fieldIssues.filter((i) => i.status === 'open' || i.status === 'in-progress').length,
@@ -103,8 +122,10 @@ export function FarmDiary() {
       event.title?.toLowerCase().includes(q) ||
       event.assignedToName?.toLowerCase().includes(q) ||
       (event.type === 'spray' && event.sprayType?.toLowerCase().includes(q));
+    const matchesBlock =
+      !focusBlockId || (event.blockId || 'general') === focusBlockId;
 
-    return matchesFilter && matchesSearch;
+    return matchesFilter && matchesSearch && matchesBlock;
   });
 
   // Group events by block
@@ -202,6 +223,11 @@ export function FarmDiary() {
   const [workTitle, setWorkTitle] = useState('');
   const [assigneeName, setAssigneeName] = useState('');
   const [workPriority, setWorkPriority] = useState<WorkPriority>('medium');
+
+  // Prefill composer target when arriving from map / block picker
+  useEffect(() => {
+    if (focusBlockId) setSelectedBlockId(focusBlockId);
+  }, [focusBlockId]);
 
   const createPlanFromIssue = (issue: FieldIssue, blockId: string | undefined) => {
     const title = issue.note?.trim()
@@ -400,10 +426,84 @@ export function FarmDiary() {
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-3xl mx-auto py-6 px-4 sm:px-6 space-y-6">
+          {/* Block scope — all farm vs one block (no need to return to the map) */}
+          {blocksSorted.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Blocks
+                </p>
+                {focusBlockId && (
+                  <button
+                    type="button"
+                    onClick={() => setFocusBlock(null)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    Show all blocks
+                  </button>
+                )}
+              </div>
+              {focusBlockId && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-emerald-950 truncate">
+                      {focusBlock?.name || 'Selected block'}
+                    </p>
+                    <p className="text-[11px] text-emerald-800/80">
+                      Viewing this block only
+                      {focusBlock?.cultivar ? ` · ${focusBlock.cultivar}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFocusBlock(null)}
+                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-200 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    All farm
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+                <button
+                  type="button"
+                  onClick={() => setFocusBlock(null)}
+                  className={cn(
+                    'shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors',
+                    !focusBlockId
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  )}
+                >
+                  All farm
+                </button>
+                {blocksSorted.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setFocusBlock(b.id)}
+                    className={cn(
+                      'shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors max-w-[10rem] truncate',
+                      focusBlockId === b.id
+                        ? 'bg-emerald-700 text-white border-emerald-700'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                    )}
+                    title={b.name}
+                  >
+                    {b.name || 'Unnamed'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {pageMode === 'issues' ? (
             <DiaryIssuesPanel
-              blocks={blocks}
-              issues={fieldIssues}
+              blocks={focusBlock ? [focusBlock] : blocks}
+              issues={
+                focusBlock ? issuesForBlock(focusBlock, fieldIssues) : fieldIssues
+              }
               canEdit={canEdit}
               onCreatePlan={createPlanFromIssue}
               onResolve={(issue) => {
@@ -920,12 +1020,23 @@ export function FarmDiary() {
 
               <div className="space-y-16">
                 {sortedBlockIds.length === 0 ? (
-                  <div className="ml-16 py-20 text-center">
+                  <div className="ml-16 py-20 text-center space-y-3">
                     <p className="text-sm text-slate-500">
                       {searchQuery || filter !== 'all'
                         ? 'No matching entries.'
-                        : 'No diary entries yet. Add a plan or log above.'}
+                        : focusBlockId
+                          ? 'No diary entries for this block yet. Add a plan or log above.'
+                          : 'No diary entries yet. Add a plan or log above.'}
                     </p>
+                    {focusBlockId && (
+                      <button
+                        type="button"
+                        onClick={() => setFocusBlock(null)}
+                        className="text-sm font-semibold text-emerald-700 hover:text-emerald-900"
+                      >
+                        Show all farm blocks
+                      </button>
+                    )}
                   </div>
                 ) : (
                   sortedBlockIds.map((blockId) => {

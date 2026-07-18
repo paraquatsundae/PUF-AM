@@ -1,13 +1,21 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, ClipboardList, Flag, Snowflake, X } from 'lucide-react';
+import { BookOpen, ClipboardList, Flag, Loader2, Snowflake, X } from 'lucide-react';
 import type { OrchardBlock } from '../../lib/mapStore';
 import { resolveCultivarTarget } from '../../lib/chillPortions';
 import { cn } from '../../lib/utils';
 
+export type ChillDisplay = {
+  portions: number | null;
+  loading: boolean;
+  error: string | null;
+  stationName?: string;
+  seasonLabel?: string;
+};
+
 type Props = {
   block: OrchardBlock;
   openIssues: number;
-  chillPortions: number;
+  chill: ChillDisplay;
   onClose: () => void;
   onViewIssues: () => void;
   onReportIssue: () => void;
@@ -16,12 +24,14 @@ type Props = {
 export function BlockOperateCard({
   block,
   openIssues,
-  chillPortions,
+  chill,
   onClose,
   onViewIssues,
   onReportIssue,
 }: Props) {
   const cultivar = resolveCultivarTarget(block.cultivar);
+  const met =
+    chill.portions != null && chill.portions >= cultivar.requiredCP;
 
   return (
     <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
@@ -66,14 +76,45 @@ export function BlockOperateCard({
           </span>
         </button>
 
-        <div className="flex items-center justify-between text-sm">
-          <span className="inline-flex items-center gap-2 text-slate-600">
-            <Snowflake className="w-4 h-4 text-sky-600" />
-            Chill portions
-          </span>
-          <span className="font-bold text-slate-900 font-mono tabular-nums">
-            {chillPortions}/{cultivar.requiredCP}
-          </span>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-sm gap-3">
+            <span className="inline-flex items-center gap-2 text-slate-600">
+              <Snowflake className="w-4 h-4 text-sky-600" />
+              Chill portions
+            </span>
+            {chill.loading ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Loading…
+              </span>
+            ) : chill.error ? (
+              <span className="text-xs font-semibold text-rose-600">Unavailable</span>
+            ) : (
+              <span
+                className={cn(
+                  'font-bold font-mono tabular-nums',
+                  met ? 'text-emerald-700' : 'text-slate-900'
+                )}
+              >
+                {chill.portions ?? '—'}/{cultivar.requiredCP}
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-slate-400 leading-snug">
+            {chill.error
+              ? chill.error
+              : [
+                  chill.stationName ? `DPIRD ${chill.stationName}` : null,
+                  chill.seasonLabel,
+                  cultivar.sourceKind === 'ucanr'
+                    ? 'Req: UCANR'
+                    : cultivar.sourceKind === 'luedeling'
+                      ? 'Req: Luedeling 2009'
+                      : 'Req: estimate',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+          </p>
         </div>
       </div>
 

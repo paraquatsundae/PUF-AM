@@ -3,7 +3,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 async function test() {
-  const apiKey = process.env.VITE_DPIRD_API_KEY || process.env.DPIRD_API_KEY;
+  const apiKey = process.env.DPIRD_API_KEY || process.env.VITE_DPIRD_API_KEY;
   if (!apiKey) {
     console.log("No API key");
     return;

@@ -16,7 +16,7 @@ const liveServerUrl =
 
 const config: CapacitorConfig = {
   appId: 'com.sentinut.farm',
-  appName: 'SentiNut',
+  appName: 'PUFOM',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

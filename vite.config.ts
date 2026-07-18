@@ -5,8 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    // Relative base so Capacitor Android WebView can load assets from the app package.
-    base: './',
+    // Absolute `/` for Cloud Run / browser hosting. Capacitor builds set VITE_CAPACITOR=1.
+    base: process.env.VITE_CAPACITOR === '1' ? './' : '/',
     plugins: [react(), tailwindcss()],
     optimizeDeps: {
       include: ['leaflet'],
