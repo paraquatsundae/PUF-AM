@@ -151,5 +151,8 @@ export function runJiBlightSeries(
   return out;
 }
 
-/** High-index day threshold for Ji daily infection risk (unitless, not %). */
-export const JI_HIGH_RISK_THRESHOLD = 0.01;
+export {
+  JI_ACTION_THRESHOLD as JI_HIGH_RISK_THRESHOLD,
+  JI_ACTION_THRESHOLD,
+  JI_WATCH_THRESHOLD,
+} from './jiBlightBands';

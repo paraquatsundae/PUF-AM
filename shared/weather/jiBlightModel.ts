@@ -21,6 +21,25 @@ export const JI_PUBLISHED = {
   gGomp: 0.896,
 } as const;
 
+/**
+ * Grower-facing orchard inoculum level → Ji `k` (primary inoculum modulator).
+ * Ji ties `k` to prior-season blight / bud CFU (Buchner et al. 2014 distribution).
+ * These are workshop defaults centred on `k=1` (the calibration point for the
+ * Watch/Action bands and the golden fixture); tune once bud CFU / scouting exists.
+ */
+export type OrchardInoculumLevel = 'low' | 'medium' | 'high';
+
+export const JI_INOCULUM_K: Record<OrchardInoculumLevel, number> = {
+  low: 0.5,
+  medium: 1.0,
+  high: 2.0,
+};
+
+/** Map an inoculum level to Ji `k`. Unknown/undefined → medium (k=1, unchanged). */
+export function kFromInoculumLevel(level?: OrchardInoculumLevel | null): number {
+  return level && level in JI_INOCULUM_K ? JI_INOCULUM_K[level] : JI_INOCULUM_K.medium;
+}
+
 export type JiOrchardParams = {
   /** Orchard inoculum modulator k (Buchner-derived). Default 1.0. */
   k?: number;

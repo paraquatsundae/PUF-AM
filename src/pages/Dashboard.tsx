@@ -16,20 +16,26 @@ import { useMapStore } from '../lib/mapStore';
 import { useFieldStore } from '../lib/fieldStore';
 import { useFarmDiary, getDefaultDiaryStartDate } from '../lib/farmDiary';
 import { isOpenIssue } from '../lib/blockIssueCounts';
-import { getBlightAggregate, isAggregateFresh } from '../services/aggregateService';
+import { getBlightAggregate, isAggregateFresh, type BlightAggregate, type BlightRiskBand } from '../services/aggregateService';
+import { bandFromRisk, RISK_BAND_LABEL } from '../lib/jiBlightBands';
 import { cn } from '../lib/utils';
 
-function riskMeta(threat: number) {
-  if (threat < 0.3) {
-    return { label: 'Low', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' };
+/**
+ * Map the Ji daily infection risk to a grower band. Uses the stored band when
+ * present (written by the aggregate) and falls back to deriving it from the
+ * score so old aggregate docs still render. Matches the BlightRisk page bands.
+ */
+function riskMeta(agg: BlightAggregate | null) {
+  const band: BlightRiskBand = agg?.currentBand ?? bandFromRisk(agg?.currentRiskScore ?? 0);
+  const label = RISK_BAND_LABEL[band];
+  switch (band) {
+    case 'action':
+      return { band, label, color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' };
+    case 'watch':
+      return { band, label, color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' };
+    default:
+      return { band, label, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' };
   }
-  if (threat < 0.7) {
-    return { label: 'Moderate', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' };
-  }
-  if (threat < 1.0) {
-    return { label: 'High', color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' };
-  }
-  return { label: 'Critical', color: 'text-red-800', bg: 'bg-red-50', border: 'border-red-300' };
 }
 
 export function Dashboard() {
@@ -40,10 +46,7 @@ export function Dashboard() {
   const loadFieldData = useFieldStore((s) => s.loadData);
   const { events } = useFarmDiary(getDefaultDiaryStartDate(90));
 
-  const [blightAggregate, setBlightAggregate] = useState<{
-    currentRiskScore: number;
-    lastUpdated: string;
-  } | null>(null);
+  const [blightAggregate, setBlightAggregate] = useState<BlightAggregate | null>(null);
   const [blightLoading, setBlightLoading] = useState(true);
 
   useEffect(() => {
@@ -86,7 +89,7 @@ export function Dashboard() {
   );
 
   const threat = blightAggregate?.currentRiskScore ?? 0;
-  const risk = riskMeta(threat);
+  const risk = riskMeta(blightAggregate);
   const blightFresh = blightAggregate
     ? isAggregateFresh(blightAggregate.lastUpdated)
     : false;
@@ -203,7 +206,7 @@ export function Dashboard() {
               <div className={cn('text-sm font-bold', risk.color)}>
                 {risk.label}
                 <span className="font-mono font-medium text-slate-600 ml-2">
-                  {threat.toFixed(2)}
+                  {threat < 0.001 ? threat.toExponential(1) : threat.toFixed(3)}
                 </span>
                 {!blightFresh && (
                   <span className="ml-2 text-[10px] font-medium text-amber-700">stale</span>

@@ -1,0 +1,27 @@
+MODULE: PUFOM (Walnut Farm Manager)
+ROLE: Orchard / paddock management web app
+STATUS: app (live on Cloud Run; Capacitor Android)
+
+ONE-LINER
+Multi-user orchard management for walnut farms — map blocks and issues, farm diary, and blight management from weather and spray records.
+
+SYNOPSIS
+- Orchard Manager — multi-user farm management system focused on walnut orchard management (public name PUFOM; repo Walnut_farm_manager).
+- Blight management tool: weather-driven infection-risk modelling tied to the farm diary and spray records; Ji et al. 2025 mechanistic model on a proxy wetness input — not LLM/AI predictions.
+- Orchard map: draw blocks, pin field issues, optional offline basemap packs; issues feed into diary plans (Capacitor mobile path supported).
+- Farm diary is system of record for sprays, irrigation, nutrition, and work.
+- Also covers harvest/drying (dryer performance model), water budget from farm setup allocation, nutrition logging, financials, invite-PIN team auth.
+- Stack: React/Vite/TypeScript, Firebase Firestore + Auth, DPIRD weather via server cache/Cloud Functions; deployed to Google Cloud Run (australia-southeast1).
+- Does NOT control sprayers, ISOBUS, or vision — separate from the PUFworks cab stack (companion orchard ops product under same PUF workshop brand).
+
+SOURCES
+- README.md
+- DEVELOPER_NOTES.md
+- src/brand.ts
+- Plans/ROADMAP.md (status header)
+
+NOTES FOR EDITOR
+- Repo folder is Walnut_farm_manager; public name is PUFOM — pick one primary label for the website card.
+- DEVELOPER_NOTES flags thick-client/scale limits (map DOM, weather thundering herd); roadmap Phase C partly done — app is workshop-first, not enterprise-scale yet.
+- Generative AI features were removed; do not imply AI forecasting on the site.
+- Live URL in README: https://pufom-quby5ye5pa-ts.a.run.app — verify still current before publishing.

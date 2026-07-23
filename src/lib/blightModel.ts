@@ -1,3 +1,5 @@
+import type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
+
 export type SprayType = 'chem' | 'bio' | 'both';
 export type ApplicationMethod = 'ground' | 'drone' | 'helicopter' | 'aeroplane';
 export type GrowthStage = 'dormant' | 'bud_break' | 'bloom' | 'post_bloom' | 'shell_hardening';
@@ -55,10 +57,16 @@ export type CalibrationParams = {
   chemRainWashoffRate: number;
   bioColonizationEff: number;
   /**
-   * Initial threat at the start of a model run (unitless floor).
-   * Not loaded from last season’s disease or bud CFU — just a calibration knob.
+   * Legacy Sandbox-only initial threat floor (unitless). NOT biology — just a
+   * calibration knob for the legacy index. The Ji production path uses
+   * `orchardInoculumLevel` (→ k) for primary inoculum instead.
    */
   springStartingInoculum: number;
+  /**
+   * Ji production primary-inoculum level (→ k via `kFromInoculumLevel`).
+   * From prior-season blight / bud CFU. Default 'medium' (k=1).
+   */
+  orchardInoculumLevel: OrchardInoculumLevel;
   latencyGDDThreshold: number;
   /** Reserved for future calendar-latency experiments; core uses GDD. */
   latencyDays: number;
@@ -87,6 +95,7 @@ export const defaultCalibration: CalibrationParams = {
   chemRainWashoffRate: 0.05,
   bioColonizationEff: 1.0,
   springStartingInoculum: 0.02,
+  orchardInoculumLevel: 'medium',
   latencyGDDThreshold: 120.0,
   latencyDays: 18,
   /** Only used when `useSecondaryLatency` is on; 1.0 = no extra amplification. */

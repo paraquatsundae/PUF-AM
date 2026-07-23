@@ -26,7 +26,22 @@ import {
   CalibrationParams,
   defaultCalibration,
 } from '../lib/blightModel';
-import { JI_HIGH_RISK_THRESHOLD, runJiBlightSeries } from '../lib/runJiBlightSeries';
+import { runJiBlightSeries } from '../lib/runJiBlightSeries';
+import { kFromInoculumLevel, type OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
+import {
+  JI_ACTION_THRESHOLD,
+  JI_HIGH_RISK_THRESHOLD,
+  JI_WATCH_THRESHOLD,
+  RISK_BAND_LABEL,
+  bandFromRisk,
+  detectInfectionEvents,
+  eventSeverityPhrase,
+  summarizeNext7Days,
+  computeSymptomOnsetSeries,
+  symptomWindowForEvent,
+  INCUBATION_MIN_DAYS,
+  INCUBATION_MAX_DAYS,
+} from '../lib/jiBlightBands';
 import { fetchEnvironmentalData, WeatherSource, fetchAllDPIRDStations, calculateDistance } from '../lib/weatherService';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useMapStore } from '../lib/mapStore';
@@ -55,6 +70,21 @@ function getCurrentSeasonStr(date: Date): string {
   }
 }
 
+/**
+ * How many days past the last observation to project the persistence "forecast".
+ * DPIRD provides observations only, so beyond the last obs the chart just carries
+ * the last known weather forward — we cap that to a short, honest window.
+ */
+const FORECAST_HORIZON_DAYS = 7;
+
+/** Ji daily risk is often << 0.01; plain toFixed(2) collapses everything to 0.00. */
+function formatRiskValue(v: number): string {
+  if (v === 0) return '0';
+  if (Math.abs(v) < 0.001) return v.toExponential(1);
+  if (Math.abs(v) < 1) return v.toFixed(3);
+  return v.toFixed(2);
+}
+
 /** Recharts default tooltip shows the raw X timestamp (13-digit ms). Format as a date + weather. */
 function BlightChartTooltip({
   active,
@@ -68,7 +98,7 @@ function BlightChartTooltip({
   if (!active || !payload?.length) return null;
 
   const row = payload[0]?.payload as
-    | { T?: number; WD?: number; R?: number; RH?: number; dateStr?: string; fullDate?: string }
+    | { T?: number; WD?: number; R?: number; RH?: number; dateStr?: string; fullDate?: string; isPersistence?: boolean; isForecast?: boolean }
     | undefined;
 
   const dateLabel =
@@ -83,7 +113,15 @@ function BlightChartTooltip({
 
   return (
     <div className="rounded-lg bg-white px-3 py-2.5 shadow-md border border-slate-100 text-xs min-w-[180px]">
-      <p className="font-semibold text-slate-900 mb-1">{dateLabel}</p>
+      <p className="font-semibold text-slate-900 mb-1">
+        {dateLabel}
+        {row?.isForecast && (
+          <span className="ml-2 text-[10px] font-medium text-sky-500">forecast</span>
+        )}
+        {row?.isPersistence && (
+          <span className="ml-2 text-[10px] font-medium text-slate-400">persistence</span>
+        )}
+      </p>
       {row && (row.T != null || row.WD != null) && (
         <p className="text-slate-500 mb-2 leading-snug">
           {[
@@ -103,7 +141,7 @@ function BlightChartTooltip({
               {entry.name}
             </span>
             <span className="font-semibold text-slate-800 tabular-nums">
-              {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}
+              {typeof entry.value === 'number' ? formatRiskValue(entry.value) : entry.value}
             </span>
           </div>
         ))}
@@ -408,6 +446,8 @@ export function BlightRisk() {
   const [weatherSource, setWeatherSource] = useState<WeatherSource>('DPIRD');
   const [locationId, setLocationId] = useState('manjimup');
   const [weatherData, setWeatherData] = useState<Record<string, WeatherData>>({});
+  const [forecastWeather, setForecastWeather] = useState<Record<string, WeatherData>>({});
+  const [forecastUpdatedAt, setForecastUpdatedAt] = useState<string | undefined>(undefined);
   const [weatherMeta, setWeatherMeta] = useState<{ lastUpdated?: string; isStale?: boolean; cacheSource?: string } | null>(null);
   const [isLoadingWeather, setIsLoadingWeather] = useState(true);
 
@@ -577,6 +617,8 @@ export function BlightRisk() {
             return;
           }
           setWeatherData(result.weatherData);
+          setForecastWeather(result.forecastData || {});
+          setForecastUpdatedAt(result.forecastUpdatedAt);
           setWeatherMeta({
             lastUpdated: result.lastUpdated,
             isStale: result.isStale,
@@ -620,6 +662,25 @@ export function BlightRisk() {
     const t = setTimeout(() => setLoadingParams(false), 4000);
     return () => clearTimeout(t);
   }, [loadingParams]);
+
+  /**
+   * Observed weather + MET Norway forecast (future days only, observed always
+   * wins). Feeds the Ji production path so forecast days score on the same model
+   * as history; days beyond the forecast window still fall back to persistence
+   * inside runJiBlightSeries.
+   */
+  const modelWeather = useMemo(() => {
+    const observed = weatherData || {};
+    const fKeys = Object.keys(forecastWeather);
+    if (fKeys.length === 0) return observed;
+    const observedKeys = Object.keys(observed).sort();
+    const maxObserved = observedKeys.length ? observedKeys[observedKeys.length - 1] : '';
+    const merged: Record<string, WeatherData> = { ...observed };
+    for (const k of fKeys) {
+      if (k > maxObserved && !observed[k]) merged[k] = forecastWeather[k];
+    }
+    return merged;
+  }, [weatherData, forecastWeather]);
 
   // Run the mathematical model
   const allData = useMemo(() => {
@@ -678,13 +739,15 @@ export function BlightRisk() {
       );
     }
 
-    return runJiBlightSeries(startDate, endDate, weatherData, {
-      orchard: { k: 1 },
+    return runJiBlightSeries(startDate, endDate, modelWeather, {
+      // Orchard primary inoculum from prior-season blight / bud CFU (H/M/L → k).
+      orchard: { k: kFromInoculumLevel(debouncedParams.calib.orchardInoculumLevel) },
       // cumulativeY within each SH budbreak season — deltaY went flat after Y≈1
       doseMode: 'cumulativeY',
     });
   }, [
     weatherData,
+    modelWeather,
     activeTab,
     sandboxView,
     todayDate,
@@ -698,7 +761,50 @@ export function BlightRisk() {
 
   // Split data into historical and forecast
   const historicalData = useMemo(() => allData.filter(d => d.fullDate <= todayStr), [allData, todayStr]);
-  const forecastData = useMemo(() => allData.filter(d => d.fullDate >= todayStr), [allData, todayStr]);
+
+  /**
+   * Last calendar day we actually have observed (DPIRD) weather for (≤ today).
+   * Days after this come from the MET Norway forecast where available, then fall
+   * back to persistence (last obs carried forward) beyond the forecast horizon.
+   */
+  const lastObservedDateStr = useMemo(() => {
+    const observedKeys = Object.keys(weatherData).filter((k) => k <= todayStr);
+    return observedKeys.length ? observedKeys.sort()[observedKeys.length - 1] : todayStr;
+  }, [weatherData, todayStr]);
+
+  /** Future days covered by a real MET Norway forecast (after the last obs). */
+  const forecastKeys = useMemo(
+    () => Object.keys(forecastWeather).filter((k) => k > lastObservedDateStr).sort(),
+    [forecastWeather, lastObservedDateStr]
+  );
+  const hasRealForecast = forecastKeys.length > 0;
+  const lastForecastDateStr = hasRealForecast ? forecastKeys[forecastKeys.length - 1] : undefined;
+
+  /**
+   * Chart window end: the real forecast horizon when we have one, otherwise the
+   * short persistence tail.
+   */
+  const forecastHorizonEndStr = useMemo(() => {
+    if (lastForecastDateStr) return lastForecastDateStr;
+    const d = new Date(`${lastObservedDateStr}T12:00:00`);
+    d.setDate(d.getDate() + FORECAST_HORIZON_DAYS);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [lastObservedDateStr, lastForecastDateStr]);
+
+  const forecastData = useMemo(
+    () =>
+      allData
+        .filter((d) => d.fullDate >= todayStr && d.fullDate <= forecastHorizonEndStr)
+        .map((d) => {
+          const isForecast = d.fullDate > lastObservedDateStr && !!forecastWeather[d.fullDate];
+          return {
+            ...d,
+            isForecast,
+            isPersistence: d.fullDate > lastObservedDateStr && !isForecast,
+          };
+        }),
+    [allData, todayStr, forecastHorizonEndStr, lastObservedDateStr, forecastWeather]
+  );
 
   // Run the sandbox mathematical model for each scenario
   const sandboxScenariosData = useMemo(() => {
@@ -963,26 +1069,53 @@ export function BlightRisk() {
     });
   }, [filteredHistoricalData, allData, compareWithPrevious]);
 
+  /**
+   * Ji incubation overlay: when would lesions from earlier infection periods
+   * become visible? Computed over the full season series (so the 15–21 day lag can
+   * see infection days before the chart window), then looked up per chart day.
+   */
+  const symptomOnsetByDate = useMemo(
+    () => computeSymptomOnsetSeries(historicalData),
+    [historicalData]
+  );
+
   const chartData = useMemo(() => {
-    if (!compareWithPrevious) return filteredHistoricalData;
-    
-    return filteredHistoricalData.map((d, i) => ({
+    const base = filteredHistoricalData.map((d) => ({
+      ...d,
+      symptomOnset: symptomOnsetByDate.get(d.fullDate) ?? 0,
+    }));
+    if (!compareWithPrevious) return base;
+
+    return base.map((d, i) => ({
       ...d,
       prevThreat: comparisonData[i]?.prevThreat,
       prevChem: comparisonData[i]?.prevChem,
       prevBio: comparisonData[i]?.prevBio,
     }));
-  }, [filteredHistoricalData, comparisonData, compareWithPrevious]);
+  }, [filteredHistoricalData, comparisonData, compareWithPrevious, symptomOnsetByDate]);
+
+  // Live Ji model (Dashboard aggregate now runs the same Ji module — BV-09 parity).
+  const forecastSorted = useMemo(
+    () => [...forecastData].sort((a, b) => a.timestamp - b.timestamp),
+    [forecastData]
+  );
+  const currentRisk = forecastSorted[0]?.threat || 0;
+  const todayBand = bandFromRisk(currentRisk);
+  const sevenDayOutlook = useMemo(() => summarizeNext7Days(forecastSorted), [forecastSorted]);
+
+  /** Recent infection events (Watch+) in the last 21 days. */
+  const recentInfectionEvents = useMemo(() => {
+    const cutoff = new Date(todayDate);
+    cutoff.setDate(cutoff.getDate() - 21);
+    const cutKey = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+    const window = allData.filter((d) => d.fullDate >= cutKey && d.fullDate <= todayStr);
+    return detectInfectionEvents(window);
+  }, [allData, todayDate, todayStr]);
+  const latestEvent = recentInfectionEvents[recentInfectionEvents.length - 1] ?? null;
 
   // Derived UI states
   const isOverLimit = !usageLoading && !checkLimit('calculations');
-  const currentWeather = forecastData[0] || { T: 0, RH: 0, R: 0, WD: 0 };
-  
-  // High-index day in next 7 (Ji daily infection risk — no modelled armour)
-  const criticalDay = forecastData.slice(0, 7).find((d) => d.threat > JI_HIGH_RISK_THRESHOLD);
-
-  // Live Ji model (Cloud Function aggregate still legacy — BV-09).
-  const currentRisk = forecastData[0]?.threat || 0;
+  const currentWeather = forecastSorted[0] || { T: 0, RH: 0, R: 0, WD: 0 };
 
   // Sort historical sprays (descending) — diary reference, not model efficacy
   const historicalSprays = events
@@ -1289,16 +1422,18 @@ export function BlightRisk() {
         <div className="bg-white px-2.5 py-2 rounded-lg border border-slate-200 min-w-0">
           <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 uppercase tracking-wide truncate">
             <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
-            Risk
+            Today
           </div>
           <div className="flex items-baseline gap-1.5 mt-0.5">
             <span className={cn(
               "text-lg font-black tracking-tight leading-none",
-              currentRisk > JI_HIGH_RISK_THRESHOLD ? "text-rose-600" : currentRisk > JI_HIGH_RISK_THRESHOLD * 0.4 ? "text-amber-600" : "text-emerald-600"
+              todayBand === 'action' ? "text-rose-600" : todayBand === 'watch' ? "text-amber-600" : "text-emerald-600"
             )}>
+              {RISK_BAND_LABEL[todayBand]}
+            </span>
+            <span className="text-[9px] font-medium text-slate-400 truncate tabular-nums">
               {currentRisk.toFixed(3)}
             </span>
-            <span className="text-[9px] font-medium text-slate-400 truncate">index</span>
           </div>
         </div>
 
@@ -1383,21 +1518,134 @@ export function BlightRisk() {
         // FORECAST TAB CONTENT
         // ==========================================
         <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Dynamic Alert Box */}
-          {criticalDay && (
-            <div className="bg-rose-50 border-l-4 border-rose-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4">
-              <div className="bg-rose-100 p-2 rounded-full mt-0.5">
-                <AlertTriangle className="w-6 h-6 text-rose-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-rose-900 mb-1">Elevated infection risk</h3>
-                <p className="text-rose-800 font-medium leading-relaxed">
-                  High Ji infection index ({criticalDay.threat}) on {criticalDay.dateStr}
-                  — {criticalDay.T}°C and {criticalDay.WD} h wetness (proxy) in the weather drivers.
-                </p>
-              </div>
+          {/* A1 bands + A2 event + B1 seven-day outlook */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div
+              className={cn(
+                'rounded-xl border p-4 shadow-sm',
+                todayBand === 'action' && 'bg-rose-50 border-rose-200',
+                todayBand === 'watch' && 'bg-amber-50 border-amber-200',
+                todayBand === 'quiet' && 'bg-emerald-50 border-emerald-200'
+              )}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">Today</p>
+              <p
+                className={cn(
+                  'text-2xl font-black tracking-tight',
+                  todayBand === 'action' && 'text-rose-700',
+                  todayBand === 'watch' && 'text-amber-700',
+                  todayBand === 'quiet' && 'text-emerald-700'
+                )}
+              >
+                {RISK_BAND_LABEL[todayBand]}
+              </p>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Ji daily index {currentRisk.toFixed(3)}
+                <span className="text-slate-400">
+                  {' '}
+                  · Quiet &lt; {JI_WATCH_THRESHOLD} · Watch · Action ≥ {JI_ACTION_THRESHOLD}
+                </span>
+              </p>
             </div>
-          )}
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">
+                Latest infection event
+              </p>
+              {latestEvent ? (
+                <>
+                  <p
+                    className={cn(
+                      'text-sm font-bold leading-snug',
+                      latestEvent.band === 'action' ? 'text-rose-800' : 'text-amber-800'
+                    )}
+                  >
+                    {eventSeverityPhrase(latestEvent.band)}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    {latestEvent.dayCount === 1
+                      ? latestEvent.peakLabel
+                      : `${latestEvent.startLabel} – ${latestEvent.endLabel}`}
+                    {' · '}
+                    peak {latestEvent.peakRisk.toFixed(3)} ({RISK_BAND_LABEL[latestEvent.band]})
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                    Drivers: {latestEvent.R} mm rain · {latestEvent.WD} h wet (proxy) · {latestEvent.T}°C
+                  </p>
+                  {(() => {
+                    const w = symptomWindowForEvent(latestEvent);
+                    const fmt = (iso: string) =>
+                      new Date(`${iso}T12:00:00`).toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                      });
+                    return (
+                      <p className="text-[11px] text-emerald-700 mt-1.5 leading-relaxed">
+                        Scout for symptoms {fmt(w.startDate)} – {fmt(w.endDate)}
+                        <span className="text-slate-400"> · Ji {INCUBATION_MIN_DAYS}–{INCUBATION_MAX_DAYS}d incubation</span>
+                      </p>
+                    );
+                  })()}
+                </>
+              ) : (
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  No Watch/Action spell in the last 21 days.
+                </p>
+              )}
+            </div>
+
+            <div
+              className={cn(
+                'rounded-xl border p-4 shadow-sm',
+                sevenDayOutlook.outlookBand === 'action' && 'bg-rose-50 border-rose-200',
+                sevenDayOutlook.outlookBand === 'watch' && 'bg-amber-50 border-amber-200',
+                sevenDayOutlook.outlookBand === 'quiet' && 'bg-white border-slate-200'
+              )}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">
+                Next 7 days
+              </p>
+              <p
+                className={cn(
+                  'text-2xl font-black tracking-tight',
+                  sevenDayOutlook.outlookBand === 'action' && 'text-rose-700',
+                  sevenDayOutlook.outlookBand === 'watch' && 'text-amber-700',
+                  sevenDayOutlook.outlookBand === 'quiet' && 'text-slate-800'
+                )}
+              >
+                {RISK_BAND_LABEL[sevenDayOutlook.outlookBand]}
+              </p>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                {sevenDayOutlook.actionDays > 0
+                  ? `${sevenDayOutlook.actionDays} Action day${sevenDayOutlook.actionDays === 1 ? '' : 's'}${
+                      sevenDayOutlook.nextAction
+                        ? ` · first ${sevenDayOutlook.nextAction.dateStr}`
+                        : ''
+                    }`
+                  : sevenDayOutlook.watchDays > 0
+                    ? `${sevenDayOutlook.watchDays} Watch day${sevenDayOutlook.watchDays === 1 ? '' : 's'}${
+                        sevenDayOutlook.nextWatch
+                          ? ` · first ${sevenDayOutlook.nextWatch.dateStr}`
+                          : ''
+                      }`
+                    : 'No Watch/Action days in window'}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1.5">
+                {hasRealForecast ? (
+                  <>
+                    Observed to {new Date(`${lastObservedDateStr}T12:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} (DPIRD),
+                    then MET Norway forecast to {new Date(`${lastForecastDateStr}T12:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                    {forecastUpdatedAt ? ` · updated ${new Date(forecastUpdatedAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ''}.
+                  </>
+                ) : (
+                  <>
+                    Persistence only: weather to {new Date(`${lastObservedDateStr}T12:00:00`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} is observed (DPIRD),
+                    then carried forward {FORECAST_HORIZON_DAYS} days. MET Norway forecast unavailable.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 flex flex-col relative overflow-hidden">
                 {(calculating || isLoadingWeather || loadingParams || isDebouncing) && (
@@ -1445,7 +1693,7 @@ export function BlightRisk() {
                     </div>
                   ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={[...forecastData].sort((a, b) => a.timestamp - b.timestamp)} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
+                    <ComposedChart data={forecastSorted} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis 
                         dataKey="timestamp" 
@@ -1466,12 +1714,39 @@ export function BlightRisk() {
                       <Tooltip content={<BlightChartTooltip />} />
                       <Legend verticalAlign="top" height={36} iconType="circle" />
                       <ReferenceLine
-                        y={JI_HIGH_RISK_THRESHOLD}
+                        y={JI_WATCH_THRESHOLD}
+                        stroke="#f59e0b"
+                        strokeDasharray="3 3"
+                        label={{ value: 'Watch', fill: '#d97706', fontSize: 10 }}
+                      />
+                      <ReferenceLine
+                        y={JI_ACTION_THRESHOLD}
                         stroke="#f43f5e"
                         strokeDasharray="4 4"
-                        label={{ value: 'High', fill: '#f43f5e', fontSize: 10 }}
+                        label={{ value: 'Action', fill: '#f43f5e', fontSize: 10 }}
                       />
-                      <Area type="monotone" dataKey="threat" name="Infection risk (Ji)" fill="#ef4444" fillOpacity={0.8} stroke="#ef4444" strokeWidth={2} />
+                      {forecastData.some((d) => d.isForecast || d.isPersistence) && (() => {
+                        const lastObsTs = new Date(`${lastObservedDateStr}T12:00:00`).getTime();
+                        const endTs = forecastSorted[forecastSorted.length - 1]?.timestamp;
+                        if (!endTs || endTs <= lastObsTs) return null;
+                        return (
+                          <ReferenceLine
+                            x={lastObsTs}
+                            stroke="#94a3b8"
+                            strokeDasharray="2 2"
+                            label={{ value: hasRealForecast ? 'Forecast →' : 'Persistence →', fill: '#64748b', fontSize: 10, position: 'insideTopRight' }}
+                          />
+                        );
+                      })()}
+                      <Area
+                        type="monotone"
+                        dataKey="threat"
+                        name="Infection risk (Ji)"
+                        fill="#ef4444"
+                        fillOpacity={0.8}
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                   )}
@@ -1672,7 +1947,7 @@ export function BlightRisk() {
                   <div>
                     <h2 className="text-xl font-bold text-slate-900">Historical blight pressure</h2>
                     <p className="text-sm text-slate-500 mt-1">
-                      Weather-driven threat for {timeRange === 'Custom' ? `${seasonMonthsList[customStartMonth]} - ${seasonMonthsList[customEndMonth]}` : `past ${timeRange}`} · Season {selectedSeason}. Diary sprays are markers only.
+                      Ji infection risk (red) for {timeRange === 'Custom' ? `${seasonMonthsList[customStartMonth]} - ${seasonMonthsList[customEndMonth]}` : `past ${timeRange}`} · Season {selectedSeason}. Amber = expected symptom window ({INCUBATION_MIN_DAYS}–{INCUBATION_MAX_DAYS} d incubation lag) — when to scout. Diary sprays are markers only.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-4">
@@ -1769,6 +2044,16 @@ export function BlightRisk() {
                         fillOpacity={0.3} 
                         stroke="#ef4444" 
                         strokeWidth={1} 
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="symptomOnset"
+                        name={`Expected symptoms (+${INCUBATION_MIN_DAYS}–${INCUBATION_MAX_DAYS}d)`}
+                        fill="#f59e0b"
+                        fillOpacity={0.12}
+                        stroke="#f59e0b"
+                        strokeWidth={1}
+                        strokeDasharray="4 3"
                       />
                       {compareWithPrevious && (
                         <Area 
@@ -2188,7 +2473,7 @@ export function BlightRisk() {
                       
                         <Line 
                           type="monotone" 
-                          data={[...(sandboxView === 'forecast' ? forecastData : filteredHistoricalData)].sort((a, b) => a.timestamp - b.timestamp)} 
+                          data={[...(sandboxView === 'forecast' ? allData.filter(d => d.fullDate >= todayStr) : filteredHistoricalData)].sort((a, b) => a.timestamp - b.timestamp)} 
                           dataKey="threat" 
                           xAxisId="baseline"
                           name="Baseline Threat" 

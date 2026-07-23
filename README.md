@@ -1,6 +1,6 @@
 # PUFOM — Orchard Manager
 
-Paddock-first farm tools for walnut orchards — map issues, diary plans, mechanistic blight risk, and block-level seasonal records.
+Paddock-first farm tools for walnut orchards — map issues, diary plans, Ji et al. 2025 mechanistic blight risk, and block-level seasonal records.
 
 **Brand:** PUFOM = **PUF** (Prototype Until Failure workshop) + **OM** (Orchard Manager). In-app mark is the PUF emu; the Android launcher uses a green orchard variant so it stays distinct from other PUF apps.
 
@@ -25,7 +25,7 @@ Home shows open issues, plans, and a blight snapshot. Financials and team tools 
 
 * **Orchard map** — Blocks, pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
 * **Farm diary** — Spray, water, nutrition, and work plans with filters and CSV export.
-* **Blight risk engine** — Mechanistic forecast (Ji et al.–inspired SEI), not LLM-based.
+* **Blight risk engine** — Ji et al. 2025 mechanistic infection-risk model (Beta temperature × Gompertz leaf-wetness × rain-driven primary inoculum) on a proxy wetness input; not LLM-based.
 * **Water** — Irrigation logging + seasonal ML budget from Farm setup.
 * **Nutrition** — Application diary (product, rate, N/P/K); soil lab XLSX import deferred.
 * **Harvest & drying** — Per-block harvest folders; exponential-decay dryer moisture prediction.

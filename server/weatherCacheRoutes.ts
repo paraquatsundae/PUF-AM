@@ -14,6 +14,10 @@ import {
   weatherDataBounds,
   type DayWeather,
 } from '../shared/weather/dpirdClient.ts';
+import {
+  fetchMetnoDailyForecast,
+  isForecastStale,
+} from '../shared/weather/metnoForecast.ts';
 
 function resolveStationMeta(stationCode: string) {
   const anchor = WEATHER_STATION_ANCHORS.find((s) => s.stationCode === stationCode);
@@ -113,6 +117,70 @@ export function registerWeatherCacheRoutes(app: Express) {
       console.error('[ensure-cache]', error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : 'ensure-cache failed',
+      });
+    }
+  });
+
+  /**
+   * Ensure the MET Norway forecast slice in weather_cache is fresh (dev path).
+   * Production relies on the hourly Cloud Function; this mirrors it for local work.
+   *
+   * POST /api/weather/ensure-forecast
+   * body: { stationCode, lat?, lng?, force? }
+   */
+  app.post('/api/weather/ensure-forecast', async (req: Request, res: Response) => {
+    try {
+      const stationCode = String(req.body?.stationCode || '').trim();
+      if (!stationCode) {
+        return res.status(400).json({ error: 'stationCode required' });
+      }
+
+      const anchor = WEATHER_STATION_ANCHORS.find((s) => s.stationCode === stationCode);
+      const lat = Number(req.body?.lat ?? anchor?.lat);
+      const lng = Number(req.body?.lng ?? anchor?.lng);
+      if (Number.isNaN(lat) || Number.isNaN(lng)) {
+        return res.status(400).json({ error: 'lat/lng required (unknown station)' });
+      }
+
+      const db = getAdminDb();
+      const ref = db.doc(`weather_cache/${stationCode}`);
+      const snap = await ref.get();
+      const existingUpdatedAt = snap.exists
+        ? (snap.data()?.forecastUpdatedAt as string | undefined)
+        : undefined;
+
+      if (!req.body?.force && !isForecastStale(existingUpdatedAt)) {
+        return res.json({ stationCode, mode: 'cached', forecastUpdatedAt: existingUpdatedAt });
+      }
+
+      const today = getWeatherDateWindow(0).endDate;
+      const { forecastData, fetchedAt } = await fetchMetnoDailyForecast({ lat, lng });
+      const future: Record<string, DayWeather> = {};
+      for (const [key, value] of Object.entries(forecastData)) {
+        if (key >= today) future[key] = value;
+      }
+
+      const meta = resolveStationMeta(stationCode);
+      await ref.set(
+        {
+          stationCode: meta.stationCode,
+          stationName: meta.stationName,
+          forecastData: future,
+          forecastUpdatedAt: fetchedAt,
+        },
+        { merge: true }
+      );
+
+      return res.json({
+        stationCode,
+        mode: 'refreshed',
+        forecastDays: Object.keys(future).length,
+        forecastUpdatedAt: fetchedAt,
+      });
+    } catch (error) {
+      console.error('[ensure-forecast]', error);
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'ensure-forecast failed',
       });
     }
   });

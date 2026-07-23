@@ -1,8 +1,18 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
+export type BlightRiskBand = 'quiet' | 'watch' | 'action';
+
 export interface BlightAggregate {
+  /** Today's Ji et al. 2025 daily infection risk (unitless, typically << 0.1). */
   currentRiskScore: number;
+  /** Grower band for currentRiskScore (matches BlightRisk page). */
+  currentBand?: BlightRiskBand;
+  /** Which model produced the score (e.g. 'ji-2025'). */
+  model?: string;
+  doseMode?: string;
+  /** Date the currentRiskScore applies to (YYYY-MM-DD). */
+  riskDate?: string;
   lastUpdated: string;
   startDate?: string;
   endDate?: string;

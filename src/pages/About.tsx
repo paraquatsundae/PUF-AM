@@ -45,11 +45,14 @@ function AssumptionsAndLimitsBox() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-bold text-slate-900">What we do <em>not</em> claim vs Ji et al.</h3>
+                  <h3 className="font-bold text-slate-900">What we do and do <em>not</em> take from Ji et al.</h3>
                   <p>
-                    We do not run their S1→S4 tissue compartments, Beta/Gompertz infection curves, or cumulative
-                    rainfall inoculum mobilisation. Older About copy that said we “translate” Ji into an SEI engine
-                    overstated the link. Shared idea only: wetness + temperature matter for Xaj.
+                    Forecast / Historical <strong>do</strong> run Ji's Beta temperature curve, Gompertz
+                    leaf-wetness curve, and cumulative-rainfall primary inoculum with the published coefficients.
+                    We <strong>do not</strong> run their full S1→S4 tissue compartments or the 15–21 day incubation
+                    / secondary-inoculum stages yet — so we show daily infection risk, not symptom onset or lesion
+                    severity. Our leaf wetness is also a rain/RH proxy, not a sensor or the mean wet-period
+                    temperature the paper prefers.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -183,23 +186,26 @@ export function About() {
             <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center">
               <Activity className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">Walnut blight (threat index)</h3>
+            <h3 className="text-lg font-bold text-slate-900">Walnut blight (Ji et al. 2025 infection risk)</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Walnut blight is caused by <em>Xanthomonas arboricola</em> pv. <em>juglandis</em>. Decades of work
-              (especially UC programs associated with Lindow and colleagues) show infection risk rises when air
-              temperature is in a favourable band <strong>and</strong> leaves stay wet long enough. That
-              temperature × wetness idea is the core of what we compute each day.
+              Walnut blight is caused by <em>Xanthomonas arboricola</em> pv. <em>juglandis</em>. The{' '}
+              <strong>Forecast and Historical</strong> charts now run the mechanistic model of{' '}
+              <strong>Ji et al. 2025</strong> (<em>Plant Disease</em> 109:1130–1141): primary inoculum builds from
+              cumulative rain after budbreak, and each day's infection rate is a Beta temperature curve × a Gompertz
+              leaf-wetness curve. Published coefficients are frozen; only the orchard inoculum modifier{' '}
+              <em>k</em> is farm-tunable.
             </p>
             <p className="text-sm text-slate-600 leading-relaxed">
-              <strong>Inputs:</strong> daily DPIRD summaries (temperature, RH, rainfall, a wetness estimate, max
-              hourly rain), optional irrigation logs from the diary, and calendar phenology. The chart plots a
-              unitless <em>threat</em> index — useful for comparing days and seasons on this farm, not a CFU or
-              lesion count.
+              <strong>Inputs:</strong> daily DPIRD summaries (temperature, RH, rainfall), a leaf-wetness{' '}
+              <em>estimate</em> (rain + humidity proxy until we have hourly or on-orchard wetness sensors), and a
+              Southern-Hemisphere budbreak date (1 Sep) that resets primary inoculum each season. Output is Ji's
+              unitless daily infection risk — useful for spotting infection periods, not a CFU or lesion count.
             </p>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Refs (concepts, not a claim that we reproduce their equations): Lindow / UC walnut blight
-              extension literature on T × leaf wetness; Ji et al. compartmental modelling of Xaj (recent academic
-              HLIR-style work) — our engine is a simpler weather-driven index, not a full S1→S4 tissue model.
+              Ref: Ji et al. 2025, DOI 10.1094/PDIS-09-24-1850-RE (Adaskaveg 1998 Beta/Gompertz fits). Our
+              <strong> wetness input is a proxy</strong>, so treat absolute values as relative until validated with
+              WA scouting. The <em>Sandbox</em> tab is a separate legacy weather index (see below) for what-ifs,
+              not the Ji model.
             </p>
           </div>
 
@@ -235,14 +241,49 @@ export function About() {
           How the blight engine works
         </h2>
         <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-6 text-sm text-slate-600 leading-relaxed">
-          <p>
-            Each day the model builds a <strong>daily infection pressure</strong> from weather, then folds it into
-            a running threat score with a short memory (threat decays ~15% per day, then adds new pressure). That is
-            intentional smoothing so one wet day does not dominate the chart forever.
-          </p>
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-slate-900">Forecast / Historical — Ji et al. 2025</h3>
+            <p>
+              These two charts run the mechanistic Ji model. Each day it computes an infection rate as{' '}
+              <strong>f(T) × f(WD)</strong> — a Beta temperature response (zero below 10 °C or above 24 °C) times a
+              Gompertz leaf-wetness response — and multiplies it by the primary inoculum available that day. Primary
+              inoculum grows with cumulative rain after budbreak (1 Sep) and resets each season, so a wet spring loads
+              more inoculum than a dry one. There is no artificial decay/smoothing and no spray armour on these charts.
+            </p>
+            <p>
+              <strong>Weather source:</strong> past days use observed DPIRD station data; the Forecast tab extends up to
+              ~9 days ahead with the <strong>MET Norway</strong> Locationforecast (the same forecast source DPIRD's own
+              tooling uses — DPIRD's public API is observations-only). Forecast days are marked on the chart and run
+              through the identical model as observed days. If the forecast is unavailable we fall back to short-range
+              persistence (last observation carried forward), clearly labelled as such.
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li>
+                <strong>Temperature:</strong> fitted Beta curve (Adaskaveg 1998), peaking in the high-teens, zero
+                outside 10–24 °C. Uses daily mean temperature (the paper prefers mean temperature during the wet
+                period — a refinement we have not made yet).
+              </li>
+              <li>
+                <strong>Leaf wetness:</strong> Gompertz curve over estimated wet hours. Wetness is a proxy from rain
+                and humidity until hourly / on-orchard sensors land.
+              </li>
+              <li>
+                <strong>Primary inoculum:</strong> <em>k</em>(1 − 0.916<sup>ΣR</sup>) from budbreak; <em>k</em> is the
+                only farm-tunable term. Set it in <strong>Settings → Advanced → Orchard inoculum</strong> as
+                Low / Medium / High (0.5× / 1.0× / 2.0×) from prior-season blight or bud CFU — Medium is the baseline.
+                These multipliers are workshop defaults until bud-CFU calibration. Incubation (15–21 day symptom lag)
+                is shown as a scouting overlay; Ji's secondary-inoculum stage is not modelled yet.
+              </li>
+            </ul>
+          </div>
 
           <div className="space-y-2">
-            <h3 className="text-base font-bold text-slate-900">Core weather factors (always on)</h3>
+            <h3 className="text-base font-bold text-slate-900">Sandbox — legacy weather index (what-if only)</h3>
+            <p>
+              The Sandbox tab keeps the older PUFOM multiplicative index for scenario play. It builds a daily
+              infection pressure from the factors below and folds it into a running threat score with a short memory
+              (~15% decay per day). This is <strong>not</strong> the Ji model and is not used on Forecast or Historical.
+            </p>
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
                 <strong>Temperature:</strong> higher weight when daily mean is roughly 12–24 °C; half weight outside
@@ -261,19 +302,19 @@ export function About() {
               </li>
               <li>
                 <strong>Phenology:</strong> coarse SH calendar (May–Aug dormant ×0.1, Sep bud break ×1.5, Oct bloom ×2,
-                Nov–Jan post-bloom ×1, Feb–Apr shell hardening ×0.3). Forecast / Historical use that schedule.
-                Optional <em>Scouted override</em> on Blight Risk applies from today forward only; Sandbox can lock a
-                stage for what-ifs. Not diary-persisted scouting yet.
+                Nov–Jan post-bloom ×1, Feb–Apr shell hardening ×0.3). Optional <em>Scouted override</em> applies from
+                today forward only; Sandbox can lock a stage for what-ifs. Not diary-persisted scouting yet.
               </li>
             </ul>
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-base font-bold text-slate-900">Why we added modifiers</h3>
+            <h3 className="text-base font-bold text-slate-900">Sandbox modifiers</h3>
             <p>
               Open-air stations under-read how wet and humid a dense canopy can stay. Irrigation can wet foliage
-              with no rain. Sprays (in sandbox) lose effect over time. The modifiers below are there to nudge the
-              index in those directions — they are <strong>tunable assumptions</strong>, not validated WA trials.
+              with no rain. Sprays (in sandbox) lose effect over time. The modifiers below nudge the{' '}
+              <strong>Sandbox</strong> index in those directions — they are <strong>tunable assumptions</strong>,
+              not validated WA trials, and do not affect the Ji Forecast / Historical charts.
             </p>
             <ul className="list-disc pl-5 space-y-2">
               <li>
@@ -294,8 +335,9 @@ export function About() {
                 lesion data — treat as a what-if, not a field-validated latency model.
               </li>
               <li>
-                <strong>Initial threat floor:</strong> Threat starts from a small calibration number (default 0.02).
-                Weather rebuilds the curve from there. It is <em>not</em> last year’s disease map or bud CFU.
+                <strong>Initial threat floor:</strong> Legacy <em>Sandbox</em> index only — threat starts from a small
+                calibration number (default 0.02) and weather rebuilds the curve. The Ji Forecast/Historical charts
+                do not use it; their primary inoculum comes from the Orchard inoculum (k) setting instead.
               </li>
               <li>
                 <strong>Chemical / biological protection:</strong> Decay, rain washoff, application-method
@@ -308,9 +350,10 @@ export function About() {
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-xs leading-relaxed">
-            <strong>Honest limit:</strong> The number on the chart is a decision aid for this orchard’s weather
-            pattern. It is not a lab assay, not regulatory advice, and not a claim that we implemented Ji et al.
-            or UC models equation-for-equation.
+            <strong>Honest limit:</strong> Forecast / Historical reproduce Ji et al. 2025's infection-rate equations,
+            but on a <strong>proxy wetness input</strong> and without their incubation / secondary-inoculum stages,
+            and with no local scouting calibration yet. Treat the number as a relative decision aid for this orchard's
+            weather — not a lab assay, lesion forecast, or regulatory advice.
           </div>
         </div>
       </section>

@@ -289,15 +289,22 @@ service cloud.firestore {
     }
 
     function isValidModelParameters(data) {
-      return hasOnlyAllowedFields(['blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor', 'splashMultiplier', 'rainWashoffCoeff', 'bioColonizationEff']) &&
-             hasRequiredFields(['blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor', 'splashMultiplier', 'rainWashoffCoeff', 'bioColonizationEff']) &&
+      return hasOnlyAllowedFields([
+               'blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor',
+               'splashMultiplier', 'chemRainWashoffRate', 'bioColonizationEff',
+               'bioFavorableGrowthRate', 'bioEnvDegradationCoef', 'springStartingInoculum',
+               'orchardInoculumLevel', 'latencyGDDThreshold', 'secondarySpreadMultiplier',
+               'treeHeight', 'canopyWidth', 'rowSpacing', 'chemEfficacy', 'bioEfficacy',
+               'marketPrice', 'harvestCostPerKg', 'waterCostPerML'
+             ]) &&
+             hasRequiredFields(['blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor', 'splashMultiplier']) &&
              data.blightSensitivity is number && data.blightSensitivity >= 0 && data.blightSensitivity <= 1 &&
              data.cropCoefficient is number && data.cropCoefficient >= 0 &&
              data.gddBaseTemp is number &&
              data.humidityGradientFactor is number &&
              data.splashMultiplier is number &&
-             data.rainWashoffCoeff is number &&
-             data.bioColonizationEff is number && data.bioColonizationEff >= 0 && data.bioColonizationEff <= 1;
+             (!('bioColonizationEff' in data) || data.bioColonizationEff is number) &&
+             (!('orchardInoculumLevel' in data) || data.orchardInoculumLevel in ['low', 'medium', 'high']);
     }
 
     function isValidUsageTracking(data) {

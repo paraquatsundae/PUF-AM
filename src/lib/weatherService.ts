@@ -14,6 +14,7 @@ import {
   type DayWeather,
 } from '../../shared/weather/dpirdClient';
 import { estimateWetnessHoursProxy } from '../../shared/weather/jiBlightModel';
+import { isForecastStale } from '../../shared/weather/metnoForecast';
 
 export type WeatherSource = 'Manual' | 'DPIRD';
 
@@ -96,6 +97,28 @@ async function ensureSharedCache(
   }
 }
 
+/**
+ * Dev/workshop: ask Express to refresh the MET Norway forecast slice into
+ * weather_cache. Production relies on the hourly Cloud Function.
+ */
+async function ensureForecast(stationCode: string, lat: number, lng: number): Promise<void> {
+  try {
+    const res = await fetch(apiUrl('/api/weather/ensure-forecast'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stationCode, lat, lng }),
+    });
+    if (!res.ok) {
+      console.warn('[Weather] ensure-forecast failed:', res.status, await res.text());
+      return;
+    }
+    const body = await res.json();
+    console.log(`[Weather] ensure-forecast ${stationCode}: ${body.mode}`);
+  } catch (err) {
+    console.warn('[Weather] ensure-forecast error:', err);
+  }
+}
+
 export async function fetchEnvironmentalData(
   farmId: string,
   source: WeatherSource,
@@ -109,7 +132,14 @@ export async function fetchEnvironmentalData(
   irrigationEvents?: unknown,
   calibration?: unknown,
   defaultIrrigationType?: string
-): Promise<{ weatherData: Record<string, WeatherData>; lastUpdated?: string; cacheSource?: string; isStale?: boolean }> {
+): Promise<{
+  weatherData: Record<string, WeatherData>;
+  lastUpdated?: string;
+  cacheSource?: string;
+  isStale?: boolean;
+  forecastData?: Record<string, WeatherData>;
+  forecastUpdatedAt?: string;
+}> {
   if (source !== 'DPIRD') {
     return { weatherData: generateFallbackData(startDate, endDate), cacheSource: 'fallback' };
   }
@@ -129,6 +159,20 @@ export async function fetchEnvironmentalData(
     sharedCache = await readSharedWeatherCache(resolvedStation);
   }
 
+  // 2b. Dev: refresh MET Norway forecast slice if missing/stale, then re-read.
+  if (isDev && isForecastStale(sharedCache?.forecastUpdatedAt)) {
+    const anchor = resolveNearestAnchorStation(defaultLat, defaultLng, resolvedStation);
+    await ensureForecast(resolvedStation, anchor.lat, anchor.lng);
+    sharedCache = await readSharedWeatherCache(resolvedStation);
+  }
+
+  const forecastFields = sharedCache?.forecastData
+    ? {
+        forecastData: sharedCache.forecastData as Record<string, WeatherData>,
+        forecastUpdatedAt: sharedCache.forecastUpdatedAt,
+      }
+    : {};
+
   if (sharedCache?.weatherData && Object.keys(sharedCache.weatherData).length > 0) {
     const data = sharedCache.weatherData as Record<string, WeatherData>;
     const nowCovered = cacheCoversRange(data, startKey, endKey);
@@ -144,6 +188,7 @@ export async function fetchEnvironmentalData(
           lastUpdated: sharedCache.lastUpdated,
           cacheSource: sharedCache.isStale ? 'weather_cache_stale' : 'weather_cache',
           isStale: sharedCache.isStale,
+          ...forecastFields,
         };
       }
       // Dev + stale: still use cache for history, then optionally refresh via blight-risk below
@@ -153,6 +198,7 @@ export async function fetchEnvironmentalData(
           lastUpdated: sharedCache.lastUpdated,
           cacheSource: 'weather_cache_stale',
           isStale: true,
+          ...forecastFields,
         };
       }
     }
@@ -228,6 +274,7 @@ export async function fetchEnvironmentalData(
       lastUpdated: sharedCache.lastUpdated,
       cacheSource: 'weather_cache_partial',
       isStale: true,
+      ...forecastFields,
     };
   }
 

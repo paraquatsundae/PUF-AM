@@ -1,40 +1,21 @@
-import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import {
+  runJiBlightSeries,
+  bandFromRisk,
+  kFromInoculumLevel,
+  type OrchardInoculumLevel,
+  type RiskBand,
+  type SeriesWeatherDay,
+} from "./jiBlightModel";
+import { getDb, FIRESTORE_DATABASE_ID } from "./db";
 
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
+const db = getDb();
 
-const db = admin.firestore();
+type WeatherDay = { T: number; RH: number; R: number; WD: number; maxHourlyRain?: number };
 
-type SprayEvent = { type: "chem" | "bio" | "both"; method: string };
-type WeatherDay = { T: number; RH: number; R: number; WD: number; maxHourlyRain: number };
-
-const DEFAULT_CALIBRATION = {
-  blightSensitivity: 0.85,
-  cropCoefficient: 1.0,
-  gddBaseTemp: 10.0,
-  humidityGradientFactor: 1.0,
-  splashMultiplier: 1.0,
-  chemRainWashoffRate: 0.05,
-  bioColonizationEff: 1.0,
-  springStartingInoculum: 0.02,
-  latencyGDDThreshold: 120.0,
-  secondarySpreadMultiplier: 1.0,
-  chemEfficacy: 95,
-  bioEfficacy: 30,
-  treeHeight: 4.5,
-  canopyWidth: 4.0,
-  rowSpacing: 7.0,
-  cdfBaseWeighting: 0.7,
-  cdfExponentialEffect: 1.0,
-  tempOptimumWeight: 1.2,
-  wdCompoundingRate: 0.1,
-  chemBaseDecayRate: 0.88,
-  bioFavorableGrowthRate: 1.1,
-  bioEnvDegradationCoef: 0.75,
-};
+/** Regional cache station used when a farm has no explicit station set. */
+const DEFAULT_STATION_CODE = "MA002";
 
 function toLocalISOString(date: Date) {
   const year = date.getFullYear();
@@ -43,83 +24,83 @@ function toLocalISOString(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-/** Simplified server-side blight model (mirrors client model for aggregate pre-compute). */
-function runBlightModel(
-  startDate: Date,
-  endDate: Date,
-  sprayEvents: Record<string, SprayEvent>,
-  weatherData: Record<string, WeatherDay>
-) {
-  const data: Array<{ fullDate: string; threat: number }> = [];
-  const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const calib = DEFAULT_CALIBRATION;
+/**
+ * SH walnut season start (1 June) for the season that contains `today`.
+ * Mirrors the client BlightRisk start (`${startYear}-06-01`); the Ji series then
+ * resets primary inoculum at the 1 Sep budbreak inside this window.
+ */
+function seasonStartDate(today: Date): Date {
+  const startYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
+  return new Date(startYear, 5, 1);
+}
 
-  let currentThreat = calib.springStartingInoculum;
-  let currentChem = 0;
-  let currentBio = 0;
-
-  for (let i = 0; i <= totalDays; i++) {
-    const currentDate = new Date(startDate);
-    currentDate.setDate(startDate.getDate() + i);
-    const dateKey = toLocalISOString(currentDate);
-    const w = weatherData[dateKey] || { T: 15, RH: 60, R: 0, WD: 4, maxHourlyRain: 0 };
-
-    const tempFactor = w.T > 12 && w.T < 24 ? calib.tempOptimumWeight : 0.5;
-    const wetnessFactor = w.WD > 8 ? (w.WD - 8) * calib.wdCompoundingRate : 0;
-    const humidityFactor = w.RH > 85 ? 1.2 : 1.0;
-    const dailyInfectionRate = tempFactor * wetnessFactor * humidityFactor * 2.0;
-
-    const sprayEvent = sprayEvents[dateKey];
-    if (sprayEvent) {
-      if (sprayEvent.type === "chem" || sprayEvent.type === "both") currentChem = calib.chemEfficacy / 100;
-      if (sprayEvent.type === "bio" || sprayEvent.type === "both") currentBio = Math.min(1, currentBio + 0.2);
-    }
-
-    currentChem = Math.max(0, currentChem * calib.chemBaseDecayRate);
-    const totalSuppression = Math.min(1, currentChem + currentBio * (calib.bioEfficacy / 100));
-    const effectiveDailyInfection = dailyInfectionRate * 0.2 * (1 - totalSuppression);
-
-    // Match client historical/forecast: no GDD latency / secondary eruption (experimental sandbox only).
-    currentThreat = currentThreat * 0.85 + effectiveDailyInfection;
-    currentThreat = Math.min(1.5, currentThreat);
-
-    data.push({ fullDate: dateKey, threat: Number(currentThreat.toFixed(2)) });
+async function resolveFarmStation(farmId: string): Promise<string> {
+  try {
+    const farmSnap = await db.doc(`farms/${farmId}`).get();
+    const code = farmSnap.data()?.weatherStationCode as string | undefined;
+    if (code) return code;
+  } catch {
+    // fall through to default
   }
+  return DEFAULT_STATION_CODE;
+}
 
-  return data;
+/** Orchard inoculum level from farm model params → Ji k. Default medium (k=1). */
+async function resolveInoculumLevel(farmId: string): Promise<OrchardInoculumLevel> {
+  try {
+    const snap = await db.doc(`farms/${farmId}/settings/model_params`).get();
+    const level = snap.data()?.orchardInoculumLevel as OrchardInoculumLevel | undefined;
+    if (level === "low" || level === "medium" || level === "high") return level;
+  } catch {
+    // fall through to default
+  }
+  return "medium";
 }
 
 async function computeFarmBlightAggregate(farmId: string) {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - 14);
+  const today = new Date();
+  const startDate = seasonStartDate(today);
 
-  const eventsSnap = await db
-    .collection(`farms/${farmId}/events`)
-    .where("date", ">=", toLocalISOString(startDate))
-    .get();
+  const stationCode = await resolveFarmStation(farmId);
+  const inoculumLevel = await resolveInoculumLevel(farmId);
+  const cacheSnap = await db.doc(`weather_cache/${stationCode}`).get();
+  const raw = (cacheSnap.data()?.weatherData || {}) as Record<string, WeatherDay>;
 
-  const sprayEvents: Record<string, SprayEvent> = {};
-  for (const docSnap of eventsSnap.docs) {
-    const e = docSnap.data();
-    if (e.type === "spray" && e.sprayType) {
-      sprayEvents[e.date] = { type: e.sprayType, method: e.applicationMethod || "ground" };
-    }
+  // Ji series only needs T / RH / R / WD (WD is the shared notebook proxy in the cache).
+  const weatherData: Record<string, SeriesWeatherDay> = {};
+  for (const [key, w] of Object.entries(raw)) {
+    weatherData[key] = { T: w.T, RH: w.RH, R: w.R, WD: w.WD };
   }
 
-  const cacheSnap = await db.doc("weather_cache/MA002").get();
-  const weatherData = (cacheSnap.data()?.weatherData || {}) as Record<string, WeatherDay>;
+  // Same production config as client BlightRisk (Forecast/Historical): Ji 2025,
+  // cumulativeY dose within each budbreak season, k from the farm's inoculum level.
+  // Protection/sprays are NOT applied on the production path, so diary sprays do
+  // not change this score.
+  const series = runJiBlightSeries(startDate, today, weatherData, {
+    orchard: { k: kFromInoculumLevel(inoculumLevel) },
+    doseMode: "cumulativeY",
+  });
 
-  const results = runBlightModel(startDate, endDate, sprayEvents, weatherData);
-  const currentRiskScore = results.length > 0 ? results[results.length - 1].threat : 0;
+  const todayKey = toLocalISOString(today);
+  const todayRow = series.find((r) => r.fullDate === todayKey);
+  const lastRow = series.length > 0 ? series[series.length - 1] : null;
+  const current = todayRow ?? lastRow;
+
+  const currentRiskScore = current ? current.threat : 0;
+  const currentBand: RiskBand = current ? current.band : bandFromRisk(0);
 
   await db.doc(`farms/${farmId}/aggregates/blight_daily`).set({
+    model: "ji-2025",
+    doseMode: "cumulativeY",
+    inoculumLevel,
     currentRiskScore,
+    currentBand,
+    riskDate: current ? current.fullDate : todayKey,
     lastUpdated: new Date().toISOString(),
     startDate: toLocalISOString(startDate),
-    endDate: toLocalISOString(endDate),
-    resultsCount: results.length,
-    stationCode: cacheSnap.data()?.stationCode || "MA002",
+    endDate: todayKey,
+    resultsCount: series.length,
+    stationCode,
   });
 }
 
@@ -141,12 +122,19 @@ export const refreshBlightAggregates = onSchedule(
   }
 );
 
-/** Recompute blight aggregate when diary events change. */
-export const onDiaryEventWrite = onDocumentWritten("farms/{farmId}/events/{eventId}", async (event) => {
-  const farmId = event.params.farmId;
-  try {
-    await computeFarmBlightAggregate(farmId);
-  } catch (error) {
-    console.error(`[onDiaryEventWrite] farm ${farmId}:`, error);
+/**
+ * Recompute blight aggregate when diary events change.
+ * (Production Ji risk ignores sprays; kept so a farm's aggregate is created
+ * promptly on first activity and stays in step with station/settings changes.)
+ */
+export const onDiaryEventWrite = onDocumentWritten(
+  { document: "farms/{farmId}/events/{eventId}", database: FIRESTORE_DATABASE_ID },
+  async (event) => {
+    const farmId = event.params.farmId;
+    try {
+      await computeFarmBlightAggregate(farmId);
+    } catch (error) {
+      console.error(`[onDiaryEventWrite] farm ${farmId}:`, error);
+    }
   }
-});
+);

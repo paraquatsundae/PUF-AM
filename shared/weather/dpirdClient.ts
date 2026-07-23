@@ -69,6 +69,14 @@ export type CachedWeatherRecord = {
   weatherData: Record<string, DayWeather>;
   /** ISO time of last historic backfill (optional). */
   historicBackfilledAt?: string;
+  /**
+   * MET Norway daily forecast rows (future days), keyed like weatherData.
+   * Written by the hourly Cloud Function / dev ensure-forecast route. Kept
+   * separate from observed `weatherData` so observed-vs-forecast stays legible.
+   */
+  forecastData?: Record<string, DayWeather>;
+  /** ISO time the forecast slice was last refreshed from MET Norway. */
+  forecastUpdatedAt?: string;
 };
 
 export function toLocalISOString(date: Date) {

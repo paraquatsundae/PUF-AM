@@ -1,19 +1,17 @@
-import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
+import { estimateWetnessHoursProxy } from "./jiBlightModel";
+import { fetchMetnoDailyForecast } from "./metnoForecast";
+import { getDb } from "./db";
 
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
-
-const db = admin.firestore();
+const db = getDb();
 const dpirdApiKey = defineSecret("DPIRD_API_KEY");
 
 const STATION_ANCHORS = [
-  { stationCode: "MA002", name: "Manjimup" },
-  { stationCode: "PE001", name: "Pemberton" },
-  { stationCode: "BA001", name: "Balingup" },
-  { stationCode: "DN001", name: "Donnybrook" },
+  { stationCode: "MA002", name: "Manjimup", lat: -34.24, lng: 116.14 },
+  { stationCode: "PE001", name: "Pemberton", lat: -34.44, lng: 116.03 },
+  { stationCode: "BA001", name: "Balingup", lat: -33.78, lng: 115.98 },
+  { stationCode: "DN001", name: "Donnybrook", lat: -33.58, lng: 115.82 },
 ];
 
 /** Rolling window re-fetched every hour. */
@@ -101,12 +99,16 @@ async function fetchStationWeather(
     for (const obs of summaries) {
       if (!obs.period) continue;
       const dateKey = `${obs.period.year}-${String(obs.period.month).padStart(2, "0")}-${String(obs.period.day).padStart(2, "0")}`;
+      const R = obs.rainfall ?? 0;
+      const RH = obs.relativeHumidity?.avg ?? 60;
       weatherData[dateKey] = {
         T: obs.airTemperature?.avg ?? 15,
-        RH: obs.relativeHumidity?.avg ?? 60,
-        R: obs.rainfall ?? 0,
-        WD: obs.rainfall > 0 ? 10 : 0,
-        maxHourlyRain: obs.rainfall > 0 ? obs.rainfall * 0.2 : 0,
+        RH,
+        R,
+        // Interim LWD proxy (Ji notebook) until hourly / on-farm wetness — not rain?10:0.
+        // Must match estimateWetnessHoursProxy in shared/functions Ji modules.
+        WD: estimateWetnessHoursProxy(R, RH),
+        maxHourlyRain: R > 0 ? R * 0.2 : 0,
         windSpeed: obs.wind?.[0]?.avg?.speed ?? 10,
         ET0: obs.evapotranspiration?.shortCrop ?? 3,
       };
@@ -182,6 +184,28 @@ export const refreshWeatherCache = onSchedule(
         weatherData = prune({ ...weatherData, ...recent });
         const next = bounds(weatherData);
 
+        // MET Norway forecast (future days) — separate field so observed stays clean.
+        // Failure here must not block the observed refresh.
+        let forecastPatch: Record<string, unknown> = {};
+        try {
+          const today = toLocalISOString(new Date());
+          const { forecastData, fetchedAt } = await fetchMetnoDailyForecast({
+            lat: station.lat,
+            lng: station.lng,
+          });
+          // Keep only today onward — history already lives in weatherData.
+          const future: Record<string, DayWeather> = {};
+          for (const [key, value] of Object.entries(forecastData)) {
+            if (key >= today) future[key] = value;
+          }
+          forecastPatch = { forecastData: future, forecastUpdatedAt: fetchedAt };
+          console.log(
+            `[refreshWeatherCache] ${station.stationCode}: forecast ${Object.keys(future).length} days`
+          );
+        } catch (fcErr) {
+          console.error(`[refreshWeatherCache] MET Norway failed for ${station.stationCode}:`, fcErr);
+        }
+
         await ref.set(
           {
             stationCode: station.stationCode,
@@ -191,6 +215,7 @@ export const refreshWeatherCache = onSchedule(
             endDate: next.endDate,
             weatherData,
             ...(historicBackfilledAt ? { historicBackfilledAt } : {}),
+            ...forecastPatch,
           },
           { merge: true }
         );

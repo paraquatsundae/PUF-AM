@@ -42,6 +42,7 @@ interface ModelParameters {
   bioFavorableGrowthRate: number;
   bioEnvDegradationCoef: number;
   springStartingInoculum: number;
+  orchardInoculumLevel: 'low' | 'medium' | 'high';
   latencyGDDThreshold: number;
   secondarySpreadMultiplier: number;
   treeHeight: number;
@@ -65,6 +66,7 @@ const DEFAULT_PARAMS: ModelParameters = {
   bioFavorableGrowthRate: 1.1,
   bioEnvDegradationCoef: 0.75,
   springStartingInoculum: 0.02,
+  orchardInoculumLevel: 'medium',
   latencyGDDThreshold: 120.0,
   secondarySpreadMultiplier: 1.0,
   treeHeight: 4.5,
@@ -572,13 +574,51 @@ export function Settings() {
                     </div>
                     
                     <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="font-mono text-[11px] font-bold uppercase tracking-wide">
+                          Orchard inoculum (Ji k)
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {([
+                            { id: 'low', label: 'Low', k: '0.5×' },
+                            { id: 'medium', label: 'Medium', k: '1.0×' },
+                            { id: 'high', label: 'High', k: '2.0×' },
+                          ] as const).map((opt) => {
+                            const active = (params.orchardInoculumLevel ?? 'medium') === opt.id;
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                disabled={isLocked}
+                                onClick={() => setParams({ ...params, orchardInoculumLevel: opt.id })}
+                                className={clsx(
+                                  'flex flex-col items-center py-2 rounded-lg border text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                                  active
+                                    ? 'bg-[#141414] text-white border-[#141414]'
+                                    : 'bg-white text-[#141414] border-[#141414] hover:bg-slate-100'
+                                )}
+                              >
+                                {opt.label}
+                                <span className={clsx('text-[9px] font-mono', active ? 'text-slate-300' : 'opacity-60')}>
+                                  {opt.k}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[9px] italic opacity-60 leading-tight">
+                          Primary inoculum for the Ji Forecast/Historical model, from prior-season blight or bud CFU.
+                          Scales infection risk (k); Medium = baseline. Workshop default until bud CFU calibration.
+                        </p>
+                      </div>
+
                       <SliderControl 
                         label="Sensitivity Threshold"
                         value={params.blightSensitivity}
                         min={0} max={1} step={0.01}
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, blightSensitivity: val})}
-                        description="Lower values increase alert frequency (Ji et al. baseline: 0.85)"
+                        description="Legacy Sandbox index only — not used by the Ji Forecast/Historical charts."
                       />
 
                       <SliderControl 
@@ -634,7 +674,7 @@ export function Settings() {
                         min={0} max={2} step={0.01}
                         isLocked={isLocked}
                         onChange={(val) => setParams({...params, springStartingInoculum: val})}
-                        description="Start-of-run threat floor only — not last year’s disease history."
+                        description="Legacy Sandbox index only. Ji production inoculum uses ‘Orchard inoculum (k)’ above."
                       />
 
                       <p className="text-[11px] text-slate-600 leading-relaxed bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
