@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Info, Book, Microscope, Map, Activity, Snowflake, Droplets, ChevronDown, ChevronUp, AlertTriangle, BookOpen, Tractor, Warehouse, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAppUrl, getShareUrl, hasPublishedAppUrl } from '../lib/appUrl';
+import { APP_BLURB, APP_FULL_NAME, APP_NAME, APP_WORKSHOP } from '../brand';
 
 function AssumptionsAndLimitsBox() {
   const [isOpen, setIsOpen] = useState(false);
@@ -90,13 +91,12 @@ export function About() {
         className="text-center space-y-4 flex flex-col items-center"
       >
         <div className="w-24 h-24 rounded-3xl overflow-hidden shadow-md mb-2">
-          <img src="/logo.png" alt="PUFOM" className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src="/logo.png" alt={APP_NAME} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         </div>
         <h1 className="text-4xl font-bold text-slate-900 tracking-tight">About & Methodology</h1>
         <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-          PUFOM (Orchard Manager) is a paddock-first farm tool for Australian walnuts — map blocks, log work in the diary,
-          and run simple weather-driven blight and chill views. Built and maintained by one grower-developer,
-          not a research lab.
+          {APP_FULL_NAME} — {APP_BLURB} Walnut blight and chill views are the first deep crop pack.
+          Built and maintained by one grower-developer, not a research lab.
         </p>
       </motion.div>
 
@@ -280,7 +280,7 @@ export function About() {
           <div className="space-y-2">
             <h3 className="text-base font-bold text-slate-900">Sandbox — legacy weather index (what-if only)</h3>
             <p>
-              The Sandbox tab keeps the older PUFOM multiplicative index for scenario play. It builds a daily
+              The Sandbox tab keeps the older multiplicative weather index (legacy PUFOM-era) for scenario play. It builds a daily
               infection pressure from the factors below and folds it into a running threat score with a short memory
               (~15% decay per day). This is <strong>not</strong> the Ji model and is not used on Forecast or Historical.
             </p>
@@ -458,7 +458,7 @@ export function About() {
           </p>
         )}
         <p className="text-xs text-slate-400">
-          PUFOM · PUF workshop · farm software, not a published scientific product
+          {APP_NAME} · {APP_WORKSHOP} workshop · farm software, not a published scientific product
         </p>
       </div>
     </div>

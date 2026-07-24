@@ -1,12 +1,335 @@
 /**
  * Lifecycle helpers for leaflet-draw handlers started outside EditControl
  * (Quick Add + / programmatic enable). Prevents orphaned drawers after tab switches.
+ *
+ * Patches leaflet-draw so:
+ * - Delete last point / Finish / Cancel do not place a vertex under the button
+ * - Map can be panned while drawing without dropping a point (stock _onTouch
+ *   places a vertex on every touchstart)
  */
+
+import L from './leaflet-window';
 
 export type LeafletDrawHandler = {
   enable: () => void;
   disable: () => void;
+  deleteLastVertex?: () => void;
+  completeShape?: () => void;
+  _enabled?: boolean;
+  _markers?: unknown[];
+  type?: string;
+  _map?: {
+    dragging?: { enable: () => void; enabled?: () => boolean };
+    touchExtend?: { enable: () => void; disable: () => void; enabled?: () => boolean };
+    on: (type: string, fn: () => void) => void;
+    off: (type: string, fn: () => void) => void;
+  };
+  _pufomPanGuards?: boolean;
+  _pufomRemovePanGuards?: () => void;
+  _pufomRestoredTouchExtend?: boolean;
+  _pufomPanning?: boolean;
 };
+
+/** Most recently enabled polyline/polygon drawer (EditControl or Quick Add). */
+let currentDrawHandler: LeafletDrawHandler | null = null;
+let drawUiIgnoreUntil = 0;
+let patched = false;
+
+/** Pixels — finger moved farther than this during a touch ⇒ pan, not a tap. */
+const TAP_SLOP_PX = 12;
+
+export function getCurrentDrawHandler(): LeafletDrawHandler | null {
+  return currentDrawHandler;
+}
+
+/** Call when the user taps draw UI (toolbar / our action bar) — blocks map vertex for a beat. */
+export function markDrawUiInteraction(map?: { _container?: HTMLElement } | null): void {
+  drawUiIgnoreUntil = Date.now() + 600;
+  if (map && '_pufomIgnoreDrawUntil' in (map as object)) {
+    (map as { _pufomIgnoreDrawUntil: number })._pufomIgnoreDrawUntil = drawUiIgnoreUntil;
+  } else if (map) {
+    (map as { _pufomIgnoreDrawUntil: number })._pufomIgnoreDrawUntil = drawUiIgnoreUntil;
+  }
+}
+
+function touchTargetIsDrawUi(e: { originalEvent?: Event; target?: EventTarget | null }): boolean {
+  const oe = (e.originalEvent || e) as Event;
+  const t = (oe.target || e.target) as HTMLElement | null;
+  if (!t || typeof t.closest !== 'function') return false;
+  return Boolean(
+    t.closest(
+      '.leaflet-control, .leaflet-draw-toolbar, .leaflet-draw-actions, .leaflet-draw-section, .pufom-draw-actions, button, a[role="button"]'
+    )
+  );
+}
+
+function shouldIgnoreMapDrawInput(
+  e: { originalEvent?: Event; target?: EventTarget | null },
+  handler?: LeafletDrawHandler | null
+): boolean {
+  if (Date.now() < drawUiIgnoreUntil) return true;
+  if (handler?._pufomPanning) return true;
+  return touchTargetIsDrawUi(e);
+}
+
+function attachPanGuards(handler: LeafletDrawHandler): void {
+  const map = handler._map;
+  if (!map || handler._pufomPanGuards) return;
+  handler._pufomPanGuards = true;
+
+  const onDragStart = () => {
+    handler._pufomPanning = true;
+    markDrawUiInteraction(map as { _container?: HTMLElement });
+  };
+  const onDragEnd = () => {
+    handler._pufomPanning = false;
+    // Swallow the trailing click/mouseup that often follows a pan on Android.
+    drawUiIgnoreUntil = Date.now() + 450;
+    markDrawUiInteraction(map as { _container?: HTMLElement });
+  };
+
+  map.on('dragstart', onDragStart);
+  map.on('dragend', onDragEnd);
+  handler._pufomRemovePanGuards = () => {
+    map.off('dragstart', onDragStart);
+    map.off('dragend', onDragEnd);
+    handler._pufomPanGuards = false;
+    handler._pufomRemovePanGuards = undefined;
+  };
+
+  // Keep pan available while drawing (some builds leave it awkward on touch).
+  try {
+    map.dragging?.enable();
+  } catch {
+    /* ignore */
+  }
+
+  // leaflet-draw TouchExtend synthesizes map events that fight with pan-to-draw.
+  try {
+    if (map.touchExtend?.enabled?.()) {
+      map.touchExtend.disable();
+      handler._pufomRestoredTouchExtend = true;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function detachPanGuards(handler: LeafletDrawHandler): void {
+  try {
+    handler._pufomRemovePanGuards?.();
+  } catch {
+    /* ignore */
+  }
+  if (handler._pufomRestoredTouchExtend) {
+    try {
+      handler._map?.touchExtend?.enable();
+    } catch {
+      /* ignore */
+    }
+    handler._pufomRestoredTouchExtend = false;
+  }
+  handler._pufomPanning = false;
+}
+
+/** Shield leaflet-draw toolbars from leaking touches into the map. */
+export function shieldLeafletDrawControls(root: ParentNode = document): void {
+  const nodes = root.querySelectorAll(
+    '.leaflet-draw-toolbar, .leaflet-draw-actions, .leaflet-draw-actions-top, .leaflet-draw-actions-bottom'
+  );
+  nodes.forEach((node) => {
+    const el = node as HTMLElement;
+    if (el.dataset.pufomShielded === '1') return;
+    el.dataset.pufomShielded = '1';
+    try {
+      L.DomEvent.disableClickPropagation(el);
+      L.DomEvent.disableScrollPropagation(el);
+    } catch {
+      /* ignore */
+    }
+    const block = (ev: Event) => {
+      ev.stopPropagation();
+      markDrawUiInteraction();
+    };
+    el.addEventListener('pointerdown', block, true);
+    el.addEventListener('touchstart', block, true);
+    el.addEventListener('touchend', block, true);
+    el.addEventListener('mousedown', block, true);
+    el.addEventListener('click', block, true);
+  });
+}
+
+/**
+ * One-time prototype patch for tablet draw UX.
+ * Safe to call from app bootstrap after leaflet-draw is imported.
+ */
+export function patchLeafletDrawTouchGuards(): void {
+  if (patched || typeof window === 'undefined') return;
+  const Draw = (L as unknown as { Draw?: { Polyline?: { prototype: Record<string, unknown> } } }).Draw;
+  const proto = Draw?.Polyline?.prototype;
+  if (!proto) return;
+  patched = true;
+
+  const origEnable = proto.enable as (this: LeafletDrawHandler, ...a: unknown[]) => void;
+  proto.enable = function (this: LeafletDrawHandler, ...args: unknown[]) {
+    currentDrawHandler = this;
+    const result = origEnable.apply(this, args as []);
+    attachPanGuards(this);
+    // Actions list is created asynchronously — shield after paint
+    requestAnimationFrame(() => shieldLeafletDrawControls());
+    setTimeout(() => shieldLeafletDrawControls(), 50);
+    setTimeout(() => shieldLeafletDrawControls(), 200);
+    return result;
+  };
+
+  const origDisable = proto.disable as (this: LeafletDrawHandler, ...a: unknown[]) => void;
+  proto.disable = function (this: LeafletDrawHandler, ...args: unknown[]) {
+    detachPanGuards(this);
+    if (currentDrawHandler === this) currentDrawHandler = null;
+    return origDisable.apply(this, args as []);
+  };
+
+  /**
+   * Stock _onTouch places a vertex on touchstart (before any move), so a pan
+   * always drops a point. Replace with tap-vs-pan: only commit on touchend if
+   * the finger barely moved.
+   */
+  const startPoint = proto._startPoint as
+    | ((this: LeafletDrawHandler, x: number, y: number) => void)
+    | undefined;
+  const endPoint = proto._endPoint as
+    | ((this: LeafletDrawHandler, x: number, y: number, e: unknown) => void)
+    | undefined;
+  const disableNewMarkers = proto._disableNewMarkers as
+    | ((this: LeafletDrawHandler) => void)
+    | undefined;
+
+  proto._onTouch = function (this: LeafletDrawHandler & Record<string, unknown>, t: unknown) {
+    const e = t as {
+      originalEvent?: TouchEvent;
+      latlng?: unknown;
+    };
+    if (shouldIgnoreMapDrawInput(e, this)) return;
+
+    const oe = e.originalEvent;
+    const touch0 = oe?.touches?.[0];
+    if (
+      !oe ||
+      !touch0 ||
+      this._clickHandled ||
+      this._touchHandled ||
+      this._disableMarkers
+    ) {
+      return;
+    }
+
+    const startX = touch0.clientX;
+    const startY = touch0.clientY;
+    let isPan = false;
+
+    // Block synthetic mousedown/mouseup from also placing a vertex for this gesture.
+    (this as { _touchHandled?: boolean })._touchHandled = true;
+
+    const onMove = (ev: TouchEvent) => {
+      const moveTouch = ev.touches?.[0];
+      if (!moveTouch) return;
+      if (
+        Math.abs(moveTouch.clientX - startX) > TAP_SLOP_PX ||
+        Math.abs(moveTouch.clientY - startY) > TAP_SLOP_PX
+      ) {
+        isPan = true;
+        this._pufomPanning = true;
+      }
+    };
+
+    const cleanup = () => {
+      document.removeEventListener('touchmove', onMove, true);
+      document.removeEventListener('touchend', onEnd, true);
+      document.removeEventListener('touchcancel', onEnd, true);
+    };
+
+    const onEnd = (ev: TouchEvent) => {
+      cleanup();
+      const endTouch = ev.changedTouches?.[0];
+      const endX = endTouch?.clientX ?? startX;
+      const endY = endTouch?.clientY ?? startY;
+      if (
+        isPan ||
+        this._pufomPanning ||
+        Date.now() < drawUiIgnoreUntil ||
+        Math.abs(endX - startX) > TAP_SLOP_PX ||
+        Math.abs(endY - startY) > TAP_SLOP_PX
+      ) {
+        this._pufomPanning = false;
+        (this as { _mouseDownOrigin?: unknown })._mouseDownOrigin = null;
+        (this as { _clickHandled?: unknown })._clickHandled = null;
+        (this as { _touchHandled?: unknown })._touchHandled = null;
+        // Swallow synthetic mouseup after a pan
+        drawUiIgnoreUntil = Date.now() + 450;
+        return;
+      }
+
+      // True tap — place vertex after touchend (not on touchstart)
+      try {
+        disableNewMarkers?.call(this);
+        startPoint?.call(this, startX, startY);
+
+        const map = this._map as
+          | {
+              mouseEventToContainerPoint: (el: { clientX: number; clientY: number }) => unknown;
+              containerPointToLayerPoint: (p: unknown) => unknown;
+              layerPointToLatLng: (p: unknown) => unknown;
+            }
+          | undefined;
+
+        let latlng = e.latlng;
+        if (map && !latlng) {
+          const containerPoint = map.mouseEventToContainerPoint({ clientX: endX, clientY: endY });
+          const layerPoint = map.containerPointToLayerPoint(containerPoint);
+          latlng = map.layerPointToLatLng(layerPoint);
+        }
+
+        endPoint?.call(this, endX, endY, {
+          latlng,
+          originalEvent: ev,
+        });
+        // Brief ignore so trailing mouseup cannot double-place
+        drawUiIgnoreUntil = Date.now() + 300;
+      } finally {
+        (this as { _touchHandled?: unknown })._touchHandled = null;
+        (this as { _clickHandled?: unknown })._clickHandled = null;
+        (this as { _mouseDownOrigin?: unknown })._mouseDownOrigin = null;
+        this._pufomPanning = false;
+      }
+    };
+
+    document.addEventListener('touchmove', onMove, true);
+    document.addEventListener('touchend', onEnd, true);
+    document.addEventListener('touchcancel', onEnd, true);
+  };
+
+  // Mouse-up path — skip after UI taps / pans
+  const origOnMouseUp = proto._onMouseUp as ((this: LeafletDrawHandler, e: unknown) => void) | undefined;
+  if (typeof origOnMouseUp === 'function') {
+    proto._onMouseUp = function (this: LeafletDrawHandler, e: unknown) {
+      if (shouldIgnoreMapDrawInput(e as { originalEvent?: Event }, this)) {
+        (this as { _mouseDownOrigin?: unknown })._mouseDownOrigin = null;
+        return;
+      }
+      return origOnMouseUp.call(this, e);
+    };
+  }
+
+  const origOnMouseDown = proto._onMouseDown as
+    | ((this: LeafletDrawHandler, e: unknown) => void)
+    | undefined;
+  if (typeof origOnMouseDown === 'function') {
+    proto._onMouseDown = function (this: LeafletDrawHandler, e: unknown) {
+      if (shouldIgnoreMapDrawInput(e as { originalEvent?: Event }, this)) return;
+      return origOnMouseDown.call(this, e);
+    };
+  }
+}
 
 export function cancelActiveDrawer(ref: { current: LeafletDrawHandler | null }): void {
   const drawer = ref.current;
@@ -17,6 +340,7 @@ export function cancelActiveDrawer(ref: { current: LeafletDrawHandler | null }):
     // Handler may already be torn down by leaflet-draw
   }
   ref.current = null;
+  if (currentDrawHandler === drawer) currentDrawHandler = null;
 }
 
 export function startActiveDrawer(
@@ -26,4 +350,59 @@ export function startActiveDrawer(
   cancelActiveDrawer(ref);
   drawer.enable();
   ref.current = drawer;
+  currentDrawHandler = drawer;
+}
+
+export function drawHandlerMarkerCount(handler: LeafletDrawHandler | null): number {
+  if (!handler?._markers || !Array.isArray(handler._markers)) return 0;
+  return handler._markers.length;
+}
+
+/** Polygon needs ≥3 vertices; polyline ≥2. */
+export function drawHandlerCanFinish(handler: LeafletDrawHandler | null): boolean {
+  if (!handler?._enabled) return false;
+  const n = drawHandlerMarkerCount(handler);
+  const kind = String(handler.type || '').toLowerCase();
+  if (kind === 'polygon') return n >= 3;
+  return n >= 2;
+}
+
+export function undoLastDrawVertex(): boolean {
+  const h = currentDrawHandler;
+  if (!h?._enabled || typeof h.deleteLastVertex !== 'function') return false;
+  markDrawUiInteraction();
+  try {
+    h.deleteLastVertex();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function finishActiveDrawing(): boolean {
+  const h = currentDrawHandler;
+  if (!h?._enabled || !drawHandlerCanFinish(h)) return false;
+  markDrawUiInteraction();
+  try {
+    if (typeof h.completeShape === 'function') {
+      h.completeShape();
+      return true;
+    }
+    h.disable();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function cancelActiveDrawing(): boolean {
+  const h = currentDrawHandler;
+  if (!h?._enabled) return false;
+  markDrawUiInteraction();
+  try {
+    h.disable();
+    return true;
+  } catch {
+    return false;
+  }
 }

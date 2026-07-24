@@ -3,6 +3,8 @@
  * Enable explicitly with VITE_WORKSHOP_MODE=true (not auto-on in DEV —
  * unauthenticated Firestore watches caused INTERNAL ASSERTION crashes).
  */
+import { allFarmModules, type FarmModuleId } from '../../shared/auth/farmModules';
+
 export function isWorkshopMode(): boolean {
   if (import.meta.env.VITE_REQUIRE_AUTH === 'true') return false;
   return import.meta.env.VITE_WORKSHOP_MODE === 'true';
@@ -13,13 +15,26 @@ export function isLocalOnlyFarmSession(): boolean {
   return isWorkshopMode();
 }
 
-export const WORKSHOP_USER_DATA = {
+export const WORKSHOP_USER_DATA: {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: 'admin';
+  farmId: string;
+  modules: FarmModuleId[];
+  authEpoch: number;
+  subscriptionTier: 'free';
+  hasAgreedToTerms: boolean;
+  createdAt: string;
+} = {
   uid: 'workshop_local',
   email: 'workshop@local.dev',
   displayName: 'Workshop User',
-  role: 'admin' as const,
+  role: 'admin',
   farmId: 'farm_workshop',
-  subscriptionTier: 'free' as const,
+  modules: allFarmModules(),
+  authEpoch: 1,
+  subscriptionTier: 'free',
   hasAgreedToTerms: true,
   createdAt: new Date().toISOString(),
 };

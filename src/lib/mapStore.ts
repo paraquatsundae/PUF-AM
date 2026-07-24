@@ -14,10 +14,21 @@ import {
   removeTrackPersisted,
 } from './farmGeometrySync';
 
+import type { FarmEnterpriseId, GeometryKindId, TreeSpeciesId } from '../../shared/farm/farmTypes';
+
 export interface OrchardBlock {
   id: string;
   name: string;
+  /** Cultivar / variety / crop label (kept for walnut chill + legacy UI). */
   cultivar: string;
+  /** Tree/vine species when cropKind is orchard/fruit/vineyard (e.g. walnut). */
+  species?: TreeSpeciesId | string;
+  /** Which enterprise this paddock belongs to on a mixed farm. */
+  cropKind?: FarmEnterpriseId;
+  /** Map interpretation — boundary vs water zone vs dam (skeleton). */
+  geometryKind?: GeometryKindId;
+  /** Broadacre / hort season label skeleton (e.g. "2026 winter cereal"). */
+  seasonLabel?: string;
   density: string;
   rowSpacing?: number;
   treeSpacing?: number;

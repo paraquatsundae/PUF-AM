@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import type { FarmModuleId } from '../shared/auth/farmModules.ts';
 
 const PIN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
 
@@ -14,8 +15,14 @@ export interface AccessPinRecord {
   expiresAt: string | null;
   createdBy: string;
   createdAt: string;
+  /** Modules granted on redeem (admins ignore and get all). */
+  modules?: FarmModuleId[];
   /** Present for audit only — never store plaintext code */
   codeHint?: string;
+}
+
+export function newFarmId(): string {
+  return `farm_${randomBytes(8).toString('hex')}`;
 }
 
 export function normalizePin(raw: string): string {

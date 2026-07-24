@@ -3,6 +3,7 @@ import { runBlightModel, defaultCalibration } from "../src/lib/blightModel.ts";
 import { registerAccessPinRoutes } from "./accessPinRoutes.ts";
 import { registerWeatherCacheRoutes } from "./weatherCacheRoutes.ts";
 import { registerChillRoutes } from "./chillRoutes.ts";
+import { registerLanSyncRoutes } from "./lanSyncRoutes.ts";
 import { getDpirdApiKey } from "./envSecrets.ts";
 import {
   fetchDpirdDailySummaries,
@@ -39,6 +40,7 @@ export function createApiApp(): Express {
   registerAccessPinRoutes(app);
   registerWeatherCacheRoutes(app);
   registerChillRoutes(app);
+  registerLanSyncRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });

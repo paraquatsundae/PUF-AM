@@ -32,14 +32,14 @@ export function TermsOfService() {
                 1. Acceptance of Terms
               </h2>
               <p className="text-slate-600 leading-relaxed">
-                By accessing or using PUFOM (Orchard Manager), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the application.
+                By accessing or using PUFAM (Ag Manager), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the application.
               </p>
             </section>
 
             <section className="mb-8">
               <h2 className="text-xl font-bold text-slate-900 mb-4">2. Description of Service</h2>
               <p className="text-slate-600 leading-relaxed">
-                PUFOM (Orchard Manager), from the PUF workshop, provides paddock-first orchard tools: orchard mapping and field issues, a Farm Diary for plans and applications, mechanistic blight risk forecasting, water and nutrition logging, and harvest/drying records. The service is provided &quot;as is&quot; and &quot;as available.&quot;
+                PUFAM (Ag Manager), from the PUF workshop, provides paddock-first farm tools: mapping and field issues, a Farm Diary for plans and applications, mechanistic blight risk forecasting (walnut pack first), water and nutrition logging, and harvest/drying records. The service is provided &quot;as is&quot; and &quot;as available.&quot;
               </p>
             </section>
 
@@ -70,7 +70,7 @@ export function TermsOfService() {
             <section className="mb-8 border-t border-slate-100 pt-8">
               <h2 className="text-xl font-bold text-slate-900 mb-4">6. Limitation of Liability</h2>
               <p className="text-slate-600">
-                In no event shall PUFOM or its operator be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.
+                In no event shall PUFAM or its operator be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.
               </p>
             </section>
           </div>

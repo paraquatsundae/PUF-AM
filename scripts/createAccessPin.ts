@@ -10,6 +10,7 @@
 import * as dotenv from 'dotenv';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { allFarmModules } from '../shared/auth/farmModules.ts';
 import {
   AccessPinRecord,
   generatePinCode,
@@ -61,6 +62,7 @@ async function main() {
     expiresAt,
     createdBy: 'script',
     createdAt: now.toISOString(),
+    modules: allFarmModules(),
     codeHint: `${code.slice(0, 2)}••••${code.slice(-2)}`,
   };
 

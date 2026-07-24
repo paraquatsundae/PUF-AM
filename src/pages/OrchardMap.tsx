@@ -43,6 +43,22 @@ import { db } from '../firebase';
 import debounce from 'lodash/debounce';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import { cancelActiveDrawer, startActiveDrawer, type LeafletDrawHandler } from '../lib/mapDrawHelpers';
+import { DrawingActionBar } from '../components/map/DrawingActionBar';
+import {
+  UserLocationLayer,
+  type UserGeoFix,
+} from '../components/map/UserLocationLayer';
+import { NewPaddockSheet } from '../components/map/NewPaddockSheet';
+import {
+  areaWordForCropKind,
+  defaultGeometryKind,
+  getEnterprise,
+  isTreeCropKind,
+  mapUiCopy,
+  primaryEnterprise,
+  resolveFarmProfile,
+  type FarmEnterpriseId,
+} from '../../shared/farm/farmTypes';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 
@@ -119,6 +135,10 @@ export function OrchardMap() {
     blockId?: string;
   } | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<FieldIssue | null>(null);
+  const [userFix, setUserFix] = useState<UserGeoFix | null>(null);
+  const [followUser, setFollowUser] = useState(false);
+  /** Fresh polygon — naming sheet (not the full metadata modal). */
+  const [namingBlock, setNamingBlock] = useState<OrchardBlock | null>(null);
 
   const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -317,6 +337,7 @@ export function OrchardMap() {
     return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
   }, []);
   const { events, settings, getSprayEvents, getIrrigationEvents } = useFarmDiary(diaryDateRange.start, diaryDateRange.end);
+  const mapCopy = useMemo(() => mapUiCopy(settings.farmProfile), [settings.farmProfile]);
 
   // Phase 4.3: Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -1002,10 +1023,28 @@ export function OrchardMap() {
   const defaultCenter = { lat: -33.9249, lng: 115.0750, zoom: 15 };
 
   const handleLocateMe = useCallback(() => {
-    if (mapInstance) {
-      mapInstance.locate({ setView: true, maxZoom: 16 });
+    if (!mapInstance) return;
+    if (userFix) {
+      mapInstance.flyTo([userFix.lat, userFix.lng], Math.max(mapInstance.getZoom(), 17), {
+        animate: true,
+      });
+      setFollowUser(true);
+      return;
     }
-  }, [mapInstance]);
+    // No fix yet — ask the browser / tablet once, then follow when watch catches up
+    mapInstance.locate({ setView: true, maxZoom: 17 });
+    setFollowUser(true);
+  }, [mapInstance, userFix]);
+
+  // Stop follow when the operator pans/zooms away on purpose
+  useEffect(() => {
+    if (!mapInstance || !followUser) return;
+    const stopFollow = () => setFollowUser(false);
+    mapInstance.on('dragstart', stopFollow);
+    return () => {
+      mapInstance.off('dragstart', stopFollow);
+    };
+  }, [mapInstance, followUser]);
 
   const handleGoHome = useCallback(() => {
     if (!fitFarmInView({ animate: true }) && mapInstance) {
@@ -1156,7 +1195,7 @@ export function OrchardMap() {
   };
 
   const tabs = [
-    { id: 'blocks', name: 'Blocks', icon: Layers, description: 'Draw and edit paddock boundaries' },
+    { id: 'blocks', name: mapCopy.blocksTab, icon: Layers, description: 'Draw and edit paddock boundaries' },
     { id: 'tracks', name: 'Tracks', icon: Route, description: 'Farm pathways & navigation' },
     { id: 'infrastructure', name: 'Infrastructure', icon: MapPin, description: 'Weather & soil pins' },
     { id: 'analytics', name: 'Analytics', icon: BarChart3, description: 'Risk heatmaps & yield view' },
@@ -1277,7 +1316,7 @@ export function OrchardMap() {
           )}
 
           <h1 className="text-sm sm:text-base font-bold text-slate-900 whitespace-nowrap shrink-0">
-            {mapMode === 'operate' ? 'Orchard Map' : 'Edit paddocks'}
+            {mapMode === 'operate' ? mapCopy.mapTitle : mapCopy.editTitle}
           </h1>
           {pendingSyncCount > 0 && farmId && (
             <button
@@ -1378,7 +1417,7 @@ export function OrchardMap() {
                   type="button"
                   onClick={enterEditPaddocks}
                   className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800"
-                  title="Edit paddocks"
+                  title={mapCopy.editTitle}
                 >
                   <Settings2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Edit</span>
@@ -1520,47 +1559,93 @@ export function OrchardMap() {
                         : "border-slate-200 hover:border-indigo-400"
                     )}
                   >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
-                        {block.name || 'Unnamed Block'}
+                    <div className="flex justify-between items-start mb-1 gap-2">
+                      <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors min-w-0">
+                        {block.name || `Unnamed ${areaWordForCropKind(block.cropKind)}`}
                       </div>
-                      {block.areaHa !== undefined && (
-                        <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                          {block.areaHa} ha
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {block.cropKind && (
+                          <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            {getEnterprise(block.cropKind as FarmEnterpriseId).shortLabel}
+                          </span>
+                        )}
+                        {block.areaHa !== undefined && (
+                          <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                            {block.areaHa} ha
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="text-xs text-slate-500 flex flex-col gap-1">
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium text-slate-600">Cultivar:</span> {block.cultivar || 'Not set'}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium text-slate-600">Spacing:</span> {block.rowSpacing && block.treeSpacing ? `${block.rowSpacing}m x ${block.treeSpacing}m` : 'Not set'}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium text-slate-600">Density:</span> {block.density ? `${block.density} trees/ha` : 'Not set'}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium text-slate-600">TRV:</span> {block.treeHeight && block.canopyWidth && block.rowSpacing ? `${Math.round((block.treeHeight * block.canopyWidth * 10000) / block.rowSpacing).toLocaleString()} m³/ha` : 'Not set'}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium text-slate-600">Crop Coefficient (Kc):</span> {block.canopyWidth && block.rowSpacing ? (0.2 + (0.8 * Math.min(1, block.canopyWidth / block.rowSpacing))).toFixed(2) : 'Not set'}
-                      </div>
-                      {block.density && block.areaHa !== undefined && (
-                        <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Est. Trees</span>
-                            <span className="font-medium text-indigo-600">
-                              {Math.round(block.areaHa * parseInt(block.density)).toLocaleString()}
-                            </span>
+                      {isTreeCropKind(block.cropKind) ? (
+                        <>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="font-medium text-slate-600">Species:</span>{' '}
+                            {block.species || '—'}
+                            <span className="text-slate-300 mx-1">·</span>
+                            <span className="font-medium text-slate-600">Cultivar:</span>{' '}
+                            {block.cultivar || 'Not set'}
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Est. Yield</span>
-                            <span className="font-medium text-emerald-600">
-                              {Math.round((block.areaHa * parseInt(block.density) * 25) / 1000).toLocaleString()} t
-                            </span>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-slate-600">Spacing:</span>{' '}
+                            {block.rowSpacing && block.treeSpacing
+                              ? `${block.rowSpacing}m x ${block.treeSpacing}m`
+                              : 'Not set'}
                           </div>
-                        </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-slate-600">Density:</span>{' '}
+                            {block.density ? `${block.density} trees/ha` : 'Not set'}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-slate-600">TRV:</span>{' '}
+                            {block.treeHeight && block.canopyWidth && block.rowSpacing
+                              ? `${Math.round((block.treeHeight * block.canopyWidth * 10000) / block.rowSpacing).toLocaleString()} m³/ha`
+                              : 'Not set'}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-slate-600">Crop Coefficient (Kc):</span>{' '}
+                            {block.canopyWidth && block.rowSpacing
+                              ? (0.2 + 0.8 * Math.min(1, block.canopyWidth / block.rowSpacing)).toFixed(2)
+                              : 'Not set'}
+                          </div>
+                          {block.density && block.areaHa !== undefined && (
+                            <div className="mt-2 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                                  Est. Trees
+                                </span>
+                                <span className="font-medium text-indigo-600">
+                                  {Math.round(block.areaHa * parseInt(block.density, 10)).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                                  Est. Yield
+                                </span>
+                                <span className="font-medium text-emerald-600">
+                                  {Math.round((block.areaHa * parseInt(block.density, 10) * 25) / 1000).toLocaleString()} t
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <span className="font-medium text-slate-600">
+                              {block.cropKind
+                                ? getEnterprise(block.cropKind as FarmEnterpriseId).varietyLabel
+                                : 'Crop'}
+                              :
+                            </span>{' '}
+                            {block.seasonLabel || block.cultivar || 'Not set yet'}
+                          </div>
+                          {block.irrigation ? (
+                            <div>
+                              <span className="font-medium text-slate-600">Irrigation:</span> {block.irrigation}
+                            </div>
+                          ) : null}
+                        </>
                       )}
                     </div>
                   </div>
@@ -1568,7 +1653,7 @@ export function OrchardMap() {
               </div>
             ) : activeTab === 'blocks' ? (
               <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center space-y-2">
-                <p className="text-sm text-slate-500">No blocks defined yet.</p>
+                <p className="text-sm text-slate-500">No {mapCopy.blocksTab.toLowerCase()} defined yet.</p>
                 <p className="text-xs text-slate-400">Start by drawing on the map.</p>
               </div>
             ) : null}
@@ -1821,9 +1906,13 @@ export function OrchardMap() {
                   onCreated={(e) => {
                   cancelActiveDrawer(activeDrawerRef);
                   const layer = e.layer;
-                  const id = crypto.randomUUID();
+                  const id =
+                    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                      ? crypto.randomUUID()
+                      : `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
                   
                   if (e.layerType === 'polygon') {
+                    try {
                     // Phase 2.4: Spatial Mathematics - Calculate area using Turf.js
                     let areaHa = 0;
                     const geojson = layer.toGeoJSON();
@@ -1836,17 +1925,52 @@ export function OrchardMap() {
 
                     layerMapRef.current[layer._leaflet_id] = { type: 'block', id };
 
+                    const farmProfile = resolveFarmProfile(settings.farmProfile);
+                    const cropKind = primaryEnterprise(farmProfile);
+                    const word = areaWordForCropKind(cropKind);
+                    const defaultName = `${word} ${blocks.length + 1}`;
+                    const tree = isTreeCropKind(cropKind);
                     const newBlock: OrchardBlock = {
                       id,
-                      name: `Block ${blocks.length + 1}`,
+                      name: defaultName,
                       cultivar: '',
+                      species: tree
+                        ? farmProfile.defaultSpeciesId || 'walnut'
+                        : '',
+                      cropKind,
+                      geometryKind: defaultGeometryKind(cropKind),
                       density: '',
                       irrigation: '',
                       areaHa,
                       geojson
                     };
+                    if (!farmId) {
+                      alert('Sign in to a farm before saving paddocks.');
+                      try {
+                        featureGroupRef.current?.removeLayer(layer);
+                      } catch {
+                        /* ignore */
+                      }
+                      return;
+                    }
+                    if (!canEdit) {
+                      alert('Your role is view-only — ask a farm admin to grant edit access.');
+                      try {
+                        featureGroupRef.current?.removeLayer(layer);
+                      } catch {
+                        /* ignore */
+                      }
+                      return;
+                    }
                     addBlock(newBlock);
-                    setEditingBlockId(id);
+                    setHighlightedBlockId(id);
+                    setActiveTab('blocks');
+                    // Naming sheet after paint — avoids Finish tap dismissing the new backdrop (Android).
+                    window.setTimeout(() => setNamingBlock(newBlock), 50);
+                    } catch (err) {
+                      console.error('Failed to save paddock after draw', err);
+                      alert('Could not save that paddock. Try Finish again with at least 3 points.');
+                    }
                   } else if (e.layerType === 'marker') {
                     const latlng = layer.getLatLng();
                     layerMapRef.current[layer._leaflet_id] = { type: 'pin', id };
@@ -2011,6 +2135,11 @@ export function OrchardMap() {
                 })}
               />
             )}
+
+            <UserLocationLayer
+              follow={followUser}
+              onFix={setUserFix}
+            />
             
           </MapContainer>
 
@@ -2028,11 +2157,23 @@ export function OrchardMap() {
             <button
               type="button"
               onClick={handleLocateMe}
-              title="Locate me"
+              title={
+                userFix
+                  ? followUser
+                    ? 'Following you — pan to stop'
+                    : 'Center on my location'
+                  : 'Find my location'
+              }
               aria-label="Locate me"
-              className="w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border border-white/20 text-slate-600 hover:text-indigo-600 pointer-events-auto transition-colors active:scale-95"
+              aria-pressed={followUser}
+              className={cn(
+                'w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border pointer-events-auto transition-colors active:scale-95',
+                followUser || userFix
+                  ? 'border-sky-500 text-sky-700 bg-sky-50 ring-1 ring-sky-500/30'
+                  : 'border-white/20 text-slate-600 hover:text-indigo-600'
+              )}
             >
-              <PhCrosshair size={20} weight="regular" />
+              <PhCrosshair size={20} weight={followUser ? 'fill' : 'regular'} />
             </button>
             {mapMode === 'operate' && (
               <>
@@ -2212,6 +2353,9 @@ export function OrchardMap() {
 
           {/* Bottom Status Bar - Centered Pill */}
           {mapMode === 'edit' && <MapStatusBar map={mapInstance} activeTab={activeTab} />}
+
+          {/* Tablet-safe draw actions (Undo / Finish / Cancel) — avoids ghost points under menu */}
+          <DrawingActionBar map={mapInstance} enabled={mapMode === 'edit' && canEdit} />
           
           {/* Coverage Zones Legend */}
           <AnimatePresence>
@@ -2275,14 +2419,82 @@ export function OrchardMap() {
                 height: 32px !important;
                 line-height: 32px !important;
               }
+              /* Larger hit targets for Finish / Delete last point / Cancel */
+              .leaflet-draw-actions a {
+                height: 36px !important;
+                line-height: 36px !important;
+                padding: 0 12px !important;
+                font-size: 12px !important;
+              }
+              .leaflet-draw-actions {
+                z-index: 1201 !important;
+              }
+            }
+            .leaflet-container {
+              touch-action: none;
+            }
+            .pufom-user-location-icon {
+              background: transparent !important;
+              border: none !important;
+            }
+            .pufom-user-loc {
+              position: relative;
+              width: 28px;
+              height: 28px;
+            }
+            .pufom-user-loc__pulse {
+              position: absolute;
+              inset: 0;
+              border-radius: 9999px;
+              background: rgba(37, 99, 235, 0.35);
+              animation: pufom-user-pulse 2s ease-out infinite;
+            }
+            .pufom-user-loc__dot {
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              width: 14px;
+              height: 14px;
+              margin: -7px 0 0 -7px;
+              border-radius: 9999px;
+              background: #2563eb;
+              border: 3px solid #fff;
+              box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+            }
+            @keyframes pufom-user-pulse {
+              0% { transform: scale(0.55); opacity: 0.85; }
+              70% { transform: scale(1.35); opacity: 0; }
+              100% { transform: scale(1.35); opacity: 0; }
             }
           `}</style>
         </div>
       </div>
 
+      {namingBlock && (
+        <NewPaddockSheet
+          block={namingBlock}
+          farmProfile={settings.farmProfile}
+          onDismiss={() => {
+            // Skip: keep name/cropKind but strip orchard defaults if this isn't a tree paddock.
+            if (namingBlock.cropKind && !isTreeCropKind(namingBlock.cropKind)) {
+              updateBlock(namingBlock.id, {
+                species: '',
+                cultivar: namingBlock.seasonLabel || '',
+                density: '',
+              });
+            }
+            setNamingBlock(null);
+          }}
+          onSave={(updates) => {
+            updateBlock(namingBlock.id, updates);
+            setNamingBlock(null);
+          }}
+        />
+      )}
+
       {/* Block & Pin Metadata Modals */}
       <AnimatePresence>
-        {editingBlockId && (
+        {editingBlockId && !namingBlock && (
           <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
@@ -2301,7 +2513,9 @@ export function OrchardMap() {
               className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 max-h-[90vh] overflow-y-auto"
             >
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                <h3 className="font-bold text-slate-900">Block Metadata</h3>
+                <h3 className="font-bold text-slate-900">
+                  {areaWordForCropKind(blocks.find((b) => b.id === editingBlockId)?.cropKind)} details
+                </h3>
                 <button 
                   onClick={() => {
                     setEditingBlockId(null);
@@ -2318,10 +2532,22 @@ export function OrchardMap() {
                   const block = blocks.find(b => b.id === editingBlockId);
                   if (!block) return null;
 
+                  const farmProfile = resolveFarmProfile(settings.farmProfile);
+                  const kindOptions = farmProfile.enterprises.length
+                    ? farmProfile.enterprises
+                    : (['orchard_tree'] as FarmEnterpriseId[]);
+                  const kind = (block.cropKind && kindOptions.includes(block.cropKind)
+                    ? block.cropKind
+                    : kindOptions[0]!) as FarmEnterpriseId;
+                  const tree = isTreeCropKind(kind);
+                  const ent = getEnterprise(kind);
+
                   return (
                     <>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Block Name</label>
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          {areaWordForCropKind(kind)} name
+                        </label>
                         <div className="flex gap-2">
                           <input 
                             type="text" 
@@ -2337,133 +2563,222 @@ export function OrchardMap() {
                           )}
                         </div>
                       </div>
-                      
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Cultivar</label>
-                        <select 
-                          value={block.cultivar}
-                          onChange={(e) => updateBlock(block.id, { cultivar: e.target.value })}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
-                        >
-                          <option value="">Select cultivar...</option>
-                          {CULTIVARS.map((c) => (
-                            <option key={c.id} value={c.name}>
-                              {c.name} ({c.requiredCP} CP)
-                            </option>
-                          ))}
-                          <option value="Other">Other / Mixed</option>
-                        </select>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      {kindOptions.length > 1 && (
                         <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Row Spacing</label>
-                          <div className="relative">
-                            <input 
-                              type="number" 
-                              value={block.rowSpacing || ''}
-                              onChange={(e) => {
-                                const rowSpacing = parseFloat(e.target.value);
-                                const treeSpacing = block.treeSpacing || 0;
-                                const updates: any = { rowSpacing };
-                                if (rowSpacing > 0 && treeSpacing > 0) {
-                                  updates.density = Math.round(10000 / (rowSpacing * treeSpacing)).toString();
-                                }
-                                updateBlock(block.id, updates);
-                              }}
-                              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
-                              placeholder="8"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
-                              m
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Tree Spacing</label>
-                          <div className="relative">
-                            <input 
-                              type="number" 
-                              value={block.treeSpacing || ''}
-                              onChange={(e) => {
-                                const treeSpacing = parseFloat(e.target.value);
-                                const rowSpacing = block.rowSpacing || 0;
-                                const updates: any = { treeSpacing };
-                                if (rowSpacing > 0 && treeSpacing > 0) {
-                                  updates.density = Math.round(10000 / (rowSpacing * treeSpacing)).toString();
-                                }
-                                updateBlock(block.id, updates);
-                              }}
-                              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
-                              placeholder="6"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
-                              m
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Tree Height</label>
-                          <div className="relative">
-                            <input 
-                              type="number" 
-                              value={block.treeHeight || ''}
-                              onChange={(e) => updateBlock(block.id, { treeHeight: parseFloat(e.target.value) })}
-                              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
-                              placeholder="4.5"
-                              step="0.1"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
-                              m
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Canopy Width</label>
-                          <div className="relative">
-                            <input 
-                              type="number" 
-                              value={block.canopyWidth || ''}
-                              onChange={(e) => updateBlock(block.id, { canopyWidth: parseFloat(e.target.value) })}
-                              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
-                              placeholder="4.0"
-                              step="0.1"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
-                              m
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Irrigation</label>
-                          <select 
-                            value={block.irrigation}
-                            onChange={(e) => updateBlock(block.id, { irrigation: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+                          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            Type
+                          </label>
+                          <select
+                            value={kind}
+                            onChange={(e) => {
+                              const next = e.target.value as FarmEnterpriseId;
+                              const nextTree = isTreeCropKind(next);
+                              updateBlock(block.id, {
+                                cropKind: next,
+                                geometryKind: defaultGeometryKind(next),
+                                ...(nextTree
+                                  ? {}
+                                  : { species: '', density: '', cultivar: block.seasonLabel || '' }),
+                              });
+                            }}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           >
-                            <option value="">Select...</option>
-                            <option value="drip">Drip</option>
-                            <option value="micro-sprinkler">Micro-sprinkler</option>
-                            <option value="sprinkler">Overhead Sprinkler</option>
-                            <option value="none">Dryland / None</option>
+                            {kindOptions.map((id) => (
+                              <option key={id} value={id}>
+                                {getEnterprise(id).label}
+                              </option>
+                            ))}
                           </select>
                         </div>
+                      )}
 
-                        <div className="col-span-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl space-y-1">
-                          <div className="flex justify-between items-center">
-                            <p className="text-[10px] font-bold text-slate-700 uppercase font-mono">Calculated TRV</p>
-                            <span className="text-sm font-bold text-indigo-600 font-mono">
-                              {block.treeHeight && block.canopyWidth && block.rowSpacing 
-                                ? Math.round((block.treeHeight * block.canopyWidth * 10000) / block.rowSpacing).toLocaleString()
-                                : '0'} m³/ha
-                            </span>
+                      {tree ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Species</label>
+                              <input
+                                type="text"
+                                value={block.species || ''}
+                                onChange={(e) => updateBlock(block.id, { species: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                placeholder="e.g. walnut"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Cultivar</label>
+                              <select 
+                                value={block.cultivar}
+                                onChange={(e) => updateBlock(block.id, { cultivar: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+                              >
+                                <option value="">Select cultivar...</option>
+                                {CULTIVARS.map((c) => (
+                                  <option key={c.id} value={c.name}>
+                                    {c.name} ({c.requiredCP} CP)
+                                  </option>
+                                ))}
+                                <option value="Other">Other / Mixed</option>
+                              </select>
+                            </div>
                           </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Row Spacing</label>
+                              <div className="relative">
+                                <input 
+                                  type="number" 
+                                  value={block.rowSpacing || ''}
+                                  onChange={(e) => {
+                                    const rowSpacing = parseFloat(e.target.value);
+                                    const treeSpacing = block.treeSpacing || 0;
+                                    const updates: Partial<OrchardBlock> = { rowSpacing };
+                                    if (rowSpacing > 0 && treeSpacing > 0) {
+                                      updates.density = Math.round(10000 / (rowSpacing * treeSpacing)).toString();
+                                    }
+                                    updateBlock(block.id, updates);
+                                  }}
+                                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
+                                  placeholder="8"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
+                                  m
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Tree Spacing</label>
+                              <div className="relative">
+                                <input 
+                                  type="number" 
+                                  value={block.treeSpacing || ''}
+                                  onChange={(e) => {
+                                    const treeSpacing = parseFloat(e.target.value);
+                                    const rowSpacing = block.rowSpacing || 0;
+                                    const updates: Partial<OrchardBlock> = { treeSpacing };
+                                    if (rowSpacing > 0 && treeSpacing > 0) {
+                                      updates.density = Math.round(10000 / (rowSpacing * treeSpacing)).toString();
+                                    }
+                                    updateBlock(block.id, updates);
+                                  }}
+                                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
+                                  placeholder="6"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
+                                  m
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Tree Height</label>
+                              <div className="relative">
+                                <input 
+                                  type="number" 
+                                  value={block.treeHeight || ''}
+                                  onChange={(e) => updateBlock(block.id, { treeHeight: parseFloat(e.target.value) })}
+                                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
+                                  placeholder="4.5"
+                                  step="0.1"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
+                                  m
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Canopy Width</label>
+                              <div className="relative">
+                                <input 
+                                  type="number" 
+                                  value={block.canopyWidth || ''}
+                                  onChange={(e) => updateBlock(block.id, { canopyWidth: parseFloat(e.target.value) })}
+                                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all pr-8"
+                                  placeholder="4.0"
+                                  step="0.1"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
+                                  m
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Irrigation</label>
+                              <select 
+                                value={block.irrigation}
+                                onChange={(e) => updateBlock(block.id, { irrigation: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+                              >
+                                <option value="">Select...</option>
+                                <option value="drip">Drip</option>
+                                <option value="micro-sprinkler">Micro-sprinkler</option>
+                                <option value="sprinkler">Overhead Sprinkler</option>
+                                <option value="none">Dryland / None</option>
+                              </select>
+                            </div>
+
+                            <div className="col-span-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl space-y-1">
+                              <div className="flex justify-between items-center">
+                                <p className="text-[10px] font-bold text-slate-700 uppercase font-mono">Calculated TRV</p>
+                                <span className="text-sm font-bold text-indigo-600 font-mono">
+                                  {block.treeHeight && block.canopyWidth && block.rowSpacing 
+                                    ? Math.round((block.treeHeight * block.canopyWidth * 10000) / block.rowSpacing).toLocaleString()
+                                    : '0'} m³/ha
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              {ent.varietyLabel}
+                            </label>
+                            <input
+                              type="text"
+                              value={block.seasonLabel || block.cultivar || ''}
+                              onChange={(e) =>
+                                updateBlock(block.id, {
+                                  seasonLabel: e.target.value,
+                                  cultivar: e.target.value,
+                                  species: '',
+                                })
+                              }
+                              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                              placeholder={
+                                ent.paddockModel === 'dam'
+                                  ? 'e.g. Marron'
+                                  : ent.paddockModel === 'water_zone'
+                                    ? 'e.g. Bore 2 zone'
+                                    : 'e.g. 2026 canola'
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Irrigation</label>
+                            <select 
+                              value={block.irrigation}
+                              onChange={(e) => updateBlock(block.id, { irrigation: e.target.value })}
+                              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+                            >
+                              <option value="">Select...</option>
+                              <option value="drip">Drip</option>
+                              <option value="micro-sprinkler">Micro-sprinkler</option>
+                              <option value="sprinkler">Overhead Sprinkler</option>
+                              <option value="none">Dryland / None</option>
+                            </select>
+                          </div>
+                          <p className="text-[11px] text-slate-400">
+                            Tree spacing, TRV and Kc only apply to orchard / fruit / vineyard areas.
+                          </p>
                         </div>
-                      </div>
+                      )}
                     </>
                   );
                 })()}

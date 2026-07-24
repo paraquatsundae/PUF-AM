@@ -17,7 +17,11 @@ import { PrivacyGate } from './components/PrivacyGate';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { WorkshopModeBanner } from './components/WorkshopModeBanner';
 import { isWorkshopMode } from './lib/workshopMode';
+import { ModuleRoute } from './components/ModuleRoute';
+import { startFarmOutboxFlushListener } from './lib/flushFarmOutbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
+
+startFarmOutboxFlushListener();
 
 const BlightRisk = React.lazy(() => import('./pages/BlightRisk').then(m => ({ default: m.BlightRisk })));
 const WaterMonitoring = React.lazy(() => import('./pages/WaterMonitoring').then(m => ({ default: m.WaterMonitoring })));
@@ -106,18 +110,95 @@ export default function App() {
                   <Layout />
                 </ProtectedRoute>
               }>
-                <Route index element={<Dashboard />} />
-                <Route path="blight" element={<BlightRisk />} />
-                <Route path="water" element={<WaterMonitoring />} />
-                <Route path="nutrition" element={<Nutrition />} />
-                <Route path="farm-management" element={<FarmManagement />} />
-                <Route path="diary" element={<FarmDiary />} />
-                <Route path="harvest" element={<Harvest />} />
-                <Route path="map" element={<OrchardMap />} />
+                <Route
+                  index
+                  element={
+                    <ModuleRoute moduleId="dashboard">
+                      <Dashboard />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="blight"
+                  element={
+                    <ModuleRoute moduleId="blight">
+                      <BlightRisk />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="water"
+                  element={
+                    <ModuleRoute moduleId="water">
+                      <WaterMonitoring />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="nutrition"
+                  element={
+                    <ModuleRoute moduleId="nutrition">
+                      <Nutrition />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="farm-management"
+                  element={
+                    <ModuleRoute moduleId="farm_management">
+                      <FarmManagement />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="diary"
+                  element={
+                    <ModuleRoute moduleId="diary">
+                      <FarmDiary />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="harvest"
+                  element={
+                    <ModuleRoute moduleId="harvest">
+                      <Harvest />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="map"
+                  element={
+                    <ModuleRoute moduleId="map">
+                      <OrchardMap />
+                    </ModuleRoute>
+                  }
+                />
                 <Route path="field-ops" element={<Navigate to="/map" replace />} />
-                <Route path="financials" element={<Financials />} />
-                <Route path="farm-setup" element={<FarmSetup />} />
-                <Route path="settings" element={<Settings />} />
+                <Route
+                  path="financials"
+                  element={
+                    <ModuleRoute moduleId="financials">
+                      <Financials />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="farm-setup"
+                  element={
+                    <ModuleRoute moduleId="farm_setup">
+                      <FarmSetup />
+                    </ModuleRoute>
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    <ModuleRoute moduleId="settings">
+                      <Settings />
+                    </ModuleRoute>
+                  }
+                />
                 <Route path="about" element={<About />} />
                 <Route path="admin" element={<Admin />} />
               </Route>

@@ -120,6 +120,19 @@ service cloud.firestore {
              get(/databases/$(database)/documents/farms/$(farmId)).data.ownerUid == request.auth.uid;
     }
 
+    // Write ceiling: admin/farmer may mutate farm data; viewers are read-only.
+    function canWriteFarmData() {
+      return isAdmin() ||
+        (isAuthenticated() && request.auth.token.role in ['admin', 'farmer']) ||
+        (isAuthenticated() &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'farmer']);
+    }
+
+    function canMutateFarm(farmId) {
+      return isFarmMember(farmId) && canWriteFarmData();
+    }
+
     function uidUnchanged() {
       return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
     }
@@ -154,17 +167,26 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'photoURL', 'role', 'farmId', 'subscriptionTier', 'hasAgreedToTerms', 'agreedToTermsAt', 'createdAt']) &&
+      return hasOnlyAllowedFields([
+               'uid', 'email', 'displayName', 'photoURL', 'role', 'farmId',
+               'subscriptionTier', 'hasAgreedToTerms', 'agreedToTermsAt', 'createdAt',
+               'modules', 'authEpoch', 'accessRevoked', 'authMethod',
+               'revokedFromFarmId', 'revokedAt'
+             ]) &&
              hasRequiredFields(['uid', 'email', 'role', 'subscriptionTier', 'createdAt']) &&
              data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
              data.email is string && isValidEmail(data.email) &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 500)) &&
              (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 5000)) &&
              data.role in ['admin', 'farmer', 'viewer'] &&
-             (!('farmId' in data) || (data.farmId is string && data.farmId.size() < 100)) &&
+             (!('farmId' in data) || data.farmId == null || (data.farmId is string && data.farmId.size() < 100)) &&
              data.subscriptionTier in ['free', 'premium'] &&
              (!('hasAgreedToTerms' in data) || data.hasAgreedToTerms is bool) &&
              (!('agreedToTermsAt' in data) || (data.agreedToTermsAt is string || data.agreedToTermsAt is timestamp)) &&
+             (!('modules' in data) || data.modules is list) &&
+             (!('authEpoch' in data) || data.authEpoch is number) &&
+             (!('accessRevoked' in data) || data.accessRevoked is bool) &&
+             (!('authMethod' in data) || data.authMethod is string) &&
              (data.createdAt is string || data.createdAt is timestamp);
     }
 
@@ -189,12 +211,28 @@ service cloud.firestore {
     }
 
     function isValidFarm(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'ownerUid', 'createdAt']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'ownerUid', 'createdAt', 'lat', 'lng', 'showNearby', 'enabledModules']) &&
              hasRequiredFields(['id', 'name', 'ownerUid', 'createdAt']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
              data.ownerUid is string && data.ownerUid.size() > 0 && data.ownerUid.size() < 100 &&
-             data.createdAt is string;
+             data.createdAt is string &&
+             (!('lat' in data) || data.lat is number) &&
+             (!('lng' in data) || data.lng is number) &&
+             (!('showNearby' in data) || data.showNearby is bool) &&
+             (!('enabledModules' in data) || data.enabledModules is list);
+    }
+
+    // Discovery index — written by Admin SDK / Express only (nearby join API).
+    function isValidFarmPublic(data) {
+      return hasOnlyAllowedFields(['farmId', 'name', 'lat', 'lng', 'geohash', 'showNearby', 'updatedAt']) &&
+             hasRequiredFields(['farmId', 'name', 'lat', 'lng', 'geohash', 'showNearby', 'updatedAt']) &&
+             data.farmId is string &&
+             data.name is string &&
+             data.lat is number &&
+             data.lng is number &&
+             data.geohash is string &&
+             data.showNearby is bool;
     }
 
     function isValidOrchardBlock(data) {
@@ -709,137 +747,138 @@ service cloud.firestore {
 
     match /farms/{farmId} {
       allow read: if isFarmMember(farmId);
+      // Prefer server create-farm (Admin SDK). Client create kept for legacy Google owners.
       allow create: if isAuthorized() && isValidFarm(request.resource.data) && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if isFarmMember(farmId) && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+      allow update: if canMutateFarm(farmId) && (isAdmin() || resource.data.ownerUid == request.auth.uid);
       allow delete: if isAdmin();
 
       match /blocks/{blockId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidOrchardBlock(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidOrchardBlock(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidOrchardBlock(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidOrchardBlock(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /pins/{pinId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidInfrastructurePin(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidInfrastructurePin(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidInfrastructurePin(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidInfrastructurePin(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /viewport/current {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidMapViewport(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidMapViewport(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidMapViewport(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidMapViewport(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /events/{eventId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidDiaryEvent(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidDiaryEvent(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidDiaryEvent(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidDiaryEvent(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /settings/farm {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidFarmSettings(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidFarmSettings(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidFarmSettings(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidFarmSettings(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /settings/safety {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidSafetyChecklist(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidSafetyChecklist(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidSafetyChecklist(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidSafetyChecklist(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /settings/model_params {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
-        allow update: if isFarmMember(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
-        allow delete: if isFarmMember(farmId) && isAdmin();
+        allow create: if canMutateFarm(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isAdmin();
       }
 
       match /settings/assets {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidFarmAssets(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidFarmAssets(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidFarmAssets(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidFarmAssets(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /usage/{date} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidUsageTracking(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidUsageTracking(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidUsageTracking(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidUsageTracking(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /harvests/{harvestId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidHarvestRecord(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidHarvestRecord(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidHarvestRecord(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidHarvestRecord(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /nutrition_reports/{reportId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidNutritionReport(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidNutritionReport(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidNutritionReport(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidNutritionReport(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /nutrition_data/{reportId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidNutrientData(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidNutrientData(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidNutrientData(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidNutrientData(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /issues/{issueId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidFieldIssueCreate(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidFieldIssueUpdate(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidFieldIssueCreate(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidFieldIssueUpdate(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /archived_issues/{issueId} {
         allow read: if isFarmMember(farmId);
         // Archive copies keep original reportedBy — any farm member may archive.
-        allow create: if isFarmMember(farmId) &&
+        allow create: if canMutateFarm(farmId) &&
                       isValidFieldIssueShape(request.resource.data) &&
                       request.resource.data.status == 'archived';
-        allow update: if isFarmMember(farmId) && isValidFieldIssueUpdate(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow update: if canMutateFarm(farmId) && isValidFieldIssueUpdate(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /pathTraces/{traceId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidPathTrace(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidPathTrace(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidPathTrace(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidPathTrace(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /tracks/{trackId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidFarmTrack(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidFarmTrack(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidFarmTrack(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidFarmTrack(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /tasks/{taskId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidTask(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidTask(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidTask(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidTask(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /drying_sessions/{sessionId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidDryingSession(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidDryingSession(request.resource.data);
-        allow delete: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidDryingSession(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidDryingSession(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /intelligence/{id} {
@@ -854,100 +893,100 @@ service cloud.firestore {
 
       match /financial_transactions/{transactionId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidFinancialTransaction(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidFinancialTransaction(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidFinancialTransaction(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidFinancialTransaction(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /financial_summaries/{summaryId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidFinancialSummary(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidFinancialSummary(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidFinancialSummary(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidFinancialSummary(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /settings/financial {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
-        allow update: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
+        allow update: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /budgets/{budgetId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidBudget(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidBudget(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidBudget(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidBudget(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /processing_logs/{logId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidProcessingLog(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidProcessingLog(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidProcessingLog(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidProcessingLog(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /packing_logs/{logId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidPackingLog(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidPackingLog(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidPackingLog(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidPackingLog(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /inventory/{itemId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidInventoryItem(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidInventoryItem(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidInventoryItem(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidInventoryItem(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /machinery/{machineId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidMachineryItem(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidMachineryItem(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidMachineryItem(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidMachineryItem(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /employees/{employeeId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidEmployee(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidEmployee(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidEmployee(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidEmployee(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /energy_logs/{logId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidEnergyLog(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidEnergyLog(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidEnergyLog(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidEnergyLog(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /rd_projects/{projectId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidRDProject(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidRDProject(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidRDProject(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidRDProject(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /rd_expenses/{expenseId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidRDExpense(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidRDExpense(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidRDExpense(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidRDExpense(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /marketing_campaigns/{campaignId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidMarketingCampaign(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidMarketingCampaign(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidMarketingCampaign(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidMarketingCampaign(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
 
       match /marketing_expenses/{expenseId} {
         allow read: if isFarmMember(farmId);
-        allow create: if isFarmMember(farmId) && isValidMarketingExpense(request.resource.data);
-        allow update: if isFarmMember(farmId) && isValidMarketingExpense(request.resource.data);
-        allow delete: if isFarmMember(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isValidMarketingExpense(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidMarketingExpense(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
       }
       match /aggregates/{aggregateId} {
         allow read: if isFarmMember(farmId);
@@ -1005,6 +1044,12 @@ service cloud.firestore {
     match /metrics_users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId) && isValidUsageMetrics(request.resource.data);
+    }
+
+    // Nearby-farm discovery — clients use Express; keep locked to Admin SDK writes.
+    match /farms_public/{farmId} {
+      allow read: if false;
+      allow write: if false;
     }
   }
 }

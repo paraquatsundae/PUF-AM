@@ -4,15 +4,20 @@ import { LayoutDashboard, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  navGroups,
+  navGroupsForMapTitle,
   visibleGroupItems,
   isPathInGroup,
   pathMatchesHref,
   type NavGroupId,
 } from '../lib/navConfig';
+import { useFarmDiary } from '../lib/farmDiary';
+import { mapUiCopy } from '../../shared/farm/farmTypes';
 
 export function BottomNav() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, userData, hasModule, farmEnabledModules } = useAuth();
+  const { settings } = useFarmDiary();
+  const mapTitle = mapUiCopy(settings.farmProfile).mapTitle;
+  const navGroups = React.useMemo(() => navGroupsForMapTitle(mapTitle), [mapTitle]);
   const location = useLocation();
   const navigate = useNavigate();
   const [openGroupId, setOpenGroupId] = React.useState<NavGroupId | null>(null);
@@ -21,7 +26,15 @@ export function BottomNav() {
     ? navGroups.find((g) => g.id === openGroupId) ?? null
     : null;
 
-  const sheetItems = openGroup ? visibleGroupItems(openGroup, isAdmin) : [];
+  const sheetItems = openGroup
+    ? visibleGroupItems(
+        openGroup,
+        isAdmin,
+        userData?.role,
+        userData?.modules,
+        farmEnabledModules
+      )
+    : [];
 
   const closeSheet = () => setOpenGroupId(null);
 
@@ -93,6 +106,7 @@ export function BottomNav() {
       )}
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-1 py-1 z-[5002] flex items-center justify-around pb-safe">
+        {hasModule('dashboard') && (
         <NavLink
           to="/"
           end
@@ -107,8 +121,17 @@ export function BottomNav() {
           <LayoutDashboard className="w-6 h-6" />
           <span className="text-[10px] font-medium">Home</span>
         </NavLink>
+        )}
 
         {navGroups.map((group) => {
+          const items = visibleGroupItems(
+            group,
+            isAdmin,
+            userData?.role,
+            userData?.modules,
+            farmEnabledModules
+          );
+          if (items.length === 0) return null;
           const isOpen = openGroupId === group.id;
           const isActive = isPathInGroup(location.pathname, group);
           const Icon = group.icon;

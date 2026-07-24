@@ -32,7 +32,7 @@ export function PrivacyPolicy() {
                 1. Introduction
               </h2>
               <p className="text-slate-600 leading-relaxed">
-                PUFOM — Orchard Manager ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile and web applications.
+                PUFAM — Ag Manager ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile and web applications.
               </p>
             </section>
 

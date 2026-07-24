@@ -1,10 +1,10 @@
-# PUFOM — Orchard Manager
+# PUFAM — Ag Manager
 
-Paddock-first farm tools for walnut orchards — map issues, diary plans, Ji et al. 2025 mechanistic blight risk, and block-level seasonal records.
+Paddock-first farm tools for mixed enterprises — map areas and issues, diary plans, weather-linked crop risk (walnut blight first), and seasonal records.
 
-**Brand:** PUFOM = **PUF** (Prototype Until Failure workshop) + **OM** (Orchard Manager). In-app mark is the PUF emu; the Android launcher uses a green orchard variant so it stays distinct from other PUF apps.
+**Brand:** PUFAM = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
 
-**Live app:** [https://pufom-quby5ye5pa-ts.a.run.app](https://pufom-quby5ye5pa-ts.a.run.app) (Cloud Run, `australia-southeast1`). Redeploy: `npm run deploy:cloudrun`. Details: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
+**Live app:** [https://pufom-quby5ye5pa-ts.a.run.app](https://pufom-quby5ye5pa-ts.a.run.app) (Cloud Run service still named `pufom` until Phase B rename). Redeploy: `npm run deploy:cloudrun`. Details: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
 
 **Local:** [http://localhost:3000](http://localhost:3000) via `npm run dev`.
 
@@ -13,7 +13,7 @@ Paddock-first farm tools for walnut orchards — map issues, diary plans, Ji et 
 ## Paddock workflow
 
 1. **Farm setup** — dryers, seasonal water allocation (ML), irrigation method (rarely changes).
-2. **Orchard map** — draw blocks, drop issue pins, optional offline basemap pack.
+2. **Farm map** — draw paddocks/blocks, drop issue pins, optional offline basemap pack.
 3. **Farm diary** — plans, sprays, irrigation, nutrition applications, and work (system of record).
 4. **Blight risk** — protection vs threat from weather + diary sprays (forecast / historical / sandbox).
 5. **Water & nutrition** — log applications to the diary; water budget uses Farm setup allocation.
@@ -23,7 +23,7 @@ Home shows open issues, plans, and a blight snapshot. Financials and team tools 
 
 ## Key features
 
-* **Orchard map** — Blocks, pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
+* **Farm map** — Areas (blocks / paddocks), pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
 * **Farm diary** — Spray, water, nutrition, and work plans with filters and CSV export.
 * **Blight risk engine** — Ji et al. 2025 mechanistic infection-risk model (Beta temperature × Gompertz leaf-wetness × rain-driven primary inoculum) on a proxy wetness input; not LLM-based.
 * **Water** — Irrigation logging + seasonal ML budget from Farm setup.

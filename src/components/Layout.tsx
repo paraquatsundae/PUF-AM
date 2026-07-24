@@ -5,16 +5,22 @@ import { LogOut, Menu, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import {
   dashboardItem,
-  navGroups,
+  navGroupsForMapTitle,
   visibleGroupItems,
   pathMatchesHref,
   findGroupForPath,
   type NavGroupId,
 } from '../lib/navConfig';
 import { BottomNav } from './BottomNav';
+import { useFarmDiary } from '../lib/farmDiary';
+import { mapUiCopy } from '../../shared/farm/farmTypes';
+import { APP_FULL_NAME, APP_NAME, APP_TAGLINE } from '../brand';
 
 export function Layout() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, userData, isAdmin, hasModule, farmEnabledModules, logout } = useAuth();
+  const { settings } = useFarmDiary();
+  const mapTitle = mapUiCopy(settings.farmProfile).mapTitle;
+  const groups = React.useMemo(() => navGroupsForMapTitle(mapTitle), [mapTitle]);
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const activeGroup = findGroupForPath(location.pathname);
@@ -61,11 +67,11 @@ export function Layout() {
             to="/"
             onClick={closeSidebar}
             className="flex items-center justify-center h-14 px-3 bg-slate-950 gap-2.5 hover:bg-slate-900 transition-colors"
-            title="PUF Orchard Manager"
+            title={APP_FULL_NAME}
           >
             <img
               src="/logo.png"
-              alt="PUF"
+              alt={APP_NAME}
               className="w-7 h-7 rounded-lg object-cover shrink-0"
               referrerPolicy="no-referrer"
               onError={(e) => {
@@ -73,12 +79,15 @@ export function Layout() {
               }}
             />
             <div className="flex flex-col leading-tight min-w-0">
-              <span className="text-lg font-bold text-white">PUF</span>
-              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider truncate">Orchard Manager</span>
+              <span className="text-lg font-bold text-white">{APP_NAME}</span>
+              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider truncate">
+                {APP_TAGLINE}
+              </span>
             </div>
           </NavLink>
 
           <nav className="flex-1 px-1.5 py-3 space-y-1 overflow-y-auto">
+            {hasModule('dashboard') && (
             <NavLink
               to={dashboardItem.href}
               end
@@ -95,10 +104,17 @@ export function Layout() {
               <dashboardItem.icon className="mr-2.5 flex-shrink-0 h-4 w-4" aria-hidden="true" />
               {dashboardItem.name}
             </NavLink>
+            )}
 
             <div className="pt-2 space-y-1">
-              {navGroups.map((group) => {
-                const items = visibleGroupItems(group, isAdmin);
+              {groups.map((group) => {
+                const items = visibleGroupItems(
+                  group,
+                  isAdmin,
+                  userData?.role,
+                  userData?.modules,
+                  farmEnabledModules
+                );
                 if (items.length === 0) return null;
 
                 const isOpen = expanded[group.id];

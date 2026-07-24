@@ -59,14 +59,27 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     if (process.env.NODE_ENV !== "production") {
       console.log(`LAN devices: http://<this-pc-ip>:${PORT} (same Wi‑Fi; keep this process running)`);
     } else {
-      console.log(`PUFOM production listening on 0.0.0.0:${PORT}`);
+      console.log(`PUFAM production listening on 0.0.0.0:${PORT}`);
     }
+    // mDNS advertise / browse for Offline & sync peer discovery
+    void import("./server/mdnsHub.ts")
+      .then(({ startPufomMdns }) => startPufomMdns(PORT))
+      .catch((err) => console.warn("[mdns] not started:", err));
   });
+
+  const shutdown = () => {
+    void import("./server/mdnsHub.ts")
+      .then(({ stopPufomMdns }) => stopPufomMdns())
+      .catch(() => undefined);
+    server.close(() => process.exit(0));
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 startServer();

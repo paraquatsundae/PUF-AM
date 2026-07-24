@@ -3,6 +3,11 @@ import { diaryApi } from '../services/api';
 import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useEffect, useCallback } from 'react';
+import type { FarmProfile } from '../../shared/farm/farmTypes';
+import { resolveFarmProfile } from '../../shared/farm/farmTypes';
+
+export type { FarmProfile };
+export { resolveFarmProfile };
 
 export function getDefaultDiaryStartDate(days = 90): string {
   const d = new Date();
@@ -52,6 +57,8 @@ export interface DiaryEvent {
   completedAt?: string;
   /** Field issue this work plan was created from (map / Issues tab). */
   linkedIssueId?: string;
+  /** LWW / outbox stamp */
+  updatedAt?: string;
 }
 
 export interface FarmSettings {
@@ -63,6 +70,8 @@ export interface FarmSettings {
   customBiologicals?: string[];
   customCarriers?: string[];
   customAdjuvants?: string[];
+  /** Enterprises + livestock overlay — see shared/farm/farmTypes.ts */
+  farmProfile?: FarmProfile;
 }
 
 interface FarmDiaryState {
@@ -108,16 +117,49 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     if (state.isLoaded && !state.isLoading && state.currentFarmId === farmId && state.currentStartDate === (startDate || null) && state.currentEndDate === (endDate || null)) return;
     
     set({ isLoading: true, error: null, currentFarmId: farmId, currentStartDate: startDate || null, currentEndDate: endDate || null, lastDoc: null, hasMore: false });
+    const { listLocalEntities } = await import('./localFarmRepo');
+    const { mergeByLww } = await import('../../shared/sync/pufomBundle');
     try {
       const effectiveStart = startDate || getDefaultDiaryStartDate(90);
+      const localEvents = await listLocalEntities<DiaryEvent>(farmId, 'diary');
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+      const { mergeFarmSettings, readLocalFarmSettings } = await import('./farmSettingsLocal');
+
+      if (isOffline) {
+        const filtered = localEvents
+          .filter((e) => e.date >= effectiveStart && (!endDate || e.date <= endDate))
+          .sort((a, b) => b.date.localeCompare(a.date));
+        set({
+          events: filtered,
+          settings: mergeFarmSettings(null, readLocalFarmSettings(farmId), get().settings),
+          isLoaded: true,
+          isLoading: false,
+          hasMore: false,
+          lastDoc: null,
+        });
+        return;
+      }
+
       const [page, savedSettings] = await Promise.all([
         diaryApi.getEventsPaginated(farmId, { startDate: effectiveStart, endDate, limit: 50 }),
         diaryApi.getSettings(farmId)
       ]);
+
+      const merged = mergeByLww(page.items || [], localEvents).sort((a, b) =>
+        b.date.localeCompare(a.date)
+      );
+      const { replaceLocalEntities } = await import('./localFarmRepo');
+      await replaceLocalEntities(farmId, 'diary', merged);
+      const settings = mergeFarmSettings(
+        savedSettings,
+        readLocalFarmSettings(farmId),
+        get().settings
+      );
       
       set({ 
-        events: page.items || [], 
-        settings: savedSettings || { irrigationSystemType: 'micro', farmName: '' },
+        events: merged, 
+        settings,
         isLoaded: true,
         isLoading: false,
         hasMore: page.hasMore,
@@ -125,7 +167,17 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
       });
     } catch (err) {
       console.error('Failed to load farm diary data:', err);
-      set({ error: 'Failed to load farm diary data', isLoading: false });
+      try {
+        const localEvents = await listLocalEntities<DiaryEvent>(farmId, 'diary');
+        set({
+          events: localEvents.sort((a, b) => b.date.localeCompare(a.date)),
+          error: 'Cloud diary unavailable — showing local copy',
+          isLoaded: true,
+          isLoading: false,
+        });
+      } catch {
+        set({ error: 'Failed to load farm diary data', isLoading: false });
+      }
     }
   },
 
@@ -160,20 +212,21 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
       ...event,
       id: crypto.randomUUID(),
       status: event.status ?? (event.type === 'work' ? 'planned' : 'done'),
+      updatedAt: new Date().toISOString(),
     };
-    
-    set(state => ({
-      events: [newEvent, ...state.events].sort((a, b) => b.date.localeCompare(a.date))
+
+    set((state) => ({
+      events: [newEvent, ...state.events].sort((a, b) => b.date.localeCompare(a.date)),
     }));
-    
+
+    const { upsertLocalEntity } = await import('./localFarmRepo');
+    await upsertLocalEntity(farmId, 'diary', newEvent, { queueCloud: true });
+
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       await diaryApi.saveEvent(farmId, newEvent);
     } catch (err) {
-      console.error('Failed to save event:', err);
-      // Rollback on failure
-      set(state => ({
-        events: state.events.filter(e => e.id !== newEvent.id)
-      }));
+      console.warn('[farmDiary.addEvent] Cloud save deferred to outbox', err);
     }
   },
 
@@ -182,8 +235,11 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     const previous = get().events;
     const next = previous.map((e) => {
       if (e.id !== id) return e;
-      const merged: DiaryEvent = { ...e, ...updates };
-      // Allow clearing optional fields with `undefined` (e.g. unlink issue)
+      const merged: DiaryEvent = {
+        ...e,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
       for (const key of Object.keys(updates) as (keyof DiaryEvent)[]) {
         if (updates[key] === undefined) {
           delete (merged as unknown as Record<string, unknown>)[key as string];
@@ -194,27 +250,32 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     set({ events: next.sort((a, b) => b.date.localeCompare(a.date)) });
     const updated = next.find((e) => e.id === id);
     if (!updated) return;
+
+    const { upsertLocalEntity } = await import('./localFarmRepo');
+    await upsertLocalEntity(farmId, 'diary', updated, { queueCloud: true });
+
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       await diaryApi.saveEvent(farmId, updated);
     } catch (err) {
-      console.error('Failed to update event:', err);
-      set({ events: previous });
+      console.warn('[farmDiary.updateEvent] Cloud save deferred to outbox', err);
     }
   },
 
   removeEvent: async (farmId, canEdit, id) => {
     if (!farmId || !canEdit) return;
-    const previousEvents = get().events;
-    set(state => ({
-      events: state.events.filter(e => e.id !== id)
+    set((state) => ({
+      events: state.events.filter((e) => e.id !== id),
     }));
-    
+
+    const { deleteLocalEntity } = await import('./localFarmRepo');
+    await deleteLocalEntity(farmId, 'diary', id, { queueCloud: true });
+
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       await diaryApi.deleteEvent(farmId, id);
     } catch (err) {
-      console.error('Failed to delete event:', err);
-      // Rollback on failure
-      set({ events: previousEvents });
+      console.warn('[farmDiary.removeEvent] Cloud delete deferred to outbox', err);
     }
   },
 
@@ -223,13 +284,19 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     const previousSettings = get().settings;
     const updatedSettings = { ...previousSettings, ...newSettings };
     set({ settings: updatedSettings });
-    
+
     if (farmId) {
+      try {
+        const { writeLocalFarmSettings } = await import('./farmSettingsLocal');
+        writeLocalFarmSettings(farmId, updatedSettings);
+      } catch {
+        /* ignore local backup failures */
+      }
       try {
         await diaryApi.saveSettings(farmId, updatedSettings);
       } catch (err) {
         console.error('Failed to save settings:', err);
-        set({ settings: previousSettings });
+        // Keep local/memory copy — cloud may catch up later
       }
     }
   }

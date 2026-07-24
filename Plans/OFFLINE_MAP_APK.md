@@ -1,8 +1,8 @@
 # Offline Map + Android APK Roadmap
 
 **Created:** 13 July 2026  
-**Last updated:** 15 July 2026  
-**Status:** Phase 1 polished in-app; Phase 2 Capacitor Android scaffolded; Phase 3 planned
+**Last updated:** 24 July 2026  
+**Status:** Phase 1 + 2 done; Phase 3 sync adapters in progress (`.pufom` + LAN shelf)
 
 ---
 
@@ -114,22 +114,54 @@ Packaged APK (no live server): `CAP_PACKAGED=1` before sync, and set `VITE_API_B
 
 ---
 
-## Phase 3 — Sync adapters
+## Phase 3 — Sync adapters (in progress)
 
 ```
 Device outbox ──► Firebase Firestore (current)
-              └──► Local farm server (HTTP, future)
+              └──► LAN shelf on workshop PC (Express) / .pufom file share
 ```
 
-- Explicit outbox for creates/updates/deletes (map, diary)
-- `FirebaseSyncAdapter` wraps existing Firestore API
-- `LocalServerSyncAdapter` POSTs to workshop NAS / PC when online
-- v1 conflict: last-write-wins by `updatedAt`
+### Done
 
----
+| Piece | Path |
+|-------|------|
+| Universal outbox (issues + diary) | `src/lib/localFarmRepo.ts`, `flushFarmOutbox.ts` |
+| Geometry outbox | `farmGeometryIdb.ts` / `farmGeometrySync.ts` |
+| `.pufom` v1 format + LWW merge | `shared/sync/pufomBundle.ts` |
+| Gzip encode/decode | `src/lib/pufomCodec.ts` |
+| Export / import / LAN client | `src/lib/pufomSync.ts` |
+| LAN shelf API | `server/lanSyncRoutes.ts` → `POST/GET /api/sync/lan/:farmId` |
+| Settings UI | `src/components/OfflineSyncCard.tsx` |
+| Listener cost (issues + archive) | poll + cache instead of live `onSnapshot` |
 
-## Not in Phase 1
+### Workshop LAN flow
 
+1. PC: `npm run dev` (listens on LAN, advertises mDNS `_pufom-sync._tcp`).
+2. Tablet A: open via LAN URL / live-reload, then **Settings → Offline & sync → Scan mDNS peers** → select hub → **Push to LAN**.
+3. Tablet B (same farm, same Wi‑Fi): scan / select same hub → **Pull from LAN** → LWW merge into IndexedDB.
+4. Or share a downloaded `.pufom` file (USB / AirDrop / chat).
+
+Shelf files persist under `tmp/lan-sync/` (gitignored) while the PC is the hub.
+
+### mDNS peer discovery
+
+| Piece | Path |
+|-------|------|
+| Advertise + browse | `server/mdnsHub.ts` (`bonjour-service`) |
+| Service type | `_pufom-sync._tcp` (`shared/sync/mdnsConstants.ts`) |
+| APIs | `GET /api/sync/self`, `GET /api/sync/peers?waitMs=2500` |
+| Client | `src/lib/mdnsPeers.ts` + Offline & sync peer picker |
+
+- Set `PUFOM_MDNS=0` to disable advertise/browse.
+- Windows: allow Node.js through the firewall for private networks (UDP 5353 + TCP app port).
+- Browsers cannot browse mDNS themselves — clients ask the current Express hub to scan. First tablet connection still needs a LAN IP / `npm run sync:android:lan`; after that, **Scan mDNS peers** finds other workshop hubs.
+- Console logs the hub URL and `http://<hostname>.local:<port>` when advertising.
+
+### Still to do
+
+- Optional SQLite adapter (Capacitor) if IDB quota bites
 - Full offline weather / Storage photo queue
+- Native Capacitor NSD browse (cold-start without typing PC IP)
 - PWA service worker (APK path preferred for paddock)
 - NearMap / paid AU imagery
+- Mapping issues (separate track)

@@ -5,12 +5,19 @@ import { auth, db } from '../firebase';
 import { trackMetric } from '../services/metricsService';
 import { resolveIsAdmin } from '../lib/adminAuth';
 import { isWorkshopMode, WORKSHOP_USER_DATA } from '../lib/workshopMode';
-import { redeemInvitePin } from '../lib/invitePinAuth';
+import { createFarmAccount, redeemInvitePin } from '../lib/invitePinAuth';
 import {
   clearDeviceRememberedFlag,
   getLastDisplayName,
   markDeviceRemembered,
 } from '../lib/deviceSession';
+import type { FarmModuleId } from '../../shared/auth/farmModules';
+import {
+  allFarmModules,
+  effectiveModules,
+  resolveFarmEnabledModules,
+  sanitizeModules,
+} from '../../shared/auth/farmModules';
 
 export enum OperationType {
   CREATE = 'create',
@@ -82,7 +89,10 @@ export interface UserData {
   displayName?: string;
   photoURL?: string;
   role: 'admin' | 'farmer' | 'viewer';
-  farmId?: string;
+  farmId?: string | null;
+  modules?: FarmModuleId[];
+  authEpoch?: number;
+  accessRevoked?: boolean;
   subscriptionTier: 'free' | 'premium';
   hasAgreedToTerms?: boolean;
   agreedToTermsAt?: string;
@@ -102,6 +112,7 @@ export interface Farm {
   name: string;
   ownerUid: string;
   createdAt: string;
+  enabledModules?: FarmModuleId[];
 }
 
 interface AuthContextType {
@@ -111,11 +122,25 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   pendingInvite: any | null;
-  signInWithInvitePin: (pin: string, displayName: string) => Promise<void>;
+  /** Modules this farm offers (owner catalog). */
+  farmEnabledModules: FarmModuleId[];
+  refreshFarmModules: () => Promise<void>;
+  signInWithInvitePin: (
+    pin: string,
+    displayName: string,
+    expectedFarmId?: string
+  ) => Promise<void>;
+  createFarm: (
+    farmName: string,
+    displayName: string,
+    opts?: { lat?: number; lng?: number; showNearby?: boolean }
+  ) => Promise<{ recoveryPin: string; token: string }>;
+  completeFarmSignIn: (token: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
   acceptInvite: () => Promise<void>;
   declineInvite: () => Promise<void>;
   agreeToTerms: () => Promise<void>;
+  hasModule: (moduleId: FarmModuleId) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -127,6 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [pendingInvite, setPendingInvite] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [farmEnabledModules, setFarmEnabledModules] =
+    useState<FarmModuleId[]>(allFarmModules());
 
   useEffect(() => {
     if (isWorkshopMode()) {
@@ -135,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAdmin(true);
       setPendingInvite(null);
       setError(null);
+      setFarmEnabledModules(allFarmModules());
       setLoading(false);
       return;
     }
@@ -292,10 +320,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           
           if (!userSnap.exists()) {
+            // Invite-PIN / create-farm paths write users/{uid} server-side.
+            // Do not auto-create a personal farm for PIN users.
+            if (pinAuth) {
+              if ((window as any)._lastAuthId === currentAuthId) {
+                setError('Your account profile is missing. Sign in again with your invite PIN, or ask a farm admin for a new PIN.');
+                setLoading(false);
+              }
+              await signOut(auth);
+              return;
+            }
+
             try {
               const farmId = `farm_${currentUser.uid}`;
-              
-              // Create the farm first
               const farmRef = doc(db, 'farms', farmId);
               const newFarm: Farm = {
                 id: farmId,
@@ -303,9 +340,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ownerUid: currentUser.uid,
                 createdAt: new Date().toISOString()
               };
-              
+
               try {
-                // Track write
                 trackMetric('write').catch(console.error);
                 await setDoc(farmRef, newFarm);
               } catch (err) {
@@ -315,8 +351,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const newUserData: UserData = {
                 uid: currentUser.uid,
                 email: currentUser.email || 'no-email@example.com',
-                role: 'admin', // Creator of the farm is the admin
-                farmId: farmId,
+                role: 'admin',
+                farmId,
+                modules: allFarmModules(),
+                authEpoch: 1,
                 subscriptionTier: 'free',
                 createdAt: new Date().toISOString()
               };
@@ -324,24 +362,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (currentUser.photoURL) newUserData.photoURL = currentUser.photoURL;
 
               try {
-                // Track write
                 trackMetric('write').catch(console.error);
                 await setDoc(userRef, newUserData);
               } catch (err) {
                 handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
               }
 
-              // Create public profile
               const publicRef = doc(db, 'users_public', currentUser.uid);
               const publicData: UserPublicData = {
                 uid: currentUser.uid,
                 displayName: currentUser.displayName || undefined,
                 photoURL: currentUser.photoURL || undefined,
                 role: 'admin',
-                farmId: farmId
+                farmId
               };
               try {
-                // Track write
                 trackMetric('write').catch(console.error);
                 await setDoc(publicRef, publicData);
               } catch (err) {
@@ -355,65 +390,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
               return;
             }
-          } else {
-            // Check if existing user needs a farmId
-            const data = userSnap.data() as UserData;
-            if (!data.farmId) {
-              try {
-                const farmId = `farm_${currentUser.uid}`;
-                const farmRef = doc(db, 'farms', farmId);
-                
-                // Create farm if it doesn't exist
-                const farmSnap = await getDoc(farmRef);
-
-                if (!farmSnap.exists()) {
-                  const newFarm: Farm = {
-                    id: farmId,
-                    name: `${data.displayName || 'My'}'s Orchard`,
-                    ownerUid: currentUser.uid,
-                    createdAt: new Date().toISOString()
-                  };
-                  await setDoc(farmRef, newFarm);
-                }
-                
-                await setDoc(userRef, { 
-                  farmId: farmId, 
-                  role: 'admin',
-                  subscriptionTier: data.subscriptionTier || 'free',
-                  createdAt: data.createdAt || new Date().toISOString(),
-                  uid: currentUser.uid,
-                  email: currentUser.email || data.email
-                }, { merge: true });
-
-                // Update public profile
-                const publicRef = doc(db, 'users_public', currentUser.uid);
-                await setDoc(publicRef, {
-                  uid: currentUser.uid,
-                  displayName: currentUser.displayName || data.displayName || undefined,
-                  photoURL: currentUser.photoURL || data.photoURL || undefined,
-                  role: 'admin',
-                  farmId: farmId
-                }, { merge: true });
-              } catch (err) {
-                console.error("Error initializing farmId for existing user:", err);
-              }
-            }
           }
 
           if ((window as any)._lastAuthId !== currentAuthId) return;
 
-          // Listen to user data changes
-          unsubscribeDoc = onSnapshot(userRef, (doc) => {
+          let claimFarmId: string | undefined;
+          let claimAuthEpoch = 0;
+          try {
+            const tokenResult = await currentUser.getIdTokenResult();
+            claimFarmId = typeof tokenResult.claims.farmId === 'string' ? tokenResult.claims.farmId : undefined;
+            claimAuthEpoch =
+              typeof tokenResult.claims.authEpoch === 'number' ? tokenResult.claims.authEpoch : 0;
+          } catch {
+            /* ignore */
+          }
+
+          // Listen to user data changes + hard-revoke kill switch
+          unsubscribeDoc = onSnapshot(userRef, async (snap) => {
             if ((window as any)._lastAuthId !== currentAuthId) return;
-            
-            if (doc.exists()) {
-              const data = doc.data() as UserData;
-              setUserData(data);
-              resolveIsAdmin(data.role).then(setIsAdmin).catch(() => setIsAdmin(data.role === 'admin'));
-            } else {
+
+            if (!snap.exists()) {
               setUserData(null);
               setIsAdmin(false);
+              setLoading(false);
+              return;
             }
+
+            const data = snap.data() as UserData;
+            const revoked =
+              data.accessRevoked === true ||
+              !data.farmId ||
+              (typeof data.authEpoch === 'number' && data.authEpoch > claimAuthEpoch) ||
+              (claimFarmId && data.farmId && claimFarmId !== data.farmId);
+
+            if (revoked && pinAuth) {
+              clearDeviceRememberedFlag();
+              setError('Access removed — ask a farm admin for a new invite PIN.');
+              setUserData(null);
+              setIsAdmin(false);
+              setLoading(false);
+              try {
+                await signOut(auth);
+              } catch {
+                /* ignore */
+              }
+              return;
+            }
+
+            // Store raw grant; hasModule / nav intersect with farmEnabledModules.
+            setUserData({
+              ...data,
+              modules: sanitizeModules(data.modules).length
+                ? sanitizeModules(data.modules)
+                : data.role === 'admin'
+                  ? allFarmModules()
+                  : (['dashboard'] as FarmModuleId[]),
+            });
+            resolveIsAdmin(data.role).then(setIsAdmin).catch(() => setIsAdmin(data.role === 'admin'));
             setLoading(false);
           }, (err) => {
             console.error("Firestore Error in onSnapshot:", err);
@@ -447,8 +480,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const signInWithInvitePin = async (pin: string, displayName: string) => {
-    const { token } = await redeemInvitePin(pin, displayName);
+  const signInWithInvitePin = async (
+    pin: string,
+    displayName: string,
+    expectedFarmId?: string
+  ) => {
+    const { token } = await redeemInvitePin(pin, displayName, expectedFarmId);
     try {
       await signInWithCustomToken(auth, token);
       markDeviceRemembered(displayName);
@@ -461,6 +498,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       throw err;
     }
+  };
+
+  const createFarm = async (
+    farmName: string,
+    displayName: string,
+    opts?: { lat?: number; lng?: number; showNearby?: boolean }
+  ) => {
+    const { token, recoveryPin } = await createFarmAccount(farmName, displayName, opts);
+    return { recoveryPin, token };
+  };
+
+  const completeFarmSignIn = async (token: string, displayName: string) => {
+    try {
+      await signInWithCustomToken(auth, token);
+      markDeviceRemembered(displayName);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes('offline') || msg.includes('network')) {
+        throw new Error(
+          'Firebase could not reach the network from this device. Check emulator internet (not airplane mode), then try again.'
+        );
+      }
+      throw err;
+    }
+  };
+
+  // Farm-level module catalog (owner toggles).
+  useEffect(() => {
+    if (isWorkshopMode()) return;
+    const farmId = userData?.farmId;
+    if (!farmId) {
+      setFarmEnabledModules(allFarmModules());
+      return;
+    }
+    const farmRef = doc(db, 'farms', farmId);
+    const unsub = onSnapshot(
+      farmRef,
+      (snap) => {
+        setFarmEnabledModules(resolveFarmEnabledModules(snap.data()?.enabledModules));
+      },
+      (err) => {
+        console.warn('[Auth] farm modules listen failed:', err);
+        setFarmEnabledModules(allFarmModules());
+      }
+    );
+    return () => unsub();
+  }, [userData?.farmId]);
+
+  const refreshFarmModules = async () => {
+    const farmId = userData?.farmId;
+    if (!farmId || isWorkshopMode()) {
+      setFarmEnabledModules(allFarmModules());
+      return;
+    }
+    try {
+      const snap = await getDoc(doc(db, 'farms', farmId));
+      setFarmEnabledModules(resolveFarmEnabledModules(snap.data()?.enabledModules));
+    } catch (e) {
+      console.warn('[Auth] refreshFarmModules failed:', e);
+    }
+  };
+
+  const hasModule = (moduleId: FarmModuleId) => {
+    if (!userData) return false;
+    return effectiveModules(userData.role, userData.modules, farmEnabledModules).includes(
+      moduleId
+    );
   };
 
   const logout = async () => {
@@ -525,7 +629,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, userData, isAdmin, loading, error, pendingInvite, signInWithInvitePin, logout, acceptInvite, declineInvite, agreeToTerms }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        userData,
+        isAdmin,
+        loading,
+        error,
+        pendingInvite,
+        farmEnabledModules,
+        refreshFarmModules,
+        signInWithInvitePin,
+        createFarm,
+        completeFarmSignIn,
+        logout,
+        acceptInvite,
+        declineInvite,
+        agreeToTerms,
+        hasModule,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

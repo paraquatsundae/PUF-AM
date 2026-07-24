@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db } from '../firebase';
-import { collection, query, onSnapshot, doc, setDoc, deleteDoc, updateDoc, getDoc, writeBatch, where, getDocs, getDocsFromCache } from 'firebase/firestore';
+import { collection, query, doc, setDoc, deleteDoc, updateDoc, getDoc, writeBatch, where, getDocs, getDocsFromCache } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../contexts/AuthContext';
 import { isLocalOnlyFarmSession } from './workshopMode';
 import { localFieldIssues } from './localFieldIssues';
@@ -42,6 +42,8 @@ export interface FieldIssue {
   resolvedAt?: string;
   archivedAt?: string;
   archivedBy?: string;
+  /** LWW / outbox stamp */
+  updatedAt?: string;
 }
 
 export interface PathTrace {
@@ -212,28 +214,58 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     }
 
     const archiveRef = collection(db, `farms/${farmId}/archived_issues`);
-    unsubscribeArchive = onSnapshot(archiveRef, (snapshot) => {
-      const archivedIssues = snapshot.docs.map(doc => doc.data() as FieldIssue);
-      set({ archivedIssues, isArchiveLoaded: true });
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `farms/${farmId}/archived_issues`);
-    });
+    const fetchArchive = async () => {
+      try {
+        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+        const snapshot = isOffline
+          ? await getDocsFromCache(archiveRef)
+          : await getDocs(archiveRef);
+        const archivedIssues = snapshot.docs.map((d) => d.data() as FieldIssue);
+        const local = localFieldIssues.getArchived(farmId);
+        const byId = new Map(archivedIssues.map((i) => [i.id, i]));
+        for (const li of local) {
+          if (!byId.has(li.id)) byId.set(li.id, li);
+        }
+        const merged = Array.from(byId.values());
+        localFieldIssues.saveArchived(farmId, merged);
+        set({ archivedIssues: merged, isArchiveLoaded: true });
+      } catch (error) {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          set({ archivedIssues: localFieldIssues.getArchived(farmId), isArchiveLoaded: true });
+          return;
+        }
+        handleFirestoreError(error, OperationType.GET, `farms/${farmId}/archived_issues`);
+        set({ archivedIssues: localFieldIssues.getArchived(farmId), isArchiveLoaded: true });
+      }
+    };
+    void fetchArchive();
+    const intervalId = setInterval(() => void fetchArchive(), 60000);
+    unsubscribeArchive = () => clearInterval(intervalId);
   },
 
   addIssue: async (farmId, issue) => {
     // Always persist locally first so the pin sticks even if cloud rules reject.
-    const issues = localFieldIssues.upsertOpen(farmId, issue);
+    const stamped = {
+      ...issue,
+      updatedAt: (issue as { updatedAt?: string }).updatedAt || new Date().toISOString(),
+    } as FieldIssue;
+    const issues = localFieldIssues.upsertOpen(farmId, stamped);
     set({ issues });
 
-    if (isLocalOnlyFarmSession()) return;
+    const { upsertLocalEntity } = await import('./localFarmRepo');
+    const kind = stamped.status === 'archived' ? 'issues_archive' : 'issues';
+    await upsertLocalEntity(farmId, kind, stamped, { queueCloud: true });
 
-    const collectionName = issue.status === 'archived' ? 'archived_issues' : 'issues';
+    if (isLocalOnlyFarmSession()) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+    const collectionName = stamped.status === 'archived' ? 'archived_issues' : 'issues';
     try {
-      await setDoc(doc(db, `farms/${farmId}/${collectionName}`, issue.id), issueForFirestore(issue));
+      await setDoc(doc(db, `farms/${farmId}/${collectionName}`, stamped.id), issueForFirestore(stamped));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/${collectionName}`);
       if (isPermissionOrOfflineError(error)) {
-        console.warn('[fieldStore.addIssue] Cloud write blocked; kept local copy');
+        console.warn('[fieldStore.addIssue] Cloud write blocked; kept local/outbox copy');
         return;
       }
       throw error;
@@ -241,22 +273,35 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   },
 
   updateIssue: async (farmId, id, updates) => {
-    const next = localFieldIssues.updateOpen(farmId, id, updates as Partial<FieldIssue> & Record<string, unknown>);
+    const withStamp = {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    const next = localFieldIssues.updateOpen(
+      farmId,
+      id,
+      withStamp as Partial<FieldIssue> & Record<string, unknown>
+    );
     set({ issues: next });
+    const updated = next.find((i) => i.id === id);
+    if (updated) {
+      const { upsertLocalEntity } = await import('./localFarmRepo');
+      await upsertLocalEntity(farmId, 'issues', updated, { queueCloud: true });
+    }
 
     if (isLocalOnlyFarmSession()) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
     try {
       const clean: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(updates)) {
-        // null clears optional Firestore fields (e.g. resolvedAt on reopen)
+      for (const [key, value] of Object.entries(withStamp)) {
         if (value !== undefined) clean[key] = value;
       }
       await updateDoc(doc(db, `farms/${farmId}/issues`, id), clean);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `farms/${farmId}/issues`);
       if (isPermissionOrOfflineError(error)) {
-        console.warn('[fieldStore.updateIssue] Cloud update blocked; kept local copy');
+        console.warn('[fieldStore.updateIssue] Cloud update blocked; kept local/outbox copy');
         return;
       }
       throw error;

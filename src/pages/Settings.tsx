@@ -30,6 +30,7 @@ import { useAuth, OperationType, handleFirestoreError } from '../contexts/AuthCo
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { InvitePinManager } from '../components/InvitePinManager';
+import { OfflineSyncCard } from '../components/OfflineSyncCard';
 
 interface ModelParameters {
   blightSensitivity: number;
@@ -462,6 +463,8 @@ export function Settings() {
             </div>
 
             {isAdmin && <InvitePinManager />}
+
+            <OfflineSyncCard />
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-lg font-bold text-slate-900">User Preferences</h2>

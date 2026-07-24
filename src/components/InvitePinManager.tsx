@@ -1,67 +1,28 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { KeyRound, Loader2, Plus, Ban, Copy, Check, Share2 } from 'lucide-react';
 import {
+  MODULE_LABELS,
+  WORK_MODULES,
+  clampModulesToFarm,
+  presetsForFarm,
+  type FarmModuleId,
+  type ModulePreset,
+} from '../../shared/auth/farmModules';
+import {
   createInvitePin,
   listInvitePins,
   revokeInvitePin,
   type PinRole,
 } from '../lib/invitePinAuth';
-
-type Preset = {
-  id: string;
-  label: string;
-  role: PinRole;
-  pinLabel: string;
-  days: number | null;
-  maxUses: number | null;
-  blurb: string;
-};
-
-const PRESETS: Preset[] = [
-  {
-    id: 'worker',
-    label: 'Worker',
-    role: 'farmer',
-    pinLabel: 'Season worker',
-    days: 365,
-    maxUses: null,
-    blurb: 'Can view and edit farm data',
-  },
-  {
-    id: 'viewer',
-    label: 'Viewer',
-    role: 'viewer',
-    pinLabel: 'Viewer',
-    days: 365,
-    maxUses: null,
-    blurb: 'Read-only access',
-  },
-  {
-    id: 'admin',
-    label: 'Admin',
-    role: 'admin',
-    pinLabel: 'Farm admin',
-    days: 365,
-    maxUses: null,
-    blurb: 'Full access + can mint PINs',
-  },
-  {
-    id: 'oneday',
-    label: 'One-day guest',
-    role: 'viewer',
-    pinLabel: 'Guest (1 day)',
-    days: 1,
-    maxUses: 5,
-    blurb: 'Expires in 24 hours',
-  },
-];
+import { useAuth } from '../contexts/AuthContext';
+import { APP_INVITE_SUBJECT } from '../brand';
 
 function shareMessage(code: string, role: PinRole): string {
   return [
-    'PUFOM farm invite',
+    APP_INVITE_SUBJECT,
     '',
-    `1. Open the app and go to Sign in`,
-    `2. Enter your name (use the same name next time)`,
+    '1. Open the app and go to Sign in → Join a farm',
+    '2. Enter your name (use the same name next time)',
     `3. Enter this PIN: ${code}`,
     '',
     `Role: ${role}`,
@@ -69,7 +30,50 @@ function shareMessage(code: string, role: PinRole): string {
   ].join('\n');
 }
 
+function ModuleChecklist({
+  selected,
+  onChange,
+  disabled,
+  available,
+}: {
+  selected: FarmModuleId[];
+  onChange: (next: FarmModuleId[]) => void;
+  disabled?: boolean;
+  available: FarmModuleId[];
+}) {
+  const toggle = (id: FarmModuleId) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter((m) => m !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {available.map((id) => (
+        <label
+          key={id}
+          className="flex items-center gap-2 text-xs text-slate-700 px-2 py-1.5 rounded-lg border border-slate-100 bg-slate-50/80"
+        >
+          <input
+            type="checkbox"
+            checked={selected.includes(id)}
+            disabled={disabled}
+            onChange={() => toggle(id)}
+            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+          />
+          {MODULE_LABELS[id]}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
+  const { farmEnabledModules } = useAuth();
+  const farmPresets = presetsForFarm(farmEnabledModules);
+
   const [pins, setPins] = useState<Awaited<ReturnType<typeof listInvitePins>>>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -79,9 +83,20 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const [copied, setCopied] = useState<'code' | 'share' | null>(null);
   const [label, setLabel] = useState('Season worker');
   const [role, setRole] = useState<PinRole>('farmer');
+  const [modules, setModules] = useState<FarmModuleId[]>(() =>
+    clampModulesToFarm(WORK_MODULES, farmEnabledModules)
+  );
   const [maxUses, setMaxUses] = useState<string>('');
   const [days, setDays] = useState('365');
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    setModules((prev) => {
+      const next = clampModulesToFarm(prev.length ? prev : WORK_MODULES, farmEnabledModules);
+      if (next.length) return next;
+      return clampModulesToFarm(WORK_MODULES, farmEnabledModules);
+    });
+  }, [farmEnabledModules]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -102,6 +117,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const mint = async (input: {
     role: PinRole;
     label: string;
+    modules: FarmModuleId[];
     maxUses: number | null;
     expiresInDays: number | null;
   }) => {
@@ -122,29 +138,42 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   };
 
   const onCreate = async () => {
+    if (role !== 'admin' && modules.length === 0) {
+      setError('Select at least one module.');
+      return;
+    }
     await mint({
       role,
       label: label.trim() || 'Invite',
+      modules: role === 'admin' ? [...farmEnabledModules] : modules,
       maxUses: maxUses.trim() === '' ? null : Number(maxUses),
       expiresInDays: days.trim() === '' ? null : Number(days),
     });
   };
 
-  const onPreset = async (preset: Preset) => {
+  const onPreset = async (preset: ModulePreset) => {
     setLabel(preset.pinLabel);
     setRole(preset.role);
+    setModules([...preset.modules]);
     setDays(preset.days == null ? '' : String(preset.days));
     setMaxUses(preset.maxUses == null ? '' : String(preset.maxUses));
     await mint({
       role: preset.role,
       label: preset.pinLabel,
+      modules: [...preset.modules],
       maxUses: preset.maxUses,
       expiresInDays: preset.days,
     });
   };
 
   const onRevoke = async (pinId: string) => {
-    if (!confirm('Revoke this invite PIN? Existing signed-in users stay until they log out.')) return;
+    if (
+      !confirm(
+        'Revoke this invite PIN? New joins and return logins with this PIN will fail. Already signed-in users stay until you remove them from the team.'
+      )
+    ) {
+      return;
+    }
     try {
       await revokeInvitePin(pinId);
       await refresh();
@@ -176,7 +205,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
         <div>
           <h2 className="text-lg font-bold text-slate-900">Invite PINs</h2>
           <p className="text-sm text-slate-500">
-            Create a code, share it with staff. They sign in with their name + PIN and join this farm.
+            Create a code with role + modules, share it with staff. They join with name + PIN.
           </p>
         </div>
       </div>
@@ -215,7 +244,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quick create</p>
         <div className="grid grid-cols-2 gap-2">
-          {PRESETS.map((preset) => (
+          {farmPresets.map((preset) => (
             <button
               key={preset.id}
               type="button"
@@ -256,9 +285,9 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
                 onChange={(e) => setRole(e.target.value as PinRole)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
               >
-                <option value="viewer">Viewer</option>
-                <option value="farmer">Farmer</option>
-                <option value="admin">Admin</option>
+                <option value="viewer">Viewer (read-only)</option>
+                <option value="farmer">Farmer (can edit)</option>
+                <option value="admin">Admin (full + team)</option>
               </select>
             </div>
             <div className="space-y-1">
@@ -281,6 +310,18 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
               />
             </div>
           </div>
+
+          {role !== 'admin' && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-600">Modules</p>
+              <ModuleChecklist
+                selected={modules}
+                onChange={setModules}
+                disabled={creating}
+                available={farmEnabledModules}
+              />
+            </div>
+          )}
 
           <button
             type="button"
@@ -326,6 +367,11 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
                     {p.expiresAt ? ` · exp ${p.expiresAt.slice(0, 10)}` : ''}
                     {!p.active ? ' · revoked' : ''}
                   </p>
+                  {p.modules?.length > 0 && (
+                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                      {p.modules.map((m) => MODULE_LABELS[m] || m).join(' · ')}
+                    </p>
+                  )}
                 </div>
                 {p.active && (
                   <button

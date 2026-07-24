@@ -1,41 +1,61 @@
-# Invite PIN authentication (no Google)
+# Invite PIN authentication (multi-user farms)
 
-SentiNut signs users in with **farm invite PINs** minted by an admin. Firebase Auth custom tokens still back Firestore rules — Google OAuth is not used.
+PUFOM signs users in with **Firebase Auth custom tokens**. Orchard owners **create a farm in the app**, then mint **invite PINs** with a role and module list for workers.
 
-## Flow
+## Owner flow
 
-1. Admin creates a PIN (Settings → Invite PINs, or bootstrap script).
-2. Worker opens `/login`, enters **name + PIN**.
-3. Express `POST /api/auth/redeem-pin` validates the PIN (Admin SDK), creates/updates the Auth user, writes `users/{uid}` with `farmId` + role, returns a custom token.
-4. Client calls `signInWithCustomToken` — session persists until logout.
-5. Same **name + PIN** maps to the same UID (stable return login).
+1. Open `/login` → **Create a farm** → enter farm name + your name.
+2. Server creates `farms/{farmId}`, owner `users/{uid}` (`role: admin`, all modules), and an **owner recovery PIN** (shown once).
+3. Sign in completes after you save the recovery PIN.
+4. **Farm Management → Invite PINs**: mint worker codes (presets or custom role + modules).
+5. Share the plaintext PIN once. Revoke PINs or **Remove access** on a member anytime.
+
+## Worker flow
+
+1. `/login` → **Join a farm** → device lists **nearby farms** (GPS → `GET /api/auth/nearby-farms`).
+2. Tap a farm name (avoids spelling / language issues), enter name + PIN.
+3. Optional `expectedFarmId` on redeem rejects PINs for a different farm.
+4. `POST /api/auth/redeem-pin` validates the PIN, writes `users/{uid}` with `farmId`, `role`, `modules`, `authEpoch`, returns a custom token.
+5. Client `signInWithCustomToken` — session persists until logout or access revoke.
+6. Same **name + PIN** maps to the same UID (stable return login) while the PIN stays active.
+
+Owners stamp location on **Create a farm** (opt-in “show nearby”) or later via **Farm Management → Nearby discovery**. Public index: `farms_public/{farmId}` (name + coarse lat/lng/geohash only).
 
 PINs are stored as SHA-256 hashes in `access_pins/{hash}` (clients cannot read this collection).
 
-## First owner PIN (bootstrap)
+## Roles vs modules
 
-With your Firebase Admin service account under `secrets/` (or `GOOGLE_APPLICATION_CREDENTIALS`):
+| Role | Writes farm data | Team / mint PINs |
+|------|------------------|------------------|
+| `admin` | yes | yes (all **farm-enabled** modules) |
+| `farmer` | yes | no |
+| `viewer` | no (read-only) | no |
+
+**Farm catalog** (`farms/{farmId}.enabledModules`) — owner toggles in **Farm Management → Farm modules**. Always-on: dashboard, farm_management, farm_setup, settings. Optional: map, diary, blight, water, nutrition, harvest, financials. Missing field → all modules (backward compatible).
+
+**Worker grants** are a subset of the farm catalog. Nav uses `effectiveModules(role, user.modules, farm.enabledModules)`. Crop-specific tools (e.g. blight) can be turned off for non-walnut orchards.
+
+Platform `/admin` is not a farm module.
+
+## Revoke
+
+- **Revoke PIN** — `active: false`; blocks new joins and return login with that code.
+- **Remove access** (member) — clears farm membership, bumps `authEpoch`, sets custom claims, calls `revokeRefreshTokens`. Client listens on `users/{uid}` and signs out with “Access removed”.
+
+## Break-glass bootstrap (emergency only)
+
+Prefer in-app **Create a farm**. If Admin credentials are available and you must mint a PIN for an existing farm:
 
 ```powershell
-npx tsx scripts/createAccessPin.ts --farm farm_owner1 --role admin --label "Owner" --days 365
+npx tsx scripts/createAccessPin.ts --farm farm_xxxxx --role admin --label "Owner" --days 365
 ```
-
-Copy the printed `CODE`, open `http://localhost:3000/login`, enter your name + code.
-
-Then create more PINs from **Farm Management → Team & Access** (or Settings → Invite PINs) while signed in as admin.
-
-Staff join the **same farm** by signing in with name + PIN. Firestore rules treat `pinAuth` custom tokens as authorized farm members (email whitelist does not apply).
 
 ## Requirements
 
 - `npm run dev` (Express hosts `/api/auth/*` + Vite)
-- Service account JSON that can mint custom tokens for project `gen-lang-client-0444791425`
-- Named Firestore DB from `firebase-applet-config.json` (`firestoreDatabaseId`) is used automatically
-- Deploy updated `firestore.rules` so `access_pins` stays Admin-only: `firebase deploy --only firestore:rules`
-
-## Optional: disable Google in Firebase Console
-
-Authentication → Sign-in method → disable Google. Custom tokens do not require a provider to be enabled.
+- Service account JSON that can mint custom tokens
+- Deploy updated `firestore.rules` so viewers cannot write and `access_pins` stays Admin-only:
+  `firebase deploy --only firestore:rules`
 
 ## Workshop mode
 
@@ -45,5 +65,5 @@ Authentication → Sign-in method → disable Google. Custom tokens do not requi
 
 See **DEVELOPER_NOTES.md §4.1**. Summary:
 
-- **Now (implemented):** After first invite PIN sign-in, Firebase Auth IndexedDB persistence keeps the session. Reopen skips `/login` until logout / app-data wipe. Last display name is prefilled via `src/lib/deviceSession.ts`.
-- **Later:** Personal unlock PIN (or biometric) after auth / on return — invite PIN stays for first join only.
+- **Now:** After invite PIN / create-farm sign-in, Firebase Auth IndexedDB persistence keeps the session.
+- **Later:** Personal unlock PIN (or biometric) after auth / on return — invite PIN stays for first join / recovery.

@@ -17,13 +17,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { mapApi } from '../services/api';
 import { SafetyManagement } from '../components/SafetyManagement';
 import { InvitePinManager } from '../components/InvitePinManager';
+import { FarmDiscoveryCard } from '../components/FarmDiscoveryCard';
+import { FarmModulesCard } from '../components/FarmModulesCard';
 import {
   listFarmMembers,
   removeFarmMember,
-  updateFarmMemberRole,
+  updateFarmMember,
   type FarmMember,
   type PinRole,
 } from '../lib/invitePinAuth';
+import {
+  MODULE_LABELS,
+  type FarmModuleId,
+} from '../../shared/auth/farmModules';
 import { clsx } from 'clsx';
 
 function memberSubtitle(member: FarmMember): string {
@@ -34,7 +40,7 @@ function memberSubtitle(member: FarmMember): string {
 }
 
 export function FarmManagement() {
-  const { userData } = useAuth();
+  const { userData, farmEnabledModules } = useAuth();
   const farmId = userData?.farmId;
   const isAdmin = userData?.role === 'admin';
   
@@ -65,6 +71,7 @@ export function FarmManagement() {
             email: m.email || null,
             role: (m.role || 'farmer') as PinRole,
             farmId: m.farmId || farmId,
+            modules: (m.modules || []) as FarmModuleId[],
             authMethod: m.authMethod || null,
             createdAt: m.createdAt || null,
           }))
@@ -119,14 +126,20 @@ export function FarmManagement() {
   };
 
   const handleRemoveMember = async (targetUid: string) => {
-    if (!window.confirm("Remove this member from the farm? They will lose access until invited again.")) return;
+    if (
+      !window.confirm(
+        'Remove access for this person? Their session will end and they cannot return until you mint a new invite PIN.'
+      )
+    ) {
+      return;
+    }
     setIsUpdating(targetUid);
     try {
       await removeFarmMember(targetUid);
-      setMembers(prev => prev.filter(m => m.uid !== targetUid));
+      setMembers((prev) => prev.filter((m) => m.uid !== targetUid));
     } catch (error) {
-      console.error("Failed to remove member:", error);
-      alert(error instanceof Error ? error.message : "Failed to remove member.");
+      console.error('Failed to remove member:', error);
+      alert(error instanceof Error ? error.message : 'Failed to remove member.');
     } finally {
       setIsUpdating(null);
     }
@@ -135,11 +148,45 @@ export function FarmManagement() {
   const handleUpdateRole = async (targetUid: string, newRole: PinRole) => {
     setIsUpdating(targetUid);
     try {
-      await updateFarmMemberRole(targetUid, newRole);
-      setMembers(prev => prev.map(m => m.uid === targetUid ? { ...m, role: newRole } : m));
+      await updateFarmMember(targetUid, { role: newRole });
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.uid === targetUid
+            ? {
+                ...m,
+                role: newRole,
+                modules: newRole === 'admin' ? [...farmEnabledModules] : m.modules,
+              }
+            : m
+        )
+      );
     } catch (error) {
-      console.error("Failed to update role:", error);
-      alert(error instanceof Error ? error.message : "Failed to update role.");
+      console.error('Failed to update role:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update role.');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleToggleMemberModule = async (member: FarmMember, moduleId: FarmModuleId) => {
+    if (member.role === 'admin') return;
+    const has = member.modules?.includes(moduleId);
+    const next = has
+      ? (member.modules || []).filter((m) => m !== moduleId)
+      : [...(member.modules || []), moduleId];
+    if (next.length === 0) {
+      alert('Keep at least one module, or remove their access instead.');
+      return;
+    }
+    setIsUpdating(member.uid);
+    try {
+      await updateFarmMember(member.uid, { modules: next });
+      setMembers((prev) =>
+        prev.map((m) => (m.uid === member.uid ? { ...m, modules: next } : m))
+      );
+    } catch (error) {
+      console.error('Failed to update modules:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update modules.');
     } finally {
       setIsUpdating(null);
     }
@@ -266,49 +313,96 @@ export function FarmManagement() {
                     </div>
                   )}
                   {members.map((member) => (
-                    <div key={member.uid} className="p-8 sm:p-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
-                      <div className="flex items-center gap-6">
-                        <div className="w-14 h-14 rounded-[20px] bg-slate-100 overflow-hidden border-2 border-white shadow-sm flex items-center justify-center text-slate-300">
-                          <Users className="w-7 h-7" />
+                    <div
+                      key={member.uid}
+                      className="p-8 sm:p-10 flex flex-col gap-4 hover:bg-slate-50/50 transition-colors"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-6">
+                          <div className="w-14 h-14 rounded-[20px] bg-slate-100 overflow-hidden border-2 border-white shadow-sm flex items-center justify-center text-slate-300">
+                            <Users className="w-7 h-7" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 text-lg">
+                              {member.displayName || 'Anonymous User'}
+                            </p>
+                            <p className="text-sm text-slate-400 font-medium">{memberSubtitle(member)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-lg">{member.displayName || 'Anonymous User'}</p>
-                          <p className="text-sm text-slate-400 font-medium">{memberSubtitle(member)}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        {isAdmin && member.uid !== userData?.uid ? (
-                          <div className="flex items-center gap-3">
-                            <select
-                              value={member.role}
-                              onChange={(e) => handleUpdateRole(member.uid, e.target.value as PinRole)}
-                              disabled={isUpdating === member.uid}
+                        <div className="flex items-center gap-6">
+                          {isAdmin && member.uid !== userData?.uid ? (
+                            <div className="flex items-center gap-3">
+                              <select
+                                value={member.role}
+                                onChange={(e) => handleUpdateRole(member.uid, e.target.value as PinRole)}
+                                disabled={isUpdating === member.uid}
+                                className={clsx(
+                                  'px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border outline-none cursor-pointer disabled:opacity-50',
+                                  member.role === 'admin'
+                                    ? 'bg-amber-50 text-amber-600 border-amber-100'
+                                    : 'bg-slate-50 text-slate-500 border-slate-100'
+                                )}
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="farmer">Farmer</option>
+                                <option value="viewer">Viewer</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveMember(member.uid)}
+                                disabled={isUpdating === member.uid}
+                                title="Remove access"
+                                className="p-3 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all disabled:opacity-50"
+                              >
+                                {isUpdating === member.uid ? (
+                                  <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-5 h-5" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span
                               className={clsx(
-                                "px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border outline-none cursor-pointer disabled:opacity-50",
-                                member.role === 'admin' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-slate-50 text-slate-500 border-slate-100"
+                                'px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border',
+                                member.role === 'admin'
+                                  ? 'bg-amber-50 text-amber-600 border-amber-100'
+                                  : 'bg-slate-50 text-slate-500 border-slate-100'
                               )}
                             >
-                              <option value="admin">Admin</option>
-                              <option value="farmer">Farmer</option>
-                              <option value="viewer">Viewer</option>
-                            </select>
-                            <button 
-                              onClick={() => handleRemoveMember(member.uid)}
-                              disabled={isUpdating === member.uid}
-                              className="p-3 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all disabled:opacity-50"
-                            >
-                              {isUpdating === member.uid ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                            </button>
-                          </div>
-                        ) : (
-                          <span className={clsx(
-                            "px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                            member.role === 'admin' ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-slate-50 text-slate-500 border-slate-100"
-                          )}>
-                            {member.role}
-                          </span>
-                        )}
+                              {member.role}
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      {isAdmin && member.uid !== userData?.uid && member.role !== 'admin' && (
+                        <div className="pl-0 sm:pl-20 flex flex-wrap gap-2">
+                          {farmEnabledModules.map((id) => {
+                            const on = member.modules?.includes(id);
+                            return (
+                              <button
+                                key={id}
+                                type="button"
+                                disabled={isUpdating === member.uid}
+                                onClick={() => void handleToggleMemberModule(member, id)}
+                                className={clsx(
+                                  'px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors disabled:opacity-50',
+                                  on
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-white text-slate-400 border-slate-200'
+                                )}
+                              >
+                                {MODULE_LABELS[id]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {member.role === 'admin' && (
+                        <p className="pl-0 sm:pl-20 text-[11px] text-slate-400">
+                          Admins get every module enabled for this farm.
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -317,7 +411,11 @@ export function FarmManagement() {
 
             <div className="lg:col-span-4 space-y-8">
               {isAdmin ? (
-                <InvitePinManager onCreated={() => void loadMembers()} />
+                <>
+                  <FarmModulesCard />
+                  <FarmDiscoveryCard />
+                  <InvitePinManager onCreated={() => void loadMembers()} />
+                </>
               ) : (
                 <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-3">
                   <div className="flex items-center gap-2 text-slate-800 font-semibold">

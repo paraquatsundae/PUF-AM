@@ -319,7 +319,7 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                   </button>
                 )}
                 <p className="text-[10px] text-slate-400 text-center">
-                  Search powered by OpenStreetMap Nominatim · PUFOM farm map
+                  Search powered by OpenStreetMap Nominatim · PUFAM farm map
                 </p>
               </>
             )}

@@ -3,6 +3,12 @@ import { BookOpen, ClipboardList, Flag, Loader2, Snowflake, X } from 'lucide-rea
 import type { OrchardBlock } from '../../lib/mapStore';
 import { resolveCultivarTarget } from '../../lib/chillPortions';
 import { cn } from '../../lib/utils';
+import {
+  areaWordForCropKind,
+  getEnterprise,
+  isTreeCropKind,
+  type FarmEnterpriseId,
+} from '../../../shared/farm/farmTypes';
 
 export type ChillDisplay = {
   portions: number | null;
@@ -29,19 +35,28 @@ export function BlockOperateCard({
   onViewIssues,
   onReportIssue,
 }: Props) {
+  const tree = isTreeCropKind(block.cropKind);
   const cultivar = resolveCultivarTarget(block.cultivar);
   const met =
     chill.portions != null && chill.portions >= cultivar.requiredCP;
+  const subtitle = tree
+    ? [block.species, block.cultivar?.trim() || null].filter(Boolean).join(' · ') ||
+      'Species not set'
+    : block.seasonLabel ||
+      block.cultivar?.trim() ||
+      (block.cropKind
+        ? getEnterprise(block.cropKind as FarmEnterpriseId).label
+        : 'Crop not set');
 
   return (
     <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
       <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-2">
         <div className="min-w-0">
           <h3 className="text-base font-bold text-slate-900 truncate">
-            {block.name || 'Unnamed block'}
+            {block.name || `Unnamed ${areaWordForCropKind(block.cropKind)}`}
             <span className="font-semibold text-slate-500">
               {' · '}
-              {block.cultivar?.trim() || cultivar.name}
+              {subtitle}
             </span>
           </h3>
           {typeof block.areaHa === 'number' && (
@@ -76,46 +91,48 @@ export function BlockOperateCard({
           </span>
         </button>
 
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-sm gap-3">
-            <span className="inline-flex items-center gap-2 text-slate-600">
-              <Snowflake className="w-4 h-4 text-sky-600" />
-              Chill portions
-            </span>
-            {chill.loading ? (
-              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Loading…
+        {tree ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm gap-3">
+              <span className="inline-flex items-center gap-2 text-slate-600">
+                <Snowflake className="w-4 h-4 text-sky-600" />
+                Chill portions
               </span>
-            ) : chill.error ? (
-              <span className="text-xs font-semibold text-rose-600">Unavailable</span>
-            ) : (
-              <span
-                className={cn(
-                  'font-bold font-mono tabular-nums',
-                  met ? 'text-emerald-700' : 'text-slate-900'
-                )}
-              >
-                {chill.portions ?? '—'}/{cultivar.requiredCP}
-              </span>
-            )}
+              {chill.loading ? (
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Loading…
+                </span>
+              ) : chill.error ? (
+                <span className="text-xs font-semibold text-rose-600">Unavailable</span>
+              ) : (
+                <span
+                  className={cn(
+                    'font-bold font-mono tabular-nums',
+                    met ? 'text-emerald-700' : 'text-slate-900'
+                  )}
+                >
+                  {chill.portions ?? '—'}/{cultivar.requiredCP}
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-400 leading-snug">
+              {chill.error
+                ? chill.error
+                : [
+                    chill.stationName ? `DPIRD ${chill.stationName}` : null,
+                    chill.seasonLabel,
+                    cultivar.sourceKind === 'ucanr'
+                      ? 'Req: UCANR'
+                      : cultivar.sourceKind === 'luedeling'
+                        ? 'Req: Luedeling 2009'
+                        : 'Req: estimate',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+            </p>
           </div>
-          <p className="text-[10px] text-slate-400 leading-snug">
-            {chill.error
-              ? chill.error
-              : [
-                  chill.stationName ? `DPIRD ${chill.stationName}` : null,
-                  chill.seasonLabel,
-                  cultivar.sourceKind === 'ucanr'
-                    ? 'Req: UCANR'
-                    : cultivar.sourceKind === 'luedeling'
-                      ? 'Req: Luedeling 2009'
-                      : 'Req: estimate',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-          </p>
-        </div>
+        ) : null}
       </div>
 
       <div className="border-t border-slate-100 px-4 py-3 bg-slate-50/80 flex items-center justify-between gap-3">

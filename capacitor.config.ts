@@ -14,12 +14,14 @@ const liveServerUrl =
     ? undefined
     : (process.env.CAP_SERVER_URL || 'http://10.0.2.2:3000').trim() || undefined;
 
+// Live LAN/emulator reload uses cleartext HTTP. androidScheme must be "http" too —
+// "https" + server.url http://192.168.x.x leaves a blank WebView (Chrome still works).
 const config: CapacitorConfig = {
   appId: 'com.sentinut.farm',
-  appName: 'PUFOM',
+  appName: 'PUFAM',
   webDir: 'dist',
   server: {
-    androidScheme: 'https',
+    androidScheme: liveServerUrl ? 'http' : 'https',
     cleartext: true,
     ...(liveServerUrl ? { url: liveServerUrl } : {}),
   },

@@ -1,0 +1,228 @@
+/**
+ * Workshop LAN peer shelf for .pufom bundles.
+ * Devices on the same Wi‑Fi push/pull via the Express host (PC running npm run dev).
+ */
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import type { Express, Request, Response } from 'express';
+import { getAdminAuth, getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
+import {
+  getSelfPeer,
+  listLanIpv4,
+  listPufomPeers,
+  refreshPufomMdnsBrowse,
+} from './mdnsHub.ts';
+
+type ShelfEntry = {
+  farmId: string;
+  bytes: Buffer;
+  updatedAt: string;
+  exportedAt?: string;
+  uploadedBy: string;
+};
+
+const shelf = new Map<string, ShelfEntry>();
+
+function shelfDir(): string {
+  const dir = join(process.cwd(), 'tmp', 'lan-sync');
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function shelfPath(farmId: string): string {
+  const safe = farmId.replace(/[^\w\-]+/g, '_');
+  return join(shelfDir(), `${safe}.pufom`);
+}
+
+function persist(entry: ShelfEntry): void {
+  try {
+    writeFileSync(shelfPath(entry.farmId), entry.bytes);
+    writeFileSync(
+      `${shelfPath(entry.farmId)}.meta.json`,
+      JSON.stringify({
+        farmId: entry.farmId,
+        updatedAt: entry.updatedAt,
+        exportedAt: entry.exportedAt,
+        uploadedBy: entry.uploadedBy,
+        bytes: entry.bytes.length,
+      })
+    );
+  } catch (e) {
+    console.warn('[lan-sync] persist failed', e);
+  }
+}
+
+function loadFromDisk(farmId: string): ShelfEntry | null {
+  const path = shelfPath(farmId);
+  if (!existsSync(path)) return null;
+  try {
+    const bytes = readFileSync(path);
+    let meta: Partial<ShelfEntry> = {};
+    const metaPath = `${path}.meta.json`;
+    if (existsSync(metaPath)) {
+      meta = JSON.parse(readFileSync(metaPath, 'utf8')) as Partial<ShelfEntry>;
+    }
+    return {
+      farmId,
+      bytes,
+      updatedAt: meta.updatedAt || new Date().toISOString(),
+      exportedAt: meta.exportedAt,
+      uploadedBy: meta.uploadedBy || 'unknown',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getEntry(farmId: string): ShelfEntry | null {
+  return shelf.get(farmId) || loadFromDisk(farmId);
+}
+
+async function verifyFarmMember(req: Request, farmId: string): Promise<{ uid: string }> {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!token) {
+    throw Object.assign(new Error('Missing Authorization bearer token'), { status: 401 });
+  }
+  if (!isAdminSdkReady()) {
+    throw Object.assign(new Error('Firebase Admin not configured'), { status: 503 });
+  }
+  const decoded = await getAdminAuth().verifyIdToken(token);
+  const claimFarm =
+    typeof decoded.farmId === 'string' ? decoded.farmId : undefined;
+  if (claimFarm === farmId) return { uid: decoded.uid };
+
+  const userSnap = await getAdminDb().collection('users').doc(decoded.uid).get();
+  if (userSnap.exists && userSnap.data()?.farmId === farmId) {
+    return { uid: decoded.uid };
+  }
+  throw Object.assign(new Error('Not a member of this farm'), { status: 403 });
+}
+
+export function registerLanSyncRoutes(app: Express): void {
+  /** This hub's mDNS identity + LAN IPs (no auth — used before / after sign-in). */
+  app.get('/api/sync/self', (_req: Request, res: Response) => {
+    const self = getSelfPeer();
+    return res.json({
+      mdnsType: 'pufom-sync',
+      self,
+      lanIpv4: listLanIpv4(),
+      mdnsEnabled: Boolean(self),
+    });
+  });
+
+  /** Browse for other PUFOM sync hubs on the LAN (mDNS). */
+  app.get('/api/sync/peers', async (req: Request, res: Response) => {
+    try {
+      const waitMs = Math.min(5000, Math.max(500, Number(req.query.waitMs) || 2500));
+      const peers = await refreshPufomMdnsBrowse(waitMs);
+      return res.json({
+        peers: peers.length ? peers : listPufomPeers(),
+        scannedAt: new Date().toISOString(),
+        waitMs,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'Peer scan failed',
+        peers: listPufomPeers(),
+      });
+    }
+  });
+
+  // Raw body for binary .pufom upload (must be before json parser for this path — use verify)
+  app.post(
+    '/api/sync/lan/:farmId',
+    expressRawMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const farmId = String(req.params.farmId || '');
+        if (!farmId) return res.status(400).json({ error: 'farmId required' });
+        const { uid } = await verifyFarmMember(req, farmId);
+
+        const body = req.body as Buffer | undefined;
+        if (!body || !Buffer.isBuffer(body) || body.length < 8) {
+          return res.status(400).json({ error: 'Expected raw .pufom body' });
+        }
+        if (body.length > 40 * 1024 * 1024) {
+          return res.status(413).json({ error: 'Bundle too large (max 40 MB)' });
+        }
+
+        const entry: ShelfEntry = {
+          farmId,
+          bytes: body,
+          updatedAt: new Date().toISOString(),
+          uploadedBy: uid,
+        };
+        shelf.set(farmId, entry);
+        persist(entry);
+        return res.json({
+          ok: true,
+          farmId,
+          bytes: body.length,
+          updatedAt: entry.updatedAt,
+        });
+      } catch (error: unknown) {
+        const status = (error as { status?: number })?.status || 500;
+        return res.status(status).json({
+          error: error instanceof Error ? error.message : 'LAN push failed',
+        });
+      }
+    }
+  );
+
+  app.get('/api/sync/lan/:farmId/meta', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      await verifyFarmMember(req, farmId);
+      const entry = getEntry(farmId);
+      if (!entry) return res.status(404).json({ error: 'No LAN bundle for this farm yet' });
+      if (!shelf.has(farmId)) shelf.set(farmId, entry);
+      return res.json({
+        farmId,
+        updatedAt: entry.updatedAt,
+        exportedAt: entry.exportedAt,
+        bytes: entry.bytes.length,
+        uploadedBy: entry.uploadedBy,
+      });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'LAN meta failed',
+      });
+    }
+  });
+
+  app.get('/api/sync/lan/:farmId', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      await verifyFarmMember(req, farmId);
+      const entry = getEntry(farmId);
+      if (!entry) return res.status(404).json({ error: 'No LAN bundle for this farm yet' });
+      if (!shelf.has(farmId)) shelf.set(farmId, entry);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${farmId}.pufom"`);
+      res.setHeader('X-Pufom-Updated-At', entry.updatedAt);
+      return res.send(entry.bytes);
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'LAN pull failed',
+      });
+    }
+  });
+}
+
+/** Capture raw body for this route only. */
+function expressRawMiddleware(req: Request, res: Response, next: (err?: unknown) => void): void {
+  if (req.readableEnded || Buffer.isBuffer(req.body)) {
+    next();
+    return;
+  }
+  const chunks: Buffer[] = [];
+  req.on('data', (chunk: Buffer) => chunks.push(chunk));
+  req.on('end', () => {
+    req.body = Buffer.concat(chunks);
+    next();
+  });
+  req.on('error', next);
+}
