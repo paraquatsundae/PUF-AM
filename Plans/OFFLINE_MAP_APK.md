@@ -86,6 +86,15 @@ Public downloads come from **GitHub Releases**, not PUFworks-site `public/downlo
 | Latest URL | https://github.com/paraquatsundae/PUF-AM/releases/latest |
 | Baked API URL | `https://am.pufworks.farm` |
 
+**Required secret (Firebase client config):** `firebase-applet-config.json` is gitignored and imported by `src/firebase.ts`. CI writes it from repo secret `FIREBASE_APPLET_CONFIG` (raw JSON) before `vite build`:
+
+```powershell
+cd C:\Projects\Walnut_farm_manager
+gh secret set FIREBASE_APPLET_CONFIG --repo paraquatsundae/PUF-AM < firebase-applet-config.json
+```
+
+(Locally: `cp firebase-applet-config.example.json firebase-applet-config.json` and fill values.)
+
 **Windows — dispatch a build:**
 
 ```powershell

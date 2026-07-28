@@ -22,6 +22,7 @@
    ```
 3. Ensure billing is enabled on that project (Cloud Run requires it).
 4. Keep `firebase-applet-config.json` locally (not committed).
+5. For **GitHub Actions APK builds**, set repo secret `FIREBASE_APPLET_CONFIG` to that file’s JSON (see [Android APK releases](#android-apk-releases-github-actions) below). The web client config is typically non-secret (apiKey domain-restricted) but stays out of git.
 
 ## Deploy
 
@@ -120,6 +121,14 @@ Workflow: [`.github/workflows/release-apk.yml`](../.github/workflows/release-apk
 Default artefact name on the release: **`PUFAM.apk`**.
 
 Site download button: `https://github.com/paraquatsundae/PUF-AM/releases/latest`
+
+### Firebase config secret (required)
+
+`src/firebase.ts` imports `../firebase-applet-config.json`, which is gitignored. The workflow writes it from **`FIREBASE_APPLET_CONFIG`** before `vite build`:
+
+```powershell
+gh secret set FIREBASE_APPLET_CONFIG --repo paraquatsundae/PUF-AM < firebase-applet-config.json
+```
 
 ### Trigger from GitHub UI
 

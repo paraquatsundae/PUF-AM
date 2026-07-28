@@ -67,6 +67,21 @@ jobs:
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      # firebase-applet-config.json is gitignored; Vite imports it from src/firebase.ts.
+      # Web client config is non-secret (apiKey restricted by domain) but still not committed.
+      - name: Write Firebase applet config
+        env:
+          FIREBASE_APPLET_CONFIG: ${{ secrets.FIREBASE_APPLET_CONFIG }}
+        shell: bash
+        run: |
+          if [ -z "$FIREBASE_APPLET_CONFIG" ]; then
+            echo "::error::Repo secret FIREBASE_APPLET_CONFIG is missing. Set it to the JSON contents of firebase-applet-config.json (see Plans/OFFLINE_MAP_APK.md)."
+            exit 1
+          fi
+          printf '%s\n' "$FIREBASE_APPLET_CONFIG" > firebase-applet-config.json
+          # Validate JSON without printing contents
+          node -e "JSON.parse(require('fs').readFileSync('firebase-applet-config.json','utf8')); console.log('firebase-applet-config.json written (valid JSON)')"
+
       - name: Vite + Capacitor sync (packaged, points at live app)
         env:
           VITE_CAPACITOR: '1'
