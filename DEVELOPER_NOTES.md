@@ -8,11 +8,13 @@
 
 | Name | Role |
 |------|------|
-| **PUFAM** / **PUFAM — Ag Manager** | User-facing product name (Login, shell, About, Capacitor `appName`, HTML title). Source: `src/brand.ts`. |
-| **PUFOM** | Legacy / wire protocol brand: `.pufom` bundles, `PUFOM1` magic, mDNS `_pufom-sync._tcp`, keys `pufom_*`, Cloud Run service `pufom-…`. Do **not** rename casually — breaks LAN sync & installs. |
-| **walnut-farm-manager** | npm `package.json` `name` and GitHub folder — technical only. |
+| **PUF-AM** / **PUF-AM — Ag Manager** | User-facing display name (Login, shell header, About, Capacitor `appName`, HTML title). Source: `src/brand.ts`. |
+| **PUF-AM** (GitHub) | Active repo: [paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM). Local clone folder may remain `Walnut_farm_manager` — do not require renaming the directory. |
+| **PUFOM** | Legacy / wire protocol brand: `.pufom` bundles, `PUFOM1` magic, mDNS `_pufom-sync._tcp`, keys `pufom_*`, Cloud Run service `pufom-…`. Unchanged — do **not** rename casually. |
+| **walnut-farm-manager** | npm `package.json` `name` — technical id only; leave as-is so scripts stay stable. |
 | **com.sentinut.farm** | Capacitor / Android `appId` — keep for install continuity. |
 | **sentinut_*** | localStorage / IndexedDB key prefixes — keep for data continuity. |
+| **Walnut-Farm-Manager** (archived) | Legacy GitHub repo [paraquatsundae/Walnut-Farm-Manager](https://github.com/paraquatsundae/Walnut-Farm-Manager) — archived; not the active remote. |
 
 Full rename plan: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
 

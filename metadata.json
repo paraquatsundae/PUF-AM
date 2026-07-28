@@ -1,6 +1,6 @@
 {
-  "name": "PUFAM",
-  "description": "PUFAM — Ag Manager (PUF workshop). Farm mapping, diary, blight risk, drying logistics, and multi-user team coordination for mixed enterprises.",
+  "name": "PUF-AM",
+  "description": "PUF-AM — Ag Manager (PUF workshop). Farm mapping, diary, blight risk, drying logistics, and multi-user team coordination for mixed enterprises.",
   "requestFramePermissions": [
     "camera",
     "geolocation"
