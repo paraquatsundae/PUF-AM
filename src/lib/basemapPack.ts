@@ -62,29 +62,92 @@ export type BasemapPack = {
 };
 
 const DB_NAME = 'sentinut_basemap';
-const DB_VERSION = 1;
+/** v2: tiles shared across farms by z/x/y so overlapping downloads do not duplicate storage. */
+const DB_VERSION = 2;
 const PACKS_STORE = 'basemap_packs';
 const TILES_STORE = 'basemap_tiles';
+
+type TileRow = {
+  key: string;
+  farmId?: string;
+  z: number;
+  x: number;
+  y: number;
+  blob: Blob;
+};
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error ?? new Error('IndexedDB open failed'));
     req.onsuccess = () => resolve(req.result);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
+      const oldVersion = event.oldVersion;
       if (!db.objectStoreNames.contains(PACKS_STORE)) {
         db.createObjectStore(PACKS_STORE, { keyPath: 'farmId' });
       }
       if (!db.objectStoreNames.contains(TILES_STORE)) {
-        // key: `${farmId}/${z}/${x}/${y}`
+        // key: `${z}/${x}/${y}` (shared). Legacy v1 used `${farmId}/${z}/${x}/${y}`.
         db.createObjectStore(TILES_STORE, { keyPath: 'key' });
+      }
+      if (oldVersion < 2 && db.objectStoreNames.contains(TILES_STORE)) {
+        const tx = (event.target as IDBOpenDBRequest).transaction;
+        if (!tx) return;
+        const store = tx.objectStore(TILES_STORE);
+        // Collect first so we can dedupe safely inside the upgrade transaction.
+        const pending: TileRow[] = [];
+        const cursorReq = store.openCursor();
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
+          if (cursor) {
+            pending.push(cursor.value as TileRow);
+            cursor.continue();
+            return;
+          }
+          const seen = new Set<string>();
+          for (const row of pending) {
+            const legacy = parseLegacyTileKey(row.key);
+            if (!legacy) {
+              seen.add(row.key);
+              continue;
+            }
+            const sharedKey = sharedTileKey(legacy.z, legacy.x, legacy.y);
+            store.delete(row.key);
+            if (seen.has(sharedKey)) continue;
+            seen.add(sharedKey);
+            store.put({
+              key: sharedKey,
+              z: legacy.z,
+              x: legacy.x,
+              y: legacy.y,
+              blob: row.blob,
+            });
+          }
+        };
       }
     };
   });
 }
 
-function tileKey(farmId: string, z: number, x: number, y: number): string {
+/** Shared cache key — one blob per Esri tile for the whole device. */
+export function sharedTileKey(z: number, x: number, y: number): string {
+  return `${z}/${x}/${y}`;
+}
+
+function parseLegacyTileKey(
+  key: string
+): { farmId: string; z: number; x: number; y: number } | null {
+  const parts = key.split('/');
+  if (parts.length !== 4) return null;
+  const z = Number(parts[1]);
+  const x = Number(parts[2]);
+  const y = Number(parts[3]);
+  if (![z, x, y].every((n) => Number.isInteger(n))) return null;
+  return { farmId: parts[0], z, x, y };
+}
+
+function legacyTileKey(farmId: string, z: number, x: number, y: number): string {
   return `${farmId}/${z}/${x}/${y}`;
 }
 
@@ -118,8 +181,9 @@ export async function putTile(
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(TILES_STORE, 'readwrite');
+    // Shared key — farmId kept only for debugging / legacy readers.
     tx.objectStore(TILES_STORE).put({
-      key: tileKey(farmId, z, x, y),
+      key: sharedTileKey(z, x, y),
       farmId,
       z,
       x,
@@ -149,36 +213,149 @@ export async function getTileBlob(
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(TILES_STORE, 'readonly');
-    const req = tx.objectStore(TILES_STORE).get(tileKey(farmId, z, x, y));
+    const store = tx.objectStore(TILES_STORE);
+    const sharedReq = store.get(sharedTileKey(z, x, y));
+    sharedReq.onsuccess = () => {
+      const shared = sharedReq.result as TileRow | undefined;
+      if (shared?.blob) {
+        resolve(shared.blob);
+        return;
+      }
+      // Pre-v2 rows keyed by farmId/z/x/y
+      const legacyReq = store.get(legacyTileKey(farmId, z, x, y));
+      legacyReq.onsuccess = () => {
+        const legacy = legacyReq.result as TileRow | undefined;
+        resolve(legacy?.blob ?? null);
+      };
+      legacyReq.onerror = () => reject(legacyReq.error);
+    };
+    sharedReq.onerror = () => reject(sharedReq.error);
+  });
+}
+
+/** All pack metadata currently on this device (any farm). */
+export async function listBasemapPacks(): Promise<BasemapPack[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PACKS_STORE, 'readonly');
+    const req = tx.objectStore(PACKS_STORE).getAll();
     req.onsuccess = () => {
-      const row = req.result as { blob?: Blob } | undefined;
-      resolve(row?.blob ?? null);
+      const packs = (req.result as BasemapPack[]) ?? [];
+      packs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      resolve(packs);
     };
     req.onerror = () => reject(req.error);
   });
 }
 
-/** Delete pack metadata and all tiles for a farm. */
-export async function clearBasemapPack(farmId: string): Promise<void> {
+export type BasemapDeviceStats = {
+  packCount: number;
+  tileCount: number;
+  bytes: number;
+  packs: BasemapPack[];
+};
+
+/** Scan IndexedDB for every offline map pack + total tile storage. */
+export async function scanBasemapDeviceStorage(): Promise<BasemapDeviceStats> {
+  const packs = await listBasemapPacks();
+  const db = await openDb();
+  const { tileCount, bytes } = await new Promise<{ tileCount: number; bytes: number }>(
+    (resolve, reject) => {
+      let tileCount = 0;
+      let bytes = 0;
+      const tx = db.transaction(TILES_STORE, 'readonly');
+      const cursorReq = tx.objectStore(TILES_STORE).openCursor();
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result;
+        if (!cursor) {
+          resolve({ tileCount, bytes });
+          return;
+        }
+        const row = cursor.value as TileRow;
+        tileCount += 1;
+        bytes += row.blob?.size ?? 0;
+        cursor.continue();
+      };
+      cursorReq.onerror = () => reject(cursorReq.error);
+    }
+  );
+  return { packCount: packs.length, tileCount, bytes, packs };
+}
+
+/**
+ * Point the current farm at an existing on-device pack without re-downloading.
+ * Tiles are shared, so this only writes pack metadata for `targetFarmId`.
+ */
+export async function adoptBasemapPack(
+  source: BasemapPack,
+  targetFarmId: string
+): Promise<BasemapPack> {
+  if (!targetFarmId) throw new Error('Missing farm id');
+  const pack: BasemapPack = {
+    ...source,
+    farmId: targetFarmId,
+    createdAt: new Date().toISOString(),
+  };
+  await saveBasemapPack(pack);
+  return pack;
+}
+
+/** Build the set of shared tile keys required by the given packs. */
+export function tileKeysForPacks(packs: BasemapPack[]): Set<string> {
+  const keys = new Set<string>();
+  for (const pack of packs) {
+    for (const t of enumerateTiles(pack.bbox, pack.minZoom, pack.maxZoom)) {
+      keys.add(sharedTileKey(t.z, t.x, t.y));
+    }
+  }
+  return keys;
+}
+
+/**
+ * Delete tiles not required by any remaining pack.
+ * Call after removing a pack so storage can shrink when areas no longer overlap.
+ */
+export async function purgeUnusedBasemapTiles(): Promise<{ removed: number }> {
+  const packs = await listBasemapPacks();
+  const needed = tileKeysForPacks(packs);
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction([PACKS_STORE, TILES_STORE], 'readwrite');
-    tx.objectStore(PACKS_STORE).delete(farmId);
-
-    const tileStore = tx.objectStore(TILES_STORE);
-    const cursorReq = tileStore.openCursor();
+    let removed = 0;
+    const tx = db.transaction(TILES_STORE, 'readwrite');
+    const store = tx.objectStore(TILES_STORE);
+    const cursorReq = store.openCursor();
     cursorReq.onsuccess = () => {
       const cursor = cursorReq.result;
       if (!cursor) return;
-      const value = cursor.value as { farmId?: string };
-      if (value.farmId === farmId) {
+      const row = cursor.value as TileRow;
+      const legacy = parseLegacyTileKey(row.key);
+      const sharedKey = legacy
+        ? sharedTileKey(legacy.z, legacy.x, legacy.y)
+        : row.key;
+      if (!needed.has(sharedKey)) {
         cursor.delete();
+        removed += 1;
       }
       cursor.continue();
     };
+    tx.oncomplete = () => resolve({ removed });
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/**
+ * Remove this farm's pack metadata, then purge tiles no other pack still needs.
+ * Overlapping imagery used by another farm stays on the device.
+ */
+export async function clearBasemapPack(farmId: string): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(PACKS_STORE, 'readwrite');
+    tx.objectStore(PACKS_STORE).delete(farmId);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+  await purgeUnusedBasemapTiles();
 }
 
 /** Expand a WGS84 point to a square bbox (half-extent in metres). */

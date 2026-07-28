@@ -25,19 +25,22 @@ import {
 import { decodePufomBlob, encodePufomBundle } from './pufomCodec';
 import { auth } from '../firebase';
 import { syncApiUrl } from './mdnsPeers';
+import { pendingPhotoCount } from './photoOutbox';
 
 export type SyncPendingCounts = {
   outbox: number;
   geometry: number;
+  photos: number;
   total: number;
 };
 
 export async function getSyncPendingCounts(farmId: string): Promise<SyncPendingCounts> {
-  const [outbox, geometry] = await Promise.all([
+  const [outbox, geometry, photos] = await Promise.all([
     pendingOutboxCount(farmId),
     listPending(farmId).then((p) => p.length),
+    pendingPhotoCount(farmId),
   ]);
-  return { outbox, geometry, total: outbox + geometry };
+  return { outbox, geometry, photos, total: outbox + geometry + photos };
 }
 
 export async function buildPufomBundle(

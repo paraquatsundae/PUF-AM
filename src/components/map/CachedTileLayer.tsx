@@ -14,9 +14,14 @@ type Props = {
   offlineOnly?: boolean;
 };
 
+type PufomTileImg = HTMLImageElement & { _pufomObjectUrl?: string };
+
 /**
  * Leaflet GridLayer that serves Esri imagery from IndexedDB first,
  * then falls back to network when online (unless offlineOnly).
+ *
+ * Note: do not revoke blob: URLs in img.onload — Android WebView often
+ * blanks the tile after revoke. Revoke when Leaflet removes the tile.
  */
 export function CachedTileLayer({ farmId, offlineOnly }: Props) {
   const map = useMap();
@@ -29,9 +34,24 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
     const off = () => setIsOnline(false);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
+    // Capacitor reports link state more reliably than navigator.onLine in WebView.
+    let capHandle: { remove: () => Promise<void> } | undefined;
+    void (async () => {
+      try {
+        const { Network } = await import('@capacitor/network');
+        const status = await Network.getStatus();
+        setIsOnline(Boolean(status.connected));
+        capHandle = await Network.addListener('networkStatusChange', (s) => {
+          setIsOnline(Boolean(s.connected));
+        });
+      } catch {
+        /* browser / plugin missing */
+      }
+    })();
     return () => {
       window.removeEventListener('online', on);
       window.removeEventListener('offline', off);
+      void capHandle?.remove();
     };
   }, []);
 
@@ -42,7 +62,7 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
 
     const Layer = L.GridLayer.extend({
       createTile(coords: L.Coords, done: L.DoneCallback) {
-        const tile = document.createElement('img');
+        const tile = document.createElement('img') as PufomTileImg;
         tile.alt = '';
         tile.setAttribute('role', 'presentation');
         tile.style.width = '100%';
@@ -53,15 +73,26 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
         const x = coords.x;
         const y = coords.y;
 
-        let objectUrl: string | null = null;
+        const revoke = () => {
+          if (tile._pufomObjectUrl) {
+            URL.revokeObjectURL(tile._pufomObjectUrl);
+            tile._pufomObjectUrl = undefined;
+          }
+        };
 
-        const finish = (url: string) => {
+        const finish = (url: string, fromBlob: boolean) => {
           tile.onload = () => {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
             done(undefined, tile);
           };
           tile.onerror = () => {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            // Blob decode glitch → try network once (unless offline-only).
+            if (fromBlob && !blockNetwork) {
+              revoke();
+              finish(tileUrl(z, x, y), false);
+              return;
+            }
+            revoke();
+            tile.style.background = '#1e293b';
             done(new Error('Tile load failed'), tile);
           };
           tile.src = url;
@@ -70,18 +101,20 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
         (async () => {
           try {
             const blob = await getTileBlob(farmId, z, x, y);
-            if (blob) {
-              objectUrl = URL.createObjectURL(blob);
-              finish(objectUrl);
+            if (blob && blob.size > 0) {
+              const objectUrl = URL.createObjectURL(blob);
+              tile._pufomObjectUrl = objectUrl;
+              finish(objectUrl, true);
               return;
             }
 
-            if (!blockNetwork && (typeof navigator === 'undefined' || navigator.onLine)) {
-              finish(tileUrl(z, x, y));
+            // Prefer network when allowed. Do not trust navigator.onLine alone —
+            // Android WebView often reports offline while Wi‑Fi still works.
+            if (!blockNetwork) {
+              finish(tileUrl(z, x, y), false);
               return;
             }
 
-            // Transparent / dark placeholder when offline and missing
             tile.style.background = '#1e293b';
             done(undefined, tile);
           } catch (err) {
@@ -90,6 +123,17 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
         })();
 
         return tile;
+      },
+
+      _removeTile(key: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tile = (this as any)._tiles?.[key]?.el as PufomTileImg | undefined;
+        if (tile?._pufomObjectUrl) {
+          URL.revokeObjectURL(tile._pufomObjectUrl);
+          tile._pufomObjectUrl = undefined;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (L.GridLayer.prototype as any)._removeTile.call(this, key);
       },
     });
 

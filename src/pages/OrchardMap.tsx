@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Layers, MapPin, BarChart3, Plus, Settings2, Info, X, Radio, Bug, Search, Loader2, ShieldCheck, Menu, Weight, Route, ClipboardList, User, Calendar, AlertCircle, ArrowLeft, CircleHelp, HardDrive, RefreshCw } from 'lucide-react';
+import { Layers, MapPin, BarChart3, Plus, Settings2, Info, X, Radio, Bug, Search, Loader2, ShieldCheck, Menu, Weight, Route, ClipboardList, User, Calendar, AlertCircle, ArrowLeft, CircleHelp, HardDrive, RefreshCw, FileUp, Hexagon } from 'lucide-react';
 import { House as PhHouse, Crosshair as PhCrosshair, Flag as PhFlag } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, ZoomControl, FeatureGroup, Circle, Marker } from 'react-leaflet';
@@ -16,6 +16,10 @@ import { useMapStore, OrchardBlock, InfrastructurePin, FarmTrack } from '../lib/
 import { useTaskStore, Task } from '../lib/taskStore';
 import { EventMarkerCluster } from '../components/map/EventMarkerCluster';
 import { GoogleMapsLayer } from '../components/map/GoogleMapsLayer';
+import {
+  preferEsriSatelliteBasemap,
+  resolveGoogleMapsApiKey,
+} from '../lib/googleMapsKey';
 import { CachedTileLayer } from '../components/map/CachedTileLayer';
 import { FarmBasemapSetup } from '../components/map/FarmBasemapSetup';
 import { BlockOperateCard } from '../components/map/BlockOperateCard';
@@ -44,11 +48,23 @@ import debounce from 'lodash/debounce';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import { cancelActiveDrawer, startActiveDrawer, type LeafletDrawHandler } from '../lib/mapDrawHelpers';
 import { DrawingActionBar } from '../components/map/DrawingActionBar';
+import { BoundaryEditActionBar } from '../components/map/BoundaryEditActionBar';
+import { BoundaryImportSheet } from '../components/map/BoundaryImportSheet';
 import {
   UserLocationLayer,
   type UserGeoFix,
 } from '../components/map/UserLocationLayer';
+import { CrewPresenceLayer } from '../components/map/CrewPresenceLayer';
+import { useCrewPresence } from '../hooks/useCrewPresence';
 import { NewPaddockSheet } from '../components/map/NewPaddockSheet';
+import {
+  boundaryEditVertexCount,
+  cancelBoundaryEdit,
+  commitBoundaryEdit,
+  deleteSelectedVertex,
+  startBoundaryEdit,
+  type BoundaryEditSession,
+} from '../lib/boundaryEditSession';
 import {
   areaWordForCropKind,
   defaultGeometryKind,
@@ -137,10 +153,27 @@ export function OrchardMap() {
   const [selectedIssue, setSelectedIssue] = useState<FieldIssue | null>(null);
   const [userFix, setUserFix] = useState<UserGeoFix | null>(null);
   const [followUser, setFollowUser] = useState(false);
+  const {
+    others: crewOthers,
+    nearbyCount: crewNearby,
+    sharing: crewSharing,
+    publishStatus: crewPublishStatus,
+    lastError: crewError,
+  } = useCrewPresence({
+    farmId,
+    uid: userData?.uid,
+    displayName: userData?.displayName || userData?.email,
+    fix: userFix,
+    enabled: Boolean(farmId && userData?.uid),
+  });
   /** Fresh polygon — naming sheet (not the full metadata modal). */
   const [namingBlock, setNamingBlock] = useState<OrchardBlock | null>(null);
 
-  const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const googleMapsApiKey = resolveGoogleMapsApiKey();
+  /** Native Capacitor: Esri first (Google referrer/key often blanks LAN WebView). */
+  const [useGoogleSatellite, setUseGoogleSatellite] = useState(
+    () => Boolean(resolveGoogleMapsApiKey()) && !preferEsriSatelliteBasemap()
+  );
 
   const [basemapPack, setBasemapPack] = useState<BasemapPack | null>(null);
   const [basemapChecked, setBasemapChecked] = useState(false);
@@ -156,9 +189,23 @@ export function OrchardMap() {
     const off = () => setIsOnline(false);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
+    let capHandle: { remove: () => Promise<void> } | undefined;
+    void (async () => {
+      try {
+        const { Network } = await import('@capacitor/network');
+        const status = await Network.getStatus();
+        setIsOnline(Boolean(status.connected));
+        capHandle = await Network.addListener('networkStatusChange', (s) => {
+          setIsOnline(Boolean(s.connected));
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
     return () => {
       window.removeEventListener('online', on);
       window.removeEventListener('offline', off);
+      void capHandle?.remove();
     };
   }, []);
 
@@ -326,6 +373,10 @@ export function OrchardMap() {
   const featureGroupRef = React.useRef<any>(null);
   const layerMapRef = React.useRef<Record<number, { type: 'block' | 'pin' | 'track'; id: string }>>({});
   const activeDrawerRef = React.useRef<LeafletDrawHandler | null>(null);
+  const boundaryEditRef = React.useRef<BoundaryEditSession | null>(null);
+  const [boundaryEditBlockId, setBoundaryEditBlockId] = useState<string | null>(null);
+  const [boundaryEditTick, setBoundaryEditTick] = useState(0);
+  const [showBoundaryImport, setShowBoundaryImport] = useState(false);
   const [forceRender, setForceRender] = useState(0);
 
   // Phase 4.3: Farm Diary Integration
@@ -1085,15 +1136,88 @@ export function OrchardMap() {
   // Cancel Quick Add drawers when leaving edit mode or switching tabs
   useEffect(() => {
     cancelActiveDrawer(activeDrawerRef);
+    if (boundaryEditRef.current) {
+      cancelBoundaryEdit(boundaryEditRef.current);
+      boundaryEditRef.current = null;
+      setBoundaryEditBlockId(null);
+    }
   }, [activeTab, mapMode]);
 
   useEffect(() => {
-    return () => cancelActiveDrawer(activeDrawerRef);
+    return () => {
+      cancelActiveDrawer(activeDrawerRef);
+      if (boundaryEditRef.current) {
+        cancelBoundaryEdit(boundaryEditRef.current);
+        boundaryEditRef.current = null;
+      }
+    };
+  }, []);
+
+  const beginBoundaryEdit = useCallback(
+    (blockId: string) => {
+      if (!mapInstance || !canEdit || mapMode !== 'edit' || !featureGroupRef.current) return;
+      cancelActiveDrawer(activeDrawerRef);
+      if (boundaryEditRef.current) {
+        cancelBoundaryEdit(boundaryEditRef.current);
+        boundaryEditRef.current = null;
+      }
+
+      const layers = featureGroupRef.current.getLayers() as L.Layer[];
+      const layer = layers.find((l) => {
+        const id = (l as unknown as { _leaflet_id?: number })._leaflet_id;
+        if (id == null) return false;
+        const mapping = layerMapRef.current[id];
+        return mapping?.type === 'block' && mapping.id === blockId;
+      }) as L.Polygon | undefined;
+
+      if (!layer || typeof (layer as L.Polygon).getLatLngs !== 'function') {
+        console.warn('[OrchardMap] No polygon layer for block', blockId);
+        return;
+      }
+
+      setEditingBlockId(null);
+      setIsConfirmingDeleteBlock(false);
+      setHighlightedBlockId(blockId);
+      setActiveTab('blocks');
+      setShowSidebar(true);
+
+      boundaryEditRef.current = startBoundaryEdit({
+        map: mapInstance,
+        polygon: layer,
+        blockId,
+        onChange: () => setBoundaryEditTick((t) => t + 1),
+      });
+      setBoundaryEditBlockId(blockId);
+      setBoundaryEditTick((t) => t + 1);
+    },
+    [mapInstance, canEdit, mapMode]
+  );
+
+  const saveBoundaryEdit = useCallback(() => {
+    const session = boundaryEditRef.current;
+    if (!session) return;
+    const { geojson, areaHa } = commitBoundaryEdit(session);
+    boundaryEditRef.current = null;
+    setBoundaryEditBlockId(null);
+    void updateBlock(session.blockId, { geojson, areaHa });
+  }, [updateBlock]);
+
+  const cancelBoundaryEditUi = useCallback(() => {
+    if (boundaryEditRef.current) {
+      cancelBoundaryEdit(boundaryEditRef.current);
+      boundaryEditRef.current = null;
+    }
+    setBoundaryEditBlockId(null);
   }, []);
 
   // Phase 5.1: Quick Add Tool Trigger
   const handleQuickAdd = useCallback(() => {
     if (!mapInstance || !canEdit || mapMode !== 'edit') return;
+    if (boundaryEditRef.current) {
+      cancelBoundaryEdit(boundaryEditRef.current);
+      boundaryEditRef.current = null;
+      setBoundaryEditBlockId(null);
+    }
 
     if (!(L as any).Draw) {
       console.error("Leaflet Draw not initialized");
@@ -1318,6 +1442,45 @@ export function OrchardMap() {
           <h1 className="text-sm sm:text-base font-bold text-slate-900 whitespace-nowrap shrink-0">
             {mapMode === 'operate' ? mapCopy.mapTitle : mapCopy.editTitle}
           </h1>
+          {farmId && userData?.uid && !isLocalOnlyFarmSession() && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10px] font-semibold border',
+                crewNearby > 0
+                  ? 'bg-sky-50 text-sky-800 border-sky-100'
+                  : crewPublishStatus === 'error'
+                    ? 'bg-rose-50 text-rose-800 border-rose-100'
+                    : crewPublishStatus === 'live'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                      : 'bg-slate-50 text-slate-600 border-slate-200'
+              )}
+              title={
+                crewError ||
+                (crewNearby > 0
+                  ? 'Other farm members sharing live location'
+                  : crewPublishStatus === 'no-gps'
+                    ? 'You can still see others without GPS. Your marker only appears once this device has a fix (tablet/phone).'
+                    : crewPublishStatus === 'off'
+                      ? 'Turn on Settings → Privacy → Share location with farm crew (needed on the device that should be visible)'
+                      : crewPublishStatus === 'live'
+                        ? 'You are sharing live location with the farm'
+                        : 'Crew presence — others appear here when they share + have GPS')
+              }
+            >
+              <User className="w-3 h-3" />
+              {crewNearby > 0
+                ? `Crew · ${crewNearby} nearby`
+                : crewPublishStatus === 'off'
+                  ? 'Crew off'
+                  : crewPublishStatus === 'no-gps'
+                    ? 'Crew · watching'
+                    : crewPublishStatus === 'error'
+                      ? 'Crew · error'
+                      : crewSharing
+                        ? 'Crew · sharing'
+                        : 'Crew'}
+            </span>
+          )}
           {pendingSyncCount > 0 && farmId && (
             <button
               type="button"
@@ -1518,12 +1681,28 @@ export function OrchardMap() {
                   <Radio className="w-4 h-4" />
                 </button>
               )}
+              {activeTab === 'blocks' && canEdit && mapMode === 'edit' && (
+                <button
+                  type="button"
+                  onClick={() => setShowBoundaryImport(true)}
+                  className="p-1.5 rounded-lg transition-colors bg-slate-200 text-slate-700 hover:bg-slate-300"
+                  title="Import boundaries (ISOXML / KML)"
+                >
+                  <FileUp className="w-4 h-4" />
+                </button>
+              )}
               {activeTab !== 'analytics' && (
                 <button 
                   onClick={handleQuickAdd}
                   className={`p-1.5 rounded-lg transition-colors ${canEdit ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                  title={activeTab === 'infrastructure' ? 'Add Sensor' : activeTab === 'tracks' ? 'Draw Track' : 'Draw Block'}
-                  disabled={!canEdit}
+                  title={
+                    activeTab === 'infrastructure'
+                      ? 'Add Sensor'
+                      : activeTab === 'tracks'
+                        ? 'Draw Track'
+                        : `Draw ${mapCopy.blockWord.charAt(0).toUpperCase()}${mapCopy.blockWord.slice(1)}`
+                  }
+                  disabled={!canEdit || Boolean(boundaryEditBlockId)}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -1877,12 +2056,18 @@ export function OrchardMap() {
           >
             {mapLayer === 'satellite' && basemapPack ? (
               <CachedTileLayer farmId={farmId} offlineOnly={!isOnline} />
-            ) : googleMapsApiKey && mapLayer === 'satellite' ? (
-              <GoogleMapsLayer type="hybrid" apiKey={googleMapsApiKey} />
+            ) : useGoogleSatellite && googleMapsApiKey && mapLayer === 'satellite' ? (
+              <GoogleMapsLayer
+                type="hybrid"
+                apiKey={googleMapsApiKey}
+                onFail={() => setUseGoogleSatellite(false)}
+              />
             ) : mapLayer === 'satellite' ? (
               <TileLayer
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                 attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+                maxZoom={20}
+                maxNativeZoom={19}
               />
             ) : (
               <TileLayer
@@ -1890,7 +2075,7 @@ export function OrchardMap() {
                 attribution="&copy; <a href='https://carto.com/'>CARTO</a>"
               />
             )}
-            {mapLayer === 'satellite' && !basemapPack && !googleMapsApiKey && (
+            {mapLayer === 'satellite' && !basemapPack && !(useGoogleSatellite && googleMapsApiKey) && (
               <TileLayer
                 url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png"
                 attribution="&copy; <a href='https://carto.com/'>CARTO</a>"
@@ -1900,7 +2085,7 @@ export function OrchardMap() {
             <ZoomControl position="bottomleft" />
             
             <FeatureGroup ref={featureGroupRef}>
-              {mapMode === 'edit' && canEdit && activeTab !== 'analytics' && (
+              {mapMode === 'edit' && canEdit && activeTab !== 'analytics' && !boundaryEditBlockId && (
                 <EditControl
                   position="bottomleft"
                   onCreated={(e) => {
@@ -1927,16 +2112,20 @@ export function OrchardMap() {
 
                     const farmProfile = resolveFarmProfile(settings.farmProfile);
                     const cropKind = primaryEnterprise(farmProfile);
-                    const word = areaWordForCropKind(cropKind);
+                    // Mixed farms stay neutral ("Area N"); single-enterprise uses Block/Paddock.
+                    const copy = mapUiCopy(farmProfile);
+                    const word =
+                      copy.blockWord === 'area'
+                        ? 'Area'
+                        : areaWordForCropKind(cropKind);
                     const defaultName = `${word} ${blocks.length + 1}`;
                     const tree = isTreeCropKind(cropKind);
                     const newBlock: OrchardBlock = {
                       id,
                       name: defaultName,
                       cultivar: '',
-                      species: tree
-                        ? farmProfile.defaultSpeciesId || 'walnut'
-                        : '',
+                      // Species only after naming sheet confirms a tree enterprise.
+                      species: tree ? farmProfile.defaultSpeciesId || '' : '',
                       cropKind,
                       geometryKind: defaultGeometryKind(cropKind),
                       density: '',
@@ -2140,6 +2329,7 @@ export function OrchardMap() {
               follow={followUser}
               onFix={setUserFix}
             />
+            <CrewPresenceLayer others={crewOthers} />
             
           </MapContainer>
 
@@ -2148,8 +2338,8 @@ export function OrchardMap() {
             <button
               type="button"
               onClick={handleGoHome}
-              title="Orchard home"
-              aria-label="Orchard home"
+              title={`${mapCopy.mapTitle.replace(/ Map$/, '')} home`}
+              aria-label={`${mapCopy.mapTitle.replace(/ Map$/, '')} home`}
               className="w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border border-white/20 text-slate-600 hover:text-indigo-600 pointer-events-auto transition-colors active:scale-95"
             >
               <PhHouse size={20} weight="regular" />
@@ -2355,7 +2545,31 @@ export function OrchardMap() {
           {mapMode === 'edit' && <MapStatusBar map={mapInstance} activeTab={activeTab} />}
 
           {/* Tablet-safe draw actions (Undo / Finish / Cancel) — avoids ghost points under menu */}
-          <DrawingActionBar map={mapInstance} enabled={mapMode === 'edit' && canEdit} />
+          <DrawingActionBar
+            map={mapInstance}
+            enabled={mapMode === 'edit' && canEdit && !boundaryEditBlockId}
+          />
+          <BoundaryEditActionBar
+            map={mapInstance}
+            enabled={Boolean(boundaryEditBlockId) && mapMode === 'edit' && canEdit}
+            selected={boundaryEditRef.current?.selectedIndex != null}
+            canDelete={
+              Boolean(boundaryEditRef.current) &&
+              boundaryEditRef.current?.selectedIndex != null &&
+              boundaryEditVertexCount(boundaryEditRef.current) > 3
+            }
+            onSave={saveBoundaryEdit}
+            onDeletePoint={() => {
+              if (!boundaryEditRef.current) return;
+              deleteSelectedVertex(boundaryEditRef.current);
+              setBoundaryEditTick((t) => t + 1);
+            }}
+            onCancel={cancelBoundaryEditUi}
+          />
+          {/* force re-render of edit bar when vertices change */}
+          <span className="hidden" aria-hidden>
+            {boundaryEditTick}
+          </span>
           
           {/* Coverage Zones Legend */}
           <AnimatePresence>
@@ -2408,26 +2622,28 @@ export function OrchardMap() {
             .leaflet-draw-tooltip-single { margin-top: -12px !important; }
             .leaflet-draw-tooltip-subtext { color: #94a3b8 !important; }
             .leaflet-draw-tooltip::before { border-right-color: #334155 !important; }
+            /* React DrawingActionBar owns Finish/Undo/Cancel — hide stock menu (ghost taps). */
+            .leaflet-container.pufom-using-draw-bar .leaflet-draw-actions {
+              display: none !important;
+              pointer-events: none !important;
+            }
+            .pufom-boundary-vertex {
+              background: transparent !important;
+              border: none !important;
+            }
+            .leaflet-container.pufom-boundary-editing {
+              cursor: crosshair;
+            }
             @media (max-width: 640px) {
               .leaflet-draw-toolbar a {
-                width: 32px !important;
-                height: 32px !important;
-                line-height: 32px !important;
-              }
-              .leaflet-bar a {
-                width: 32px !important;
-                height: 32px !important;
-                line-height: 32px !important;
-              }
-              /* Larger hit targets for Finish / Delete last point / Cancel */
-              .leaflet-draw-actions a {
+                width: 36px !important;
                 height: 36px !important;
                 line-height: 36px !important;
-                padding: 0 12px !important;
-                font-size: 12px !important;
               }
-              .leaflet-draw-actions {
-                z-index: 1201 !important;
+              .leaflet-bar a {
+                width: 36px !important;
+                height: 36px !important;
+                line-height: 36px !important;
               }
             }
             .leaflet-container {
@@ -2465,6 +2681,27 @@ export function OrchardMap() {
               0% { transform: scale(0.55); opacity: 0.85; }
               70% { transform: scale(1.35); opacity: 0; }
               100% { transform: scale(1.35); opacity: 0; }
+            }
+            .pufom-crew-presence-icon {
+              background: transparent !important;
+              border: none !important;
+            }
+            .pufom-crew-loc {
+              position: relative;
+              width: 22px;
+              height: 22px;
+            }
+            .pufom-crew-loc__dot {
+              position: absolute;
+              left: 50%;
+              top: 50%;
+              width: 14px;
+              height: 14px;
+              margin: -7px 0 0 -7px;
+              border-radius: 9999px;
+              background: var(--crew-colour, #0f766e);
+              border: 2px solid #fff;
+              box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
             }
           `}</style>
         </div>
@@ -2827,21 +3064,42 @@ export function OrchardMap() {
                     >
                       Delete Block
                     </button>
-                    <button 
-                      onClick={() => {
-                        setEditingBlockId(null);
-                        setIsConfirmingDeleteBlock(false);
-                      }}
-                      className="px-6 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
-                    >
-                      Save & Close
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => beginBoundaryEdit(editingBlockId)}
+                        disabled={!canEdit || mapMode !== 'edit'}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 text-sm font-medium rounded-xl transition-colors disabled:opacity-40"
+                      >
+                        <Hexagon className="w-4 h-4" />
+                        Edit boundary
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setEditingBlockId(null);
+                          setIsConfirmingDeleteBlock(false);
+                        }}
+                        className="px-6 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                      >
+                        Save & Close
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
             </motion.div>
           </div>
         )}
+
+        <BoundaryImportSheet
+          open={showBoundaryImport}
+          onClose={() => setShowBoundaryImport(false)}
+          currentFarmId={farmId || ''}
+          currentFarmName={settings.farmName || 'Farm'}
+          onCurrentFarmBlock={async (block) => {
+            await addBlock(block);
+          }}
+        />
 
         {editingPinId && (
           <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">

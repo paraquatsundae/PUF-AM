@@ -12,14 +12,21 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { flushFarmOutbox } from '../lib/flushFarmOutbox';
+import { flushPhotoOutbox } from '../lib/flushPhotoOutbox';
 import { flushPendingGeometry } from '../lib/farmGeometrySync';
 import {
-  discoverSyncPeers,
+  discoverSyncPeersDetailed,
   fetchSyncSelf,
   getSelectedSyncPeerBase,
   setSelectedSyncPeerBase,
   type PufomSyncPeer,
 } from '../lib/mdnsPeers';
+import { nsdBrowseAvailable } from '../lib/nsdPeers';
+import {
+  cacheWeatherForOffline,
+  defaultOfflineWeatherStation,
+  getWeatherCacheMeta,
+} from '../lib/weatherCacheIdb';
 import {
   downloadBytes,
   exportPufomFile,
@@ -37,8 +44,18 @@ export function OfflineSyncCard() {
   const farmId = userData?.farmId || '';
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [pending, setPending] = useState<SyncPendingCounts>({ outbox: 0, geometry: 0, total: 0 });
+  const [pending, setPending] = useState<SyncPendingCounts>({
+    outbox: 0,
+    geometry: 0,
+    photos: 0,
+    total: 0,
+  });
   const [lanMeta, setLanMeta] = useState<{ updatedAt: string; bytes: number } | null>(null);
+  const [weatherMeta, setWeatherMeta] = useState<{
+    stationCode: string;
+    updatedAt: string;
+    dayCount: number;
+  } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +65,7 @@ export function OfflineSyncCard() {
   const [peers, setPeers] = useState<PufomSyncPeer[]>([]);
   const [selectedPeer, setSelectedPeer] = useState(getSelectedSyncPeerBase());
   const [hubLabel, setHubLabel] = useState<string | null>(null);
+  const [scanSource, setScanSource] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!farmId) return;
@@ -60,6 +78,8 @@ export function OfflineSyncCard() {
       if (selfInfo.self) {
         setHubLabel(`${selfInfo.self.name} · ${selfInfo.self.baseUrl}`);
       }
+      const wMeta = await getWeatherCacheMeta();
+      setWeatherMeta(wMeta);
     } catch {
       /* ignore meta errors when offline / no admin */
     }
@@ -124,7 +144,7 @@ export function OfflineSyncCard() {
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="grid grid-cols-4 gap-2 text-center">
         <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-3">
           <p className="text-xl font-bold text-slate-900">{pending.total}</p>
           <p className="text-[10px] uppercase tracking-wide text-slate-500">Pending</p>
@@ -136,6 +156,10 @@ export function OfflineSyncCard() {
         <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-3">
           <p className="text-xl font-bold text-slate-900">{pending.geometry}</p>
           <p className="text-[10px] uppercase tracking-wide text-slate-500">Map edits</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-3">
+          <p className="text-xl font-bold text-slate-900">{pending.photos}</p>
+          <p className="text-[10px] uppercase tracking-wide text-slate-500">Photos</p>
         </div>
       </div>
 
@@ -201,9 +225,13 @@ export function OfflineSyncCard() {
             void run('flush', async () => {
               const g = await flushPendingGeometry(farmId);
               const o = await flushFarmOutbox(farmId);
+              const p = await flushPhotoOutbox(farmId);
+              const flushed = g.flushed + o.flushed + p.flushed;
+              const failed = g.failed + o.failed + p.failed;
               setMessage(
-                `Flushed ${g.flushed + o.flushed} ops to cloud` +
-                  (g.failed + o.failed ? ` (${g.failed + o.failed} still pending)` : '')
+                `Flushed ${flushed} ops to cloud` +
+                  (p.flushed ? ` (${p.flushed} photos)` : '') +
+                  (failed ? ` (${failed} still pending)` : '')
               );
             })
           }
@@ -219,16 +247,53 @@ export function OfflineSyncCard() {
       </div>
 
       <div className="border-t border-slate-100 pt-4 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Offline weather</p>
+            <p className="text-xs text-slate-500">
+              {weatherMeta
+                ? `${weatherMeta.stationCode} · ${weatherMeta.dayCount} days · ${new Date(weatherMeta.updatedAt).toLocaleString()}`
+                : 'No station pack on this device yet'}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!!busy || !online}
+            onClick={() =>
+              void run('weather', async () => {
+                const r = await cacheWeatherForOffline({
+                  stationCode: defaultOfflineWeatherStation(),
+                });
+                setMessage(
+                  `Cached ${r.stationCode} weather offline (${r.dayCount} days)`
+                );
+              })
+            }
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {busy === 'weather' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <HardDriveDownload className="w-4 h-4" />
+            )}
+            Cache weather
+          </button>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-100 pt-4 space-y-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
           <Wifi className="w-4 h-4 text-emerald-600" />
-          LAN shelf + mDNS peers
+          LAN shelf + hub discovery
         </div>
         <p className="text-xs text-slate-500">
           Keep <code className="text-[11px]">npm run dev</code> on the workshop PC — it advertises as{' '}
-          <code className="text-[11px]">_pufom-sync._tcp</code>. Scan to pick a hub, then push/pull.
-          First tablet connection still needs the PC LAN URL (or live-reload); after that, peer scan
-          finds other hubs.
+          <code className="text-[11px]">_pufom-sync._tcp</code>. On the tablet APK, Scan uses native
+          NSD (no PC IP needed). Browser / live-reload asks the current hub to browse peers.
         </p>
+        {scanSource && (
+          <p className="text-[11px] text-slate-400">Last scan: {scanSource}</p>
+        )}
         {hubLabel && (
           <div className="flex items-start justify-between gap-2 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
             <p className="text-xs text-slate-600 min-w-0 break-all">This hub: {hubLabel}</p>
@@ -249,15 +314,26 @@ export function OfflineSyncCard() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={!!busy || !online}
+            disabled={!!busy}
             onClick={() =>
               void run('scan', async () => {
-                const found = await discoverSyncPeers(2800);
+                const { peers: found, source } = await discoverSyncPeersDetailed(3200);
                 setPeers(found);
+                setScanSource(
+                  source === 'nsd'
+                    ? 'native NSD'
+                    : source === 'mixed'
+                      ? 'NSD + hub browse'
+                      : source === 'hub'
+                        ? 'hub browse'
+                        : 'none'
+                );
                 setMessage(
                   found.length
-                    ? `Found ${found.length} hub${found.length === 1 ? '' : 's'} on the LAN`
-                    : 'No other hubs yet — this PC is advertising; start another npm run dev to see peers.'
+                    ? `Found ${found.length} hub${found.length === 1 ? '' : 's'} (${source === 'nsd' ? 'NSD' : source})`
+                    : nsdBrowseAvailable()
+                      ? 'No hubs via NSD — is npm run dev advertising on this Wi‑Fi?'
+                      : 'No hubs from this host — open the tablet APK for native NSD, or connect via LAN URL first.'
                 );
               })
             }
@@ -268,7 +344,7 @@ export function OfflineSyncCard() {
             ) : (
               <Radar className="w-4 h-4" />
             )}
-            Scan mDNS peers
+            {nsdBrowseAvailable() ? 'Scan for hubs' : 'Scan mDNS peers'}
           </button>
           {selectedPeer && (
             <button

@@ -5,16 +5,28 @@ import L from '../../lib/leaflet-setup';
 interface GoogleMapsLayerProps {
   type: 'roadmap' | 'satellite' | 'terrain' | 'hybrid';
   apiKey?: string;
+  /** Called when the Maps JS API or Mutant fails — parent can fall back to Esri. */
+  onFail?: (reason: string) => void;
 }
 
-export function GoogleMapsLayer({ type, apiKey }: GoogleMapsLayerProps) {
+export function GoogleMapsLayer({ type, apiKey, onFail }: GoogleMapsLayerProps) {
   const map = useMap();
   const [isLoaded, setIsLoaded] = useState(false);
   const [isGoogleReady, setIsGoogleReady] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const GoogleMutantClass = useRef<any>(null);
+  const failedRef = useRef(false);
+
+  const fail = (reason: string) => {
+    if (failedRef.current) return;
+    failedRef.current = true;
+    console.error('[GoogleMapsLayer]', reason);
+    onFail?.(reason);
+  };
 
   useEffect(() => {
     if (!apiKey) return;
+    failedRef.current = false;
 
     const existingScript = document.getElementById('google-maps-script');
     if (!existingScript) {
@@ -23,22 +35,24 @@ export function GoogleMapsLayer({ type, apiKey }: GoogleMapsLayerProps) {
       script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
       script.async = true;
       script.defer = true;
+      script.onerror = () => fail('Maps JS script failed to load (network or blocked key).');
       document.head.appendChild(script);
     }
 
-    // Poll for window.google to be ready before instantiating GoogleMutant
     const checkGoogle = setInterval(() => {
-      if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Map) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const g = (window as any).google;
+      if (g?.maps?.Map) {
         clearInterval(checkGoogle);
         setIsGoogleReady(true);
       }
     }, 100);
 
-    // Timeout after 10 seconds to stop polling
     const timeout = setTimeout(() => {
       clearInterval(checkGoogle);
-      if (!(window as any).google) {
-        console.error('Google Maps API failed to load after 10 seconds. Check your API key and network connection.');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!(window as any).google?.maps?.Map) {
+        fail('Google Maps API failed to load after 10s — check API key referrers (LAN URL) and Maps JavaScript API.');
       }
     }, 10000);
 
@@ -50,27 +64,25 @@ export function GoogleMapsLayer({ type, apiKey }: GoogleMapsLayerProps) {
 
   useEffect(() => {
     if (!isGoogleReady) return;
-    // Dynamically import the plugin to ensure window.L is set first
-    import('leaflet.gridlayer.googlemutant').then((module) => {
-      GoogleMutantClass.current = module.default;
-      setIsLoaded(true);
-    }).catch(err => {
-      console.error('Failed to load GoogleMutant plugin:', err);
-    });
+    import('leaflet.gridlayer.googlemutant')
+      .then((module) => {
+        GoogleMutantClass.current = module.default;
+        setIsLoaded(true);
+      })
+      .catch((err) => {
+        fail(`Failed to load GoogleMutant plugin: ${err}`);
+      });
   }, [isGoogleReady]);
 
   useEffect(() => {
     if (!apiKey || !isLoaded || !isGoogleReady || !GoogleMutantClass.current) return;
 
-    // L is pre-initialized in leaflet-setup.ts and imported here
     if (!L) {
-      console.error('Leaflet (L) not found');
+      fail('Leaflet (L) not found');
       return;
     }
 
     try {
-      console.log('Initializing googleMutant layer with type:', type);
-      
       const googleLayer = new GoogleMutantClass.current({
         type: type,
         googleMapsApiKey: apiKey,
@@ -84,7 +96,7 @@ export function GoogleMapsLayer({ type, apiKey }: GoogleMapsLayerProps) {
         map.removeLayer(googleLayer);
       };
     } catch (err) {
-      console.error('Error initializing GoogleMapsLayer:', err);
+      fail(`Error initializing GoogleMapsLayer: ${err}`);
     }
   }, [map, type, apiKey, isLoaded, isGoogleReady]);
 

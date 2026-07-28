@@ -2,6 +2,7 @@ import type { Express, Request, Response } from 'express';
 import {
   allFarmModules,
   clampModulesToFarm,
+  defaultModulesWithoutCropPacks,
   effectiveModules,
   resolveFarmEnabledModules,
   sanitizeModules,
@@ -136,7 +137,8 @@ export function registerAccessPinRoutes(app: Express) {
       const uid = uidForPinRedeem(recoveryCode, displayName);
       const email = syntheticEmail(uid);
       const now = new Date().toISOString();
-      const modules = allFarmModules();
+      // New farms start without crop packs (e.g. blight). Enable when walnuts are configured.
+      const modules = defaultModulesWithoutCropPacks();
       const authEpoch = 1;
 
       const existingUser = await auth.getUser(uid).catch(() => null);
@@ -168,8 +170,13 @@ export function registerAccessPinRoutes(app: Express) {
         name: farmName.slice(0, 120),
         ownerUid: uid,
         createdAt: now,
-        // Default: full catalog (walnut + core). Owner can disable crop modules later.
+        // Core modules only — walnut blight unlocked from Farm setup when applicable.
         enabledModules: modules,
+        farmProfile: {
+          enterprises: [],
+          livestockEnabled: false,
+          defaultSpeciesId: '',
+        },
       };
       if (geo) {
         farmDoc.lat = geo.lat;
@@ -177,6 +184,25 @@ export function registerAccessPinRoutes(app: Express) {
         farmDoc.showNearby = showNearby;
       }
       await db.collection('farms').doc(farmId).set(farmDoc);
+
+      // Empty farm profile so walnut pack stays off until Farm setup configures walnuts.
+      await db
+        .collection('farms')
+        .doc(farmId)
+        .collection('settings')
+        .doc('farm')
+        .set(
+          {
+            irrigationSystemType: 'micro',
+            farmName: farmName.slice(0, 120),
+            farmProfile: {
+              enterprises: [],
+              livestockEnabled: false,
+              defaultSpeciesId: '',
+            },
+          },
+          { merge: true }
+        );
 
       if (geo && showNearby) {
         const discovery: FarmPublicDiscovery = {

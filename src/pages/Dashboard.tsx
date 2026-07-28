@@ -18,6 +18,7 @@ import { useFarmDiary, getDefaultDiaryStartDate } from '../lib/farmDiary';
 import { isOpenIssue } from '../lib/blockIssueCounts';
 import { getBlightAggregate, isAggregateFresh, type BlightAggregate, type BlightRiskBand } from '../services/aggregateService';
 import { bandFromRisk, RISK_BAND_LABEL } from '../lib/jiBlightBands';
+import { useWalnutPack } from '../hooks/useWalnutPack';
 import { cn } from '../lib/utils';
 
 /**
@@ -39,12 +40,14 @@ function riskMeta(agg: BlightAggregate | null) {
 }
 
 export function Dashboard() {
-  const { userData } = useAuth();
+  const { userData, hasModule } = useAuth();
   const farmId = userData?.farmId;
   const { blocks } = useMapStore();
   const fieldIssues = useFieldStore((s) => s.issues);
   const loadFieldData = useFieldStore((s) => s.loadData);
   const { events } = useFarmDiary(getDefaultDiaryStartDate(90));
+  const hasWalnutPack = useWalnutPack();
+  const showBlight = hasWalnutPack && hasModule('blight');
 
   const [blightAggregate, setBlightAggregate] = useState<BlightAggregate | null>(null);
   const [blightLoading, setBlightLoading] = useState(true);
@@ -54,7 +57,8 @@ export function Dashboard() {
   }, [farmId, loadFieldData]);
 
   useEffect(() => {
-    if (!farmId) {
+    if (!farmId || !showBlight) {
+      setBlightAggregate(null);
       setBlightLoading(false);
       return;
     }
@@ -70,7 +74,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [farmId]);
+  }, [farmId, showBlight]);
 
   const openIssues = useMemo(
     () =>
@@ -106,7 +110,9 @@ export function Dashboard() {
         <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{todayLabel}</p>
         <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Farm home</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Map → issues → diary plans. Blight and seasonal logs sit beside that loop.
+          {showBlight
+            ? 'Map → issues → diary plans. Blight and seasonal logs sit beside that loop.'
+            : 'Map → issues → diary plans. Seasonal logs sit beside that loop.'}
         </p>
         <p className="text-xs text-slate-400 mt-1">
           {blocks.length} {blocks.length === 1 ? 'block' : 'blocks'}
@@ -131,8 +137,8 @@ export function Dashboard() {
             <Map className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-sm font-bold text-slate-900 group-hover:underline">Orchard map</div>
-            <p className="text-xs text-slate-500 mt-0.5">Drop pins · view blocks</p>
+            <div className="text-sm font-bold text-slate-900 group-hover:underline">Farm map</div>
+            <p className="text-xs text-slate-500 mt-0.5">Drop pins · view areas</p>
           </div>
         </Link>
 
@@ -184,41 +190,42 @@ export function Dashboard() {
         </Link>
       </section>
 
-      {/* Compact blight status */}
-      <Link
-        to="/blight"
-        className={cn(
-          'flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-colors',
-          risk.bg,
-          risk.border,
-          'hover:opacity-95'
-        )}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <Bug className={cn('w-5 h-5 shrink-0', risk.color)} />
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Blight risk
-            </div>
-            {blightLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-slate-400 mt-1" />
-            ) : blightAggregate ? (
-              <div className={cn('text-sm font-bold', risk.color)}>
-                {risk.label}
-                <span className="font-mono font-medium text-slate-600 ml-2">
-                  {threat < 0.001 ? threat.toExponential(1) : threat.toFixed(3)}
-                </span>
-                {!blightFresh && (
-                  <span className="ml-2 text-[10px] font-medium text-amber-700">stale</span>
-                )}
+      {showBlight && (
+        <Link
+          to="/blight"
+          className={cn(
+            'flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-colors',
+            risk.bg,
+            risk.border,
+            'hover:opacity-95'
+          )}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <Bug className={cn('w-5 h-5 shrink-0', risk.color)} />
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Blight risk
               </div>
-            ) : (
-              <div className="text-sm text-slate-500">Open blight page for detail</div>
-            )}
+              {blightLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-400 mt-1" />
+              ) : blightAggregate ? (
+                <div className={cn('text-sm font-bold', risk.color)}>
+                  {risk.label}
+                  <span className="font-mono font-medium text-slate-600 ml-2">
+                    {threat < 0.001 ? threat.toExponential(1) : threat.toFixed(3)}
+                  </span>
+                  {!blightFresh && (
+                    <span className="ml-2 text-[10px] font-medium text-amber-700">stale</span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500">Open blight page for detail</div>
+              )}
+            </div>
           </div>
-        </div>
-        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-      </Link>
+          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+        </Link>
+      )}
 
       {/* Open issues queue */}
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">

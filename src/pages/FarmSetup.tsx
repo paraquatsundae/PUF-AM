@@ -5,14 +5,20 @@ import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
 import { useFarmDiary, IrrigationSystemType, resolveFarmProfile } from '../lib/farmDiary';
 import { FarmDryer, getFarmAssets, saveFarmAssets } from '../lib/farmAssets';
+import { updateFarmModules } from '../lib/invitePinAuth';
 import { cn } from '../lib/utils';
 import {
+  farmHasWalnutPack,
   FARM_ENTERPRISES,
   TREE_SPECIES,
   type FarmEnterpriseId,
   type FarmProfile,
   type TreeSpeciesId,
 } from '../../shared/farm/farmTypes';
+import {
+  withWalnutPackModules,
+  withoutWalnutPackModules,
+} from '../../shared/auth/farmModules';
 
 const IRRIGATION_OPTIONS: { value: IrrigationSystemType; label: string }[] = [
   { value: 'micro', label: 'Micro-sprinkler' },
@@ -21,8 +27,14 @@ const IRRIGATION_OPTIONS: { value: IrrigationSystemType; label: string }[] = [
   { value: 'flood', label: 'Flood / furrow' },
 ];
 
+const EMPTY_PROFILE: FarmProfile = {
+  enterprises: [],
+  livestockEnabled: false,
+  defaultSpeciesId: '',
+};
+
 export function FarmSetup() {
-  const { userData } = useAuth();
+  const { userData, farmEnabledModules, refreshFarmModules } = useAuth();
   const farmId = userData?.farmId;
   const { blocks, loadData, isLoaded, totalAreaHa } = useMapStore();
   const { settings, updateSettings, canEdit } = useFarmDiary();
@@ -30,7 +42,7 @@ export function FarmSetup() {
   const [dryers, setDryers] = useState<FarmDryer[]>([]);
   const [waterAllocationMl, setWaterAllocationMl] = useState<number>(500);
   const [irrigationSystemType, setIrrigationSystemType] = useState<IrrigationSystemType>('micro');
-  const [farmProfile, setFarmProfile] = useState<FarmProfile>(() => resolveFarmProfile(undefined));
+  const [farmProfile, setFarmProfile] = useState<FarmProfile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -71,7 +83,15 @@ export function FarmSetup() {
     if (typeof settings.waterAllocationMl === 'number') {
       setWaterAllocationMl(settings.waterAllocationMl);
     }
-    setFarmProfile(resolveFarmProfile(settings.farmProfile));
+    if (
+      settings.farmProfile &&
+      typeof settings.farmProfile === 'object' &&
+      Array.isArray(settings.farmProfile.enterprises)
+    ) {
+      setFarmProfile(resolveFarmProfile(settings.farmProfile));
+    } else {
+      setFarmProfile(EMPTY_PROFILE);
+    }
   }, [settings.irrigationSystemType, settings.waterAllocationMl, settings.farmProfile]);
 
   const toggleEnterprise = (id: FarmEnterpriseId) => {
@@ -136,11 +156,23 @@ export function FarmSetup() {
     try {
       await saveFarmAssets(farmId, { dryers: cleaned });
       setDryers(cleaned);
+      const profile = resolveFarmProfile(farmProfile);
       updateSettings({
         irrigationSystemType,
         waterAllocationMl: Number(waterAllocationMl) || 0,
-        farmProfile: resolveFarmProfile(farmProfile),
+        farmProfile: profile,
       });
+
+      // Keep blight module aligned with walnut crop pack.
+      const hasWalnut = farmHasWalnutPack({ profile, blocks });
+      const nextModules = hasWalnut
+        ? withWalnutPackModules(farmEnabledModules)
+        : withoutWalnutPackModules(farmEnabledModules);
+      if (nextModules.join(',') !== farmEnabledModules.join(',')) {
+        await updateFarmModules(nextModules);
+        await refreshFarmModules();
+      }
+
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 2000);
     } catch (err) {

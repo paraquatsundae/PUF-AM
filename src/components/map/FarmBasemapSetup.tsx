@@ -1,25 +1,35 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Rectangle, ZoomControl } from 'react-leaflet';
 import {
   AlertTriangle,
   HardDrive,
   Loader2,
   MapPin,
+  RefreshCw,
   Search,
   Satellite,
+  Trash2,
   X,
 } from 'lucide-react';
 import {
   BBOX_BUFFER_M,
   CENTER_HALF_EXTENT_M,
+  BasemapPack,
   LatLngBoundsLiteral,
   bufferBbox,
   bboxCenter,
+  adoptBasemapPack,
+  clearBasemapPack,
+  formatPackBytes,
   planPackZoom,
+  scanBasemapDeviceStorage,
   setBasemapSkipped,
   squareBboxAround,
+  type BasemapDeviceStats,
 } from '../../lib/basemapPack';
 import { downloadBasemapPack } from '../../lib/tileDownloader';
+import { useFarmDiary } from '../../lib/farmDiary';
+import { mapUiCopy } from '../../../shared/farm/farmTypes';
 import { EsriPreviewTileLayer } from './CachedTileLayer';
 
 type NominatimResult = {
@@ -47,6 +57,12 @@ function nominatimToBbox(result: NominatimResult): LatLngBoundsLiteral {
 }
 
 export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: Props) {
+  const { settings } = useFarmDiary();
+  const placeWord = useMemo(() => {
+    // Orchard-only farms keep “orchard”; mixed / broadacre / station use neutral “farm”.
+    return mapUiCopy(settings.farmProfile).mapTitle === 'Orchard Map' ? 'orchard' : 'farm';
+  }, [settings.farmProfile]);
+
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -56,7 +72,17 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
   } | null>(null);
   const [step, setStep] = useState<'search' | 'confirm' | 'downloading' | 'done'>('search');
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState({ percent: 0, label: '', done: 0, total: 0, bytes: 0 });
+  const [progress, setProgress] = useState({
+    percent: 0,
+    label: '',
+    done: 0,
+    total: 0,
+    bytes: 0,
+    reused: 0,
+  });
+  const [deviceStats, setDeviceStats] = useState<BasemapDeviceStats | null>(null);
+  const [scanningDevice, setScanningDevice] = useState(false);
+  const [adoptingId, setAdoptingId] = useState<string | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
 
   const zoomPlan = useMemo(() => {
@@ -65,6 +91,64 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
   }, [selected]);
 
   const center = selected ? bboxCenter(selected.bbox) : { lat: -34.24, lng: 116.14 };
+
+  const refreshDeviceScan = async () => {
+    setScanningDevice(true);
+    try {
+      setDeviceStats(await scanBasemapDeviceStorage());
+    } catch (e) {
+      console.error('[Basemap] device scan failed', e);
+      setDeviceStats({ packCount: 0, tileCount: 0, bytes: 0, packs: [] });
+    } finally {
+      setScanningDevice(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshDeviceScan();
+  }, []);
+
+  const otherPacks = useMemo(
+    () => (deviceStats?.packs ?? []).filter((p) => p.farmId !== farmId),
+    [deviceStats, farmId]
+  );
+  const thisFarmPack = useMemo(
+    () => (deviceStats?.packs ?? []).find((p) => p.farmId === farmId) ?? null,
+    [deviceStats, farmId]
+  );
+
+  const useExistingPack = async (pack: BasemapPack) => {
+    setAdoptingId(pack.farmId);
+    setError(null);
+    try {
+      setBasemapSkipped(farmId, false);
+      await adoptBasemapPack(pack, farmId);
+      setStep('done');
+      onComplete();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not use that saved map.');
+    } finally {
+      setAdoptingId(null);
+    }
+  };
+
+  const deleteDevicePack = async (pack: BasemapPack) => {
+    const label = pack.farmId === farmId ? 'this farm' : 'another farm on this device';
+    if (
+      !confirm(
+        `Remove “${pack.label}” (${formatPackBytes(pack.bytes)}) for ${label}? Tiles still needed by other saved maps stay on the device.`
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await clearBasemapPack(pack.farmId);
+      await refreshDeviceScan();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove that map.');
+    }
+  };
 
   const runSearch = async () => {
     const q = query.trim();
@@ -86,7 +170,9 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
       if (!res.ok) throw new Error('Location search failed');
       const data = (await res.json()) as NominatimResult[];
       setResults(data);
-      if (data.length === 0) setError('No places found. Try a town or farm name near your orchard.');
+      if (data.length === 0) {
+        setError(`No places found. Try a town or property name near your ${placeWord}.`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Search failed — check your connection.');
     } finally {
@@ -127,6 +213,7 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
             done: p.done,
             total: p.total,
             bytes: p.bytes,
+            reused: p.reused,
           }),
       });
       setStep('done');
@@ -160,7 +247,7 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-slate-900">Set up farm map</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Search for your orchard, then save satellite imagery to this device for offline use.
+                Search for your {placeWord}, then save satellite imagery to this device for offline use.
               </p>
             </div>
             {onCancel && step !== 'downloading' && (
@@ -178,8 +265,94 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
             {step === 'search' && (
               <>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                      <HardDrive className="w-4 h-4 text-emerald-600" />
+                      Maps on this device
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void refreshDeviceScan()}
+                      disabled={scanningDevice}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${scanningDevice ? 'animate-spin' : ''}`} />
+                      Rescan
+                    </button>
+                  </div>
+                  {scanningDevice && !deviceStats ? (
+                    <p className="text-xs text-slate-500 flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Scanning local storage…
+                    </p>
+                  ) : deviceStats && deviceStats.packCount === 0 ? (
+                    <p className="text-xs text-slate-500">
+                      No offline satellite packs found yet. Search below to download one — later
+                      downloads reuse tiles already stored here.
+                    </p>
+                  ) : deviceStats ? (
+                    <>
+                      <p className="text-[11px] text-slate-500">
+                        {deviceStats.packCount} saved map
+                        {deviceStats.packCount === 1 ? '' : 's'} ·{' '}
+                        {deviceStats.tileCount.toLocaleString()} unique tiles ·{' '}
+                        {formatPackBytes(deviceStats.bytes)} used
+                      </p>
+                      <ul className="space-y-2 max-h-40 overflow-y-auto">
+                        {thisFarmPack && (
+                          <li className="p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/80 text-xs">
+                            <p className="font-semibold text-emerald-900">Already linked to this farm</p>
+                            <p className="text-emerald-800/90 mt-0.5 leading-snug">{thisFarmPack.label}</p>
+                            <p className="text-emerald-700/80 mt-1">
+                              {thisFarmPack.tileCount.toLocaleString()} tiles ·{' '}
+                              {formatPackBytes(thisFarmPack.bytes)}
+                            </p>
+                          </li>
+                        )}
+                        {otherPacks.map((pack) => (
+                          <li
+                            key={`${pack.farmId}-${pack.createdAt}`}
+                            className="p-2.5 rounded-lg border border-slate-200 bg-white space-y-2"
+                          >
+                            <div>
+                              <p className="text-xs font-semibold text-slate-900 leading-snug">
+                                {pack.label}
+                              </p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                {pack.tileCount.toLocaleString()} tiles · {formatPackBytes(pack.bytes)} · z
+                                {pack.minZoom}–{pack.maxZoom}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={adoptingId === pack.farmId}
+                                onClick={() => void useExistingPack(pack)}
+                                className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                {adoptingId === pack.farmId ? 'Linking…' : 'Use for this farm'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void deleteDevicePack(pack)}
+                                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200"
+                                title="Remove from this device"
+                                aria-label="Remove map pack"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
+                </div>
+
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Where is your orchard?
+                  {deviceStats && deviceStats.packCount > 0
+                    ? 'Or download a new area'
+                    : `Where is your ${placeWord}?`}
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
@@ -264,7 +437,11 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                     <ul className="text-xs text-amber-900/90 space-y-1.5 list-disc pl-4">
                       <li>
                         About <strong>{zoomPlan.tileCount.toLocaleString()}</strong> map tiles
-                        (~<strong>{zoomPlan.mbLabel}</strong>) will be downloaded and stored locally.
+                        (~<strong>{zoomPlan.mbLabel}</strong> if none are cached yet).
+                      </li>
+                      <li>
+                        Tiles already on this device are <strong>reused</strong> — overlapping downloads
+                        do not store the same imagery twice.
                       </li>
                       <li>
                         Zoom levels {zoomPlan.minZoom}–{zoomPlan.maxZoom} for this farm region.
@@ -292,7 +469,8 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                     </div>
                     <p className="text-[10px] text-slate-400">
                       {progress.done.toLocaleString()} / {progress.total.toLocaleString()} tiles ·{' '}
-                      {(progress.bytes / (1024 * 1024)).toFixed(1)} MB saved
+                      {(progress.bytes / (1024 * 1024)).toFixed(1)} MB ·{' '}
+                      {progress.reused.toLocaleString()} reused from device
                     </p>
                   </div>
                 )}

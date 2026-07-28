@@ -8,6 +8,10 @@ import { useMapStore } from '../lib/mapStore';
 import { useTaskStore, Task } from '../lib/taskStore';
 import { FieldMode } from '../components/map/FieldMode';
 import { GoogleMapsLayer } from '../components/map/GoogleMapsLayer';
+import {
+  preferEsriSatelliteBasemap,
+  resolveGoogleMapsApiKey,
+} from '../lib/googleMapsKey';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
@@ -46,7 +50,10 @@ export function FieldOps() {
     newTool: ''
   });
 
-  const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const googleMapsApiKey = resolveGoogleMapsApiKey();
+  const [useGoogleMaps, setUseGoogleMaps] = useState(
+    () => Boolean(resolveGoogleMapsApiKey()) && !preferEsriSatelliteBasemap()
+  );
 
   useEffect(() => {
     if (farmId) {
@@ -356,10 +363,11 @@ export function FieldOps() {
                 zoomControl={false} 
                 className="w-full h-full"
               >
-              {googleMapsApiKey ? (
+              {useGoogleMaps && googleMapsApiKey ? (
                 <GoogleMapsLayer 
                   type={mapLayer === 'satellite' ? 'hybrid' : 'roadmap'} 
-                  apiKey={googleMapsApiKey} 
+                  apiKey={googleMapsApiKey}
+                  onFail={() => setUseGoogleMaps(false)}
                 />
               ) : (
                 <>

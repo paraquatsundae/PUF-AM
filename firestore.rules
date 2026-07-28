@@ -44,6 +44,10 @@ service cloud.firestore {
     // Document ID: userId
     // Fields: uid, lat, lng, timestamp, activeTaskId
     //
+    // Collection: farms/{farmId}/presence
+    // Document ID: userId
+    // Fields: uid, displayName, lat, lng, accuracyM, heading?, updatedAt, deviceId, source ('gps')
+    //
     // Collection: farms/{farmId}/archived_issues
     // Document ID: issueId
     // Fields: same as issues
@@ -498,6 +502,23 @@ service cloud.firestore {
              (!('activeTaskId' in data) || (data.activeTaskId == null || (data.activeTaskId is string && data.activeTaskId.size() < 100)));
     }
 
+    // Farm Map crew presence (live GPS) — viewers may share their own location.
+    function isValidCrewPresence(data) {
+      return hasOnlyAllowedFields([
+               'uid', 'displayName', 'lat', 'lng', 'accuracyM', 'heading',
+               'updatedAt', 'deviceId', 'source'
+             ]) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.lat is number && data.lat >= -90 && data.lat <= 90 &&
+             data.lng is number && data.lng >= -180 && data.lng <= 180 &&
+             data.updatedAt is string && data.updatedAt.size() > 0 && data.updatedAt.size() < 40 &&
+             data.source == 'gps' &&
+             data.deviceId is string && data.deviceId.size() > 0 && data.deviceId.size() < 80 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 120)) &&
+             (!('accuracyM' in data) || data.accuracyM is number) &&
+             (!('heading' in data) || data.heading == null || data.heading is number);
+    }
+
     function isValidUsageMetrics(data) {
       return (!('totalAiCalls' in data) || data.totalAiCalls is number) &&
              (!('totalWeatherCalls' in data) || data.totalWeatherCalls is number) &&
@@ -889,6 +910,12 @@ service cloud.firestore {
       match /active_locations/{userId} {
         allow read: if isFarmMember(farmId);
         allow write: if isFarmMember(farmId) && isOwner(userId) && isValidUserLocation(request.resource.data);
+      }
+
+      match /presence/{userId} {
+        allow read: if isFarmMember(farmId);
+        allow create, update: if isFarmMember(farmId) && isOwner(userId) && isValidCrewPresence(request.resource.data);
+        allow delete: if isFarmMember(farmId) && isOwner(userId);
       }
 
       match /financial_transactions/{transactionId} {

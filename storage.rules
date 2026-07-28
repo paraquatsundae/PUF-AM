@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    function isPinForFarm(farmId) {
+      return isAuthenticated() &&
+        request.auth.token.pinAuth == true &&
+        request.auth.token.farmId == farmId;
+    }
+
+    function userDocFarmId() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.farmId;
+    }
+
+    function isFarmMember(farmId) {
+      return isAdmin() ||
+        isPinForFarm(farmId) ||
+        (isAuthenticated() && userDocFarmId() == farmId);
+    }
+
+    function canWriteFarm(farmId) {
+      return isFarmMember(farmId) &&
+        (isAdmin() ||
+          request.auth.token.role in ['admin', 'farmer'] ||
+          (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+            firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'farmer']));
+    }
+
+    // Field issue photos — JPEG under farms/{farmId}/issues/{issueId}/
+    match /farms/{farmId}/issues/{issueId}/{fileName} {
+      allow read: if isFarmMember(farmId);
+      allow write: if canWriteFarm(farmId)
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Nutrition reports (existing upload path)
+    match /farms/{farmId}/nutrition_reports/{reportId}/{fileName} {
+      allow read: if isFarmMember(farmId);
+      allow write: if canWriteFarm(farmId)
+        && request.resource.size < 20 * 1024 * 1024;
+    }
+  }
+}

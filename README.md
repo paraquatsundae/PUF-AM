@@ -1,6 +1,6 @@
 # PUFAM — Ag Manager
 
-Paddock-first farm tools for mixed enterprises — map areas and issues, diary plans, weather-linked crop risk (walnut blight first), and seasonal records.
+Paddock-first farm tools for mixed enterprises — map areas and issues, diary plans, seasonal records, and optional crop packs (walnut blight / chill first).
 
 **Brand:** PUFAM = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
 
@@ -12,25 +12,25 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 
 ## Paddock workflow
 
-1. **Farm setup** — dryers, seasonal water allocation (ML), irrigation method (rarely changes).
+1. **Farm setup** — enterprises, dryers, seasonal water allocation (ML), irrigation method (rarely changes).
 2. **Farm map** — draw paddocks/blocks, drop issue pins, optional offline basemap pack.
 3. **Farm diary** — plans, sprays, irrigation, nutrition applications, and work (system of record).
-4. **Blight risk** — protection vs threat from weather + diary sprays (forecast / historical / sandbox).
+4. **Blight risk** *(walnut crop pack)* — weather-linked infection risk when the farm has walnuts.
 5. **Water & nutrition** — log applications to the diary; water budget uses Farm setup allocation.
-6. **Harvest & drying** — yield by block folder; drying sessions use configured dryers.
+6. **Harvest & drying** — yield by area folder; drying sessions use configured dryers.
 
-Home shows open issues, plans, and a blight snapshot. Financials and team tools remain under Records / System.
+Home shows open issues and plans (plus a blight snapshot when the walnut pack is on). Financials and team tools remain under Records / System.
 
 ## Key features
 
 * **Farm map** — Areas (blocks / paddocks), pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
 * **Farm diary** — Spray, water, nutrition, and work plans with filters and CSV export.
-* **Blight risk engine** — Ji et al. 2025 mechanistic infection-risk model (Beta temperature × Gompertz leaf-wetness × rain-driven primary inoculum) on a proxy wetness input; not LLM-based.
+* **Walnut crop pack** — Blight (Ji et al. 2025) and chill targets unlock only when the farm has walnuts (Farm setup / walnut areas). New farms start without blight in the module catalog.
 * **Water** — Irrigation logging + seasonal ML budget from Farm setup.
 * **Nutrition** — Application diary (product, rate, N/P/K); soil lab XLSX import deferred.
 * **Harvest & drying** — Per-block harvest folders; exponential-decay dryer moisture prediction.
 * **Farm setup** — One-time infrastructure (dryers, water right, irrigation method).
-* **Team** — Invite PIN auth, roles (admin / farmer / viewer).
+* **Team** — Invite PIN auth, roles (admin / farmer / viewer); PIN presets clamp to farm modules and crop packs.
 
 ## Tech stack
 

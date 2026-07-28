@@ -10,6 +10,7 @@
 - [x] Capacitor `appName`, Android `strings.xml`, `index.html` title
 - [x] README + SITE_SYNOPSIS
 - [x] PUFworks-site module card + showcase page copy / `/pufam/` route
+- [x] Plans headers (ROADMAP, AUTH, OFFLINE, DEPLOY, BLIGHT) + crop-pack About/Settings copy (2026-07-27)
 - [ ] GitHub repo **display name / description** (and optional rename `Walnut_farm_manager` → later)
 - [ ] Redeploy Cloud Run + site after merge
 

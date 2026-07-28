@@ -8,4 +8,4 @@ export const APP_WORKSHOP_EXPANDED = 'Prototype Until Failure';
 export const APP_INVITE_SUBJECT = 'PUFAM farm invite';
 /** One-line product blurb for About / login */
 export const APP_BLURB =
-  'Paddock-first farm tools for mixed enterprises — map areas, diary, weather-linked crop risk, and team access.';
+  'Paddock-first tools for mixed farms — map areas and issues, shared diary, seasonal records, team PINs, and optional crop packs.';

@@ -286,10 +286,12 @@ export function resolveFarmProfile(input: unknown): FarmProfile {
     : undefined;
 
   if (enterprises.length === 0) {
+    // Explicit empty profile (new / non-orchard farms) — do not force walnut.
     return {
-      ...DEFAULT_FARM_PROFILE,
+      enterprises: [],
+      primaryEnterpriseId: undefined,
       livestockEnabled,
-      defaultSpeciesId: defaultSpeciesId || 'walnut',
+      defaultSpeciesId: defaultSpeciesId || '',
     };
   }
 
@@ -305,9 +307,7 @@ export function resolveFarmProfile(input: unknown): FarmProfile {
     livestockEnabled,
     defaultSpeciesId:
       defaultSpeciesId ||
-      (unique.includes('orchard_tree') || unique.includes('fruit') || unique.includes('vineyard')
-        ? 'walnut'
-        : ''),
+      (unique.includes('orchard_tree') ? 'walnut' : ''),
   };
 }
 
@@ -315,6 +315,42 @@ export function resolveFarmProfile(input: unknown): FarmProfile {
 export function primaryEnterprise(profile: FarmProfile): FarmEnterpriseId {
   const resolved = resolveFarmProfile(profile);
   return resolved.primaryEnterpriseId ?? resolved.enterprises[0] ?? 'orchard_tree';
+}
+
+/**
+ * Walnut crop pack — blight, chill cultivar targets, Ji About/Settings.
+ *
+ * ON when:
+ * - any mapped area has species walnut, or
+ * - farm profile is orchard_tree with defaultSpeciesId walnut, or
+ * - no farmProfile configured yet but blight is still in the farm module catalog (legacy)
+ */
+export function farmHasWalnutPack(opts: {
+  profile?: unknown;
+  blocks?: Array<{ species?: string | null }>;
+  /** Farm-level enabledModules includes blight (legacy walnut-first farms). */
+  blightModuleEnabled?: boolean;
+}): boolean {
+  if (
+    opts.blocks?.some((b) => String(b.species || '').trim().toLowerCase() === 'walnut')
+  ) {
+    return true;
+  }
+
+  const raw = opts.profile;
+  if (raw && typeof raw === 'object' && Array.isArray((raw as { enterprises?: unknown }).enterprises)) {
+    const p = resolveFarmProfile(raw);
+    if (!p.enterprises.includes('orchard_tree')) return false;
+    return p.defaultSpeciesId === 'walnut';
+  }
+
+  // Profile never saved — only treat as walnut if blight catalog still enabled.
+  return Boolean(opts.blightModuleEnabled);
+}
+
+/** @deprecated use farmHasWalnutPack */
+export function enterpriseSuggestsBlight(profile: FarmProfile): boolean {
+  return farmHasWalnutPack({ profile });
 }
 
 export function isTreeCropKind(cropKind?: FarmEnterpriseId | string | null): boolean {
@@ -376,10 +412,4 @@ export function defaultGeometryKind(enterpriseId: FarmEnterpriseId): GeometryKin
   if (model === 'water_zone') return 'water_zone';
   if (model === 'dam') return 'dam';
   return 'boundary';
-}
-
-/** Suggested modules later — blight stays walnut-oriented for now. */
-export function enterpriseSuggestsBlight(profile: FarmProfile): boolean {
-  if (!profile.enterprises.includes('orchard_tree')) return false;
-  return !profile.defaultSpeciesId || profile.defaultSpeciesId === 'walnut';
 }

@@ -37,6 +37,11 @@ let patched = false;
 
 /** Pixels — finger moved farther than this during a touch ⇒ pan, not a tap. */
 const TAP_SLOP_PX = 12;
+/** Extra fat-finger margin around draw / zoom controls. */
+export const DRAW_UI_HIT_PAD_PX = 28;
+
+const DRAW_UI_SELECTOR =
+  '.leaflet-control, .leaflet-draw-toolbar, .leaflet-draw-actions, .leaflet-draw-section, .pufom-draw-actions, .leaflet-control-zoom, button, a[role="button"]';
 
 export function getCurrentDrawHandler(): LeafletDrawHandler | null {
   return currentDrawHandler;
@@ -52,19 +57,74 @@ export function markDrawUiInteraction(map?: { _container?: HTMLElement } | null)
   }
 }
 
-function touchTargetIsDrawUi(e: { originalEvent?: Event; target?: EventTarget | null }): boolean {
-  const oe = (e.originalEvent || e) as Event;
-  const t = (oe.target || e.target) as HTMLElement | null;
-  if (!t || typeof t.closest !== 'function') return false;
-  return Boolean(
-    t.closest(
-      '.leaflet-control, .leaflet-draw-toolbar, .leaflet-draw-actions, .leaflet-draw-section, .pufom-draw-actions, button, a[role="button"]'
-    )
-  );
+function eventClientPoint(e: {
+  originalEvent?: Event;
+  clientX?: number;
+  clientY?: number;
+}): { x: number; y: number } | null {
+  const oe = (e.originalEvent || e) as
+    | (TouchEvent & MouseEvent)
+    | MouseEvent
+    | undefined;
+  if (!oe) return null;
+  const touch =
+    (oe as TouchEvent).changedTouches?.[0] ||
+    (oe as TouchEvent).touches?.[0];
+  if (touch) return { x: touch.clientX, y: touch.clientY };
+  if (typeof (oe as MouseEvent).clientX === 'number') {
+    return { x: (oe as MouseEvent).clientX, y: (oe as MouseEvent).clientY };
+  }
+  if (typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+    return { x: e.clientX, y: e.clientY };
+  }
+  return null;
 }
 
-function shouldIgnoreMapDrawInput(
-  e: { originalEvent?: Event; target?: EventTarget | null },
+/** Pure helper — true when (x,y) sits inside any control rect (+ pad). */
+export function pointHitsDrawUi(
+  x: number,
+  y: number,
+  root: ParentNode = document,
+  padPx: number = DRAW_UI_HIT_PAD_PX
+): boolean {
+  const nodes = root.querySelectorAll(
+    '.leaflet-draw-toolbar, .leaflet-draw-actions, .pufom-draw-actions, .leaflet-control-zoom, .leaflet-control'
+  );
+  for (const node of Array.from(nodes)) {
+    const el = node as HTMLElement;
+    if (!el.getBoundingClientRect) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    if (
+      x >= r.left - padPx &&
+      x <= r.right + padPx &&
+      y >= r.top - padPx &&
+      y <= r.bottom + padPx
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function touchTargetIsDrawUi(e: {
+  originalEvent?: Event;
+  target?: EventTarget | null;
+  clientX?: number;
+  clientY?: number;
+}): boolean {
+  const oe = (e.originalEvent || e) as Event;
+  const t = (oe.target || e.target) as HTMLElement | null;
+  if (t && typeof t.closest === 'function' && t.closest(DRAW_UI_SELECTOR)) {
+    return true;
+  }
+  const pt = eventClientPoint(e);
+  if (pt && pointHitsDrawUi(pt.x, pt.y)) return true;
+  return false;
+}
+
+export function shouldIgnoreMapDrawInput(
+  e: { originalEvent?: Event; target?: EventTarget | null; clientX?: number; clientY?: number },
   handler?: LeafletDrawHandler | null
 ): boolean {
   if (Date.now() < drawUiIgnoreUntil) return true;
@@ -90,9 +150,13 @@ function attachPanGuards(handler: LeafletDrawHandler): void {
 
   map.on('dragstart', onDragStart);
   map.on('dragend', onDragEnd);
+  map.on('movestart', onDragStart);
+  map.on('moveend', onDragEnd);
   handler._pufomRemovePanGuards = () => {
     map.off('dragstart', onDragStart);
     map.off('dragend', onDragEnd);
+    map.off('movestart', onDragStart);
+    map.off('moveend', onDragEnd);
     handler._pufomPanGuards = false;
     handler._pufomRemovePanGuards = undefined;
   };
@@ -105,6 +169,7 @@ function attachPanGuards(handler: LeafletDrawHandler): void {
   }
 
   // leaflet-draw TouchExtend synthesizes map events that fight with pan-to-draw.
+  // Keep it off; mouse path + gated _endPoint handle taps.
   try {
     if (map.touchExtend?.enabled?.()) {
       map.touchExtend.disable();
@@ -132,7 +197,10 @@ function detachPanGuards(handler: LeafletDrawHandler): void {
   handler._pufomPanning = false;
 }
 
-/** Shield leaflet-draw toolbars from leaking touches into the map. */
+/**
+ * Mark draw toolbars so map ignore logic applies.
+ * Do not capture-stopPropagation — that blocked stock Finish/Delete links on iOS.
+ */
 export function shieldLeafletDrawControls(root: ParentNode = document): void {
   const nodes = root.querySelectorAll(
     '.leaflet-draw-toolbar, .leaflet-draw-actions, .leaflet-draw-actions-top, .leaflet-draw-actions-bottom'
@@ -147,15 +215,12 @@ export function shieldLeafletDrawControls(root: ParentNode = document): void {
     } catch {
       /* ignore */
     }
-    const block = (ev: Event) => {
-      ev.stopPropagation();
+    const mark = () => {
       markDrawUiInteraction();
     };
-    el.addEventListener('pointerdown', block, true);
-    el.addEventListener('touchstart', block, true);
-    el.addEventListener('touchend', block, true);
-    el.addEventListener('mousedown', block, true);
-    el.addEventListener('click', block, true);
+    el.addEventListener('pointerdown', mark, true);
+    el.addEventListener('touchstart', mark, true);
+    el.addEventListener('mousedown', mark, true);
   });
 }
 
@@ -203,6 +268,30 @@ export function patchLeafletDrawTouchGuards(): void {
   const disableNewMarkers = proto._disableNewMarkers as
     | ((this: LeafletDrawHandler) => void)
     | undefined;
+
+  // Gate stock _endPoint (mouse + synthetic paths) against UI / pan.
+  if (typeof endPoint === 'function') {
+    proto._endPoint = function (
+      this: LeafletDrawHandler,
+      x: number,
+      y: number,
+      e: unknown
+    ) {
+      if (
+        this._pufomPanning ||
+        Date.now() < drawUiIgnoreUntil ||
+        shouldIgnoreMapDrawInput(
+          (e as { originalEvent?: Event }) || { clientX: x, clientY: y },
+          this
+        ) ||
+        pointHitsDrawUi(x, y)
+      ) {
+        (this as { _mouseDownOrigin?: unknown })._mouseDownOrigin = null;
+        return;
+      }
+      return endPoint.call(this, x, y, e);
+    };
+  }
 
   proto._onTouch = function (this: LeafletDrawHandler & Record<string, unknown>, t: unknown) {
     const e = t as {
@@ -257,6 +346,7 @@ export function patchLeafletDrawTouchGuards(): void {
         isPan ||
         this._pufomPanning ||
         Date.now() < drawUiIgnoreUntil ||
+        pointHitsDrawUi(endX, endY) ||
         Math.abs(endX - startX) > TAP_SLOP_PX ||
         Math.abs(endY - startY) > TAP_SLOP_PX
       ) {

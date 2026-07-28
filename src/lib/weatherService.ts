@@ -1,4 +1,4 @@
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromCache } from 'firebase/firestore';
 import { db } from '../firebase';
 import { WeatherData } from './blightModel';
 import { trackMetric } from '../services/metricsService';
@@ -15,6 +15,7 @@ import {
 } from '../../shared/weather/dpirdClient';
 import { estimateWetnessHoursProxy } from '../../shared/weather/jiBlightModel';
 import { isForecastStale } from '../../shared/weather/metnoForecast';
+import { readWeatherFromIdb, saveWeatherToIdb } from './weatherCacheIdb';
 
 export type WeatherSource = 'Manual' | 'DPIRD';
 
@@ -52,18 +53,46 @@ function resolveStationCode(stationCode?: string, lat?: number, lng?: number): s
 export async function readSharedWeatherCache(
   stationCode: string
 ): Promise<(CachedWeatherRecord & { isStale: boolean }) | null> {
+  const wrap = (data: CachedWeatherRecord) => {
+    const fresh = data.lastUpdated
+      ? isCacheFresh(data.lastUpdated, WEATHER_CACHE_MAX_AGE_HOURS)
+      : false;
+    return { ...data, isStale: !fresh };
+  };
+
   try {
     const cacheRef = doc(db, 'weather_cache', stationCode);
     const cacheSnap = await getDoc(cacheRef);
-    if (!cacheSnap.exists()) return null;
-
-    const data = cacheSnap.data() as CachedWeatherRecord;
-    const fresh = data.lastUpdated ? isCacheFresh(data.lastUpdated, WEATHER_CACHE_MAX_AGE_HOURS) : false;
-    return { ...data, isStale: !fresh };
+    if (cacheSnap.exists()) {
+      const data = cacheSnap.data() as CachedWeatherRecord;
+      void saveWeatherToIdb({ ...data, stationCode }).catch(() => undefined);
+      return wrap(data);
+    }
   } catch (error) {
-    console.error('[Weather] Failed to read shared weather cache:', error);
-    return null;
+    console.warn('[Weather] Live weather_cache read failed — trying cache/IDB', error);
+    try {
+      const cacheRef = doc(db, 'weather_cache', stationCode);
+      const fromSdk = await getDocFromCache(cacheRef);
+      if (fromSdk.exists()) {
+        const data = fromSdk.data() as CachedWeatherRecord;
+        void saveWeatherToIdb({ ...data, stationCode }).catch(() => undefined);
+        return wrap(data);
+      }
+    } catch {
+      /* no SDK cache */
+    }
   }
+
+  try {
+    const idb = await readWeatherFromIdb(stationCode);
+    if (idb?.weatherData && Object.keys(idb.weatherData).length > 0) {
+      console.log(`[Weather] Using IndexedDB pack for ${stationCode}`);
+      return wrap(idb);
+    }
+  } catch (err) {
+    console.warn('[Weather] IDB weather read failed', err);
+  }
+  return null;
 }
 
 /**

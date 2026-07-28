@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyRound, Loader2, Plus, Ban, Copy, Check, Share2 } from 'lucide-react';
 import {
   MODULE_LABELS,
+  WALNUT_PACK_MODULES,
   WORK_MODULES,
   clampModulesToFarm,
   presetsForFarm,
@@ -16,6 +17,7 @@ import {
 } from '../lib/invitePinAuth';
 import { useAuth } from '../contexts/AuthContext';
 import { APP_INVITE_SUBJECT } from '../brand';
+import { useWalnutPack } from '../hooks/useWalnutPack';
 
 function shareMessage(code: string, role: PinRole): string {
   return [
@@ -72,7 +74,19 @@ function ModuleChecklist({
 
 export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const { farmEnabledModules } = useAuth();
-  const farmPresets = presetsForFarm(farmEnabledModules);
+  const hasWalnutPack = useWalnutPack();
+  const packExclude = useMemo(
+    () => (hasWalnutPack ? ([] as FarmModuleId[]) : [...WALNUT_PACK_MODULES]),
+    [hasWalnutPack]
+  );
+  const grantCatalog = useMemo(
+    () => farmEnabledModules.filter((m) => !packExclude.includes(m)),
+    [farmEnabledModules, packExclude]
+  );
+  const farmPresets = useMemo(
+    () => presetsForFarm(farmEnabledModules, { excludeModules: packExclude }),
+    [farmEnabledModules, packExclude]
+  );
 
   const [pins, setPins] = useState<Awaited<ReturnType<typeof listInvitePins>>>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +98,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const [label, setLabel] = useState('Season worker');
   const [role, setRole] = useState<PinRole>('farmer');
   const [modules, setModules] = useState<FarmModuleId[]>(() =>
-    clampModulesToFarm(WORK_MODULES, farmEnabledModules)
+    clampModulesToFarm(WORK_MODULES, grantCatalog)
   );
   const [maxUses, setMaxUses] = useState<string>('');
   const [days, setDays] = useState('365');
@@ -92,11 +106,11 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
 
   useEffect(() => {
     setModules((prev) => {
-      const next = clampModulesToFarm(prev.length ? prev : WORK_MODULES, farmEnabledModules);
+      const next = clampModulesToFarm(prev.length ? prev : WORK_MODULES, grantCatalog);
       if (next.length) return next;
-      return clampModulesToFarm(WORK_MODULES, farmEnabledModules);
+      return clampModulesToFarm(WORK_MODULES, grantCatalog);
     });
-  }, [farmEnabledModules]);
+  }, [grantCatalog]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -145,7 +159,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
     await mint({
       role,
       label: label.trim() || 'Invite',
-      modules: role === 'admin' ? [...farmEnabledModules] : modules,
+      modules: role === 'admin' ? [...grantCatalog] : modules,
       maxUses: maxUses.trim() === '' ? null : Number(maxUses),
       expiresInDays: days.trim() === '' ? null : Number(days),
     });
@@ -318,7 +332,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
                 selected={modules}
                 onChange={setModules}
                 disabled={creating}
-                available={farmEnabledModules}
+                available={grantCatalog}
               />
             </div>
           )}

@@ -3,13 +3,14 @@ ROLE: Multi-enterprise farm / paddock management web app
 STATUS: app (live on Cloud Run; Capacitor Android)
 
 ONE-LINER
-Multi-user Ag Manager for mixed farms — map paddocks and issues, farm diary, and crop-risk tools from weather and spray records (walnut blight first).
+Multi-user Ag Manager for mixed farms — map paddocks and issues, farm diary, seasonal records, and optional crop packs (walnut blight first).
 
 SYNOPSIS
 - Ag Manager — multi-user farm management (public name PUFAM; repo folder still Walnut_farm_manager).
 - Brand: PUFAM = PUF (Prototype Until Failure) + AM (Ag Manager). Formerly PUFOM / Orchard Manager.
 - Supports orchard/tree, broadacre, hort, station/dairy/grazing, aquaculture (marron), and livestock overlay — skeleton expanding from walnut-first tools.
-- Blight management: weather-driven infection-risk modelling tied to the farm diary and spray records; Ji et al. 2025 mechanistic model on a proxy wetness input — not LLM/AI predictions.
+- Walnut crop pack (blight / chill / Ji methodology) is gated: only when farm profile or map areas include walnuts. New farms omit blight from default modules.
+- Blight (when pack on): weather-driven infection-risk modelling tied to the farm diary and spray records; Ji et al. 2025 on a proxy wetness input — not LLM/AI predictions.
 - Farm map: draw areas, pin field issues, optional offline basemap packs; issues feed into diary plans (Capacitor mobile path supported).
 - Farm diary is system of record for sprays, irrigation, nutrition, and work.
 - Also covers harvest/drying (dryer performance model), water budget from farm setup allocation, nutrition logging, financials, invite-PIN team auth.
@@ -27,3 +28,4 @@ NOTES FOR EDITOR
 - Repo folder is Walnut_farm_manager; public name is PUFAM — use PUFAM / Ag Manager on the website card.
 - Live URL may still be https://pufom-quby5ye5pa-ts.a.run.app until Cloud Run rename (Phase B).
 - Generative AI features were removed; do not imply AI forecasting on the site.
+- Walnut blight / chill are a crop pack — do not describe the product as walnut-only.

@@ -7,6 +7,7 @@ import { useMapStore } from '../../lib/mapStore';
 import { useTaskStore, Task } from '../../lib/taskStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { storageApi } from '../../services/storage';
+import { blobToPreviewDataUrl, enqueuePhoto } from '../../lib/photoOutbox';
 import { motion, AnimatePresence } from 'motion/react';
 import L from '../../lib/leaflet-setup';
 import { v4 as uuidv4 } from 'uuid';
@@ -1011,12 +1012,29 @@ export function FieldMode({ farmId, mapLayer, setMapLayer }: { farmId: string, m
               if (!pendingPinLocation || !userData?.uid) return;
               const issueId = uuidv4();
               let photoUrl = '';
-              
+              let photoData: string | undefined;
+
               if (issueData.photo) {
-                try {
-                  photoUrl = await storageApi.uploadFieldIssuePhoto(farmId, issueId, issueData.photo);
-                } catch (error) {
-                  console.error("Failed to upload photo:", error);
+                const online =
+                  typeof navigator === 'undefined' ? true : navigator.onLine;
+                if (online) {
+                  try {
+                    photoUrl = await storageApi.uploadFieldIssuePhoto(
+                      farmId,
+                      issueId,
+                      issueData.photo
+                    );
+                  } catch (error) {
+                    console.warn('[FieldMode] photo upload failed — queuing', error);
+                  }
+                }
+                if (!photoUrl) {
+                  try {
+                    await enqueuePhoto(farmId, issueId, issueData.photo);
+                    photoData = (await blobToPreviewDataUrl(issueData.photo)) || undefined;
+                  } catch (queueErr) {
+                    console.error('[FieldMode] photo outbox failed', queueErr);
+                  }
                 }
               }
 
@@ -1030,7 +1048,8 @@ export function FieldMode({ farmId, mapLayer, setMapLayer }: { farmId: string, m
                 category: issueData.category,
                 priority: issueData.priority,
                 note: issueData.note,
-                photoUrl: photoUrl
+                photoUrl: photoUrl || undefined,
+                photoData,
               };
               await addIssue(farmId, newIssue);
               setIsReporting(false);

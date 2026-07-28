@@ -4,6 +4,7 @@ import { Info, Book, Microscope, Map, Activity, Snowflake, Droplets, ChevronDown
 import { motion, AnimatePresence } from 'motion/react';
 import { getAppUrl, getShareUrl, hasPublishedAppUrl } from '../lib/appUrl';
 import { APP_BLURB, APP_FULL_NAME, APP_NAME, APP_WORKSHOP } from '../brand';
+import { useWalnutPack } from '../hooks/useWalnutPack';
 
 function AssumptionsAndLimitsBox() {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,7 +42,7 @@ function AssumptionsAndLimitsBox() {
                   <p>
                     Code: <code className="text-xs bg-slate-100 px-1 rounded">TRV ≈ height × width × 10000 / rowSpacing</code>,
                     then compressed to 0–1 as CDF. Microclimate modifiers stay <strong>off</strong> when geometry is
-                    only the Settings defaults — set height, width, and spacing on the orchard map (or override all
+                    only the Settings defaults — set height, width, and spacing on the farm map (or override all
                     three in sandbox) to turn them on. Homemade index, not a validated spray TRV.
                   </p>
                 </div>
@@ -82,6 +83,56 @@ function AssumptionsAndLimitsBox() {
 }
 
 export function About() {
+  const hasWalnutPack = useWalnutPack();
+
+  const workflowItems = (
+    [
+      {
+        to: '/farm-setup',
+        icon: Warehouse,
+        title: '1. Farm setup',
+        blurb: 'Once: dryers, water allocation (ML), irrigation method. Areas come from the map.',
+        walnutOnly: false,
+      },
+      {
+        to: '/map',
+        icon: Map,
+        title: '2. Farm map',
+        blurb:
+          'Draw areas, drop issue pins, offline basemap when packed. Crew can share live GPS on the map when online (Settings → Privacy). Issues feed the diary.',
+        walnutOnly: false,
+      },
+      {
+        to: '/diary',
+        icon: BookOpen,
+        title: '3. Farm diary',
+        blurb: 'Plans, sprays, water, nutrition applications, and work — the system of record.',
+        walnutOnly: false,
+      },
+      {
+        to: '/blight',
+        icon: Activity,
+        title: '4. Blight risk',
+        blurb: 'Walnut crop pack: weather-driven threat index; historical / forecast / sandbox.',
+        walnutOnly: true,
+      },
+      {
+        to: '/water',
+        icon: Droplets,
+        title: hasWalnutPack ? '5. Water & nutrition' : '4. Water & nutrition',
+        blurb: 'Log irrigation and fertiliser applications to the diary. Budget uses Farm setup allocation.',
+        walnutOnly: false,
+      },
+      {
+        to: '/harvest',
+        icon: Tractor,
+        title: hasWalnutPack ? '6. Harvest & drying' : '5. Harvest & drying',
+        blurb: 'Yield by area folder; drying sessions pick configured dryers and source area.',
+        walnutOnly: false,
+      },
+    ] as const
+  ).filter((item) => !item.walnutOnly || hasWalnutPack);
+
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-12 pb-20 bg-slate-50">
       {/* Header */}
@@ -95,7 +146,10 @@ export function About() {
         </div>
         <h1 className="text-4xl font-bold text-slate-900 tracking-tight">About & Methodology</h1>
         <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-          {APP_FULL_NAME} — {APP_BLURB} Walnut blight and chill views are the first deep crop pack.
+          {APP_FULL_NAME} — {APP_BLURB}{' '}
+          {hasWalnutPack
+            ? 'This farm has the walnut crop pack on (blight risk and chill).'
+            : 'Orchard, broadacre, grazing, hort, and aquaculture share the same map → diary loop; crop packs unlock only when that enterprise is configured.'}{' '}
           Built and maintained by one grower-developer, not a research lab.
         </p>
       </motion.div>
@@ -107,49 +161,12 @@ export function About() {
           How the farm workflow fits together
         </h2>
         <p className="text-sm text-slate-600 max-w-3xl">
-          Day-to-day use is built around blocks on the map and a shared Farm Diary. Specialist pages are thin logging or decision screens on top of that — not separate “control systems.”
+          Day-to-day use is built around areas on the map and a shared Farm Diary — the same loop whether you run
+          tree crops, paddocks, water zones, or dams. Specialist pages (water, harvest, optional crop packs) are
+          thin logging or decision screens on top of that, not separate control systems.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {(
-            [
-              {
-                to: '/farm-setup',
-                icon: Warehouse,
-                title: '1. Farm setup',
-                blurb: 'Once: dryers, water allocation (ML), irrigation method. Blocks come from the map.',
-              },
-              {
-                to: '/map',
-                icon: Map,
-                title: '2. Orchard map',
-                blurb: 'Draw blocks, drop issue pins, offline basemap when packed. Issues feed the diary.',
-              },
-              {
-                to: '/diary',
-                icon: BookOpen,
-                title: '3. Farm diary',
-                blurb: 'Plans, sprays, water, nutrition applications, and work — the system of record.',
-              },
-              {
-                to: '/blight',
-                icon: Activity,
-                title: '4. Blight risk',
-                blurb: 'Weather-driven threat index; historical / forecast / sandbox what-ifs.',
-              },
-              {
-                to: '/water',
-                icon: Droplets,
-                title: '5. Water & nutrition',
-                blurb: 'Log irrigation and fertiliser applications to the diary. Budget uses Farm setup allocation.',
-              },
-              {
-                to: '/harvest',
-                icon: Tractor,
-                title: '6. Harvest & drying',
-                blurb: 'Yield by block folder; drying sessions pick configured dryers and source block.',
-              },
-            ] as const
-          ).map((item) => (
+          {workflowItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -164,11 +181,35 @@ export function About() {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Home shows open issues, plans, and a blight snapshot. Financials and farm management stay under Records / System when you need them.
+          {hasWalnutPack
+            ? 'Home shows open issues, plans, and a blight snapshot. Financials and farm management stay under Records / System when you need them.'
+            : 'Home shows open issues and plans. Financials and farm management stay under Records / System when you need them.'}{' '}
           Soil lab XLSX import is deferred — Nutrition is an application diary for now.
         </p>
       </section>
 
+      {!hasWalnutPack && (
+        <section className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3">
+          <h2 className="text-lg font-bold text-slate-900">Optional crop packs</h2>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            The first deep pack is <strong>walnut</strong>: blight risk, winter chill targets, and Ji-model
+            methodology on this page. It unlocks when Farm setup has orchard/tree + walnut, or a map area is
+            marked walnut. Until then, invite PIN presets and Farm modules hide blight so workers never see
+            walnut-only tools.
+          </p>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Turn it on in{' '}
+            <Link to="/farm-setup" className="font-semibold text-emerald-700 hover:underline">
+              Farm setup
+            </Link>
+            {' '}
+            (enterprises / default species) or when naming a paddock as walnut on the map.
+          </p>
+        </section>
+      )}
+
+      {hasWalnutPack && (
+      <>
       {/* Core Models */}
       <section className="space-y-6">
         <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -280,7 +321,7 @@ export function About() {
           <div className="space-y-2">
             <h3 className="text-base font-bold text-slate-900">Sandbox — legacy weather index (what-if only)</h3>
             <p>
-              The Sandbox tab keeps the older multiplicative weather index (legacy PUFOM-era) for scenario play. It builds a daily
+              The Sandbox tab keeps the older multiplicative weather index (legacy sandbox / pre–Ji path) for scenario play. It builds a daily
               infection pressure from the factors below and folds it into a running threat score with a short memory
               (~15% decay per day). This is <strong>not</strong> the Ji model and is not used on Forecast or Historical.
             </p>
@@ -352,7 +393,7 @@ export function About() {
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-xs leading-relaxed">
             <strong>Honest limit:</strong> Forecast / Historical reproduce Ji et al. 2025's infection-rate equations,
             but on a <strong>proxy wetness input</strong> and without their incubation / secondary-inoculum stages,
-            and with no local scouting calibration yet. Treat the number as a relative decision aid for this orchard's
+            and with no local scouting calibration yet. Treat the number as a relative decision aid for this farm's
             weather — not a lab assay, lesion forecast, or regulatory advice.
           </div>
         </div>
@@ -425,6 +466,8 @@ export function About() {
       </section>
 
       <AssumptionsAndLimitsBox />
+      </>
+      )}
 
       {/* Footer Note */}
       <div className="pt-8 border-t border-slate-200 text-center space-y-3">

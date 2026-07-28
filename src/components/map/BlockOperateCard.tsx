@@ -36,6 +36,8 @@ export function BlockOperateCard({
   onReportIssue,
 }: Props) {
   const tree = isTreeCropKind(block.cropKind);
+  const showChill =
+    tree && String(block.species || '').trim().toLowerCase() === 'walnut';
   const cultivar = resolveCultivarTarget(block.cultivar);
   const met =
     chill.portions != null && chill.portions >= cultivar.requiredCP;
@@ -91,7 +93,7 @@ export function BlockOperateCard({
           </span>
         </button>
 
-        {tree ? (
+        {showChill ? (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-sm gap-3">
               <span className="inline-flex items-center gap-2 text-slate-600">

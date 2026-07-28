@@ -33,11 +33,16 @@ export function DrawingActionBar({ map, enabled }: Props) {
       return;
     }
 
+    const setDrawBarClass = (on: boolean) => {
+      map.getContainer().classList.toggle('pufom-using-draw-bar', on);
+    };
+
     const sync = () => {
       const h = getCurrentDrawHandler();
       const on = Boolean(h?._enabled);
       setActive(on);
       setPoints(drawHandlerMarkerCount(h));
+      setDrawBarClass(on);
       if (on) shieldLeafletDrawControls(map.getContainer());
     };
 
@@ -49,6 +54,7 @@ export function DrawingActionBar({ map, enabled }: Props) {
     const onStop = () => {
       setActive(false);
       setPoints(0);
+      setDrawBarClass(false);
     };
 
     const DrawEvent = (L as unknown as { Draw?: { Event?: Record<string, string> } }).Draw?.Event;
@@ -72,6 +78,7 @@ export function DrawingActionBar({ map, enabled }: Props) {
       map.off(DRAWSTOP, onStop);
       map.off(CREATED, onStop);
       obs.disconnect();
+      setDrawBarClass(false);
     };
   }, [map, enabled]);
 

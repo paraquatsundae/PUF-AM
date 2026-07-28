@@ -5,6 +5,7 @@ import { deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { listOutbox, removeOutboxOp, type OutboxOp } from './localFarmRepo';
 import { isLocalOnlyFarmSession } from './workshopMode';
+import { flushPhotoOutbox } from './flushPhotoOutbox';
 
 function isPermissionOrOfflineError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
@@ -76,6 +77,7 @@ export function startFarmOutboxFlushListener(): void {
   listening = true;
   const run = () => {
     void flushFarmOutbox().catch((e) => console.warn('[flushFarmOutbox]', e));
+    void flushPhotoOutbox().catch((e) => console.warn('[flushPhotoOutbox]', e));
   };
   window.addEventListener('online', run);
   // Capacitor Network if present

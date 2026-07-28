@@ -16,6 +16,6 @@ export type PufomSyncPeer = {
   baseUrl: string;
   txt?: Record<string, string>;
   self?: boolean;
-  source: 'mdns' | 'self';
+  source: 'mdns' | 'self' | 'nsd';
   seenAt: string;
 };

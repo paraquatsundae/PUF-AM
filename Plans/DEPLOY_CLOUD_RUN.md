@@ -1,4 +1,6 @@
-# Deploy PUFOM live (Cloud Run)
+# Deploy PUFAM live (Cloud Run)
+
+> Service / URL may still be named `pufom-…` until rename Phase B (see `RENAME_TO_PUFAM.md`).
 
 Goal: public `https://…run.app` URL — phones/browsers work without your PC or localhost.
 

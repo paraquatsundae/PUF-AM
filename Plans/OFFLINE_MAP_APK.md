@@ -1,8 +1,8 @@
 # Offline Map + Android APK Roadmap
 
 **Created:** 13 July 2026  
-**Last updated:** 24 July 2026  
-**Status:** Phase 1 + 2 done; Phase 3 sync adapters in progress (`.pufom` + LAN shelf)
+**Last updated:** 27 July 2026  
+**Status:** Phase 1–3 done for workshop (NSD + photo queue + weather IDB); later: SQLite / PWA / NearMap
 
 ---
 
@@ -18,13 +18,23 @@ First open of **Orchard Map** without a local pack prompts:
 
 | Module | Path |
 |--------|------|
-| Pack store | `src/lib/basemapPack.ts` |
-| Downloader | `src/lib/tileDownloader.ts` |
-| Setup UI | `src/components/map/FarmBasemapSetup.tsx` |
+| Pack store | `src/lib/basemapPack.ts` (v2: tiles shared by `z/x/y` across farms) |
+| Downloader | `src/lib/tileDownloader.ts` (skips tiles already on device) |
+| Setup UI | `src/components/map/FarmBasemapSetup.tsx` (device scan / reuse / delete) |
 | Cached layer | `src/components/map/CachedTileLayer.tsx` |
 | Wire-up | `src/pages/OrchardMap.tsx` |
 
 Failed updates do **not** wipe an existing pack. When offline, the cached layer does not hit the network.
+
+### Tablet display fix (2026-07-27)
+
+Blank sat imagery on Capacitor (pack **and** Skip for now) was addressed:
+
+1. **Cached tiles** — stop revoking `blob:` URLs in `img.onload` (Android WebView blanks tiles); revoke on Leaflet tile remove. Network fallback if a blob fails to decode.
+2. **Skip / online** — native Capacitor prefers Esri World Imagery over Google Mutant (LAN live-reload origins often fail Maps JS referrer checks). Desktop still uses Google when a real key is set; Mutant failure falls back to Esri.
+3. **Online detection** — use `@capacitor/network` alongside `navigator.onLine` so packs are not stuck `offlineOnly` with dark placeholders.
+
+**Device scan / dedupe (2026-07-27):** Setup UI lists packs already in IndexedDB. **Use for this farm** links an existing pack without re-download. Downloads skip tiles already cached (shared `z/x/y` keys). Clearing a pack purges only tiles no other pack still needs.
 
 ### Farm geometry (local-first, done)
 
@@ -47,7 +57,7 @@ Installable paddock shell using the same Vite build. Tiles still live in **Index
 | Item | Value |
 |------|--------|
 | App ID | `com.sentinut.farm` (unchanged for install continuity) |
-| App name | PUFOM |
+| App name | PUFAM (Ag Manager) |
 | Launcher icon | `PUFom_icon.png` → `assets/pufom-apk-icon-master.png` (emu in orchard circle) |
 | In-app logo | Same mark (`public/logo.png`) |
 | Config | `capacitor.config.ts` |
@@ -127,10 +137,13 @@ Device outbox ──► Firebase Firestore (current)
 |-------|------|
 | Universal outbox (issues + diary) | `src/lib/localFarmRepo.ts`, `flushFarmOutbox.ts` |
 | Geometry outbox | `farmGeometryIdb.ts` / `farmGeometrySync.ts` |
+| Photo Storage outbox | `photoOutbox.ts`, `flushPhotoOutbox.ts` |
 | `.pufom` v1 format + LWW merge | `shared/sync/pufomBundle.ts` |
 | Gzip encode/decode | `src/lib/pufomCodec.ts` |
 | Export / import / LAN client | `src/lib/pufomSync.ts` |
 | LAN shelf API | `server/lanSyncRoutes.ts` → `POST/GET /api/sync/lan/:farmId` |
+| Native NSD + hub scan | `PufomNsdPlugin.java`, `nsdPeers.ts`, `mdnsPeers.ts` |
+| Offline weather IDB | `weatherCacheIdb.ts` + OfflineSyncCard **Cache weather** |
 | Settings UI | `src/components/OfflineSyncCard.tsx` |
 | Listener cost (issues + archive) | poll + cache instead of live `onSnapshot` |
 
@@ -152,16 +165,25 @@ Shelf files persist under `tmp/lan-sync/` (gitignored) while the PC is the hub.
 | APIs | `GET /api/sync/self`, `GET /api/sync/peers?waitMs=2500` |
 | Client | `src/lib/mdnsPeers.ts` + Offline & sync peer picker |
 
-- Set `PUFOM_MDNS=0` to disable advertise/browse.
+- Set `PUFOM_MDNS=0` to disable advertise/browse (wire name stays `pufom` until rename Phase B).
 - Windows: allow Node.js through the firewall for private networks (UDP 5353 + TCP app port).
 - Browsers cannot browse mDNS themselves — clients ask the current Express hub to scan. First tablet connection still needs a LAN IP / `npm run sync:android:lan`; after that, **Scan mDNS peers** finds other workshop hubs.
 - Console logs the hub URL and `http://<hostname>.local:<port>` when advertising.
 
-### Still to do
+### Phase 3 leftovers closed (2026-07-27)
+
+| Piece | Path |
+|-------|------|
+| Photo outbox (Storage) | `src/lib/photoOutbox.ts`, `flushPhotoOutbox.ts`, FieldMode enqueue + preview `photoData` |
+| Storage rules | `storage.rules` (wired in `firebase.json`) — deploy with `firebase deploy --only storage` |
+| Weather IDB | `src/lib/weatherCacheIdb.ts`; `weatherService` mirrors + offline read; Offline & sync **Cache weather** |
+| Native NSD | `android/.../PufomNsdPlugin.java` + `src/lib/nsdPeers.ts`; Offline & sync **Scan for hubs** |
+| Last hub | `localStorage` `pufom_last_sync_hub` + `setRuntimeApiBaseUrl` for packaged cold start |
+
+### Still later
 
 - Optional SQLite adapter (Capacitor) if IDB quota bites
-- Full offline weather / Storage photo queue
-- Native Capacitor NSD browse (cold-start without typing PC IP)
 - PWA service worker (APK path preferred for paddock)
 - NearMap / paid AU imagery
+- Tile packs on Capacitor Filesystem
 - Mapping issues (separate track)

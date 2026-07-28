@@ -8,15 +8,21 @@ import type { OrchardBlock } from '../../lib/mapStore';
 import type { FarmProfile } from '../../lib/farmDiary';
 import { resolveFarmProfile } from '../../lib/farmDiary';
 import {
+  areaWordForCropKind,
   cultivarsForSpecies,
   defaultGeometryKind,
   FARM_ENTERPRISES,
   getEnterprise,
+  isTreeCropKind,
+  mapUiCopy,
   primaryEnterprise,
   speciesForEnterprise,
   type FarmEnterpriseId,
   type TreeSpeciesId,
 } from '../../../shared/farm/farmTypes';
+
+/** Auto names stamped on draw — rewrite when paddock type changes. */
+const AUTO_AREA_NAME = /^(Block|Paddock|Area)\s+(\d+)$/i;
 
 export type NewPaddockSave = {
   name: string;
@@ -60,16 +66,24 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
   const [cultivar, setCultivar] = useState(block.cultivar || '');
   const [seasonLabel, setSeasonLabel] = useState(block.seasonLabel || '');
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevCropKindRef = useRef(initialKind);
   /** Ignore backdrop/close until the Finish tap that opened us has fully settled (Android WebView). */
   const [dismissArmed, setDismissArmed] = useState(false);
 
   const enterprise = getEnterprise(cropKind);
   const speciesOptions = speciesForEnterprise(cropKind);
   const cultivarOptions = cultivarsForSpecies(species);
+  const mapCopy = useMemo(() => mapUiCopy(profile), [profile]);
+  // Mixed farms keep "Area" chrome until the user picks a type (name still Area N).
+  const areaWord =
+    mapCopy.blockWord === 'area' && /^Area\s+\d+$/i.test(name.trim())
+      ? 'Area'
+      : areaWordForCropKind(cropKind);
 
   useEffect(() => {
     setName(block.name || '');
     setCropKind(initialKind);
+    prevCropKindRef.current = initialKind;
     const ent = getEnterprise(initialKind);
     setSpecies(
       ent.paddockModel === 'species_cultivar'
@@ -88,13 +102,27 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on new block only
   }, [block.id]);
 
+  // When type changes (not on open): rewrite "Block 3" → "Paddock 3", clear orchard fields for non-tree.
   useEffect(() => {
-    if (enterprise.paddockModel !== 'species_cultivar') return;
-    if (!speciesOptions.some((s) => s.id === species)) {
-      const next = speciesOptions[0]?.id || profile.defaultSpeciesId || 'walnut';
-      setSpecies(next);
+    if (prevCropKindRef.current === cropKind) return;
+    prevCropKindRef.current = cropKind;
+    const word = areaWordForCropKind(cropKind);
+    const ent = getEnterprise(cropKind);
+    setName((prev) => {
+      const m = AUTO_AREA_NAME.exec(prev.trim());
+      if (!m) return prev;
+      return `${word} ${m[2]}`;
+    });
+    if (ent.paddockModel !== 'species_cultivar') {
+      setSpecies('');
+      return;
     }
-  }, [cropKind, enterprise.paddockModel, species, speciesOptions, profile.defaultSpeciesId]);
+    const opts = speciesForEnterprise(cropKind);
+    setSpecies((prev) => {
+      if (opts.some((s) => s.id === prev)) return prev;
+      return opts[0]?.id || profile.defaultSpeciesId || 'walnut';
+    });
+  }, [cropKind, profile.defaultSpeciesId]);
 
   useEffect(() => {
     if (enterprise.paddockModel !== 'species_cultivar') return;
@@ -112,7 +140,7 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
     const trimmed = name.trim();
     const geom = defaultGeometryKind(cropKind);
     const base: NewPaddockSave = {
-      name: trimmed || block.name || 'Paddock',
+      name: trimmed || block.name || areaWord,
       cropKind,
       geometryKind: geom,
       cultivar: '',
@@ -162,7 +190,9 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
       <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] overflow-y-auto">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-emerald-50">
           <div>
-            <h3 className="font-bold text-slate-900 text-lg">Name this paddock</h3>
+            <h3 className="font-bold text-slate-900 text-lg">
+              Name this {areaWord.toLowerCase()}
+            </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Boundary saved
               {block.areaHa != null ? ` · ${block.areaHa} ha` : ''}
@@ -190,7 +220,7 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
           {enterpriseChoices.length > 1 ? (
             <div className="space-y-1.5">
               <label htmlFor="paddock-kind" className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Paddock type
+                {areaWord} type
               </label>
               <select
                 id="paddock-kind"
@@ -205,7 +235,8 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
                 ))}
               </select>
               <p className="text-[11px] text-slate-400">
-                Defaults to your farm primary ({getEnterprise(primaryEnterprise(profile)).shortLabel}). Change per paddock if mixed.
+                Defaults to your farm primary ({getEnterprise(primaryEnterprise(profile)).shortLabel}).
+                Change per area on mixed farms — wording updates with type.
               </p>
             </div>
           ) : (
@@ -216,7 +247,7 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
 
           <div className="space-y-1.5">
             <label htmlFor="paddock-name" className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              Paddock name
+              {areaWord} name
             </label>
             <input
               id="paddock-name"
@@ -225,7 +256,11 @@ export function NewPaddockSheet({ block, farmProfile, onSave, onDismiss }: Props
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-3 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-              placeholder="e.g. North 12, Dam 3, Bore zone A"
+              placeholder={
+                isTreeCropKind(cropKind)
+                  ? 'e.g. North 12, Block B'
+                  : 'e.g. Dam 3, Bore zone A, North 40'
+              }
               autoComplete="off"
               enterKeyHint="done"
             />

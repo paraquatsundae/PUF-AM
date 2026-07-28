@@ -12,6 +12,12 @@ import {
   listPufomPeers,
   refreshPufomMdnsBrowse,
 } from './mdnsHub.ts';
+import {
+  clearLanPresence,
+  listLanPresence,
+  upsertLanPresence,
+  type LanPresenceEntry,
+} from './lanPresenceStore.ts';
 
 type ShelfEntry = {
   farmId: string;
@@ -207,6 +213,81 @@ export function registerLanSyncRoutes(app: Express): void {
       const status = (error as { status?: number })?.status || 500;
       return res.status(status).json({
         error: error instanceof Error ? error.message : 'LAN pull failed',
+      });
+    }
+  });
+
+  /** Crew presence — in-memory shelf on this hub (CREW_PRESENCE P2). */
+  app.post('/api/presence/:farmId', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      if (!farmId) return res.status(400).json({ error: 'farmId required' });
+      const { uid } = await verifyFarmMember(req, farmId);
+      const body = (req.body || {}) as Partial<LanPresenceEntry>;
+      const lat = Number(body.lat);
+      const lng = Number(body.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return res.status(400).json({ error: 'lat/lng required' });
+      }
+      const entry: LanPresenceEntry = {
+        uid,
+        displayName: String(body.displayName || 'Crew').slice(0, 100),
+        lat,
+        lng,
+        accuracyM:
+          typeof body.accuracyM === 'number' && Number.isFinite(body.accuracyM)
+            ? body.accuracyM
+            : null,
+        headingDeg:
+          typeof body.headingDeg === 'number' && Number.isFinite(body.headingDeg)
+            ? body.headingDeg
+            : typeof (body as { heading?: unknown }).heading === 'number' &&
+                Number.isFinite((body as { heading: number }).heading)
+              ? (body as { heading: number }).heading
+              : null,
+        speedMps:
+          typeof body.speedMps === 'number' && Number.isFinite(body.speedMps)
+            ? body.speedMps
+            : null,
+        updatedAt: new Date().toISOString(),
+        source: body.source === 'manual' ? 'manual' : 'gps',
+      };
+      upsertLanPresence(farmId, entry);
+      return res.json({ ok: true, entry });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Presence upsert failed',
+      });
+    }
+  });
+
+  app.delete('/api/presence/:farmId/me', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      if (!farmId) return res.status(400).json({ error: 'farmId required' });
+      const { uid } = await verifyFarmMember(req, farmId);
+      clearLanPresence(farmId, uid);
+      return res.json({ ok: true });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Presence clear failed',
+      });
+    }
+  });
+
+  app.get('/api/presence/:farmId', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      if (!farmId) return res.status(400).json({ error: 'farmId required' });
+      await verifyFarmMember(req, farmId);
+      const entries = listLanPresence(farmId);
+      return res.json({ farmId, entries, at: new Date().toISOString() });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Presence list failed',
       });
     }
   });

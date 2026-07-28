@@ -302,7 +302,7 @@ export function Login() {
                 minLength={2}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="e.g. Alex"
+                placeholder="Name"
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -352,7 +352,7 @@ export function Login() {
                 minLength={2}
                 value={farmName}
                 onChange={(e) => setFarmName(e.target.value)}
-                placeholder="e.g. Clare Downs Orchard"
+                placeholder="Farm name"
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -369,7 +369,7 @@ export function Login() {
                 minLength={2}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="e.g. Alex"
+                placeholder="Name"
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>

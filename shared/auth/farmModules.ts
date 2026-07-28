@@ -23,7 +23,7 @@ export type FarmRole = 'admin' | 'farmer' | 'viewer';
 
 export const MODULE_LABELS: Record<FarmModuleId, string> = {
   dashboard: 'Dashboard',
-  map: 'Orchard Map',
+  map: 'Farm Map',
   diary: 'Farm Diary',
   blight: 'Blight Risk',
   water: 'Water',
@@ -34,6 +34,26 @@ export const MODULE_LABELS: Record<FarmModuleId, string> = {
   farm_setup: 'Farm Setup',
   settings: 'Settings',
 };
+
+/** Crop-specific modules — only offer when the matching crop pack is on. */
+export const WALNUT_PACK_MODULES: FarmModuleId[] = ['blight'];
+
+/** Default catalog for a new farm (no crop packs assumed). */
+export function defaultModulesWithoutCropPacks(): FarmModuleId[] {
+  return FARM_MODULE_IDS.filter((id) => !WALNUT_PACK_MODULES.includes(id));
+}
+
+/** Merge walnut pack modules into a catalog when the farm has walnuts. */
+export function withWalnutPackModules(modules: FarmModuleId[]): FarmModuleId[] {
+  const set = new Set<FarmModuleId>([...modules, ...WALNUT_PACK_MODULES]);
+  return FARM_MODULE_IDS.filter((id) => set.has(id));
+}
+
+/** Drop walnut pack modules when the farm has no walnuts. */
+export function withoutWalnutPackModules(modules: FarmModuleId[]): FarmModuleId[] {
+  const ban = new Set<FarmModuleId>(WALNUT_PACK_MODULES);
+  return resolveFarmEnabledModules(modules.filter((id) => !ban.has(id)));
+}
 
 /** Always available for a farm (shell + team). Not toggleable off. */
 export const ALWAYS_ON_MODULES: FarmModuleId[] = [
@@ -50,9 +70,9 @@ export const OPTIONAL_MODULES: FarmModuleId[] = FARM_MODULE_IDS.filter(
 
 export const MODULE_BLURBS: Record<FarmModuleId, string> = {
   dashboard: 'Home snapshot',
-  map: 'Blocks, pins, field issues',
+  map: 'Areas, pins, field issues',
   diary: 'Spray, water, nutrition, work plans',
-  blight: 'Walnut blight risk (optional — crop-specific)',
+  blight: 'Walnut blight risk (walnut crop pack only)',
   water: 'Irrigation logging & budget',
   nutrition: 'Fertiliser diary',
   harvest: 'Harvest & drying',
@@ -206,7 +226,7 @@ export const MODULE_PRESETS: ModulePreset[] = [
     label: 'Crop scout',
     role: 'farmer',
     modules: CROP_SCOUT_MODULES,
-    blurb: 'Blight, water, nutrition',
+    blurb: 'Blight (walnut pack), water, nutrition',
     pinLabel: 'Crop scout',
     days: 365,
     maxUses: null,
@@ -243,11 +263,38 @@ export const MODULE_PRESETS: ModulePreset[] = [
   },
 ];
 
+export type PresetsForFarmOptions = {
+  /** Drop these modules even if still listed on the farm catalog (e.g. blight without walnut pack). */
+  excludeModules?: readonly FarmModuleId[];
+};
+
 /** Filter PIN presets to modules the farm actually offers. */
-export function presetsForFarm(farmEnabled: unknown): ModulePreset[] {
-  const farm = new Set(resolveFarmEnabledModules(farmEnabled));
-  return MODULE_PRESETS.map((preset) => ({
-    ...preset,
-    modules: preset.modules.filter((m) => farm.has(m)),
-  })).filter((preset) => preset.role === 'admin' || preset.modules.length > 0);
+export function presetsForFarm(
+  farmEnabled: unknown,
+  options?: PresetsForFarmOptions
+): ModulePreset[] {
+  const ban = new Set(options?.excludeModules ?? []);
+  const farm = new Set(
+    resolveFarmEnabledModules(farmEnabled).filter((m) => !ban.has(m))
+  );
+  return MODULE_PRESETS.map((preset) => {
+    const modules = preset.modules.filter((m) => farm.has(m));
+    let blurb = preset.blurb;
+    if (preset.id === 'crop_scout' && !modules.includes('blight')) {
+      blurb =
+        modules.includes('water') || modules.includes('nutrition')
+          ? 'Water and nutrition'
+          : 'Crop tools available on this farm';
+    }
+    if (
+      (preset.id === 'full_farmer' || preset.id === 'viewer') &&
+      !modules.includes('blight')
+    ) {
+      blurb =
+        preset.id === 'viewer'
+          ? 'Read-only on work modules (no walnut pack tools)'
+          : 'Map, diary, ops tools, harvest';
+    }
+    return { ...preset, modules, blurb };
+  }).filter((preset) => preset.role === 'admin' || preset.modules.length > 0);
 }

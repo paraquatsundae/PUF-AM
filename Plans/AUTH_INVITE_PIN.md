@@ -1,6 +1,6 @@
 # Invite PIN authentication (multi-user farms)
 
-PUFOM signs users in with **Firebase Auth custom tokens**. Orchard owners **create a farm in the app**, then mint **invite PINs** with a role and module list for workers.
+PUFAM signs users in with **Firebase Auth custom tokens**. Farm owners **create a farm in the app**, then mint **invite PINs** with a role and module list for workers.
 
 ## Owner flow
 
@@ -33,7 +33,7 @@ PINs are stored as SHA-256 hashes in `access_pins/{hash}` (clients cannot read t
 
 **Farm catalog** (`farms/{farmId}.enabledModules`) — owner toggles in **Farm Management → Farm modules**. Always-on: dashboard, farm_management, farm_setup, settings. Optional: map, diary, blight, water, nutrition, harvest, financials. Missing field → all modules (backward compatible).
 
-**Worker grants** are a subset of the farm catalog. Nav uses `effectiveModules(role, user.modules, farm.enabledModules)`. Crop-specific tools (e.g. blight) can be turned off for non-walnut orchards.
+**Worker grants** are a subset of the farm catalog. Nav uses `effectiveModules(role, user.modules, farm.enabledModules)`. Crop-pack tools (e.g. walnut blight) are omitted from PIN presets and the module picker when that pack is off.
 
 Platform `/admin` is not a farm module.
 

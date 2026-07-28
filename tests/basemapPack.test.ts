@@ -6,7 +6,10 @@ import {
   enumerateTiles,
   estimatePackSize,
   planPackZoom,
+  sharedTileKey,
   squareBboxAround,
+  tileKeysForPacks,
+  type BasemapPack,
 } from '../src/lib/basemapPack';
 
 describe('basemapPack', () => {
@@ -76,5 +79,29 @@ describe('basemapPack', () => {
     const plan = planPackZoom(huge, { maxTiles: 100 });
     expect(plan.overBudget).toBe(true);
     expect(plan.maxZoom).toBe(MIN_ALLOWED_MAX_ZOOM);
+  });
+
+  it('uses shared tile keys so farms can share one blob per z/x/y', () => {
+    expect(sharedTileKey(14, 14000, 9000)).toBe('14/14000/9000');
+  });
+
+  it('builds a deduped tile key set across overlapping packs', () => {
+    const bbox = squareBboxAround(-34.24, 116.14, 500);
+    const packA: BasemapPack = {
+      farmId: 'farm_a',
+      label: 'A',
+      bbox,
+      minZoom: 12,
+      maxZoom: 12,
+      tileCount: 0,
+      bytes: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      source: 'esri-world-imagery',
+    };
+    const packB: BasemapPack = { ...packA, farmId: 'farm_b', label: 'B' };
+    const keys = tileKeysForPacks([packA, packB]);
+    const single = tileKeysForPacks([packA]);
+    expect(keys.size).toBe(single.size);
+    expect(keys.size).toBe(enumerateTiles(bbox, 12, 12).length);
   });
 });

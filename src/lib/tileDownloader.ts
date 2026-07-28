@@ -2,6 +2,7 @@ import {
   BasemapPack,
   LatLngBoundsLiteral,
   enumerateTiles,
+  getTileBlob,
   isQuotaExceededError,
   putTile,
   saveBasemapPack,
@@ -16,6 +17,10 @@ export type DownloadProgress = {
   bytes: number;
   percent: number;
   currentLabel: string;
+  /** Tiles taken from device cache (no network). */
+  reused: number;
+  /** Tiles fetched from the network. */
+  downloaded: number;
 };
 
 export type DownloadOptions = {
@@ -63,7 +68,8 @@ async function fetchTileBlob(
 
 /**
  * Download Esri World Imagery tiles for a bbox into IndexedDB and save pack metadata.
- * Does not clear an existing pack first — failed updates leave the previous pack intact.
+ * Reuses tiles already on the device (shared cache) so overlapping areas are not
+ * downloaded or stored twice. Failed updates leave the previous pack intact.
  */
 export async function downloadBasemapPack(options: DownloadOptions): Promise<BasemapPack> {
   const {
@@ -79,6 +85,8 @@ export async function downloadBasemapPack(options: DownloadOptions): Promise<Bas
 
   let done = 0;
   let bytes = 0;
+  let reused = 0;
+  let downloaded = 0;
   let total = 0;
 
   const report = (currentLabel: string) => {
@@ -88,10 +96,12 @@ export async function downloadBasemapPack(options: DownloadOptions): Promise<Bas
       bytes,
       percent: total === 0 ? 0 : Math.round((done / total) * 100),
       currentLabel,
+      reused,
+      downloaded,
     });
   };
 
-  report('Preparing…');
+  report('Scanning device cache…');
 
   const tiles = enumerateTiles(bbox, minZoom, maxZoom);
   total = tiles.length;
@@ -106,17 +116,33 @@ export async function downloadBasemapPack(options: DownloadOptions): Promise<Bas
       const i = index++;
       const t = tiles[i];
       try {
+        const existing = await getTileBlob(farmId, t.z, t.x, t.y);
+        if (existing) {
+          done += 1;
+          reused += 1;
+          bytes += existing.size;
+          if (done % 5 === 0 || done === total) {
+            report(
+              reused === done
+                ? `Reusing cached tiles (${done}/${total})`
+                : `z${t.z} (${done}/${total}, ${reused} reused)`
+            );
+          }
+          continue;
+        }
+
         const blob = await fetchTileBlob(t.z, t.x, t.y, signal, 2);
         await putTile(farmId, t.z, t.x, t.y, blob);
         done += 1;
+        downloaded += 1;
         bytes += blob.size;
         if (done % 5 === 0 || done === total) {
-          report(`z${t.z} (${done}/${total})`);
+          report(`z${t.z} (${done}/${total}, ${reused} reused)`);
         }
       } catch (err) {
         if (isQuotaExceededError(err)) {
           throw new Error(
-            'Device storage is full (or the area is too large). Clear old map packs or pick a smaller region.'
+            'Device storage is full (or the area is too large). Clear unused map packs or pick a smaller region.'
           );
         }
         throw err;
@@ -133,7 +159,7 @@ export async function downloadBasemapPack(options: DownloadOptions): Promise<Bas
   } catch (err) {
     if (isQuotaExceededError(err)) {
       throw new Error(
-        'Device storage is full (or the area is too large). Clear old map packs or pick a smaller region.'
+        'Device storage is full (or the area is too large). Clear unused map packs or pick a smaller region.'
       );
     }
     throw err;
@@ -155,11 +181,15 @@ export async function downloadBasemapPack(options: DownloadOptions): Promise<Bas
   } catch (err) {
     if (isQuotaExceededError(err)) {
       throw new Error(
-        'Device storage is full (or the area is too large). Clear old map packs or pick a smaller region.'
+        'Device storage is full (or the area is too large). Clear unused map packs or pick a smaller region.'
       );
     }
     throw err;
   }
-  report('Complete');
+  report(
+    reused > 0
+      ? `Complete — reused ${reused.toLocaleString()} tiles already on this device`
+      : 'Complete'
+  );
   return pack;
 }

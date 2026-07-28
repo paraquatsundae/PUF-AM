@@ -6,25 +6,35 @@ import {
   MODULE_LABELS,
   OPTIONAL_MODULES,
   resolveFarmEnabledModules,
+  withoutWalnutPackModules,
   type FarmModuleId,
 } from '../../shared/auth/farmModules';
 import { useAuth } from '../contexts/AuthContext';
+import { useWalnutPack } from '../hooks/useWalnutPack';
 import { updateFarmModules } from '../lib/invitePinAuth';
 import { clsx } from 'clsx';
+import { Link } from 'react-router-dom';
 
 export function FarmModulesCard() {
   const { farmEnabledModules, refreshFarmModules } = useAuth();
+  const hasWalnutPack = useWalnutPack();
   const [selected, setSelected] = useState<FarmModuleId[]>(farmEnabledModules);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
-    setSelected(farmEnabledModules);
-  }, [farmEnabledModules]);
+    // Drop orphan walnut-pack modules from the editor when the pack is off.
+    setSelected(
+      hasWalnutPack
+        ? farmEnabledModules
+        : withoutWalnutPackModules(farmEnabledModules)
+    );
+  }, [farmEnabledModules, hasWalnutPack]);
 
   const toggle = (id: FarmModuleId) => {
     if (ALWAYS_ON_MODULES.includes(id)) return;
+    if (id === 'blight' && !hasWalnutPack) return;
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
@@ -34,7 +44,9 @@ export function FarmModulesCard() {
     setSaving(true);
     setError(null);
     try {
-      const next = resolveFarmEnabledModules(selected);
+      const next = hasWalnutPack
+        ? resolveFarmEnabledModules(selected)
+        : withoutWalnutPackModules(selected);
       await updateFarmModules(next);
       await refreshFarmModules();
       setSelected(next);
@@ -47,9 +59,15 @@ export function FarmModulesCard() {
     }
   };
 
-  const dirty =
-    resolveFarmEnabledModules(selected).join(',') !==
-    resolveFarmEnabledModules(farmEnabledModules).join(',');
+  const catalogBaseline = hasWalnutPack
+    ? resolveFarmEnabledModules(farmEnabledModules)
+    : withoutWalnutPackModules(farmEnabledModules);
+  const catalogNext = hasWalnutPack
+    ? resolveFarmEnabledModules(selected)
+    : withoutWalnutPackModules(selected);
+  const dirty = catalogNext.join(',') !== catalogBaseline.join(',');
+  const orphanBlightOnFarm =
+    !hasWalnutPack && farmEnabledModules.includes('blight');
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -60,8 +78,13 @@ export function FarmModulesCard() {
         <div>
           <h2 className="text-lg font-bold text-slate-900">Farm modules</h2>
           <p className="text-sm text-slate-500">
-            Choose tools this orchard uses. Worker invite PINs can only grant modules you enable here.
-            Crop-specific tools (e.g. blight) are optional.
+            Choose tools this farm uses. Worker invite PINs can only grant modules you enable here.
+            Walnut blight appears only when the walnut crop pack is on (
+            <Link to="/farm-setup" className="text-emerald-700 underline-offset-2 hover:underline">
+              Farm setup
+            </Link>
+            {' '}
+            / walnut areas on the map).
           </p>
         </div>
       </div>
@@ -69,6 +92,13 @@ export function FarmModulesCard() {
       {error && (
         <div className="text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
           {error}
+        </div>
+      )}
+
+      {orphanBlightOnFarm && (
+        <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+          Blight is still on the farm catalog but this farm has no walnuts configured. Save modules
+          to clear it, or add walnut in Farm setup / on the map.
         </div>
       )}
 
@@ -89,7 +119,7 @@ export function FarmModulesCard() {
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Optional</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {OPTIONAL_MODULES.map((id) => {
+          {OPTIONAL_MODULES.filter((id) => id !== 'blight' || hasWalnutPack).map((id) => {
             const on = selected.includes(id);
             return (
               <button
@@ -109,6 +139,11 @@ export function FarmModulesCard() {
             );
           })}
         </div>
+        {!hasWalnutPack && (
+          <p className="text-[11px] text-slate-500">
+            Blight Risk stays hidden until walnuts are on this farm.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3">

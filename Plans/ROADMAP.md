@@ -1,9 +1,11 @@
-# Walnut Farm Manager — Production Roadmap
+# PUFAM (Ag Manager) — Production Roadmap
 
 **Created:** 13 July 2026  
-**Last updated:** 13 July 2026 (Phase C complete — deploy pending)  
-**Status:** Active — update this file as each step progresses  
-**Companion doc:** [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) §5 (13-step checklist)
+**Last updated:** 27 July 2026 (Phase D — Offline Phase 3 / D-04)  
+**Status:** Active — Phases A–C code complete; deploy + Phase D product polish in flight  
+**Public name:** PUFAM — Ag Manager (repo folder still `Walnut_farm_manager`)  
+**Companion doc:** [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) §5 (13-step checklist)  
+**Rename:** [RENAME_TO_PUFAM.md](./RENAME_TO_PUFAM.md) · **Farm types:** [FARM_TYPES.md](./FARM_TYPES.md)
 
 ---
 
@@ -592,14 +594,38 @@ graph TD
 
 ---
 
+## Phase D — Product polish (post Phase C)
+
+Not part of the original 13 steps. Track here so deploy ops and mixed-farm UX stay visible.
+
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| D-01 | Docs + About PUFAM wording; walnut pack gating copy | `done` | 2026-07-27 — About, README, Plans headers, PIN preset clamp |
+| D-02 | Module / PIN toggles respect crop packs | `done` | Blight hidden without walnut pack; orphan catalog cleared on Save |
+| D-03 | Map UX (draw hit-targets, mixed naming) | `done` | 2026-07-27 — draw bar hit pad, pan-without-point, Area/Block/Paddock naming |
+| D-04 | Offline Phase 3 leftovers (NSD, photo queue, weather) | `done` | 2026-07-27 — photo outbox, weather IDB, Android NSD |
+| D-05 | Farm-types deep UIs (season / station / aqua) | `not_started` | Skeleton in FARM_TYPES.md |
+| D-06 | Cloud Run / mDNS / `.pufom` rename Phase B | `deferred` | Keep wire names until cutover |
+| D-07 | Crew presence on map (cloud → LAN → mesh) | `in_progress` | P1+P2 done 2026-07-27; mesh P3 open — CREW_PRESENCE.md |
+| D-03b | Tablet basemap blank (pack + skip/online) | `done` | 2026-07-27 — blob revoke, Esri-on-native, Capacitor Network |
+
+**Deploy still pending from Phase C:** production secrets, `setAdminClaim.ts` for admin UIDs, optional Cloud Run service rename.
+
+---
+
 ## Progress log
 
 Record every status change here (newest first).
 
 | Date | Step | Action | Notes |
 |------|------|--------|-------|
-| 2026-07-13 | STEP-09–13 | Phase C complete (code) | Weather scheduler + cache; diary pagination; map clustering/bbox; blight/financial CF aggregates; custom claims admin. Deploy + secrets pending. |
-| 2026-07-13 | STEP-07 | Billing removed | Deleted Billing page, route, nav, and Settings link (Option B) |
+| 2026-07-27 | D-07 P2 | Crew presence (LAN hub) | `POST/GET /api/presence` + client poll/merge with cloud |
+| 2026-07-27 | D-07 P1 | Crew presence (cloud) | `presence/{uid}` + CrewPresenceLayer + Settings share toggle |
+| 2026-07-27 | D-04 | Offline Phase 3 | Photo Storage outbox; weather IDB + Cache weather; Android NSD hub scan |
+| 2026-07-27 | D-03b | Tablet basemap | Blob URL revoke fix; Esri on Capacitor; Google fail→Esri; CREW_PRESENCE plan |
+| 2026-07-27 | D-03 | Map UX | Draw hit-targets / pan-without-point; mixed Farm Map Area naming |
+| 2026-07-27 | D-01–D-02 | Docs + crop-pack toggles | PUFAM About/docs pass; PIN presets + Farm modules clamp blight without walnut pack |
+| 2026-07-13 | STEP-09–13 | Phase C complete (code) | Weather scheduler + cache; diary pagination; map clustering/bbox; blight/financial CF aggregates; custom claims admin. Deploy + secrets pending. || 2026-07-13 | STEP-07 | Billing removed | Deleted Billing page, route, nav, and Settings link (Option B) |
 | 2026-07-13 | STEP-05–08 | Phase B complete | 11 Vitest tests; lazy routes + manualChunks (290 KB initial chunk); Billing initially Option A; audit 34→2 vulns |
 | 2026-07-13 | STEP-01–04 | Phase A complete | Git init; secrets gitignored; `.env` created; package renamed; automated smoke tests logged (PARTIAL PASS — API keys pending) |
 | 2026-07-13 | ALL | Roadmap created | Initial plan from post-assessment review. All steps `not_started`. |

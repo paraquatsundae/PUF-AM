@@ -31,6 +31,13 @@ import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { InvitePinManager } from '../components/InvitePinManager';
 import { OfflineSyncCard } from '../components/OfflineSyncCard';
+import { useWalnutPack } from '../hooks/useWalnutPack';
+import {
+  ensureShareCrewLocationDefault,
+  getShareCrewLocation,
+  setShareCrewLocation,
+} from '../lib/crewPresence';
+import { Link } from 'react-router-dom';
 
 interface ModelParameters {
   blightSensitivity: number;
@@ -330,12 +337,18 @@ function SliderControl({ label, value, min, max, step, onChange, description, un
 export function Settings() {
   const navigate = useNavigate();
   const { userData, user, isAdmin } = useAuth();
+  const hasWalnutPack = useWalnutPack();
   const [activeTab, setActiveTab] = useState<'general' | 'advanced'>('general');
   const [params, setParams] = useState<ModelParameters>(DEFAULT_PARAMS);
   const [isLocked, setIsLocked] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [shareCrewLocation, setShareCrewLocationState] = useState(() => getShareCrewLocation());
+
+  useEffect(() => {
+    void ensureShareCrewLocationDefault().then((v) => setShareCrewLocationState(v));
+  }, [userData?.uid]);
 
   useEffect(() => {
     if (!userData?.farmId) return;
@@ -467,6 +480,40 @@ export function Settings() {
             <OfflineSyncCard />
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-lg font-bold text-slate-900">Privacy</h2>
+              <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-xl">
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-900">Share location with farm crew</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    While the Farm Map is open, other signed-in members see your live GPS marker.
+                    Invite PIN / workshop defaults on; turn off anytime.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={shareCrewLocation}
+                  onClick={() => {
+                    const next = !shareCrewLocation;
+                    setShareCrewLocation(next);
+                    setShareCrewLocationState(next);
+                  }}
+                  className={clsx(
+                    'relative w-12 h-6 rounded-full shrink-0 transition-colors',
+                    shareCrewLocation ? 'bg-emerald-600' : 'bg-slate-300'
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      'absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all',
+                      shareCrewLocation ? 'left-7' : 'left-1'
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-lg font-bold text-slate-900">User Preferences</h2>
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl opacity-50">
@@ -528,6 +575,22 @@ export function Settings() {
               </div>
             ) : (
               <div className="space-y-8">
+                {!hasWalnutPack && (
+                  <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl space-y-2">
+                    <h2 className="text-lg font-bold text-slate-900">Walnut crop pack off</h2>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      Walnut blight calibration stays hidden until this farm has the walnut crop pack — set
+                      orchard/tree + walnut species in{' '}
+                      <Link to="/farm-setup" className="font-semibold text-emerald-700 hover:underline">
+                        Farm setup
+                      </Link>
+                      , or mark a map area as walnut. Market cost inputs below still apply for any enterprise.
+                    </p>
+                  </div>
+                )}
+
+                {hasWalnutPack && (
+                <>
                 {/* Technical Header */}
                 <div className="bg-[#141414] text-[#E4E3E0] p-6 rounded-2xl border border-[#141414] shadow-xl space-y-4 font-mono">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -553,6 +616,8 @@ export function Settings() {
                     or claim field spray efficacy.
                   </p>
                 </div>
+                </>
+                )}
 
                 {message && (
                   <motion.div 
@@ -569,6 +634,8 @@ export function Settings() {
 
                 {/* Parameter Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {hasWalnutPack && (
+                  <>
                   {/* Blight Parameters */}
                   <div className="bg-[#E4E3E0] border border-[#141414] p-6 rounded-2xl space-y-6">
                     <div className="flex items-center gap-2 border-b border-[#141414] pb-2">
@@ -824,6 +891,8 @@ export function Settings() {
                       />
                     </div>
                   </div>
+                  </>
+                  )}
 
                   {/* Market & Economic Parameters - Distinct Styling for Clarity */}
                   <div className="bg-white border border-indigo-100 p-6 rounded-2xl space-y-6 shadow-sm ring-1 ring-indigo-50 md:col-span-3 lg:col-span-1">
@@ -842,7 +911,7 @@ export function Settings() {
                         label="Market Price (AUD/kg)"
                         value={params.marketPrice || 3.30}
                         min={1.0} max={10.0} step={0.1}
-                        isLocked={isLocked}
+                        isLocked={hasWalnutPack ? isLocked : false}
                         onChange={(val) => setParams({...params, marketPrice: val})}
                         description="Projected farm gate price for Nut-In-Shell."
                       />
@@ -851,7 +920,7 @@ export function Settings() {
                         label="Harvest Cost (AUD/kg)"
                         value={params.harvestCostPerKg || 0.45}
                         min={0.1} max={2.0} step={0.05}
-                        isLocked={isLocked}
+                        isLocked={hasWalnutPack ? isLocked : false}
                         onChange={(val) => setParams({...params, harvestCostPerKg: val})}
                         description="Estimated cost per kg for harvesting and processing."
                       />
@@ -860,7 +929,7 @@ export function Settings() {
                         label="Water Cost (AUD/ML)"
                         value={params.waterCostPerML || 150}
                         min={50} max={1000} step={10}
-                        isLocked={isLocked}
+                        isLocked={hasWalnutPack ? isLocked : false}
                         onChange={(val) => setParams({...params, waterCostPerML: val})}
                         description="Current cost of irrigation water per Megalitre."
                       />
@@ -874,8 +943,7 @@ export function Settings() {
                   </div>
                 </div>
 
-                {/* Parameter Glossary */}
-                <ParameterGlossary />
+                {hasWalnutPack && <ParameterGlossary />}
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
@@ -887,12 +955,14 @@ export function Settings() {
                     {saving ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     {saving ? 'Processing...' : 'Deploy Parameters'}
                   </button>
+                  {hasWalnutPack && (
                   <button
                     onClick={handleResetDefaults}
                     className="px-6 py-4 border border-[#141414] text-[#141414] rounded-xl font-mono text-xs font-bold uppercase hover:bg-white transition-colors"
                   >
                     Reset to Defaults
                   </button>
+                  )}
                 </div>
 
                 <div className="p-4 bg-slate-100 border border-slate-200 rounded-xl flex items-start gap-3">

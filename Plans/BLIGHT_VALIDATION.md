@@ -1,21 +1,22 @@
 # Blight model validation & scientific hardening
 
-**Status:** Planning — no code changes committed under this plan yet  
+**Product:** PUFAM — Ag Manager (walnut crop pack)  
+**Status:** Ji Forecast/Historical wired; Sandbox keeps legacy multiplicative index  
 **Date:** July 2026  
 **Authoritative honesty copy:** [`src/pages/About.tsx`](../src/pages/About.tsx)  
-**Engine:** [`src/lib/blightModel.ts`](../src/lib/blightModel.ts)  
+**Engine:** [`src/lib/blightModel.ts`](../src/lib/blightModel.ts) · [`shared/weather/jiBlightModel.ts`](../shared/weather/jiBlightModel.ts)  
 **Weather WD proxy:** [`shared/weather/dpirdClient.ts`](../shared/weather/dpirdClient.ts)
 
 ## Verdict
 
-PUFOM blight is a **unitless, weather-driven threat index** inspired by the idea that *Xanthomonas arboricola* pv. *juglandis* needs favourable temperature **and** free water. It is **not** a peer-reviewed SEI / Ji et al. implementation, not XanthoCast, and not WalBlight-risk. Treat production UI as **relative weather favourability**, not infection probability or lesion severity, until validation metrics exist.
+PUFAM’s walnut blight UI is a **unitless, weather-driven threat / infection-risk aid** for *Xanthomonas arboricola* pv. *juglandis*. Forecast/Historical follow Ji et al. 2025 equations on a wetness proxy; Sandbox keeps the older multiplicative index. It is **not** XanthoCast or WalBlight-risk. Treat production numbers as **relative decision aids**, not infection probability or lesion severity, until WA validation metrics exist.
 
 ### Product fork (updated after local research pack — July 2026)
 
 | Option | Meaning |
 |--------|---------|
 | **A — Ji core (recommended)** | Production infection risk = Ji et al. 2025 process model (primary inoculum → INFR → incubation); protection stays separate / Research-only until calibrated |
-| **B — Workshop index** | Keep current PUFOM multiplicative index; strict non-claim wording |
+| **B — Workshop index** | Keep legacy sandbox multiplicative index; strict non-claim wording |
 | **C — Dual track** | Show Ji risk + Lang moisture intensity (AU) side-by-side until WA scouting picks a winner |
 
 **Recommended:** **A**, with **C** as a Historical comparison line. Rationale: you already have a Mathematica implementation of Ji equations on farm weather; Ji is peer-reviewed, process-based, and validated on 21 epidemics. PUFOM’s current index is closer to the *Protection vs natural blight threat* notebook (heuristic) than to Ji.
