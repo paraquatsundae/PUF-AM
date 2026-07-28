@@ -5,7 +5,7 @@ import { House as PhHouse, Crosshair as PhCrosshair, Flag as PhFlag } from '@pho
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, ZoomControl, FeatureGroup, Circle, Marker } from 'react-leaflet';
 import L from '../lib/leaflet-setup';
-import { EditControl } from 'react-leaflet-draw';
+import { StableEditControl } from '../components/map/StableEditControl';
 import type { Map as LeafletMap } from 'leaflet';
 import * as turf from '@turf/turf';
 import { runBlightModel, WeatherData, defaultCalibration } from '../lib/blightModel';
@@ -34,6 +34,7 @@ import {
   formatPackBytes,
   getBasemapSkipped,
   setBasemapSkipped,
+  ESRI_ATTRIBUTION,
   type BasemapPack,
 } from '../lib/basemapPack';
 import { blocksToLeafletBounds } from '../lib/farmBounds';
@@ -46,7 +47,12 @@ import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import debounce from 'lodash/debounce';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
-import { cancelActiveDrawer, startActiveDrawer, type LeafletDrawHandler } from '../lib/mapDrawHelpers';
+import {
+  cancelActiveDrawer,
+  getCurrentDrawHandler,
+  startActiveDrawer,
+  type LeafletDrawHandler,
+} from '../lib/mapDrawHelpers';
 import { DrawingActionBar } from '../components/map/DrawingActionBar';
 import { BoundaryEditActionBar } from '../components/map/BoundaryEditActionBar';
 import { BoundaryImportSheet } from '../components/map/BoundaryImportSheet';
@@ -56,6 +62,18 @@ import {
 } from '../components/map/UserLocationLayer';
 import { CrewPresenceLayer } from '../components/map/CrewPresenceLayer';
 import { useCrewPresence } from '../hooks/useCrewPresence';
+import { useMapHighlights } from '../hooks/useMapHighlights';
+import { MapHighlightsLayer } from '../components/map/MapHighlightsLayer';
+import { BreadTrailLayer } from '../components/map/BreadTrailLayer';
+import { BreadTrailToggles } from '../components/map/BreadTrailToggles';
+import { PaddockNameLayer } from '../components/map/PaddockNameLayer';
+import { HighlightComposeSheet } from '../components/map/HighlightComposeSheet';
+import {
+  canEnableEveryoneTrails,
+  readBreadTrailPrefs,
+  writeBreadTrailPrefs,
+  type BreadTrailPrefs,
+} from '../lib/breadTrails';
 import { NewPaddockSheet } from '../components/map/NewPaddockSheet';
 import {
   boundaryEditVertexCount,
@@ -75,6 +93,31 @@ import {
   resolveFarmProfile,
   type FarmEnterpriseId,
 } from '../../shared/farm/farmTypes';
+import {
+  defaultInfraName,
+  getInfraType,
+  INFRA_TYPES,
+  infraDrawMode,
+  infraSubtractsFromPaddock,
+  type InfraTypeId,
+} from '../../shared/farm/infraTypes';
+import {
+  effectivePaddockAreaHa,
+  recomputeBlockAreasForFarm,
+  subtractingExclusionPolygons,
+} from '../lib/paddockExclusions';
+import {
+  applyInfraPolygonPattern,
+  infraPolygonPathStyle,
+  PUFAM_FILL_PATTERN_CSS,
+  PUFAM_FILL_PATTERN_SVG,
+} from '../lib/infraMapStyles';
+import {
+  PUFAM_TRACK_STROKE_CSS,
+  TRACK_COLOR_DRAW,
+  trackCategoryChipClass,
+  trackPathStyle,
+} from '../lib/trackMapStyles';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 
@@ -144,6 +187,12 @@ export function OrchardMap() {
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const [showIssueFlags, setShowIssueFlags] = useState(false);
   const [placingFlag, setPlacingFlag] = useState(false);
+  const [placingHighlight, setPlacingHighlight] = useState(false);
+  const [highlightDraftGeo, setHighlightDraftGeo] = useState<
+    GeoJSON.Feature | GeoJSON.Geometry | null
+  >(null);
+  const [highlightSending, setHighlightSending] = useState(false);
+  const [trailPrefs, setTrailPrefs] = useState<BreadTrailPrefs>(() => readBreadTrailPrefs());
   const [issuesPanelBlockId, setIssuesPanelBlockId] = useState<string | null>(null);
   const [reportDraft, setReportDraft] = useState<{
     lat: number;
@@ -155,6 +204,7 @@ export function OrchardMap() {
   const [followUser, setFollowUser] = useState(false);
   const {
     others: crewOthers,
+    selfTrail: crewSelfTrail,
     nearbyCount: crewNearby,
     sharing: crewSharing,
     publishStatus: crewPublishStatus,
@@ -377,6 +427,12 @@ export function OrchardMap() {
   const [boundaryEditBlockId, setBoundaryEditBlockId] = useState<string | null>(null);
   const [boundaryEditTick, setBoundaryEditTick] = useState(0);
   const [showBoundaryImport, setShowBoundaryImport] = useState(false);
+  /** What infrastructure Quick Add / draw tools create. */
+  const [infraDrawKind, setInfraDrawKind] = useState<Exclude<InfraTypeId, ''>>('standpipe');
+  const activeTabRef = useRef<SubTab>(activeTab);
+  activeTabRef.current = activeTab;
+  const infraDrawKindRef = useRef(infraDrawKind);
+  infraDrawKindRef.current = infraDrawKind;
   const [forceRender, setForceRender] = useState(0);
 
   // Phase 4.3: Farm Diary Integration
@@ -389,6 +445,72 @@ export function OrchardMap() {
   }, []);
   const { events, settings, getSprayEvents, getIrrigationEvents } = useFarmDiary(diaryDateRange.start, diaryDateRange.end);
   const mapCopy = useMemo(() => mapUiCopy(settings.farmProfile), [settings.farmProfile]);
+  const {
+    highlights: mapHighlights,
+    createHighlight,
+    removeHighlight,
+    canDelete: canDeleteHighlight,
+  } = useMapHighlights({
+    farmId,
+    uid: userData?.uid,
+    displayName: userData?.displayName || userData?.email,
+    role: userData?.role,
+    farmDefaultSeconds: settings.highlightDefaultSeconds,
+    enabled: Boolean(farmId && userData?.uid),
+  });
+  const placingHighlightRef = useRef(false);
+  placingHighlightRef.current = placingHighlight;
+
+  const updateTrailPrefs = useCallback((next: BreadTrailPrefs) => {
+    const gated: BreadTrailPrefs = {
+      ...next,
+      showEveryone: canEnableEveryoneTrails(userData?.role) ? next.showEveryone : false,
+    };
+    setTrailPrefs(gated);
+    writeBreadTrailPrefs(gated);
+  }, [userData?.role]);
+
+  useEffect(() => {
+    if (!canEnableEveryoneTrails(userData?.role) && trailPrefs.showEveryone) {
+      updateTrailPrefs({ ...trailPrefs, showEveryone: false });
+    }
+  }, [userData?.role, trailPrefs, updateTrailPrefs]);
+
+  const startHighlightPaint = useCallback(() => {
+    if (!mapInstance || mapMode !== 'operate') return;
+    setPlacingFlag(false);
+    setReportDraft(null);
+    setHighlightDraftGeo(null);
+    setPlacingHighlight(true);
+    if (!(L as any).Draw) {
+      console.error('Leaflet Draw not initialized');
+      setPlacingHighlight(false);
+      return;
+    }
+    try {
+      startActiveDrawer(
+        activeDrawerRef,
+        new (L as any).Draw.Polygon(mapInstance, {
+          shapeOptions: {
+            color: '#0f766e',
+            fillColor: '#0f766e',
+            fillOpacity: 0.25,
+            weight: 2,
+          },
+        })
+      );
+    } catch (err) {
+      console.error('Failed to start highlight draw', err);
+      cancelActiveDrawer(activeDrawerRef);
+      setPlacingHighlight(false);
+    }
+  }, [mapInstance, mapMode]);
+
+  const cancelHighlightPaint = useCallback(() => {
+    setPlacingHighlight(false);
+    setHighlightDraftGeo(null);
+    cancelActiveDrawer(activeDrawerRef);
+  }, []);
 
   // Phase 4.3: Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -437,6 +559,7 @@ export function OrchardMap() {
     if (!mapInstance) return;
     const handleMapClick = (e: any) => {
       if (e.originalEvent?._stopped) return;
+      if (placingHighlightRef.current) return;
       if (placingFlag && mapMode === 'operate') {
         const lat = e.latlng.lat as number;
         const lng = e.latlng.lng as number;
@@ -457,6 +580,47 @@ export function OrchardMap() {
       mapInstance.off('click', handleMapClick);
     };
   }, [mapInstance, placingFlag, mapMode, findBlockIdAt]);
+
+  // Finish “check this” polygon paint in operate mode
+  useEffect(() => {
+    if (!mapInstance) return;
+    const DrawEvent = (L as unknown as { Draw?: { Event?: Record<string, string> } }).Draw?.Event;
+    const CREATED = DrawEvent?.CREATED || 'draw:created';
+    const onCreated = (e: {
+      layerType?: string;
+      layer: L.Layer & { toGeoJSON?: () => GeoJSON.Feature; remove?: () => void };
+    }) => {
+      if (!placingHighlightRef.current) return;
+      if (e.layerType && e.layerType !== 'polygon') return;
+      try {
+        const geojson = e.layer.toGeoJSON?.();
+        if (geojson) {
+          setHighlightDraftGeo(geojson);
+        }
+      } catch (err) {
+        console.warn('[OrchardMap] highlight geojson failed', err);
+      }
+      try {
+        e.layer.remove?.();
+        mapInstance.removeLayer(e.layer);
+      } catch {
+        /* ignore */
+      }
+      cancelActiveDrawer(activeDrawerRef);
+      setPlacingHighlight(false);
+    };
+    mapInstance.on(CREATED, onCreated as L.LeafletEventHandlerFn);
+    return () => {
+      mapInstance.off(CREATED, onCreated as L.LeafletEventHandlerFn);
+    };
+  }, [mapInstance]);
+
+  // Leave highlight tool when leaving operate mode
+  useEffect(() => {
+    if (mapMode !== 'operate' && (placingHighlight || highlightDraftGeo)) {
+      cancelHighlightPaint();
+    }
+  }, [mapMode, placingHighlight, highlightDraftGeo, cancelHighlightPaint]);
 
   // Zoom selected operate block to fit the screen for easier pin placement
   useEffect(() => {
@@ -505,15 +669,19 @@ export function OrchardMap() {
     
     const fg = featureGroupRef.current;
     const handleLayerClick = (e: any) => {
+      // Never steal taps while a draw tool or boundary-edit session is active —
+      // paddocks cover most of the farm, so this used to cancel infra/track draws
+      // and force the Blocks tab mid-placement.
+      if (getCurrentDrawHandler()?._enabled) return;
+      if (boundaryEditRef.current) return;
+
       const mapping = layerMapRef.current[e.layer._leaflet_id];
       if (mapping && mapping.type === 'block') {
-        // Stop propagation to prevent map click from clearing highlight
-        if (e.originalEvent) {
-          e.originalEvent._stopped = true;
-        }
-
         // While placing a flag, a tap on the block drops the pin (don't toggle selection)
         if (placingFlag && mapMode === 'operate') {
+          if (e.originalEvent) {
+            e.originalEvent._stopped = true;
+          }
           const latlng = e.latlng || (e.layer?.getBounds?.().getCenter?.());
           if (latlng) {
             setReportDraft({
@@ -529,6 +697,20 @@ export function OrchardMap() {
           return;
         }
 
+        // Infra / tracks edit: ignore paddock hits so placement isn't hijacked
+        if (
+          mapMode === 'edit' &&
+          activeTabRef.current !== 'blocks' &&
+          activeTabRef.current !== 'analytics'
+        ) {
+          return;
+        }
+
+        // Stop propagation to prevent map click from clearing highlight
+        if (e.originalEvent) {
+          e.originalEvent._stopped = true;
+        }
+
         // Toggle: same block again closes the popup / clears selection
         const next =
           highlightedBlockIdRef.current === mapping.id ? null : mapping.id;
@@ -540,6 +722,10 @@ export function OrchardMap() {
           setShowSidebar(false);
         }
       } else if (mapping && mapping.type === 'track') {
+        // Only jump to Tracks when that tab is active (or operate has no track UX)
+        if (mapMode === 'edit' && activeTabRef.current !== 'tracks') {
+          return;
+        }
         if (e.originalEvent) {
           e.originalEvent._stopped = true;
         }
@@ -551,6 +737,13 @@ export function OrchardMap() {
           setShowSidebar(true);
           setEditingTrackId(next);
         }
+      } else if (mapping && mapping.type === 'pin') {
+        if (mapMode !== 'edit' || activeTabRef.current !== 'infrastructure') return;
+        if (e.originalEvent) {
+          e.originalEvent._stopped = true;
+        }
+        setEditingPinId(mapping.id);
+        setShowSidebar(true);
       }
     };
 
@@ -625,6 +818,7 @@ export function OrchardMap() {
   }, [mapMode, activeTab, environmentalData, isWeatherLoading, viewport.lat, viewport.lng, farmId]);
 
   const getPinIcon = useCallback((pin: InfrastructurePin) => {
+    const def = getInfraType(pin.type);
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
     let colorClass = 'text-slate-500 bg-slate-100 border-slate-300';
     
@@ -634,9 +828,17 @@ export function OrchardMap() {
     } else if (pin.type === 'soil') {
       svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg>`;
       colorClass = 'text-amber-600 bg-amber-50 border-amber-200';
-    } else if (pin.type === 'irrigation') {
-      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7 2.9 7 2.9s-2.29 6.16-2.29 6.16c-1.14.93-1.71 2.03-1.71 3.19 0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 1 14 8.5c1.14.93 1.71 2.03 1.71 3.19 0 2.22-1.8 4.05-4 4.05-1.9 0-3.5-1.33-3.9-3.1"/></svg>`;
+    } else if (pin.type === 'irrigation' || pin.type === 'standpipe') {
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7 2.9 7 2.9s-2.29 6.16-2.29 6.16c-1.14.93-1.71 2.03-1.71 3.19 0 2.22 1.8 4.05 4 4.05z"/></svg>`;
       colorClass = 'text-cyan-600 bg-cyan-50 border-cyan-200';
+    } else if (pin.type === 'vehicle') {
+      colorClass = 'text-indigo-600 bg-indigo-50 border-indigo-200';
+    } else if (pin.type === 'fuel') {
+      colorClass = 'text-amber-800 bg-amber-50 border-amber-300';
+    } else if (pin.type === 'hazard') {
+      colorClass = 'text-rose-600 bg-rose-50 border-rose-200';
+    } else if (def) {
+      colorClass = 'text-sky-700 bg-sky-50 border-sky-200';
     }
 
     return L.divIcon({
@@ -651,10 +853,11 @@ export function OrchardMap() {
   }, []);
 
   const getPinTooltip = useCallback((pin: InfrastructurePin) => {
+    const label = getInfraType(pin.type)?.label || pin.type || 'Unassigned';
     return `
       <div class="font-sans">
-        <div class="font-bold text-sm">${pin.name || 'Unnamed Sensor'}</div>
-        <div class="text-xs text-slate-500 capitalize">${pin.type || 'Unassigned'} • ${pin.status}</div>
+        <div class="font-bold text-sm">${pin.name || 'Unnamed asset'}</div>
+        <div class="text-xs text-slate-500">${label} • ${pin.status}</div>
       </div>
     `;
   }, []);
@@ -707,6 +910,7 @@ export function OrchardMap() {
     const syncLayers = () => {
       const fg = featureGroupRef.current;
       if (!fg) return;
+      let membershipChanged = false;
 
       // Drop stale leaflet-id mappings after EditControl clears the group
       const liveIds = new Set(
@@ -736,6 +940,7 @@ export function OrchardMap() {
           if (!layer) continue;
           fg.addLayer(layer);
           layerMapRef.current[(layer as any)._leaflet_id] = { type: 'block', id: block.id };
+          membershipChanged = true;
         } catch (err) {
           console.warn('[OrchardMap] Failed to add block layer', block.id, err);
         }
@@ -744,9 +949,50 @@ export function OrchardMap() {
       for (const pin of pins) {
         const key = `pin:${pin.id}`;
         wanted.add(key);
-        if (existing.has(key)) continue;
-        const layer = L.marker([pin.lat, pin.lng]);
-        layer.setIcon(getPinIcon(pin));
+        const draw = infraDrawMode(pin.type);
+        const def = getInfraType(pin.type);
+        const wantsGeo = !!(pin.geojson && (draw === 'polygon' || draw === 'line'));
+        const existingLayer = existing.get(key);
+        if (existingLayer) {
+          const isMarker = existingLayer instanceof L.Marker;
+          // Recreate when draw mode / geojson presence no longer matches the layer kind.
+          if (wantsGeo === isMarker) {
+            fg.removeLayer(existingLayer);
+            delete layerMapRef.current[(existingLayer as any)._leaflet_id];
+            existing.delete(key);
+            membershipChanged = true;
+          } else {
+            continue;
+          }
+        }
+        let layer: L.Layer | undefined;
+        if (wantsGeo) {
+          try {
+            const geo = typeof pin.geojson === 'string' ? JSON.parse(pin.geojson as string) : pin.geojson;
+            const polyStyle =
+              draw === 'polygon'
+                ? infraPolygonPathStyle(pin.type)
+                : {
+                    color: def?.color || '#0284c7',
+                    weight: 4,
+                    fillColor: def?.color || '#0284c7',
+                    fillOpacity: 0,
+                  };
+            layer = L.geoJSON(geo as GeoJSON.GeoJsonObject, {
+              style: polyStyle,
+            }).getLayers()[0] as L.Layer | undefined;
+            if (layer && draw === 'polygon' && layer instanceof L.Polygon) {
+              applyInfraPolygonPattern(layer, pin.type);
+            }
+          } catch (err) {
+            console.warn('[OrchardMap] Failed to add infra geometry', pin.id, err);
+          }
+        }
+        if (!layer) {
+          const marker = L.marker([pin.lat, pin.lng]);
+          marker.setIcon(getPinIcon(pin));
+          layer = marker;
+        }
         layer.bindTooltip(getPinTooltip(pin), {
           direction: 'top',
           offset: [0, -32],
@@ -754,6 +1000,7 @@ export function OrchardMap() {
         });
         fg.addLayer(layer);
         layerMapRef.current[(layer as any)._leaflet_id] = { type: 'pin', id: pin.id };
+        membershipChanged = true;
       }
 
       for (const track of tracks) {
@@ -780,10 +1027,22 @@ export function OrchardMap() {
           continue;
         }
         try {
-          const layer = L.geoJSON(geo).getLayers()[0] as L.Layer | undefined;
+          const style = trackPathStyle(track.category, {
+            highlighted: track.id === highlightedTrackIdRef.current,
+          });
+          const layer = L.geoJSON(geo, {
+            style: {
+              color: style.color,
+              weight: style.weight,
+              opacity: style.opacity,
+              dashArray: style.dashArray,
+              className: style.className,
+            },
+          }).getLayers()[0] as L.Layer | undefined;
           if (!layer) continue;
           fg.addLayer(layer);
           layerMapRef.current[(layer as any)._leaflet_id] = { type: 'track', id: track.id };
+          membershipChanged = true;
         } catch (err) {
           console.warn('[OrchardMap] Failed to add track layer', track.id, err);
         }
@@ -793,9 +1052,12 @@ export function OrchardMap() {
         if (wanted.has(key)) continue;
         fg.removeLayer(layer);
         delete layerMapRef.current[(layer as any)._leaflet_id];
+        membershipChanged = true;
       }
 
-      setForceRender((prev) => prev + 1);
+      if (membershipChanged) {
+        setForceRender((prev) => prev + 1);
+      }
     };
 
     let cancelled = false;
@@ -813,11 +1075,39 @@ export function OrchardMap() {
     };
   }, [isLoaded, blocks, pins, tracks, mapInstance, mapMode, activeTab, getPinIcon, getPinTooltip]);
 
+  // Let draw tools receive taps over paddocks when placing infra / tracks
+  useEffect(() => {
+    const fg = featureGroupRef.current;
+    if (!fg) return;
+    const passBlocksThrough =
+      mapMode === 'edit' && activeTab !== 'blocks' && activeTab !== 'analytics';
+    const passTracksThrough =
+      mapMode === 'edit' && activeTab !== 'tracks';
+
+    for (const layer of fg.getLayers() as L.Layer[]) {
+      const mapping = layerMapRef.current[(layer as any)._leaflet_id];
+      if (!mapping) continue;
+      let passThrough = false;
+      if (mapping.type === 'block') passThrough = passBlocksThrough;
+      else if (mapping.type === 'track') passThrough = passTracksThrough;
+      else continue;
+
+      if ('options' in layer && layer.options) {
+        (layer.options as { interactive?: boolean }).interactive = !passThrough;
+      }
+      const el = (layer as L.Path).getElement?.() as HTMLElement | undefined;
+      if (el?.style) {
+        el.style.pointerEvents = passThrough ? 'none' : '';
+      }
+    }
+  }, [mapMode, activeTab, forceRender, blocks, tracks, isLoaded]);
+
   useEffect(() => {
     if (!featureGroupRef.current) return;
     const layers = featureGroupRef.current.getLayers();
     layers.forEach((layer: any) => {
-      if (layer instanceof L.Marker) {
+      // Markers only — polygon/line infra pins have no setIcon.
+      if (layer instanceof L.Marker && typeof layer.setIcon === 'function') {
         const mapping = layerMapRef.current[(layer as any)._leaflet_id];
         if (!mapping || mapping.type !== 'pin') return;
         const pin = pins.find(p => p.id === mapping.id);
@@ -828,18 +1118,53 @@ export function OrchardMap() {
         }
       } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
         const mapping = layerMapRef.current[(layer as any)._leaflet_id];
-        if (!mapping || mapping.type !== 'track') return;
+        if (!mapping) return;
+        if (mapping.type === 'pin') {
+          const pin = pins.find((p) => p.id === mapping.id);
+          if (!pin) return;
+          const def = getInfraType(pin.type);
+          layer.setStyle({
+            color: def?.color || '#0e7490',
+            weight: 4,
+          });
+          layer.bindTooltip(getPinTooltip(pin), {
+            direction: 'top',
+            offset: [0, -8],
+            className: 'custom-tooltip',
+          });
+          return;
+        }
+        if (mapping.type !== 'track') return;
         const track = tracks.find(t => t.id === mapping.id);
         
         if (track) {
           const isHighlighted = track.id === highlightedTrackId;
-          const color = track.category === 'primary' ? '#10b981' : track.category === 'secondary' ? '#3b82f6' : '#94a3b8';
+          const style = trackPathStyle(track.category, { highlighted: isHighlighted });
           layer.setStyle({
-            color: isHighlighted ? '#6366f1' : color,
-            weight: isHighlighted ? 6 : 4,
-            dashArray: track.category === 'service' ? '10, 10' : ''
+            color: style.color,
+            weight: style.weight,
+            opacity: style.opacity,
+            dashArray: style.dashArray,
           });
+          const el = layer.getElement?.() as SVGElement | undefined;
+          if (el) {
+            el.classList.remove('pufam-track-line', 'pufam-track-line--highlight');
+            for (const c of style.className.split(/\s+/)) {
+              if (c) el.classList.add(c);
+            }
+          }
         }
+      } else if (layer instanceof L.Polygon) {
+        const mapping = layerMapRef.current[(layer as any)._leaflet_id];
+        if (!mapping || mapping.type !== 'pin') return;
+        const pin = pins.find((p) => p.id === mapping.id);
+        if (!pin) return;
+        applyInfraPolygonPattern(layer, pin.type);
+        layer.bindTooltip(getPinTooltip(pin), {
+          direction: 'top',
+          offset: [0, -8],
+          className: 'custom-tooltip',
+        });
       }
     });
   }, [pins, blocks, tracks, forceRender, getPinIcon, getPinTooltip, highlightedTrackId]);
@@ -1133,15 +1458,23 @@ export function OrchardMap() {
     };
   }, [debouncedUpdateTrackName]);
 
-  // Cancel Quick Add drawers when leaving edit mode or switching tabs
+  // Cancel Quick Add drawers when leaving edit mode, switching tabs, or changing infra draw kind
+  const drawContextRef = useRef({ activeTab, mapMode, infraDrawKind });
   useEffect(() => {
+    const prev = drawContextRef.current;
+    const changed =
+      prev.activeTab !== activeTab ||
+      prev.mapMode !== mapMode ||
+      prev.infraDrawKind !== infraDrawKind;
+    drawContextRef.current = { activeTab, mapMode, infraDrawKind };
+    if (!changed) return;
     cancelActiveDrawer(activeDrawerRef);
     if (boundaryEditRef.current) {
       cancelBoundaryEdit(boundaryEditRef.current);
       boundaryEditRef.current = null;
       setBoundaryEditBlockId(null);
     }
-  }, [activeTab, mapMode]);
+  }, [activeTab, mapMode, infraDrawKind]);
 
   useEffect(() => {
     return () => {
@@ -1196,11 +1529,21 @@ export function OrchardMap() {
   const saveBoundaryEdit = useCallback(() => {
     const session = boundaryEditRef.current;
     if (!session) return;
-    const { geojson, areaHa } = commitBoundaryEdit(session);
+    const { geojson } = commitBoundaryEdit(session);
+    const areaHa = effectivePaddockAreaHa(geojson, subtractingExclusionPolygons(pins));
     boundaryEditRef.current = null;
     setBoundaryEditBlockId(null);
     void updateBlock(session.blockId, { geojson, areaHa });
-  }, [updateBlock]);
+  }, [updateBlock, pins]);
+
+  // Keep paddock areaHa net of dams / impassable internal polygons (exterior stored intact).
+  useEffect(() => {
+    if (!isLoaded || !canEdit || !farmId) return;
+    const updates = recomputeBlockAreasForFarm(blocks, pins);
+    for (const u of updates) {
+      void updateBlock(u.id, { areaHa: u.areaHa });
+    }
+  }, [isLoaded, canEdit, farmId, blocks, pins, updateBlock]);
 
   const cancelBoundaryEditUi = useCallback(() => {
     if (boundaryEditRef.current) {
@@ -1241,19 +1584,53 @@ export function OrchardMap() {
           activeDrawerRef,
           new (L as any).Draw.Polyline(mapInstance, {
             shapeOptions: {
-              color: '#10b981',
-              weight: 4,
+              color: TRACK_COLOR_DRAW,
+              weight: 5,
+              opacity: 1,
+              className: 'pufam-track-line',
             },
           })
         );
       } else if (activeTab === 'infrastructure') {
-        startActiveDrawer(activeDrawerRef, new (L as any).Draw.Marker(mapInstance));
+        const mode = infraDrawMode(infraDrawKind);
+        const polyStyle = infraPolygonPathStyle(infraDrawKind);
+        const color = polyStyle.color;
+        if (mode === 'polygon') {
+          startActiveDrawer(
+            activeDrawerRef,
+            new (L as any).Draw.Polygon(mapInstance, {
+              shapeOptions: {
+                color: polyStyle.color,
+                fillColor: polyStyle.fillColor,
+                fillOpacity: polyStyle.fillOpacity,
+                weight: polyStyle.weight,
+                className: polyStyle.className,
+                dashArray: polyStyle.dashArray,
+              },
+            })
+          );
+        } else if (mode === 'line') {
+          startActiveDrawer(
+            activeDrawerRef,
+            new (L as any).Draw.Polyline(mapInstance, {
+              shapeOptions: { color, weight: 4 },
+            })
+          );
+        } else {
+          startActiveDrawer(activeDrawerRef, new (L as any).Draw.Marker(mapInstance));
+        }
+      } else {
+        return;
+      }
+      // Mobile overlay sidebar covers the map — tuck it away so taps can place
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        setShowSidebar(false);
       }
     } catch (err) {
       console.error("Failed to enable draw handler", err);
       cancelActiveDrawer(activeDrawerRef);
     }
-  }, [mapInstance, activeTab, canEdit, mapMode]);
+  }, [mapInstance, activeTab, canEdit, mapMode, infraDrawKind]);
 
   // Phase 4.3: Geocoding Search
   const handleSearch = async (e: React.FormEvent) => {
@@ -1321,7 +1698,7 @@ export function OrchardMap() {
   const tabs = [
     { id: 'blocks', name: mapCopy.blocksTab, icon: Layers, description: 'Draw and edit paddock boundaries' },
     { id: 'tracks', name: 'Tracks', icon: Route, description: 'Farm pathways & navigation' },
-    { id: 'infrastructure', name: 'Infrastructure', icon: MapPin, description: 'Weather & soil pins' },
+    { id: 'infrastructure', name: 'Infrastructure', icon: MapPin, description: 'Dams, pipes, sensors & pins' },
     { id: 'analytics', name: 'Analytics', icon: BarChart3, description: 'Risk heatmaps & yield view' },
   ];
 
@@ -1389,6 +1766,84 @@ export function OrchardMap() {
       mapInstance.panBy([0, 90], { animate: true });
     }, 180);
   }, [mapInstance, reportDraft?.lat, reportDraft?.lng]);
+
+  const leafletDrawOptions = useMemo(() => {
+    const infraMode =
+      activeTab === 'infrastructure' ? infraDrawMode(infraDrawKind) : null;
+    const infraColor = getInfraType(infraDrawKind)?.color || '#0891b2';
+    const polygonOpts =
+      activeTab === 'blocks'
+        ? {
+            allowIntersection: false,
+            showArea: true,
+            drawError: {
+              color: '#ef4444',
+              message: '<strong>Error:</strong> shape edges cannot cross!',
+            },
+            shapeOptions: {
+              color: '#4f46e5',
+              fillOpacity: 0.4,
+              weight: 3,
+            },
+          }
+        : infraMode === 'polygon'
+          ? (() => {
+              const polyStyle = infraPolygonPathStyle(infraDrawKind);
+              return {
+                allowIntersection: false,
+                showArea: true,
+                drawError: {
+                  color: '#ef4444',
+                  message: '<strong>Error:</strong> shape edges cannot cross!',
+                },
+                shapeOptions: {
+                  color: polyStyle.color,
+                  fillColor: polyStyle.fillColor,
+                  fillOpacity: polyStyle.fillOpacity,
+                  weight: polyStyle.weight,
+                  className: polyStyle.className,
+                  dashArray: polyStyle.dashArray,
+                },
+              };
+            })()
+          : false;
+    const polylineOpts =
+      activeTab === 'tracks'
+        ? {
+            shapeOptions: {
+              color: TRACK_COLOR_DRAW,
+              weight: 5,
+              opacity: 1,
+              className: 'pufam-track-line',
+            },
+          }
+        : infraMode === 'line'
+          ? {
+              shapeOptions: {
+                color: infraColor,
+                weight: 4,
+              },
+            }
+          : false;
+    return {
+      rectangle: false,
+      circle: false,
+      circlemarker: false,
+      polyline: polylineOpts,
+      // leaflet-draw mutates option objects — never pass boolean `true`
+      marker: infraMode === 'point' ? {} : false,
+      polygon: polygonOpts,
+    };
+  }, [activeTab, infraDrawKind]);
+
+  const leafletEditOptions = useMemo(
+    () => ({
+      // leaflet-draw assigns selectedPathOptions onto `edit` — must be {} or false, not true
+      edit: activeTab === 'blocks' ? {} : false,
+      remove: {},
+    }),
+    [activeTab]
+  );
 
   const enterEditPaddocks = () => {
     setMapMode('edit');
@@ -1598,11 +2053,8 @@ export function OrchardMap() {
                 type="button"
                 onClick={() => {
                   setActiveTab(tab.id as SubTab);
-                  if (window.innerWidth < 1024) {
-                    setShowSidebar(tab.id === 'analytics');
-                  } else if (tab.id === 'analytics') {
-                    setShowSidebar(true);
-                  }
+                  // Keep the management panel open so type pickers / lists stay reachable
+                  setShowSidebar(true);
                 }}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors',
@@ -1667,53 +2119,80 @@ export function OrchardMap() {
           transition-transform duration-300 ease-in-out
           ${showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
-          <div className="shrink-0 p-3 sm:p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <h2 className="font-bold text-slate-900 text-sm sm:text-base">
-              {tabs.find(t => t.id === activeTab)?.name} Management
-            </h2>
-            <div className="flex gap-2">
-              {activeTab === 'infrastructure' && (
+          <div className="shrink-0 border-b border-slate-100 bg-slate-50/50">
+            <div className="p-3 sm:p-4 pb-2 flex items-center justify-between gap-2">
+              <h2 className="font-bold text-slate-900 text-sm sm:text-base truncate">
+                {tabs.find(t => t.id === activeTab)?.name} Management
+              </h2>
+              <div className="flex gap-2 shrink-0">
+                {activeTab === 'infrastructure' && (
+                  <button 
+                    onClick={() => setShowCoverage(!showCoverage)}
+                    className={`p-1.5 rounded-lg transition-colors ${showCoverage ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                    title="Toggle Coverage Zones"
+                  >
+                    <Radio className="w-4 h-4" />
+                  </button>
+                )}
+                {activeTab === 'blocks' && canEdit && mapMode === 'edit' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBoundaryImport(true)}
+                    className="p-1.5 rounded-lg transition-colors bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    title="Import boundaries (ISOXML / KML)"
+                  >
+                    <FileUp className="w-4 h-4" />
+                  </button>
+                )}
+                {activeTab !== 'analytics' && (
+                  <button 
+                    onClick={handleQuickAdd}
+                    className={`p-1.5 rounded-lg transition-colors ${canEdit ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                    title={
+                      activeTab === 'infrastructure'
+                        ? (() => {
+                            const def = getInfraType(infraDrawKind);
+                            const mode = def?.draw || 'point';
+                            const verb =
+                              mode === 'polygon' ? 'Draw' : mode === 'line' ? 'Draw' : 'Add';
+                            return `${verb} ${def?.shortLabel || 'asset'}`;
+                          })()
+                        : activeTab === 'tracks'
+                          ? 'Draw Track'
+                          : `Draw ${mapCopy.blockWord.charAt(0).toUpperCase()}${mapCopy.blockWord.slice(1)}`
+                    }
+                    disabled={!canEdit || Boolean(boundaryEditBlockId)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
                 <button 
-                  onClick={() => setShowCoverage(!showCoverage)}
-                  className={`p-1.5 rounded-lg transition-colors ${showCoverage ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
-                  title="Toggle Coverage Zones"
+                  onClick={() => setShowSidebar(false)}
+                  className="lg:hidden p-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-colors"
                 >
-                  <Radio className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                 </button>
-              )}
-              {activeTab === 'blocks' && canEdit && mapMode === 'edit' && (
-                <button
-                  type="button"
-                  onClick={() => setShowBoundaryImport(true)}
-                  className="p-1.5 rounded-lg transition-colors bg-slate-200 text-slate-700 hover:bg-slate-300"
-                  title="Import boundaries (ISOXML / KML)"
-                >
-                  <FileUp className="w-4 h-4" />
-                </button>
-              )}
-              {activeTab !== 'analytics' && (
-                <button 
-                  onClick={handleQuickAdd}
-                  className={`p-1.5 rounded-lg transition-colors ${canEdit ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                  title={
-                    activeTab === 'infrastructure'
-                      ? 'Add Sensor'
-                      : activeTab === 'tracks'
-                        ? 'Draw Track'
-                        : `Draw ${mapCopy.blockWord.charAt(0).toUpperCase()}${mapCopy.blockWord.slice(1)}`
-                  }
-                  disabled={!canEdit || Boolean(boundaryEditBlockId)}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              )}
-              <button 
-                onClick={() => setShowSidebar(false)}
-                className="lg:hidden p-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              </div>
             </div>
+            <nav className="flex gap-1 px-3 sm:px-4 pb-3 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={`sidebar-${tab.id}`}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id as SubTab)}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors',
+                    activeTab === tab.id
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                  )}
+                  title={tab.description}
+                >
+                  <tab.icon className="w-3 h-3" />
+                  {tab.name}
+                </button>
+              ))}
+            </nav>
           </div>
           
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-4">
@@ -1837,60 +2316,153 @@ export function OrchardMap() {
               </div>
             ) : null}
 
-            {activeTab === 'infrastructure' && pins.length > 0 ? (
+            {activeTab === 'infrastructure' ? (
               <div className="space-y-3">
-                {pins.map(pin => (
-                  <div 
-                    key={pin.id} 
-                    onClick={() => setEditingPinId(pin.id)}
-                    className="p-3 border border-slate-200 rounded-xl hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer bg-white group"
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${pin.status === 'active' ? 'bg-emerald-500 animate-pulse' : pin.status === 'warning' ? 'bg-amber-500' : 'bg-slate-300'}`} />
-                        <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
-                          {pin.name || 'Unnamed Sensor'}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Draw type
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {INFRA_TYPES.map((t) => {
+                      const selected = infraDrawKind === t.id;
+                      const modeHint =
+                        t.draw === 'polygon' ? 'area' : t.draw === 'line' ? 'line' : 'pin';
+                      const areaHint = infraSubtractsFromPaddock(t.id)
+                        ? ' · cuts paddock area'
+                        : t.id === 'internal_passable'
+                          ? ' · keeps paddock area'
+                          : '';
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setInfraDrawKind(t.id)}
+                          title={`${t.label} — draw as ${modeHint}${areaHint}. ${t.blurb}`}
+                          className={cn(
+                            'px-2 py-1 rounded-lg text-[11px] font-medium border transition-colors',
+                            selected
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-700'
+                          )}
+                        >
+                          {t.shortLabel}
+                          <span
+                            className={cn(
+                              'ml-1 font-normal',
+                              selected ? 'text-indigo-100' : 'text-slate-400'
+                            )}
+                          >
+                            · {modeHint}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {pins.length > 0 ? (
+                  pins.map((pin) => (
+                    <div
+                      key={pin.id}
+                      onClick={() => setEditingPinId(pin.id)}
+                      className="p-3 border border-slate-200 rounded-xl hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer bg-white group"
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`w-2 h-2 shrink-0 rounded-full ${
+                              pin.status === 'active'
+                                ? 'bg-emerald-500 animate-pulse'
+                                : pin.status === 'warning'
+                                  ? 'bg-amber-500'
+                                  : 'bg-slate-300'
+                            }`}
+                          />
+                          <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
+                            {pin.name || 'Unnamed asset'}
+                          </div>
+                        </div>
+                        <div className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md shrink-0 ml-2 max-w-[9rem] truncate" title={getInfraType(pin.type)?.label || pin.type || 'Unassigned'}>
+                          {getInfraType(pin.type)?.label || pin.type || 'Unassigned'}
                         </div>
                       </div>
-                      <div className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md uppercase">
-                        {pin.type || 'Unassigned'}
+                      <div className="text-xs text-slate-400 font-mono">
+                        {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
                       </div>
+
+                      {/* Phase 3.3: Live Telemetry Mock — sensors only */}
+                      {pin.status === 'active' &&
+                        (pin.type === 'weather' ||
+                          pin.type === 'soil' ||
+                          pin.type === 'irrigation') && (
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex gap-4">
+                            {pin.type === 'weather' && (
+                              <>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase font-semibold">
+                                    Temp
+                                  </span>
+                                  <span className="text-xs font-medium text-slate-700">24.5°C</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase font-semibold">
+                                    Humidity
+                                  </span>
+                                  <span className="text-xs font-medium text-slate-700">62%</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase font-semibold">
+                                    Wind
+                                  </span>
+                                  <span className="text-xs font-medium text-slate-700">12 km/h</span>
+                                </div>
+                              </>
+                            )}
+                            {pin.type === 'soil' && (
+                              <>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase font-semibold">
+                                    Moisture
+                                  </span>
+                                  <span className="text-xs font-medium text-slate-700">32% VWC</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase font-semibold">
+                                    Temp
+                                  </span>
+                                  <span className="text-xs font-medium text-slate-700">18.2°C</span>
+                                </div>
+                              </>
+                            )}
+                            {pin.type === 'irrigation' && (
+                              <>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase font-semibold">
+                                    Flow Rate
+                                  </span>
+                                  <span className="text-xs font-medium text-slate-700">45 L/h</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] text-slate-400 uppercase font-semibold">
+                                    Pressure
+                                  </span>
+                                  <span className="text-xs font-medium text-slate-700">2.1 bar</span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                     </div>
-                    <div className="text-xs text-slate-400 font-mono">
-                      {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
-                    </div>
-                    
-                    {/* Phase 3.3: Live Telemetry Mock */}
-                    {pin.type && pin.status === 'active' && (
-                      <div className="mt-2 pt-2 border-t border-slate-100 flex gap-4">
-                        {pin.type === 'weather' && (
-                          <>
-                            <div className="flex flex-col"><span className="text-[9px] text-slate-400 uppercase font-semibold">Temp</span><span className="text-xs font-medium text-slate-700">24.5°C</span></div>
-                            <div className="flex flex-col"><span className="text-[9px] text-slate-400 uppercase font-semibold">Humidity</span><span className="text-xs font-medium text-slate-700">62%</span></div>
-                            <div className="flex flex-col"><span className="text-[9px] text-slate-400 uppercase font-semibold">Wind</span><span className="text-xs font-medium text-slate-700">12 km/h</span></div>
-                          </>
-                        )}
-                        {pin.type === 'soil' && (
-                          <>
-                            <div className="flex flex-col"><span className="text-[9px] text-slate-400 uppercase font-semibold">Moisture</span><span className="text-xs font-medium text-slate-700">32% VWC</span></div>
-                            <div className="flex flex-col"><span className="text-[9px] text-slate-400 uppercase font-semibold">Temp</span><span className="text-xs font-medium text-slate-700">18.2°C</span></div>
-                          </>
-                        )}
-                        {pin.type === 'irrigation' && (
-                          <>
-                            <div className="flex flex-col"><span className="text-[9px] text-slate-400 uppercase font-semibold">Flow Rate</span><span className="text-xs font-medium text-slate-700">45 L/h</span></div>
-                            <div className="flex flex-col"><span className="text-[9px] text-slate-400 uppercase font-semibold">Pressure</span><span className="text-xs font-medium text-slate-700">2.1 bar</span></div>
-                          </>
-                        )}
-                      </div>
-                    )}
+                  ))
+                ) : (
+                  <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center space-y-2">
+                    <p className="text-sm text-slate-500">No infrastructure defined yet.</p>
+                    <p className="text-xs text-slate-400">
+                      Pick a type above, then draw dams, pads, hazard zones, pipes, or place pins on the
+                      map. Impassable areas and dams reduce paddock usable area; passable pads do not.
+                    </p>
                   </div>
-                ))}
-              </div>
-            ) : activeTab === 'infrastructure' ? (
-              <div className="p-4 border-2 border-dashed border-slate-200 rounded-xl text-center space-y-2">
-                <p className="text-sm text-slate-500">No infrastructure defined yet.</p>
-                <p className="text-xs text-slate-400">Select the marker tool to place sensors.</p>
+                )}
               </div>
             ) : null}
 
@@ -1915,12 +2487,12 @@ export function OrchardMap() {
                       <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
                         {track.name || 'Unnamed Track'}
                       </div>
-                      <div className={cn(
-                        "text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase border",
-                        track.category === 'primary' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                        track.category === 'secondary' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                        "bg-slate-50 text-slate-600 border-slate-100"
-                      )}>
+                      <div
+                        className={cn(
+                          'text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase border',
+                          trackCategoryChipClass(track.category)
+                        )}
+                      >
                         {track.category}
                       </div>
                     </div>
@@ -2050,8 +2622,13 @@ export function OrchardMap() {
             center={[viewport.lat, viewport.lng]} 
             zoom={viewport.zoom} 
             maxZoom={20}
-            zoomControl={false} 
-            className="absolute inset-0 z-0"
+            zoomControl={false}
+            scrollWheelZoom={true}
+            wheelPxPerZoomLevel={120}
+            wheelDebounceTime={40}
+            zoomSnap={0}
+            zoomDelta={0.5}
+            className="absolute inset-0 z-0 orchard-map-leaflet"
             ref={setMapInstance}
           >
             {mapLayer === 'satellite' && basemapPack ? (
@@ -2065,7 +2642,7 @@ export function OrchardMap() {
             ) : mapLayer === 'satellite' ? (
               <TileLayer
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+                attribution={ESRI_ATTRIBUTION}
                 maxZoom={20}
                 maxNativeZoom={19}
               />
@@ -2082,114 +2659,227 @@ export function OrchardMap() {
                 zIndex={10}
               />
             )}
-            <ZoomControl position="bottomleft" />
+            {/* bottomright: topright is occupied by soft-key overlays (home / locate / flags) */}
+            <ZoomControl position="bottomright" />
             
             <FeatureGroup ref={featureGroupRef}>
               {mapMode === 'edit' && canEdit && activeTab !== 'analytics' && !boundaryEditBlockId && (
-                <EditControl
+                <StableEditControl
                   position="bottomleft"
                   onCreated={(e) => {
                   cancelActiveDrawer(activeDrawerRef);
                   const layer = e.layer;
+                  const tab = activeTabRef.current;
+                  const kind = infraDrawKindRef.current;
                   const id =
                     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
                       ? crypto.randomUUID()
                       : `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-                  
+
+                  const rejectLayer = (message: string) => {
+                    alert(message);
+                    try {
+                      featureGroupRef.current?.removeLayer(layer);
+                    } catch {
+                      /* ignore */
+                    }
+                  };
+
                   if (e.layerType === 'polygon') {
                     try {
-                    // Phase 2.4: Spatial Mathematics - Calculate area using Turf.js
-                    let areaHa = 0;
-                    const geojson = layer.toGeoJSON();
-                    try {
-                      const areaSqMeters = turf.area(geojson);
-                      areaHa = Number((areaSqMeters / 10000).toFixed(2));
-                    } catch (err) {
-                      console.error("Failed to calculate area", err);
-                    }
+                      const geojson = layer.toGeoJSON();
 
-                    layerMapRef.current[layer._leaflet_id] = { type: 'block', id };
+                      // Infrastructure tab: polygon create uses selected area type (dam / internal).
+                      if (tab === 'infrastructure') {
+                        if (!farmId) {
+                          rejectLayer('Sign in to a farm before saving infrastructure.');
+                          return;
+                        }
+                        if (!canEdit) {
+                          rejectLayer('Your role is view-only — ask a farm admin to grant edit access.');
+                          return;
+                        }
+                        if (infraDrawMode(kind) !== 'polygon') {
+                          rejectLayer(
+                            'Select Dam, Pad (passable), or Hazard zone / impassable before drawing an area.'
+                          );
+                          return;
+                        }
+                        layerMapRef.current[layer._leaflet_id] = { type: 'pin', id };
+                        if (layer instanceof L.Polygon) {
+                          applyInfraPolygonPattern(layer, kind);
+                        }
+                        let lat = viewport.lat;
+                        let lng = viewport.lng;
+                        try {
+                          const c = turf.centroid(geojson as GeoJSON.Feature);
+                          lng = c.geometry.coordinates[0];
+                          lat = c.geometry.coordinates[1];
+                        } catch {
+                          /* keep viewport */
+                        }
+                        const newPin: InfrastructurePin = {
+                          id,
+                          name: defaultInfraName(kind, pins.length + 1),
+                          type: kind,
+                          status: 'active',
+                          lat,
+                          lng,
+                          geojson,
+                        };
+                        addPin(newPin);
+                        setEditingPinId(id);
+                        setActiveTab('infrastructure');
+                        setShowSidebar(true);
+                        return;
+                      }
 
-                    const farmProfile = resolveFarmProfile(settings.farmProfile);
-                    const cropKind = primaryEnterprise(farmProfile);
-                    // Mixed farms stay neutral ("Area N"); single-enterprise uses Block/Paddock.
-                    const copy = mapUiCopy(farmProfile);
-                    const word =
-                      copy.blockWord === 'area'
-                        ? 'Area'
-                        : areaWordForCropKind(cropKind);
-                    const defaultName = `${word} ${blocks.length + 1}`;
-                    const tree = isTreeCropKind(cropKind);
-                    const newBlock: OrchardBlock = {
-                      id,
-                      name: defaultName,
-                      cultivar: '',
-                      // Species only after naming sheet confirms a tree enterprise.
-                      species: tree ? farmProfile.defaultSpeciesId || '' : '',
-                      cropKind,
-                      geometryKind: defaultGeometryKind(cropKind),
-                      density: '',
-                      irrigation: '',
-                      areaHa,
-                      geojson
-                    };
-                    if (!farmId) {
-                      alert('Sign in to a farm before saving paddocks.');
-                      try {
-                        featureGroupRef.current?.removeLayer(layer);
-                      } catch {
-                        /* ignore */
+                      // Blocks tab only — create paddock / orchard block
+                      if (tab !== 'blocks') {
+                        rejectLayer('Switch to Blocks to draw paddock boundaries.');
+                        return;
                       }
-                      return;
-                    }
-                    if (!canEdit) {
-                      alert('Your role is view-only — ask a farm admin to grant edit access.');
-                      try {
-                        featureGroupRef.current?.removeLayer(layer);
-                      } catch {
-                        /* ignore */
+
+                      // Usable area = exterior minus overlapping dams / impassable zones
+                      const areaHa = effectivePaddockAreaHa(
+                        geojson,
+                        subtractingExclusionPolygons(pins)
+                      );
+
+                      layerMapRef.current[layer._leaflet_id] = { type: 'block', id };
+
+                      const farmProfile = resolveFarmProfile(settings.farmProfile);
+                      const cropKind = primaryEnterprise(farmProfile);
+                      // Mixed farms stay neutral ("Area N"); single-enterprise uses Block/Paddock.
+                      const copy = mapUiCopy(farmProfile);
+                      const word =
+                        copy.blockWord === 'area'
+                          ? 'Area'
+                          : areaWordForCropKind(cropKind);
+                      const defaultName = `${word} ${blocks.length + 1}`;
+                      const tree = isTreeCropKind(cropKind);
+                      const newBlock: OrchardBlock = {
+                        id,
+                        name: defaultName,
+                        cultivar: '',
+                        // Species only after naming sheet confirms a tree enterprise.
+                        species: tree ? farmProfile.defaultSpeciesId || '' : '',
+                        cropKind,
+                        geometryKind: defaultGeometryKind(cropKind),
+                        density: '',
+                        irrigation: '',
+                        areaHa,
+                        geojson,
+                      };
+                      if (!farmId) {
+                        rejectLayer('Sign in to a farm before saving paddocks.');
+                        return;
                       }
-                      return;
-                    }
-                    addBlock(newBlock);
-                    setHighlightedBlockId(id);
-                    setActiveTab('blocks');
-                    // Naming sheet after paint — avoids Finish tap dismissing the new backdrop (Android).
-                    window.setTimeout(() => setNamingBlock(newBlock), 50);
+                      if (!canEdit) {
+                        rejectLayer('Your role is view-only — ask a farm admin to grant edit access.');
+                        return;
+                      }
+                      addBlock(newBlock);
+                      setHighlightedBlockId(id);
+                      setActiveTab('blocks');
+                      // Naming sheet after paint — avoids Finish tap dismissing the new backdrop (Android).
+                      window.setTimeout(() => setNamingBlock(newBlock), 50);
                     } catch (err) {
                       console.error('Failed to save paddock after draw', err);
                       alert('Could not save that paddock. Try Finish again with at least 3 points.');
                     }
                   } else if (e.layerType === 'marker') {
+                    if (tab !== 'infrastructure') {
+                      rejectLayer('Switch to Infrastructure to place pins.');
+                      return;
+                    }
+                    if (!farmId) {
+                      rejectLayer('Sign in to a farm before saving infrastructure.');
+                      return;
+                    }
+                    if (!canEdit) {
+                      rejectLayer('Your role is view-only — ask a farm admin to grant edit access.');
+                      return;
+                    }
                     const latlng = layer.getLatLng();
                     layerMapRef.current[layer._leaflet_id] = { type: 'pin', id };
-                    
+
                     const newPin: InfrastructurePin = {
                       id,
-                      name: `Sensor ${pins.length + 1}`,
-                      type: '',
+                      name: defaultInfraName(kind, pins.length + 1),
+                      type: kind,
                       status: 'active',
                       lat: latlng.lat,
-                      lng: latlng.lng
+                      lng: latlng.lng,
                     };
                     addPin(newPin);
                     setEditingPinId(id);
+                    setActiveTab('infrastructure');
+                    setShowSidebar(true);
                   } else if (e.layerType === 'polyline') {
                     const geojson = layer.toGeoJSON();
-                    layerMapRef.current[layer._leaflet_id] = { type: 'track', id };
-                    
-                    const newTrack: FarmTrack = {
-                      id,
-                      name: `Track ${tracks.length + 1}`,
-                      category: 'primary',
-                      geojson,
-                      createdAt: new Date().toISOString()
-                    };
-                    addTrack(newTrack);
-                    setEditingTrackId(id);
-                    setHighlightedTrackId(id);
-                    setActiveTab('tracks');
-                    setShowSidebar(true);
+                    if (tab === 'infrastructure') {
+                      if (!farmId) {
+                        rejectLayer('Sign in to a farm before saving infrastructure.');
+                        return;
+                      }
+                      if (!canEdit) {
+                        rejectLayer('Your role is view-only — ask a farm admin to grant edit access.');
+                        return;
+                      }
+                      layerMapRef.current[layer._leaflet_id] = { type: 'pin', id };
+                      let lat = viewport.lat;
+                      let lng = viewport.lng;
+                      try {
+                        const c = turf.centroid(geojson as GeoJSON.Feature);
+                        lng = c.geometry.coordinates[0];
+                        lat = c.geometry.coordinates[1];
+                      } catch {
+                        /* keep */
+                      }
+                      if (infraDrawMode(kind) !== 'line') {
+                        rejectLayer('Select Pipeline (or another line type) before drawing a line.');
+                        return;
+                      }
+                      const newPin: InfrastructurePin = {
+                        id,
+                        name: defaultInfraName(kind, pins.length + 1),
+                        type: kind,
+                        status: 'active',
+                        lat,
+                        lng,
+                        geojson,
+                      };
+                      addPin(newPin);
+                      setEditingPinId(id);
+                      setActiveTab('infrastructure');
+                      setShowSidebar(true);
+                    } else if (tab === 'tracks') {
+                      if (!farmId) {
+                        rejectLayer('Sign in to a farm before saving tracks.');
+                        return;
+                      }
+                      if (!canEdit) {
+                        rejectLayer('Your role is view-only — ask a farm admin to grant edit access.');
+                        return;
+                      }
+                      layerMapRef.current[layer._leaflet_id] = { type: 'track', id };
+
+                      const newTrack: FarmTrack = {
+                        id,
+                        name: `Track ${tracks.length + 1}`,
+                        category: 'primary',
+                        geojson,
+                        createdAt: new Date().toISOString(),
+                      };
+                      addTrack(newTrack);
+                      setEditingTrackId(id);
+                      setHighlightedTrackId(id);
+                      setActiveTab('tracks');
+                      setShowSidebar(true);
+                    } else {
+                      rejectLayer('Switch to Tracks or Infrastructure to draw lines.');
+                    }
                   }
                 }}
                 onEdited={(e) => {
@@ -2197,20 +2887,31 @@ export function OrchardMap() {
                   layers.eachLayer((layer: any) => {
                     const mapping = layerMapRef.current[layer._leaflet_id];
                     if (!mapping) return;
-                    
+
                     if (mapping.type === 'block') {
-                      let areaHa = 0;
                       const geojson = layer.toGeoJSON();
-                      try {
-                        const areaSqMeters = turf.area(geojson);
-                        areaHa = Number((areaSqMeters / 10000).toFixed(2));
-                      } catch (err) {
-                        console.error("Failed to recalculate area", err);
-                      }
+                      const areaHa = effectivePaddockAreaHa(
+                        geojson,
+                        subtractingExclusionPolygons(pins)
+                      );
                       updateBlock(mapping.id, { geojson, areaHa });
                     } else if (mapping.type === 'pin') {
-                      const latlng = layer.getLatLng();
-                      updatePin(mapping.id, { lat: latlng.lat, lng: latlng.lng });
+                      if (layer instanceof L.Marker) {
+                        const latlng = layer.getLatLng();
+                        updatePin(mapping.id, { lat: latlng.lat, lng: latlng.lng });
+                      } else {
+                        const geojson = layer.toGeoJSON();
+                        let lat = viewport.lat;
+                        let lng = viewport.lng;
+                        try {
+                          const c = turf.centroid(geojson as GeoJSON.Feature);
+                          lng = c.geometry.coordinates[0];
+                          lat = c.geometry.coordinates[1];
+                        } catch {
+                          /* keep */
+                        }
+                        updatePin(mapping.id, { geojson, lat, lng });
+                      }
                     } else if (mapping.type === 'track') {
                       const geojson = layer.toGeoJSON();
                       updateTrack(mapping.id, { geojson });
@@ -2218,61 +2919,43 @@ export function OrchardMap() {
                   });
                 }}
                 onDeleted={(e) => {
+                  const tab = activeTabRef.current;
                   const layers = e.layers;
                   layers.eachLayer((layer: any) => {
                     const mapping = layerMapRef.current[layer._leaflet_id];
                     if (!mapping) return;
-                    
-                    if (mapping.type === 'block') {
+
+                    // Only delete the asset class for the active tab (sync will restore others)
+                    if (mapping.type === 'block' && tab === 'blocks') {
                       removeBlock(mapping.id);
-                    } else if (mapping.type === 'pin') {
+                      delete layerMapRef.current[layer._leaflet_id];
+                    } else if (mapping.type === 'pin' && tab === 'infrastructure') {
                       removePin(mapping.id);
-                    } else if (mapping.type === 'track') {
+                      delete layerMapRef.current[layer._leaflet_id];
+                    } else if (mapping.type === 'track' && tab === 'tracks') {
                       removeTrack(mapping.id);
+                      delete layerMapRef.current[layer._leaflet_id];
                     }
-                    delete layerMapRef.current[layer._leaflet_id];
                   });
                 }}
-                draw={{
-                  rectangle: false,
-                  circle: false,
-                  circlemarker: false,
-                  polyline: activeTab === 'tracks' ? {
-                    shapeOptions: {
-                      color: '#10b981',
-                      weight: 4,
-                    },
-                  } : false,
-                  marker: activeTab === 'infrastructure' ? true : false,
-                  polygon: activeTab === 'blocks' ? {
-                    allowIntersection: false,
-                    showArea: true,
-                    drawError: {
-                      color: '#ef4444',
-                      message: '<strong>Error:</strong> shape edges cannot cross!'
-                    },
-                    shapeOptions: {
-                      color: '#4f46e5',
-                      fillOpacity: 0.4,
-                      weight: 3
-                    }
-                  } : false
-                }}
+                draw={leafletDrawOptions}
+                edit={leafletEditOptions}
               />
               )}
             </FeatureGroup>
 
-            {/* Phase 3.4: Coverage Zones */}
+            {/* Phase 3.4: Coverage Zones — weather / soil / irrigation sensors only */}
             {activeTab === 'infrastructure' && showCoverage && pins.map(pin => {
-              if (!pin.type || pin.status === 'offline') return null;
-              
+              if (pin.status === 'offline') return null;
+
               let radius = 0;
               let color = '';
-              
-              if (pin.type === 'weather') { radius = 500; color = '#2563eb'; } // 500m radius
-              else if (pin.type === 'soil') { radius = 50; color = '#d97706'; } // 50m radius
-              else if (pin.type === 'irrigation') { radius = 150; color = '#0891b2'; } // 150m radius
-              
+
+              if (pin.type === 'weather') { radius = 500; color = '#2563eb'; }
+              else if (pin.type === 'soil') { radius = 50; color = '#d97706'; }
+              else if (pin.type === 'irrigation') { radius = 150; color = '#0891b2'; }
+              else return null; // dams, pipes, vehicles, fuel, hazards — no coverage circle
+
               return (
                 <Circle 
                   key={`coverage-${pin.id}`}
@@ -2313,6 +2996,27 @@ export function OrchardMap() {
               />
             )}
 
+            <PaddockNameLayer blocks={blocks} />
+
+            <MapHighlightsLayer
+              highlights={mapHighlights}
+              canDelete={canDeleteHighlight}
+              onDelete={(id) => {
+                void removeHighlight(id);
+              }}
+            />
+
+            <BreadTrailLayer
+              selfUid={userData?.uid}
+              selfTrail={crewSelfTrail}
+              others={crewOthers}
+              prefs={
+                canEnableEveryoneTrails(userData?.role)
+                  ? trailPrefs
+                  : { ...trailPrefs, showEveryone: false }
+              }
+            />
+
             {reportDraft && (
               <Marker
                 position={[reportDraft.lat, reportDraft.lng]}
@@ -2334,15 +3038,15 @@ export function OrchardMap() {
           </MapContainer>
 
           {/* Map Controls Overlay — uniform soft keys (Phosphor marks) */}
-          <div className="absolute top-3 right-3 flex flex-col gap-1.5 z-[1000] pointer-events-none">
+          <div className="pufom-map-softkeys absolute top-3 right-3 flex flex-col gap-1.5 z-[1000] pointer-events-none">
             <button
               type="button"
               onClick={handleGoHome}
               title={`${mapCopy.mapTitle.replace(/ Map$/, '')} home`}
               aria-label={`${mapCopy.mapTitle.replace(/ Map$/, '')} home`}
-              className="w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border border-white/20 text-slate-600 hover:text-indigo-600 pointer-events-auto transition-colors active:scale-95"
+              className="w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border border-white/20 text-slate-700 hover:text-indigo-600 pointer-events-auto transition-colors active:scale-95"
             >
-              <PhHouse size={20} weight="regular" />
+              <PhHouse size={20} weight="regular" className="pufom-map-icon" color="currentColor" aria-hidden />
             </button>
             <button
               type="button"
@@ -2360,10 +3064,16 @@ export function OrchardMap() {
                 'w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border pointer-events-auto transition-colors active:scale-95',
                 followUser || userFix
                   ? 'border-sky-500 text-sky-700 bg-sky-50 ring-1 ring-sky-500/30'
-                  : 'border-white/20 text-slate-600 hover:text-indigo-600'
+                  : 'border-white/20 text-slate-700 hover:text-indigo-600'
               )}
             >
-              <PhCrosshair size={20} weight={followUser ? 'fill' : 'regular'} />
+              <PhCrosshair
+                size={20}
+                weight={followUser ? 'fill' : 'regular'}
+                className="pufom-map-icon"
+                color="currentColor"
+                aria-hidden
+              />
             </button>
             {mapMode === 'operate' && (
               <>
@@ -2377,15 +3087,51 @@ export function OrchardMap() {
                     'w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border pointer-events-auto transition-colors active:scale-95',
                     showIssueFlags
                       ? 'border-amber-500 text-amber-800 bg-amber-50 ring-1 ring-amber-500/40'
-                      : 'border-white/20 text-slate-600 hover:text-amber-700'
+                      : 'border-white/20 text-slate-700 hover:text-amber-700'
                   )}
                 >
-                  <PhFlag size={20} weight={showIssueFlags ? 'fill' : 'regular'} />
+                  <PhFlag
+                    size={20}
+                    weight={showIssueFlags ? 'fill' : 'regular'}
+                    className="pufom-map-icon"
+                    color="currentColor"
+                    aria-hidden
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (placingHighlight || highlightDraftGeo) {
+                      cancelHighlightPaint();
+                      return;
+                    }
+                    startHighlightPaint();
+                  }}
+                  title={
+                    placingHighlight || highlightDraftGeo
+                      ? 'Cancel check-this highlight'
+                      : 'Check this — paint an area for the crew'
+                  }
+                  aria-label={
+                    placingHighlight || highlightDraftGeo
+                      ? 'Cancel check-this highlight'
+                      : 'Check this area'
+                  }
+                  aria-pressed={placingHighlight || Boolean(highlightDraftGeo)}
+                  className={cn(
+                    'w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border pointer-events-auto transition-colors active:scale-95',
+                    placingHighlight || highlightDraftGeo
+                      ? 'border-teal-600 text-teal-800 bg-teal-50 ring-1 ring-teal-500/40'
+                      : 'border-white/20 text-slate-700 hover:text-teal-700'
+                  )}
+                >
+                  <Hexagon size={20} className="pufom-map-icon shrink-0" aria-hidden />
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     const next = !placingFlag;
+                    if (next) cancelHighlightPaint();
                     setPlacingFlag(next);
                     setReportDraft(null);
                     setIssuesPanelBlockId(null);
@@ -2401,14 +3147,24 @@ export function OrchardMap() {
                     'w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border pointer-events-auto transition-colors active:scale-95',
                     placingFlag
                       ? 'border-amber-500 text-amber-800 bg-amber-50 ring-1 ring-amber-500/40'
-                      : 'border-white/20 text-slate-600 hover:text-amber-700'
+                      : 'border-white/20 text-slate-700 hover:text-amber-700'
                   )}
                 >
-                  <AddIssueIcon size={22} />
+                  <AddIssueIcon size={22} className="pufom-map-icon" />
                 </button>
               </>
             )}
           </div>
+
+          {mapMode === 'operate' && (
+            <div className="absolute top-3 left-3 z-[1000] pointer-events-none">
+              <BreadTrailToggles
+                prefs={trailPrefs}
+                canEveryone={canEnableEveryoneTrails(userData?.role)}
+                onChange={updateTrailPrefs}
+              />
+            </div>
+          )}
 
           {mapMode === 'operate' && placingFlag && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1100] pointer-events-none">
@@ -2420,11 +3176,43 @@ export function OrchardMap() {
             </div>
           )}
 
+          {mapMode === 'operate' && placingHighlight && !highlightDraftGeo && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1100] pointer-events-none">
+              <div className="bg-teal-700 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg">
+                Trace an area — Finish when done
+              </div>
+            </div>
+          )}
+
+          {mapMode === 'operate' && highlightDraftGeo && (
+            <HighlightComposeSheet
+              role={userData?.role}
+              farmDefaultSeconds={settings.highlightDefaultSeconds}
+              busy={highlightSending}
+              onCancel={cancelHighlightPaint}
+              onSend={({ note, durationSeconds }) => {
+                setHighlightSending(true);
+                void createHighlight({
+                  geojson: highlightDraftGeo,
+                  note,
+                  durationSeconds,
+                  audience: 'all',
+                })
+                  .then(() => {
+                    setHighlightDraftGeo(null);
+                  })
+                  .finally(() => setHighlightSending(false));
+              }}
+            />
+          )}
+
           {/* Operate mode: block status card */}
           <AnimatePresence>
             {mapMode === 'operate' &&
               selectedOperateBlock &&
               !placingFlag &&
+              !placingHighlight &&
+              !highlightDraftGeo &&
               !issuesPanelBlockId &&
               !reportDraft &&
               !selectedIssue && (
@@ -2547,7 +3335,10 @@ export function OrchardMap() {
           {/* Tablet-safe draw actions (Undo / Finish / Cancel) — avoids ghost points under menu */}
           <DrawingActionBar
             map={mapInstance}
-            enabled={mapMode === 'edit' && canEdit && !boundaryEditBlockId}
+            enabled={
+              (mapMode === 'edit' && canEdit && !boundaryEditBlockId) ||
+              (mapMode === 'operate' && placingHighlight)
+            }
           />
           <BoundaryEditActionBar
             map={mapInstance}
@@ -2599,8 +3390,13 @@ export function OrchardMap() {
             )}
           </AnimatePresence>
 
+          {/* SVG fill patterns for dam / internal zone polygons (satellite-visible) */}
+          <div dangerouslySetInnerHTML={{ __html: PUFAM_FILL_PATTERN_SVG }} />
+
           {/* Global Styles for Leaflet Draw overrides */}
           <style>{`
+            ${PUFAM_FILL_PATTERN_CSS}
+            ${PUFAM_TRACK_STROKE_CSS}
             path.smooth-polygon-transition {
               transition: fill 0.15s ease-out, stroke 0.15s ease-out;
             }
@@ -2648,6 +3444,19 @@ export function OrchardMap() {
             }
             .leaflet-container {
               touch-action: none;
+            }
+            /* Zoom sits bottomright; keep it clear of the attribution strip. */
+            .orchard-map-leaflet .leaflet-bottom.leaflet-right .leaflet-control-zoom {
+              margin-bottom: 28px;
+            }
+            .orchard-map-leaflet .leaflet-control-attribution {
+              max-width: min(42vw, 220px);
+              font-size: 10px;
+              line-height: 1.25;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              background: rgba(255, 255, 255, 0.72);
             }
             .pufom-user-location-icon {
               background: transparent !important;
@@ -2702,6 +3511,48 @@ export function OrchardMap() {
               background: var(--crew-colour, #0f766e);
               border: 2px solid #fff;
               box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+            }
+            @keyframes pufom-hl-pulse {
+              0%, 100% { fill-opacity: 0.16; stroke-opacity: 0.75; }
+              50% { fill-opacity: 0.38; stroke-opacity: 1; }
+            }
+            .pufom-map-highlight-poly {
+              animation: pufom-hl-pulse 1.6s ease-in-out infinite;
+            }
+            .pufom-highlight-wm {
+              background: transparent !important;
+              border: none !important;
+            }
+            .pufom-highlight-wm__label {
+              font: 700 12px/1.2 system-ui, sans-serif;
+              color: var(--hl-colour, #0f766e);
+              text-align: center;
+              white-space: nowrap;
+              text-shadow:
+                0 0 3px #fff,
+                0 0 6px #fff,
+                1px 1px 0 #fff,
+                -1px -1px 0 #fff,
+                1px -1px 0 #fff,
+                -1px 1px 0 #fff;
+              pointer-events: none;
+            }
+            .pufom-paddock-name {
+              background: transparent !important;
+              border: none !important;
+            }
+            .pufom-paddock-name__label {
+              font: 800 13px/1.15 system-ui, sans-serif;
+              color: #f8fafc;
+              text-align: center;
+              white-space: nowrap;
+              letter-spacing: 0.01em;
+              text-shadow:
+                0 0 4px rgba(0,0,0,.85),
+                0 1px 2px rgba(0,0,0,.9),
+                1px 1px 0 rgba(0,0,0,.75),
+                -1px -1px 0 rgba(0,0,0,.75);
+              pointer-events: none;
             }
           `}</style>
         </div>
@@ -3140,28 +3991,56 @@ export function OrchardMap() {
                   return (
                     <>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sensor Name</label>
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Name</label>
                         <input 
                           type="text" 
                           value={pin.name}
                           onChange={(e) => updatePin(pin.id, { name: e.target.value })}
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                          placeholder="e.g. Weather Station 1"
+                          placeholder="e.g. North dam, Standpipe 2"
                         />
                       </div>
                       
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Sensor Type</label>
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</label>
                         <select 
                           value={pin.type}
-                          onChange={(e) => updatePin(pin.id, { type: e.target.value as any })}
+                          onChange={(e) => {
+                            const next = e.target.value as InfraTypeId;
+                            const prevMode = infraDrawMode(pin.type);
+                            const nextMode = infraDrawMode(next);
+                            const updates: Partial<InfrastructurePin> = { type: next };
+                            // Drop polygon/line geometry when switching to a point type.
+                            if (
+                              (prevMode === 'polygon' || prevMode === 'line') &&
+                              nextMode === 'point'
+                            ) {
+                              updates.geojson = undefined;
+                            }
+                            if (next !== 'vehicle') {
+                              updates.trackerId = undefined;
+                            }
+                            updatePin(pin.id, updates);
+                          }}
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
                         >
                           <option value="">Select type...</option>
-                          <option value="weather">Weather Station</option>
-                          <option value="soil">Soil Moisture Probe</option>
-                          <option value="irrigation">Irrigation Valve</option>
+                          {INFRA_TYPES.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.label}
+                              {infraSubtractsFromPaddock(t.id)
+                                ? ' — cuts paddock area'
+                                : t.id === 'internal_passable'
+                                  ? ' — keeps paddock area'
+                                  : ''}
+                            </option>
+                          ))}
                         </select>
+                        {getInfraType(pin.type)?.blurb ? (
+                          <p className="text-[11px] text-slate-500 leading-snug">
+                            {getInfraType(pin.type)?.blurb}
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-1.5">
@@ -3175,6 +4054,40 @@ export function OrchardMap() {
                           <option value="warning">Warning (Needs Attention)</option>
                           <option value="offline">Offline (Maintenance)</option>
                         </select>
+                      </div>
+
+                      {pin.type === 'vehicle' && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            Tracker ID
+                          </label>
+                          <input
+                            type="text"
+                            value={pin.trackerId || ''}
+                            onChange={(e) =>
+                              updatePin(pin.id, { trackerId: e.target.value || undefined })
+                            }
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                            placeholder="Optional"
+                          />
+                          <p className="text-[11px] text-slate-400">
+                            Meshy / GPS tracker id (optional). Live position is future work — pin is
+                            home/park for now.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Notes</label>
+                        <textarea
+                          value={pin.notes || ''}
+                          onChange={(e) =>
+                            updatePin(pin.id, { notes: e.target.value || undefined })
+                          }
+                          rows={3}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[4.5rem]"
+                          placeholder="Optional notes"
+                        />
                       </div>
 
                       <div className="space-y-1.5">

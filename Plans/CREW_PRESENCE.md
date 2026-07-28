@@ -52,7 +52,7 @@ Do **not** build Bluetooth mesh in P1–P2.
 
 - Map header chip: `Crew · 2 nearby` when ≥1 other presence
 - Markers: muted colour per user; pulse only for self
-- No trail history in P1 (coverage trails stay separate)
+- Bread trails (last 2 min) ship with MAP_OVERLAYS — not PathTrace / coverage recording
 
 ---
 

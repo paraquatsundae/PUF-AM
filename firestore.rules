@@ -260,14 +260,21 @@ service cloud.firestore {
     }
 
     function isValidInfrastructurePin(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'type', 'status', 'lat', 'lng']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'type', 'status', 'lat', 'lng', 'geojson', 'trackerId', 'notes']) &&
              hasRequiredFields(['id', 'lat', 'lng']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              (!('name' in data) || (data.name is string && data.name.size() < 100)) &&
-             (!('type' in data) || (data.type in ['weather', 'soil', 'irrigation', ''])) &&
+             (!('type' in data) || (data.type in [
+               'weather', 'soil', 'irrigation',
+               'dam', 'internal_passable', 'internal_impassable',
+               'pipeline', 'standpipe', 'vehicle', 'fuel', 'hazard', ''
+             ])) &&
              (!('status' in data) || (data.status in ['active', 'warning', 'offline'])) &&
              data.lat is number &&
-             data.lng is number;
+             data.lng is number &&
+             (!('geojson' in data) || data.geojson is string && data.geojson.size() < 100000) &&
+             (!('trackerId' in data) || (data.trackerId is string && data.trackerId.size() < 120)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 2000));
     }
 
     function isValidMapViewport(data) {
@@ -319,7 +326,11 @@ service cloud.firestore {
     }
 
     function isValidFarmSettings(data) {
-      return hasOnlyAllowedFields(['irrigationSystemType', 'waterAllocationMl', 'farmName', 'customChemicals', 'customBiologicals', 'customCarriers', 'customAdjuvants']) &&
+      return hasOnlyAllowedFields([
+               'irrigationSystemType', 'waterAllocationMl', 'farmName',
+               'customChemicals', 'customBiologicals', 'customCarriers', 'customAdjuvants',
+               'farmProfile', 'highlightDefaultSeconds'
+             ]) &&
              hasRequiredFields(['irrigationSystemType']) &&
              data.irrigationSystemType in ['micro', 'surface_drip', 'sub_surface', 'flood'] &&
              (!('waterAllocationMl' in data) || (data.waterAllocationMl is number && data.waterAllocationMl >= 0)) &&
@@ -327,7 +338,13 @@ service cloud.firestore {
              (!('customChemicals' in data) || data.customChemicals is list) &&
              (!('customBiologicals' in data) || data.customBiologicals is list) &&
              (!('customCarriers' in data) || data.customCarriers is list) &&
-             (!('customAdjuvants' in data) || data.customAdjuvants is list);
+             (!('customAdjuvants' in data) || data.customAdjuvants is list) &&
+             (!('farmProfile' in data) || data.farmProfile is map) &&
+             (!('highlightDefaultSeconds' in data) || (
+               data.highlightDefaultSeconds is number &&
+               data.highlightDefaultSeconds >= 5 &&
+               data.highlightDefaultSeconds <= 600
+             ));
     }
 
     function isValidModelParameters(data) {
@@ -506,6 +523,7 @@ service cloud.firestore {
     function isValidCrewPresence(data) {
       return hasOnlyAllowedFields([
                'uid', 'displayName', 'lat', 'lng', 'accuracyM', 'heading',
+               'speedMps', 'kind', 'trail',
                'updatedAt', 'deviceId', 'source'
              ]) &&
              data.uid is string && data.uid == request.auth.uid &&
@@ -516,7 +534,30 @@ service cloud.firestore {
              data.deviceId is string && data.deviceId.size() > 0 && data.deviceId.size() < 80 &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 120)) &&
              (!('accuracyM' in data) || data.accuracyM is number) &&
-             (!('heading' in data) || data.heading == null || data.heading is number);
+             (!('heading' in data) || data.heading == null || data.heading is number) &&
+             (!('speedMps' in data) || data.speedMps == null || data.speedMps is number) &&
+             (!('kind' in data) || data.kind in ['person', 'vehicle']) &&
+             (!('trail' in data) || (data.trail is list && data.trail.size() <= 250));
+    }
+
+    // Timed “check this” area highlights — any farm member may create; delete creator/admin/farmer.
+    function isValidMapHighlight(data) {
+      return hasOnlyAllowedFields([
+               'id', 'geojson', 'createdBy', 'displayName', 'colour', 'note',
+               'audience', 'expiresAt', 'createdAt'
+             ]) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 80 &&
+             data.geojson is map &&
+             data.createdBy is string && data.createdBy == request.auth.uid &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 120 &&
+             data.expiresAt is string && data.expiresAt.size() > 0 && data.expiresAt.size() < 40 &&
+             data.createdAt is string && data.createdAt.size() > 0 && data.createdAt.size() < 40 &&
+             (!('colour' in data) || (data.colour is string && data.colour.size() < 40)) &&
+             (!('note' in data) || (data.note is string && data.note.size() < 300)) &&
+             (
+               data.audience == 'all' ||
+               (data.audience is list && data.audience.size() <= 40)
+             );
     }
 
     function isValidUsageMetrics(data) {
@@ -916,6 +957,25 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow create, update: if isFarmMember(farmId) && isOwner(userId) && isValidCrewPresence(request.resource.data);
         allow delete: if isFarmMember(farmId) && isOwner(userId);
+      }
+
+      match /mapHighlights/{highlightId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if isFarmMember(farmId) &&
+          isValidMapHighlight(request.resource.data) &&
+          request.resource.data.id == highlightId;
+        allow update: if isFarmMember(farmId) &&
+          isValidMapHighlight(request.resource.data) &&
+          request.resource.data.id == highlightId &&
+          (
+            resource.data.createdBy == request.auth.uid ||
+            canMutateFarm(farmId)
+          );
+        allow delete: if isFarmMember(farmId) &&
+          (
+            resource.data.createdBy == request.auth.uid ||
+            canMutateFarm(farmId)
+          );
       }
 
       match /financial_transactions/{transactionId} {

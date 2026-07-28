@@ -3,10 +3,11 @@
  * Uses the same sync peer base as .pufom LAN sync.
  */
 import { auth } from '../firebase';
-import { type CrewPresenceDoc } from './crewPresence';
+import { type CrewPresenceDoc, type TrailPoint } from './crewPresence';
+import { pruneTrail } from './breadTrails';
 import { syncApiUrl } from './mdnsPeers';
 
-export const PRESENCE_LAN_POLL_MS = 5_000;
+export const PRESENCE_LAN_POLL_MS = 500;
 
 async function authHeaders(): Promise<HeadersInit> {
   const user = auth.currentUser;
@@ -27,6 +28,9 @@ export async function upsertLanPresence(
     lng: number;
     accuracyM?: number;
     heading?: number | null;
+    speedMps?: number | null;
+    kind?: 'person' | 'vehicle';
+    trail?: TrailPoint[];
   }
 ): Promise<void> {
   if (!farmId || !payload.uid) return;
@@ -40,6 +44,9 @@ export async function upsertLanPresence(
       lng: payload.lng,
       accuracyM: payload.accuracyM ?? null,
       headingDeg: payload.heading ?? null,
+      speedMps: payload.speedMps ?? null,
+      kind: payload.kind === 'vehicle' ? 'vehicle' : 'person',
+      trail: pruneTrail(payload.trail).slice(-250),
       source: 'gps',
     }),
   });
@@ -83,6 +90,9 @@ export async function fetchLanPresence(farmId: string): Promise<CrewPresenceDoc[
       lng: number;
       accuracyM: number | null;
       headingDeg: number | null;
+      speedMps?: number | null;
+      kind?: string;
+      trail?: TrailPoint[];
       updatedAt: string;
       source?: string;
     }>;
@@ -94,6 +104,9 @@ export async function fetchLanPresence(farmId: string): Promise<CrewPresenceDoc[
     lng: e.lng,
     accuracyM: typeof e.accuracyM === 'number' ? e.accuracyM : 0,
     heading: e.headingDeg,
+    speedMps: typeof e.speedMps === 'number' ? e.speedMps : null,
+    kind: e.kind === 'vehicle' ? ('vehicle' as const) : ('person' as const),
+    trail: pruneTrail(e.trail),
     updatedAt: e.updatedAt,
     // Hub has no per-device id; merge keys on uid.
     deviceId: `lan:${e.uid}`,

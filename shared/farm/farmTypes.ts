@@ -1,5 +1,5 @@
 /**
- * Farm enterprise / crop-type catalog for PUFOM.
+ * Farm enterprise / crop-type catalog for PUFAM.
  *
  * Skeleton only — seasonal rotations, station water-zones, marron dams, and
  * livestock movement tracking land in later phases (see Plans/FARM_TYPES.md).

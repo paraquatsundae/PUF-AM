@@ -17,7 +17,14 @@ import {
   listLanPresence,
   upsertLanPresence,
   type LanPresenceEntry,
+  type LanTrailPoint,
 } from './lanPresenceStore.ts';
+import {
+  clearLanHighlight,
+  listLanHighlights,
+  upsertLanHighlight,
+  type LanHighlightEntry,
+} from './lanHighlightStore.ts';
 
 type ShelfEntry = {
   farmId: string;
@@ -229,6 +236,19 @@ export function registerLanSyncRoutes(app: Express): void {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         return res.status(400).json({ error: 'lat/lng required' });
       }
+      const rawTrail = Array.isArray(body.trail) ? body.trail : [];
+      const trail: LanTrailPoint[] = [];
+      const nowMs = Date.now();
+      for (const p of rawTrail) {
+        const pt = p as Partial<LanTrailPoint>;
+        const plat = Number(pt.lat);
+        const plng = Number(pt.lng);
+        const ptMs = Number(pt.t);
+        if (!Number.isFinite(plat) || !Number.isFinite(plng) || !Number.isFinite(ptMs)) continue;
+        if (nowMs - ptMs > 120_000) continue;
+        trail.push({ lat: plat, lng: plng, t: ptMs });
+        if (trail.length >= 250) break;
+      }
       const entry: LanPresenceEntry = {
         uid,
         displayName: String(body.displayName || 'Crew').slice(0, 100),
@@ -249,6 +269,8 @@ export function registerLanSyncRoutes(app: Express): void {
           typeof body.speedMps === 'number' && Number.isFinite(body.speedMps)
             ? body.speedMps
             : null,
+        kind: body.kind === 'vehicle' ? 'vehicle' : 'person',
+        trail,
         updatedAt: new Date().toISOString(),
         source: body.source === 'manual' ? 'manual' : 'gps',
       };
@@ -288,6 +310,82 @@ export function registerLanSyncRoutes(app: Express): void {
       const status = (error as { status?: number })?.status || 500;
       return res.status(status).json({
         error: error instanceof Error ? error.message : 'Presence list failed',
+      });
+    }
+  });
+
+  /** Timed map highlights — in-memory shelf (MAP_OVERLAYS). */
+  app.post('/api/highlights/:farmId', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      if (!farmId) return res.status(400).json({ error: 'farmId required' });
+      const { uid } = await verifyFarmMember(req, farmId);
+      const body = (req.body || {}) as Partial<LanHighlightEntry>;
+      const id = String(body.id || '').slice(0, 80);
+      if (!id) return res.status(400).json({ error: 'id required' });
+      if (!body.geojson) return res.status(400).json({ error: 'geojson required' });
+      const expiresAt = String(body.expiresAt || '');
+      const createdAt = String(body.createdAt || new Date().toISOString());
+      if (!expiresAt || !Number.isFinite(Date.parse(expiresAt))) {
+        return res.status(400).json({ error: 'expiresAt required' });
+      }
+      if (Date.parse(expiresAt) <= Date.now()) {
+        return res.status(400).json({ error: 'highlight already expired' });
+      }
+      const audience =
+        body.audience === 'all' || body.audience == null
+          ? 'all'
+          : Array.isArray(body.audience)
+            ? body.audience.map(String).slice(0, 40)
+            : 'all';
+      const entry: LanHighlightEntry = {
+        id,
+        geojson: body.geojson,
+        createdBy: uid,
+        displayName: String(body.displayName || 'Crew').slice(0, 100),
+        colour: typeof body.colour === 'string' ? body.colour.slice(0, 40) : undefined,
+        note: typeof body.note === 'string' ? body.note.slice(0, 280) : undefined,
+        audience,
+        expiresAt,
+        createdAt,
+      };
+      upsertLanHighlight(farmId, entry);
+      return res.json({ ok: true, entry });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Highlight upsert failed',
+      });
+    }
+  });
+
+  app.delete('/api/highlights/:farmId/:id', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      const id = String(req.params.id || '');
+      if (!farmId || !id) return res.status(400).json({ error: 'farmId and id required' });
+      await verifyFarmMember(req, farmId);
+      clearLanHighlight(farmId, id);
+      return res.json({ ok: true });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Highlight delete failed',
+      });
+    }
+  });
+
+  app.get('/api/highlights/:farmId', async (req: Request, res: Response) => {
+    try {
+      const farmId = String(req.params.farmId || '');
+      if (!farmId) return res.status(400).json({ error: 'farmId required' });
+      await verifyFarmMember(req, farmId);
+      const entries = listLanHighlights(farmId);
+      return res.json({ farmId, entries, at: new Date().toISOString() });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Highlight list failed',
       });
     }
   });

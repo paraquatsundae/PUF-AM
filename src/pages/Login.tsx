@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getLastDisplayName } from '../lib/deviceSession';
+import {
+  canShowWelcomeBack,
+  clearRememberedLoginHints,
+  getLastDisplayName,
+  getLastFarm,
+} from '../lib/deviceSession';
 import { getDeviceCoords } from '../lib/deviceLocation';
 import { fetchNearbyFarms, type NearbyFarm } from '../lib/invitePinAuth';
 import { Loader2, KeyRound, Sprout, Copy, Check, MapPin, Navigation } from 'lucide-react';
@@ -20,15 +25,23 @@ export function Login() {
   const [displayName, setDisplayName] = useState(() => getLastDisplayName());
   const [recoveryPin, setRecoveryPin] = useState<string | null>(null);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [pendingFarm, setPendingFarm] = useState<{ farmId: string; farmName: string } | null>(
+    null
+  );
   const [copied, setCopied] = useState(false);
   const [nearby, setNearby] = useState<NearbyFarm[]>([]);
-  const [selectedFarm, setSelectedFarm] = useState<NearbyFarm | null>(null);
+  const [selectedFarm, setSelectedFarm] = useState<NearbyFarm | null>(() => {
+    const last = getLastFarm();
+    return last ? { farmId: last.farmId, name: last.farmName, lat: 0, lng: 0, distanceKm: 0, showNearby: true } : null;
+  });
+  const [welcomeBack, setWelcomeBack] = useState(() => canShowWelcomeBack());
   const [locating, setLocating] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
   const [showNearbyOnCreate, setShowNearbyOnCreate] = useState(true);
   const navigate = useNavigate();
 
   const error = localError || authError;
+  const lastFarm = getLastFarm();
 
   useEffect(() => {
     if (!loading && user && !authError && !recoveryPin && !pendingToken) {
@@ -58,10 +71,10 @@ export function Login() {
   }, []);
 
   useEffect(() => {
-    if (mode === 'join') {
+    if (mode === 'join' && !welcomeBack) {
       void loadNearby();
     }
-  }, [mode, loadNearby]);
+  }, [mode, loadNearby, welcomeBack]);
 
   if (loading) {
     return (
@@ -79,7 +92,9 @@ export function Login() {
     setIsSigningIn(true);
     setLocalError(null);
     try {
-      await signInWithInvitePin(pin, displayName, selectedFarm?.farmId);
+      const farmId = selectedFarm?.farmId || lastFarm?.farmId;
+      const farmLabel = selectedFarm?.name || lastFarm?.farmName;
+      await signInWithInvitePin(pin, displayName, farmId, farmLabel);
     } catch (err: unknown) {
       console.error('Sign in error:', err);
       setLocalError(err instanceof Error ? err.message : 'Sign-in failed. Check your PIN and try again.');
@@ -106,6 +121,7 @@ export function Login() {
       const result = await createFarm(farmName, displayName, opts);
       setRecoveryPin(result.recoveryPin);
       setPendingToken(result.token);
+      setPendingFarm({ farmId: result.farmId, farmName: result.farmName });
       setIsSigningIn(false);
     } catch (err: unknown) {
       console.error('Create farm error:', err);
@@ -122,9 +138,10 @@ export function Login() {
     setIsSigningIn(true);
     setLocalError(null);
     try {
-      await completeFarmSignIn(pendingToken, displayName);
+      await completeFarmSignIn(pendingToken, displayName, pendingFarm || undefined);
       setRecoveryPin(null);
       setPendingToken(null);
+      setPendingFarm(null);
       navigate('/', { replace: true });
     } catch (err: unknown) {
       setLocalError(err instanceof Error ? err.message : 'Sign-in failed after farm create.');
@@ -189,13 +206,18 @@ export function Login() {
               }}
             />
           </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">Welcome to {APP_NAME}</h2>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
+            {welcomeBack ? `Welcome back, ${displayName.split(' ')[0] || displayName}` : `Welcome to ${APP_NAME}`}
+          </h2>
           <p className="mt-1 text-center text-sm font-medium text-emerald-800">{APP_TAGLINE}</p>
           <p className="mt-2 text-center text-sm text-slate-600">
-            Tap a nearby farm, then enter your invite PIN — no Google account needed.
+            {welcomeBack
+              ? 'Session was cleared — enter your farm invite PIN once to restore this device. (New phones/tablets/laptops always need this invite PIN the first time.)'
+              : 'Tap a nearby farm, then enter your invite PIN — no Google account needed. Each new device needs that invite PIN once; then you can set a personal unlock PIN in Settings.'}
           </p>
         </div>
 
+        {!welcomeBack && (
         <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
           <button
             type="button"
@@ -222,6 +244,7 @@ export function Login() {
             Create a farm
           </button>
         </div>
+        )}
 
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-lg text-sm">
@@ -231,6 +254,28 @@ export function Login() {
 
         {mode === 'join' ? (
           <form className="space-y-4" onSubmit={handlePinSignIn}>
+            {welcomeBack && lastFarm ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-1">
+                <p className="text-sm font-semibold text-emerald-950">{lastFarm.farmName}</p>
+                <p className="text-xs text-emerald-800">
+                  Signed in before as <strong>{displayName}</strong>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearRememberedLoginHints();
+                    setWelcomeBack(false);
+                    setSelectedFarm(null);
+                    setPin('');
+                    setLocalError(null);
+                    void loadNearby();
+                  }}
+                  className="text-xs font-medium text-emerald-800 underline underline-offset-2 pt-1"
+                >
+                  Not you? Join a different farm
+                </button>
+              </div>
+            ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <label className="text-sm font-medium text-slate-700">Nearby farms</label>
@@ -289,7 +334,9 @@ export function Login() {
                 </p>
               )}
             </div>
+            )}
 
+            {!welcomeBack && (
             <div className="space-y-2">
               <label htmlFor="displayName" className="text-sm font-medium text-slate-700">
                 Your name
@@ -306,6 +353,7 @@ export function Login() {
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
+            )}
 
             <div className="space-y-2">
               <label htmlFor="pin" className="text-sm font-medium text-slate-700">

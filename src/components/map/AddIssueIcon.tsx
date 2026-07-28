@@ -17,7 +17,10 @@ export function AddIssueIcon({
 
   return (
     <span
-      className={cn('relative inline-flex items-center justify-center shrink-0', className)}
+      className={cn(
+        'pufom-map-icon relative inline-flex items-center justify-center shrink-0 text-current',
+        className
+      )}
       style={{ width: size, height: size }}
       aria-hidden
     >
@@ -27,7 +30,8 @@ export function AddIssueIcon({
         width={size}
         height={size}
         fill="currentColor"
-        className="absolute inset-0"
+        className="absolute inset-0 block"
+        style={{ maxWidth: 'none', maxHeight: 'none' }}
       >
         <path d="M215.46,216H40.54C27.92,216,20,202.79,26.13,192.09L113.59,40.22c6.3-11,22.52-11,28.82,0l87.46,151.87C236,202.79,228.08,216,215.46,216Z" />
       </svg>
@@ -35,8 +39,8 @@ export function AddIssueIcon({
         weight="bold"
         color="#fff"
         size={plusSize}
-        className="relative"
-        style={{ marginTop: size * 0.12 }}
+        className="relative block"
+        style={{ marginTop: size * 0.12, maxWidth: 'none', maxHeight: 'none' }}
       />
     </span>
   );

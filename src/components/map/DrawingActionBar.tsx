@@ -9,11 +9,13 @@ import L from '../../lib/leaflet-window';
 import {
   cancelActiveDrawing,
   drawHandlerCanFinish,
+  drawHandlerIsPolygon,
   drawHandlerMarkerCount,
   finishActiveDrawing,
   getCurrentDrawHandler,
   markDrawUiInteraction,
   shieldLeafletDrawControls,
+  subscribeDrawHandlerChange,
   undoLastDrawVertex,
 } from '../../lib/mapDrawHelpers';
 
@@ -26,10 +28,12 @@ type Props = {
 export function DrawingActionBar({ map, enabled }: Props) {
   const [active, setActive] = useState(false);
   const [points, setPoints] = useState(0);
+  const [isPolygon, setIsPolygon] = useState(true);
 
   useEffect(() => {
     if (!map || !enabled) {
       setActive(false);
+      setPoints(0);
       return;
     }
 
@@ -42,6 +46,7 @@ export function DrawingActionBar({ map, enabled }: Props) {
       const on = Boolean(h?._enabled);
       setActive(on);
       setPoints(drawHandlerMarkerCount(h));
+      setIsPolygon(drawHandlerIsPolygon(h));
       setDrawBarClass(on);
       if (on) shieldLeafletDrawControls(map.getContainer());
     };
@@ -67,7 +72,12 @@ export function DrawingActionBar({ map, enabled }: Props) {
     map.on(DRAWVERTEX, onVertex);
     map.on(DRAWSTOP, onStop);
     map.on(CREATED, onStop);
+    const unsub = subscribeDrawHandlerChange(sync);
     sync();
+
+    // Poll while mounted — recovers if another control calls map.off(type) without a fn
+    // (StableEditControl previously wiped all draw:* listeners on unmount).
+    const poll = window.setInterval(sync, 300);
 
     const obs = new MutationObserver(() => shieldLeafletDrawControls(map.getContainer()));
     obs.observe(map.getContainer(), { childList: true, subtree: true });
@@ -77,6 +87,8 @@ export function DrawingActionBar({ map, enabled }: Props) {
       map.off(DRAWVERTEX, onVertex);
       map.off(DRAWSTOP, onStop);
       map.off(CREATED, onStop);
+      unsub();
+      window.clearInterval(poll);
       obs.disconnect();
       setDrawBarClass(false);
     };
@@ -90,7 +102,7 @@ export function DrawingActionBar({ map, enabled }: Props) {
   const blockPointer = (e: React.SyntheticEvent) => {
     // stopPropagation only — preventDefault on pointerdown can kill the button click on Android.
     e.stopPropagation();
-    markDrawUiInteraction(map);
+    markDrawUiInteraction(map as unknown as { _container?: HTMLElement });
   };
 
   return (
@@ -113,7 +125,7 @@ export function DrawingActionBar({ map, enabled }: Props) {
           }}
           className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 min-h-[52px] rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold disabled:opacity-40 active:bg-slate-200"
         >
-          <Undo2 className="w-5 h-5" />
+          <Undo2 size={20} className="pufom-map-icon shrink-0" aria-hidden />
           Undo point
         </button>
         <button
@@ -126,7 +138,7 @@ export function DrawingActionBar({ map, enabled }: Props) {
           }}
           className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 min-h-[52px] rounded-xl bg-emerald-600 text-white text-xs font-semibold disabled:opacity-40 active:bg-emerald-700"
         >
-          <Check className="w-5 h-5" />
+          <Check size={20} className="pufom-map-icon shrink-0" aria-hidden />
           Finish
         </button>
         <button
@@ -138,14 +150,16 @@ export function DrawingActionBar({ map, enabled }: Props) {
           }}
           className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 min-h-[52px] rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold active:bg-rose-100"
         >
-          <X className="w-5 h-5" />
+          <X size={20} className="pufom-map-icon shrink-0" aria-hidden />
           Cancel
         </button>
       </div>
       <p className="text-center text-[10px] text-white/90 mt-1.5 drop-shadow lg:hidden">
         {canFinish
           ? 'Drag to pan · tap Finish to close'
-          : 'Drag to pan · tap to place · paddock needs 3+ points'}
+          : isPolygon
+            ? 'Drag to pan · tap to place · polygons need 3+ points'
+            : 'Drag to pan · tap to place · tracks need 2+ points'}
       </p>
     </div>
   );

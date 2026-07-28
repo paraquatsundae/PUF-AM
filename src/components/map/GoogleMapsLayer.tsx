@@ -28,6 +28,14 @@ export function GoogleMapsLayer({ type, apiKey, onFail }: GoogleMapsLayerProps) 
     if (!apiKey) return;
     failedRef.current = false;
 
+    // Google calls this on invalid key / referrer — faster than the load timeout.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prevAuthFailure = (window as any).gm_authFailure;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).gm_authFailure = () => {
+      fail('Google Maps auth failure (API key / HTTP referrer / billing).');
+    };
+
     const existingScript = document.getElementById('google-maps-script');
     if (!existingScript) {
       const script = document.createElement('script');
@@ -59,6 +67,8 @@ export function GoogleMapsLayer({ type, apiKey, onFail }: GoogleMapsLayerProps) 
     return () => {
       clearInterval(checkGoogle);
       clearTimeout(timeout);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).gm_authFailure = prevAuthFailure;
     };
   }, [apiKey]);
 

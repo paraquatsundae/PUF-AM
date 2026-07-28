@@ -51,7 +51,7 @@ export function BoundaryEditActionBar({
           }}
           className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 min-h-[52px] rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold disabled:opacity-40 active:bg-rose-100"
         >
-          <Trash2 className="w-5 h-5" />
+          <Trash2 size={20} className="pufom-map-icon shrink-0" aria-hidden />
           Delete point
         </button>
         <button
@@ -63,7 +63,7 @@ export function BoundaryEditActionBar({
           }}
           className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 min-h-[52px] rounded-xl bg-emerald-600 text-white text-xs font-semibold active:bg-emerald-700"
         >
-          <Check className="w-5 h-5" />
+          <Check size={20} className="pufom-map-icon shrink-0" aria-hidden />
           Save shape
         </button>
         <button
@@ -75,7 +75,7 @@ export function BoundaryEditActionBar({
           }}
           className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 min-h-[52px] rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold active:bg-slate-200"
         >
-          <X className="w-5 h-5" />
+          <X size={20} className="pufom-map-icon shrink-0" aria-hidden />
           Cancel
         </button>
       </div>

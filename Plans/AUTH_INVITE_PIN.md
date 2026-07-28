@@ -65,5 +65,9 @@ npx tsx scripts/createAccessPin.ts --farm farm_xxxxx --role admin --label "Owner
 
 See **DEVELOPER_NOTES.md §4.1**. Summary:
 
-- **Now:** After invite PIN / create-farm sign-in, Firebase Auth IndexedDB persistence keeps the session.
-- **Later:** Personal unlock PIN (or biometric) after auth / on return — invite PIN stays for first join / recovery.
+- **Farm invite PIN (one-time per device):** Required the first time you set up a phone, tablet, or laptop (and again if you Sign out or wipe app data). Same name + invite PIN → same UID on every device. **Never stored** on the device.
+- **Firebase session:** After that, IndexedDB keeps you signed in on that device until logout / revoke / wipe.
+- **Personal unlock PIN (optional, per device):** Settings → Personal unlock PIN, or first-run prompt. 4–8 digits, hashed locally per UID. Gates the app after Auth restores (and after ~15 min background). Does **not** sync across devices; biometrics later.
+- **Welcome-back (if Auth wiped):** last name + farm remembered → PIN-only invite re-entry.
+- **Do not** clear Auth IndexedDB when wiping Firestore cache (`clearFirestoreIndexedDb` is Firestore-only).
+- **Android caveat:** Capacitor live-reload `server.url` changes (LAN IP flip) create a new origin → empty Auth store → looks like “login every time.” Prefer a stable packaged origin for field devices.

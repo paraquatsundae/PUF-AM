@@ -68,3 +68,62 @@
   stroke-dasharray: 5, 10;
   animation: flow-forward 3s linear infinite;
 }
+
+/* Farm tracks — amber stroke + dark halo (OrchardMap + FieldOps) */
+path.pufam-track-line {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter:
+    drop-shadow(0 0 1.2px #0f172a)
+    drop-shadow(0 0 1.2px #0f172a)
+    drop-shadow(0 1px 0 #0f172a);
+}
+/* Selected track: amber stroke stays; soft green glow pulses ~2s */
+path.pufam-track-line--highlight {
+  filter:
+    drop-shadow(0 0 2px #0f172a)
+    drop-shadow(0 0 4px rgba(34, 197, 94, 0.55))
+    drop-shadow(0 0 10px rgba(74, 222, 128, 0.4));
+  animation: pufam-track-highlight-pulse 2s ease-in-out infinite;
+}
+@keyframes pufam-track-highlight-pulse {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 2px #0f172a)
+      drop-shadow(0 0 3px rgba(22, 163, 74, 0.4))
+      drop-shadow(0 0 7px rgba(34, 197, 94, 0.28));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 2px #0f172a)
+      drop-shadow(0 0 6px rgba(34, 197, 94, 0.75))
+      drop-shadow(0 0 14px rgba(74, 222, 128, 0.55));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  path.pufam-track-line--highlight {
+    animation: none;
+    filter:
+      drop-shadow(0 0 2px #0f172a)
+      drop-shadow(0 0 5px rgba(34, 197, 94, 0.65))
+      drop-shadow(0 0 10px rgba(74, 222, 128, 0.4));
+  }
+}
+
+/* Map soft-key / draw-bar icons — keep Lucide/Phosphor marks visible over the map */
+.pufom-map-softkeys svg,
+.pufom-draw-actions svg {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex-shrink: 0;
+  max-width: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.pufom-map-softkeys svg.lucide,
+.pufom-draw-actions svg.lucide {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+}

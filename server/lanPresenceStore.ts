@@ -3,6 +3,8 @@
  * Survives only while the Express process is up — fine for same-WiFi fallback.
  */
 
+export type LanTrailPoint = { lat: number; lng: number; t: number };
+
 export type LanPresenceEntry = {
   uid: string;
   displayName: string;
@@ -11,6 +13,8 @@ export type LanPresenceEntry = {
   accuracyM: number | null;
   headingDeg: number | null;
   speedMps: number | null;
+  kind?: 'person' | 'vehicle';
+  trail?: LanTrailPoint[];
   updatedAt: string;
   source: 'gps' | 'manual';
 };

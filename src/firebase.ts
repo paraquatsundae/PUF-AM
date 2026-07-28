@@ -55,13 +55,21 @@ export const auth = createAuth();
 
 export const storage = getStorage(app);
 
-/** Clear corrupted Firestore IndexedDB (call then hard-reload). */
+/**
+ * Clear corrupted Firestore IndexedDB (call then hard-reload).
+ * Do NOT delete Firebase Auth databases — that forces invite-PIN login again.
+ */
 export async function clearFirestoreIndexedDb(): Promise<void> {
   if (typeof indexedDB === 'undefined') return;
   const databases = await (indexedDB.databases?.() ?? Promise.resolve([]));
   const names = databases
     .map((d) => d.name)
-    .filter((n): n is string => !!n && (n.includes('firestore') || n.includes('firebase')));
+    .filter((n): n is string => {
+      if (!n) return false;
+      const lower = n.toLowerCase();
+      // Firestore persistent cache only — never Auth (firebaseLocalStorageDB, etc.).
+      return lower.includes('firestore');
+    });
   await Promise.all(
     names.map(
       (name) =>

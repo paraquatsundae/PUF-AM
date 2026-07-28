@@ -1,6 +1,6 @@
 # Farm types & paddock identity — skeleton
 
-Status: **structure in place** (catalog + Farm Setup + naming sheet). Deep seasonal / station / aqua / livestock movement UIs are later phases.
+Status: **structure in place** (catalog + Farm Setup + naming sheet). Map infrastructure types (D-05) and paddock exclusions / dam texture (D-05b) shipped — see section below. Deep seasonal / station / aqua / livestock movement UIs are later phases.
 
 ## Enterprises
 
@@ -53,3 +53,41 @@ New farms: empty `enterprises`, modules from `defaultModulesWithoutCropPacks()` 
 ## Default for existing farms
 
 No `enterprises` on profile → not forced to walnut; blight stays visible only while still in the farm module catalog (legacy).
+
+---
+
+## Map infrastructure (D-05)
+
+Mappable farm assets beyond paddocks/tracks. Catalog: `shared/farm/infraTypes.ts`. Model: `InfrastructurePin` in `src/lib/mapStore.ts`.
+
+| Type id | Label | Draw mode | Notes |
+|---------|--------|-----------|--------|
+| `weather` | Weather station | point | Coverage circle mock; telemetry mock |
+| `soil` | Soil moisture probe | point | Coverage + telemetry mock |
+| `irrigation` | Irrigation valve / node | point | Coverage + telemetry mock |
+| `dam` | Dam / water body | polygon | Stored as pin + `geojson` (centroid lat/lng); **subtracts** paddock area; water fill pattern |
+| `internal_passable` | Pad (passable) | polygon | Internal hardstand / gravel; visible; **does not** subtract area |
+| `internal_impassable` | Hazard zone / impassable | polygon | Drain, rock pile, etc.; **subtracts** paddock area; hatch fill |
+| `pipeline` | Pipeline | line | Pin + LineString `geojson` |
+| `standpipe` | Standpipe | point | Fill / hydrant pin |
+| `vehicle` | Vehicle | point | Static home/park pin; optional `trackerId` |
+| `fuel` | Fuel point | point | Diesel / AdBlue / storage |
+| `hazard` | Hazard | point | Powerlines, soft ground, chem store, etc. |
+
+**Draw UX (Farm Map → Infrastructure):** pick type chips → Plus / Leaflet draw toolbar uses that type’s mode (marker / polyline / polygon). Blocks tab still draws paddock polygons; Tracks tab still draws track polylines.
+
+**Fields:** `type`, `name`, `status`, `lat`/`lng` (always — centroid for area/line), optional `geojson`, `notes`, `trackerId` (vehicles).
+
+**Meshy / GPS trackers (future):** `trackerId` reserves a Meshy (or similar) device id on vehicle pins. Live position overlay is not wired yet — pins are home/park locations for now.
+
+**Rules / API:** `firestore.rules` `isValidInfrastructurePin` allowlists new types + `geojson` / `trackerId` / `notes`. Deploy rules if production has not picked them up yet. `mapApi.savePin` stringifies `geojson`.
+
+### Paddock exclusions & area (D-05b)
+
+Helpers: `infraSubtractsFromPaddock`, `infraFillPattern` in `shared/farm/infraTypes.ts`; area math in `src/lib/paddockExclusions.ts`; SVG patterns in `src/lib/infraMapStyles.ts`.
+
+**Approach:** paddock `geojson` stays a **single exterior ring** (vertex edit unchanged). Dams and impassable internal polygons live only on infrastructure pins. `areaHa` = turf area of exterior minus intersections with subtracting polygons (`turf.difference` over the set). Passable pads are drawn on top but ignored for area.
+
+**Display:** exclusion polygons render above paddocks with water / hatch / gravel patterns (not flat tints). Stored paddock geojson is **not** punched with holes (hole-preserving boundary edit is a later follow-up if needed).
+
+**Recalc:** `recomputeBlockAreasForFarm` runs from Farm Map when blocks/pins change (create/edit/delete dam or impassable zone, or paddock boundary save).

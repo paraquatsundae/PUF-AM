@@ -4,6 +4,8 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 
 **Brand:** PUFAM = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
 
+**Display vs technical IDs:** Operators always see **PUFAM**. Leave alone: `com.sentinut.farm`, `.pufom` / `PUFOM1`, `_pufom-sync._tcp`, `pufom_*` keys, npm name `walnut-farm-manager`, `sentinut_*` storage — see [`DEVELOPER_NOTES.md`](DEVELOPER_NOTES.md) §0.
+
 **Live app:** [https://pufom-quby5ye5pa-ts.a.run.app](https://pufom-quby5ye5pa-ts.a.run.app) (Cloud Run service still named `pufom` until Phase B rename). Redeploy: `npm run deploy:cloudrun`. Details: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
 
 **Local:** [http://localhost:3000](http://localhost:3000) via `npm run dev`.

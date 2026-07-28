@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, Save, Map, Thermometer, CheckCircle2, Droplets, Trees } from 'lucide-react';
+import { Plus, Trash2, Save, Map, Thermometer, CheckCircle2, Droplets, Trees, Highlighter } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
 import { useFarmDiary, IrrigationSystemType, resolveFarmProfile } from '../lib/farmDiary';
 import { FarmDryer, getFarmAssets, saveFarmAssets } from '../lib/farmAssets';
 import { updateFarmModules } from '../lib/invitePinAuth';
 import { cn } from '../lib/utils';
+import {
+  HIGHLIGHT_DEFAULT_SECONDS,
+  HIGHLIGHT_DURATION_PRESETS_SEC,
+} from '../lib/mapHighlights';
 import {
   farmHasWalnutPack,
   FARM_ENTERPRISES,
@@ -42,6 +46,7 @@ export function FarmSetup() {
   const [dryers, setDryers] = useState<FarmDryer[]>([]);
   const [waterAllocationMl, setWaterAllocationMl] = useState<number>(500);
   const [irrigationSystemType, setIrrigationSystemType] = useState<IrrigationSystemType>('micro');
+  const [highlightDefaultSeconds, setHighlightDefaultSeconds] = useState(HIGHLIGHT_DEFAULT_SECONDS);
   const [farmProfile, setFarmProfile] = useState<FarmProfile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,6 +89,14 @@ export function FarmSetup() {
       setWaterAllocationMl(settings.waterAllocationMl);
     }
     if (
+      typeof settings.highlightDefaultSeconds === 'number' &&
+      settings.highlightDefaultSeconds > 0
+    ) {
+      setHighlightDefaultSeconds(Math.round(settings.highlightDefaultSeconds));
+    } else {
+      setHighlightDefaultSeconds(HIGHLIGHT_DEFAULT_SECONDS);
+    }
+    if (
       settings.farmProfile &&
       typeof settings.farmProfile === 'object' &&
       Array.isArray(settings.farmProfile.enterprises)
@@ -92,7 +105,12 @@ export function FarmSetup() {
     } else {
       setFarmProfile(EMPTY_PROFILE);
     }
-  }, [settings.irrigationSystemType, settings.waterAllocationMl, settings.farmProfile]);
+  }, [
+    settings.irrigationSystemType,
+    settings.waterAllocationMl,
+    settings.highlightDefaultSeconds,
+    settings.farmProfile,
+  ]);
 
   const toggleEnterprise = (id: FarmEnterpriseId) => {
     setFarmProfile((prev) => {
@@ -161,6 +179,10 @@ export function FarmSetup() {
         irrigationSystemType,
         waterAllocationMl: Number(waterAllocationMl) || 0,
         farmProfile: profile,
+        highlightDefaultSeconds: Math.min(
+          600,
+          Math.max(5, Math.round(Number(highlightDefaultSeconds) || HIGHLIGHT_DEFAULT_SECONDS))
+        ),
       });
 
       // Keep blight module aligned with walnut crop pack.
@@ -406,6 +428,37 @@ export function FarmSetup() {
             </select>
           </label>
         </div>
+      </div>
+
+      {/* Map overlays */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900 inline-flex items-center gap-1.5">
+            <Highlighter className="w-3.5 h-3.5 text-teal-700" />
+            Map highlights
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Default duration for viewer/worker “check this” highlights. Admin and farmer can pick a
+            longer time when sending.
+          </p>
+        </div>
+        <label className="flex flex-col gap-0.5 max-w-xs">
+          <span className="text-[9px] font-bold text-slate-400 uppercase">Default duration</span>
+          <select
+            className={fieldClass}
+            value={highlightDefaultSeconds}
+            onChange={(e) => setHighlightDefaultSeconds(Number(e.target.value))}
+            disabled={!canEdit}
+          >
+            {[...new Set([HIGHLIGHT_DEFAULT_SECONDS, ...HIGHLIGHT_DURATION_PRESETS_SEC, highlightDefaultSeconds])]
+              .sort((a, b) => a - b)
+              .map((sec) => (
+                <option key={sec} value={sec}>
+                  {sec < 60 ? `${sec} seconds` : `${sec / 60} minute${sec === 60 ? '' : 's'}`}
+                </option>
+              ))}
+          </select>
+        </label>
       </div>
 
       {/* Dryers */}

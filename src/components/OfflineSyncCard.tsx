@@ -37,6 +37,7 @@ import {
   pushLanBundle,
   type SyncPendingCounts,
 } from '../lib/pufomSync';
+import { useMapStoreInternal } from '../lib/mapStore';
 import { clsx } from 'clsx';
 
 export function OfflineSyncCard() {
@@ -211,8 +212,9 @@ export function OfflineSyncCard() {
             if (!file) return;
             void run('import', async () => {
               const result = await importPufomFile(file, farmId);
+              await useMapStoreInternal.getState().loadData(farmId);
               setMessage(
-                `Merged pack — ${result.blocks} blocks, ${result.issues} issues, ${result.diary} diary events. Reload map/diary if open.`
+                `Merged pack — ${result.blocks} blocks, ${result.pins} pins, ${result.issues} issues, ${result.diary} diary events.`
               );
             });
           }}
@@ -440,8 +442,9 @@ export function OfflineSyncCard() {
                   setMessage('No pack on the LAN shelf yet — push from another device first.');
                   return;
                 }
+                await useMapStoreInternal.getState().loadData(farmId);
                 setMessage(
-                  `Pulled & merged — ${result.blocks} blocks, ${result.issues} issues, ${result.diary} diary.`
+                  `Pulled & merged — ${result.blocks} blocks, ${result.pins} pins, ${result.issues} issues, ${result.diary} diary.`
                 );
               })
             }

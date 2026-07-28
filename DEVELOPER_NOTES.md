@@ -4,6 +4,18 @@
 **Current Phase:** Prototype / Thick Client
 **Target Scale:** 10,000+ Concurrent Users
 
+## 0. Naming glossary (display vs wire)
+
+| Name | Role |
+|------|------|
+| **PUFAM** / **PUFAM — Ag Manager** | User-facing product name (Login, shell, About, Capacitor `appName`, HTML title). Source: `src/brand.ts`. |
+| **PUFOM** | Legacy / wire protocol brand: `.pufom` bundles, `PUFOM1` magic, mDNS `_pufom-sync._tcp`, keys `pufom_*`, Cloud Run service `pufom-…`. Do **not** rename casually — breaks LAN sync & installs. |
+| **walnut-farm-manager** | npm `package.json` `name` and GitHub folder — technical only. |
+| **com.sentinut.farm** | Capacitor / Android `appId` — keep for install continuity. |
+| **sentinut_*** | localStorage / IndexedDB key prefixes — keep for data continuity. |
+
+Full rename plan: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
+
 ## 1. The Good News: What We've Optimized
 We have made some smart decisions that buy us time and performance:
 *   **Decoupled UI (The Temporal Slider):** By ensuring the time-scrubbing slider only filters pre-loaded data, we prevented a catastrophic scenario where sliding the timeline would trigger hundreds of database queries per second.
@@ -150,10 +162,11 @@ classDiagram
 
 | Phase | Behaviour | Status |
 |-------|-----------|--------|
-| **Now** | After first successful invite PIN + name sign-in, **remember this device**: Firebase Auth uses IndexedDB persistence (web + native). Reopening skips login until explicit logout or app-data wipe. Login prefills last display name (`src/lib/deviceSession.ts`). | Implemented |
-| **Later** | After authentication (or when returning to a remembered device), require a short personal **unlock PIN** (or biometric) for local re-entry — not a second invite code. Invite PIN remains for joining / first device only. | Planned — not implemented |
+| **Now** | After first successful invite PIN + name sign-in, **remember this device**: Firebase Auth IndexedDB persistence. Reopening skips login until logout / wipe. Welcome-back + last farm (`deviceSession.ts`). | Implemented |
+| **Now** | Optional **personal unlock PIN** (4–8 digits, per device / UID): setup prompt + Settings; soft lock gate + 15 min background relock (`unlockPin.ts`, `AppUnlockGate`). Invite PIN still required once per **new device**. | Implemented |
+| **Later** | Biometric unlock (Capacitor) wrapping the same local unlock secret. | Planned |
 
-Rationale: orchard tablets should stay open without re-typing the farm invite code every shift; unlock PIN later adds a light privacy gate without inventing passwords for synthetic Auth emails.
+Rationale: orchard tablets should stay open without re-typing the farm invite code every shift; unlock PIN adds a light privacy gate without inventing passwords for synthetic Auth emails.
 
 Details: [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md).
 

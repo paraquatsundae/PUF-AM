@@ -31,6 +31,7 @@ import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { InvitePinManager } from '../components/InvitePinManager';
 import { OfflineSyncCard } from '../components/OfflineSyncCard';
+import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { useWalnutPack } from '../hooks/useWalnutPack';
 import {
   ensureShareCrewLocationDefault,
@@ -476,6 +477,8 @@ export function Settings() {
             </div>
 
             {isAdmin && <InvitePinManager />}
+
+            <UnlockPinSettingsCard />
 
             <OfflineSyncCard />
 

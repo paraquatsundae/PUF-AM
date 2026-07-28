@@ -11,11 +11,14 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { isWorkshopMode } from './workshopMode';
+import { pruneTrail, type TrailPoint } from './breadTrails';
 
 export const PRESENCE_STALE_MS = 45_000;
-export const PRESENCE_UPSERT_MS = 8_000;
+export const PRESENCE_UPSERT_MS = 500;
 export const SHARE_CREW_LOCATION_KEY = 'pufom_share_crew_location';
 const DEVICE_ID_KEY = 'pufom_presence_device_id';
+
+export type { TrailPoint };
 
 export type CrewPresenceDoc = {
   uid: string;
@@ -24,6 +27,12 @@ export type CrewPresenceDoc = {
   lng: number;
   accuracyM: number;
   heading?: number | null;
+  /** Optional speed for machine/vehicle trail width stub. */
+  speedMps?: number | null;
+  /** Optional presence kind — `vehicle` draws a wider bread trail. */
+  kind?: 'person' | 'vehicle';
+  /** Last ~2 minutes of points (lat,lng,t). */
+  trail?: TrailPoint[];
   updatedAt: string;
   deviceId: string;
   source: 'gps';
@@ -130,6 +139,9 @@ export async function upsertCrewPresence(
   payload: Omit<CrewPresenceDoc, 'source' | 'deviceId' | 'updatedAt'> & {
     accuracyM?: number;
     heading?: number | null;
+    speedMps?: number | null;
+    kind?: 'person' | 'vehicle';
+    trail?: TrailPoint[];
   }
 ): Promise<void> {
   if (!farmId || !payload.uid) return;
@@ -143,6 +155,11 @@ export async function upsertCrewPresence(
     typeof payload.heading === 'number' && Number.isFinite(payload.heading)
       ? payload.heading
       : null;
+  const speedMps =
+    typeof payload.speedMps === 'number' && Number.isFinite(payload.speedMps)
+      ? payload.speedMps
+      : null;
+  const trail = pruneTrail(payload.trail).slice(-250);
 
   const docPayload: CrewPresenceDoc = {
     uid: payload.uid,
@@ -151,6 +168,9 @@ export async function upsertCrewPresence(
     lng: payload.lng,
     accuracyM,
     heading,
+    speedMps,
+    kind: payload.kind === 'vehicle' ? 'vehicle' : 'person',
+    trail,
     updatedAt: new Date().toISOString(),
     deviceId: getPresenceDeviceId(),
     source: 'gps',

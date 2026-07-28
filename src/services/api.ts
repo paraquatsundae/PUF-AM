@@ -234,7 +234,18 @@ export const mapApi = {
       }
       
       const snapshot = isOffline() ? await getDocsFromCache(q) : await getDocs(q);
-      let pins = snapshot.docs.map(doc => doc.data() as InfrastructurePin);
+      let pins = snapshot.docs.map((d) => {
+        const raw = d.data() as InfrastructurePin & { geojson?: unknown };
+        let geojson = raw.geojson;
+        if (typeof geojson === 'string' && geojson.trim()) {
+          try {
+            geojson = JSON.parse(geojson);
+          } catch {
+            geojson = undefined;
+          }
+        }
+        return { ...raw, geojson } as InfrastructurePin;
+      });
       
       if (bounds) {
         pins = pins.filter(p => p.lng >= bounds.minLng && p.lng <= bounds.maxLng);
@@ -257,16 +268,21 @@ export const mapApi = {
     }
     try {
       const path = `farms/${farmId}/pins`;
-      const dataToSave = { 
-        ...pin,
+      // Allowlist (firestore.rules isValidInfrastructurePin). GeoJSON stringified.
+      const dataToSave: Record<string, unknown> = {
+        id: pin.id,
+        name: pin.name || '',
+        type: pin.type || '',
+        status: pin.status || 'active',
         lat: typeof pin.lat === 'number' && !isNaN(pin.lat) ? pin.lat : 0,
-        lng: typeof pin.lng === 'number' && !isNaN(pin.lng) ? pin.lng : 0
+        lng: typeof pin.lng === 'number' && !isNaN(pin.lng) ? pin.lng : 0,
       };
-      Object.keys(dataToSave).forEach(key => {
-        if ((dataToSave as any)[key] === undefined) {
-          delete (dataToSave as any)[key];
-        }
-      });
+      if (pin.geojson != null) {
+        dataToSave.geojson =
+          typeof pin.geojson === 'string' ? pin.geojson : JSON.stringify(pin.geojson);
+      }
+      if (pin.trackerId) dataToSave.trackerId = String(pin.trackerId).slice(0, 119);
+      if (pin.notes) dataToSave.notes = String(pin.notes).slice(0, 1999);
       await setDoc(doc(db, path, pin.id), dataToSave);
     } catch (error) {
       if (isBenignFirestoreFailure(error)) {

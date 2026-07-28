@@ -13,6 +13,7 @@ import L from '../../lib/leaflet-setup';
 import { v4 as uuidv4 } from 'uuid';
 import { cn } from '../../lib/utils';
 import debounce from 'lodash/debounce';
+import { trackPathStyle } from '../../lib/trackMapStyles';
 
 export function FieldMode({ farmId, mapLayer, setMapLayer }: { farmId: string, mapLayer: 'vector' | 'satellite', setMapLayer: (layer: 'vector' | 'satellite') => void }) {
   const map = useMap();
@@ -439,19 +440,15 @@ export function FieldMode({ farmId, mapLayer, setMapLayer }: { farmId: string, m
 
     tracks.forEach((track) => {
       if (!track.geojson) return;
-      const color =
-        track.category === 'primary'
-          ? '#10b981'
-          : track.category === 'secondary'
-            ? '#3b82f6'
-            : '#94a3b8';
+      const style = trackPathStyle(track.category);
       try {
         const layer = L.geoJSON(track.geojson, {
           style: {
-            color,
-            weight: 4,
-            opacity: 0.8,
-            dashArray: track.category === 'service' ? '10, 10' : '',
+            color: style.color,
+            weight: style.weight,
+            opacity: style.opacity,
+            dashArray: style.dashArray,
+            className: style.className,
           },
         });
         layer.addTo(tracksLayerRef.current!);

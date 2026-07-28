@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { resolveGoogleMapsApiKey } from '../src/lib/googleMapsKey';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { preferEsriSatelliteBasemap, resolveGoogleMapsApiKey } from '../src/lib/googleMapsKey';
 
 describe('resolveGoogleMapsApiKey', () => {
   it('rejects empty and placeholder keys', () => {
@@ -13,5 +13,21 @@ describe('resolveGoogleMapsApiKey', () => {
     expect(resolveGoogleMapsApiKey('AIzaSyDummyKeyForUnitTest123')).toBe(
       'AIzaSyDummyKeyForUnitTest123'
     );
+  });
+});
+
+describe('preferEsriSatelliteBasemap', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('defaults to Esri (avoids blank Google Mutant on localhost/LAN)', () => {
+    vi.stubEnv('VITE_PREFER_GOOGLE_SATELLITE', '');
+    expect(preferEsriSatelliteBasemap()).toBe(true);
+  });
+
+  it('allows forcing Google via env', () => {
+    vi.stubEnv('VITE_PREFER_GOOGLE_SATELLITE', '1');
+    expect(preferEsriSatelliteBasemap()).toBe(false);
   });
 });

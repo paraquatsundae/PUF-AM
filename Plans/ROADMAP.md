@@ -188,7 +188,7 @@ graph TD
 - [x] Rename `name` to `walnut-farm-manager`
 - [x] Set `version` to `0.1.0` (or agreed semver)
 - [x] Add `description` matching README
-- [x] Align `metadata.json` name if needed (already "Walnut Farm Manager")
+- [x] Align `metadata.json` name if needed (now "PUFAM")
 - [x] Search repo for `react-example` references and update (`package-lock.json`)
 
 **Acceptance criteria**
@@ -604,9 +604,11 @@ Not part of the original 13 steps. Track here so deploy ops and mixed-farm UX st
 | D-02 | Module / PIN toggles respect crop packs | `done` | Blight hidden without walnut pack; orphan catalog cleared on Save |
 | D-03 | Map UX (draw hit-targets, mixed naming) | `done` | 2026-07-27 — draw bar hit pad, pan-without-point, Area/Block/Paddock naming |
 | D-04 | Offline Phase 3 leftovers (NSD, photo queue, weather) | `done` | 2026-07-27 — photo outbox, weather IDB, Android NSD |
-| D-05 | Farm-types deep UIs (season / station / aqua) | `not_started` | Skeleton in FARM_TYPES.md |
+| D-05 | Map infrastructure types (dams / pipes / vehicles…) | `done` | 2026-07-28 — infra catalog + OrchardMap draw/edit/sidebar; season/station/aqua deep UIs remain later (FARM_TYPES.md) |
+| D-05b | Dam texture + paddock area exclusions + internal zones | `done` | 2026-07-28 — water/hatch/gravel fills; areaHa net of dam/impassable; passable pads; see FARM_TYPES.md |
 | D-06 | Cloud Run / mDNS / `.pufom` rename Phase B | `deferred` | Keep wire names until cutover |
 | D-07 | Crew presence on map (cloud → LAN → mesh) | `in_progress` | P1+P2 done 2026-07-27; mesh P3 open — CREW_PRESENCE.md |
+| D-08 | Map overlays (highlights / bread trails / paddock names) | `done` | 2026-07-28 — MAP_OVERLAYS.md; timed check-this + 2 min trails + name watermarks |
 | D-03b | Tablet basemap blank (pack + skip/online) | `done` | 2026-07-27 — blob revoke, Esri-on-native, Capacitor Network |
 
 **Deploy still pending from Phase C:** production secrets, `setAdminClaim.ts` for admin UIDs, optional Cloud Run service rename.
@@ -619,6 +621,9 @@ Record every status change here (newest first).
 
 | Date | Step | Action | Notes |
 |------|------|--------|-------|
+| 2026-07-28 | D-05b | Dam texture + exclusions | Water/hatch/gravel SVG patterns; internal_passable / internal_impassable; areaHa via turf.difference vs subtracting pins; paddock exterior unchanged |
+| 2026-07-28 | D-08 | Map overlays | Timed highlights, bread trails (2 min), paddock name watermarks — MAP_OVERLAYS.md |
+| 2026-07-28 | D-05 | Map infrastructure | INFRA_TYPES (dam/pipe/vehicle/fuel/hazard + sensors); OrchardMap draw modes, geojson edit, sidebar chips, metadata notes/trackerId; Meshy live track future |
 | 2026-07-27 | D-07 P2 | Crew presence (LAN hub) | `POST/GET /api/presence` + client poll/merge with cloud |
 | 2026-07-27 | D-07 P1 | Crew presence (cloud) | `presence/{uid}` + CrewPresenceLayer + Settings share toggle |
 | 2026-07-27 | D-04 | Offline Phase 3 | Photo Storage outbox; weather IDB + Cache weather; Android NSD hub scan |

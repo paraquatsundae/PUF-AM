@@ -72,6 +72,11 @@ export interface FarmSettings {
   customAdjuvants?: string[];
   /** Enterprises + livestock overlay — see shared/farm/farmTypes.ts */
   farmProfile?: FarmProfile;
+  /**
+   * Default timed “check this” highlight duration for viewers (and as farm default).
+   * Admin/farmer can override per-send; viewers always use this fixed value.
+   */
+  highlightDefaultSeconds?: number;
 }
 
 interface FarmDiaryState {

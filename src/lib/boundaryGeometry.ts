@@ -1,5 +1,9 @@
 /**
  * GeoJSON ring helpers for paddock boundary edit / import.
+ *
+ * Note (D-05b): writers/readers use a single exterior ring. Usable area net of
+ * dams / impassable infra is computed in paddockExclusions.ts — do not punch
+ * holes into stored block.geojson until hole-preserving vertex edit exists.
  */
 import * as turf from '@turf/turf';
 

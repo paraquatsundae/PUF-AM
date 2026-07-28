@@ -79,7 +79,7 @@ export function useUserGeolocation(enabled = true): {
           const { Geolocation } = await import('@capacitor/geolocation');
           usedCapacitor = true;
           watchId = await Geolocation.watchPosition(
-            { enableHighAccuracy: true, timeout: 15000 },
+            { enableHighAccuracy: true, maximumAge: 500, timeout: 15000 },
             (pos, err) => {
               if (cancelled) return;
               if (err || !pos) {
@@ -117,7 +117,7 @@ export function useUserGeolocation(enabled = true): {
         (err) => {
           if (!cancelled) setError(err.message || 'Location unavailable');
         },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+        { enableHighAccuracy: true, maximumAge: 500, timeout: 15000 }
       );
     })();
 

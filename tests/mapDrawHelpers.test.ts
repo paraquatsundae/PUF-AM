@@ -1,11 +1,19 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest';
 import {
+  drawHandlerCanFinish,
+  drawHandlerIsPolygon,
   drawHandlerMarkerCount,
   pointHitsDrawUi,
   shouldIgnoreMapDrawInput,
   type LeafletDrawHandler,
 } from '../src/lib/mapDrawHelpers';
+import {
+  TRACK_COLOR_PRIMARY,
+  trackCategoryChipClass,
+  trackPathStyle,
+  trackStrokeColor,
+} from '../src/lib/trackMapStyles';
 
 describe('mapDrawHelpers', () => {
   it('counts markers on a draw handler', () => {
@@ -18,6 +26,44 @@ describe('mapDrawHelpers', () => {
     expect(drawHandlerMarkerCount(empty)).toBe(0);
     expect(drawHandlerMarkerCount(withPts)).toBe(3);
     expect(drawHandlerMarkerCount(null)).toBe(0);
+  });
+
+  it('finish rules: polygon ≥3, polyline ≥2', () => {
+    const poly2: LeafletDrawHandler = {
+      enable() {},
+      disable() {},
+      _enabled: true,
+      type: 'polygon',
+      _markers: [{}, {}],
+    };
+    const poly3: LeafletDrawHandler = { ...poly2, _markers: [{}, {}, {}] };
+    const line1: LeafletDrawHandler = {
+      enable() {},
+      disable() {},
+      _enabled: true,
+      type: 'polyline',
+      _markers: [{}],
+    };
+    const line2: LeafletDrawHandler = { ...line1, _markers: [{}, {}] };
+    expect(drawHandlerIsPolygon(poly2)).toBe(true);
+    expect(drawHandlerIsPolygon(line2)).toBe(false);
+    expect(drawHandlerCanFinish(poly2)).toBe(false);
+    expect(drawHandlerCanFinish(poly3)).toBe(true);
+    expect(drawHandlerCanFinish(line1)).toBe(false);
+    expect(drawHandlerCanFinish(line2)).toBe(true);
+  });
+
+  it('track colours stay distinct from paddock indigo', () => {
+    expect(trackStrokeColor('primary')).toBe(TRACK_COLOR_PRIMARY);
+    expect(TRACK_COLOR_PRIMARY.toLowerCase()).not.toBe('#10b981');
+    expect(TRACK_COLOR_PRIMARY.toLowerCase()).not.toBe('#4f46e5');
+    expect(trackPathStyle('primary').className).toContain('pufam-track-line');
+    expect(trackPathStyle('primary', { highlighted: true }).className).toContain(
+      'pufam-track-line--highlight'
+    );
+    expect(trackPathStyle('primary', { highlighted: true }).color).toBe(TRACK_COLOR_PRIMARY);
+    expect(trackCategoryChipClass('primary')).toContain('amber');
+    expect(trackCategoryChipClass('secondary')).toContain('sky');
   });
 
   it('pointHitsDrawUi detects padded control rects', () => {

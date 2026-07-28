@@ -34,6 +34,25 @@ export type LeafletDrawHandler = {
 let currentDrawHandler: LeafletDrawHandler | null = null;
 let drawUiIgnoreUntil = 0;
 let patched = false;
+const drawHandlerListeners = new Set<() => void>();
+
+/** Subscribe to draw-handler enable/disable/vertex changes (DrawingActionBar). */
+export function subscribeDrawHandlerChange(fn: () => void): () => void {
+  drawHandlerListeners.add(fn);
+  return () => {
+    drawHandlerListeners.delete(fn);
+  };
+}
+
+export function notifyDrawHandlerChange(): void {
+  drawHandlerListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      /* listener errors must not break draw */
+    }
+  });
+}
 
 /** Pixels — finger moved farther than this during a touch ⇒ pan, not a tap. */
 const TAP_SLOP_PX = 12;
@@ -240,6 +259,7 @@ export function patchLeafletDrawTouchGuards(): void {
     currentDrawHandler = this;
     const result = origEnable.apply(this, args as []);
     attachPanGuards(this);
+    notifyDrawHandlerChange();
     // Actions list is created asynchronously — shield after paint
     requestAnimationFrame(() => shieldLeafletDrawControls());
     setTimeout(() => shieldLeafletDrawControls(), 50);
@@ -251,7 +271,9 @@ export function patchLeafletDrawTouchGuards(): void {
   proto.disable = function (this: LeafletDrawHandler, ...args: unknown[]) {
     detachPanGuards(this);
     if (currentDrawHandler === this) currentDrawHandler = null;
-    return origDisable.apply(this, args as []);
+    const result = origDisable.apply(this, args as []);
+    notifyDrawHandlerChange();
+    return result;
   };
 
   /**
@@ -431,6 +453,7 @@ export function cancelActiveDrawer(ref: { current: LeafletDrawHandler | null }):
   }
   ref.current = null;
   if (currentDrawHandler === drawer) currentDrawHandler = null;
+  notifyDrawHandlerChange();
 }
 
 export function startActiveDrawer(
@@ -441,6 +464,7 @@ export function startActiveDrawer(
   drawer.enable();
   ref.current = drawer;
   currentDrawHandler = drawer;
+  notifyDrawHandlerChange();
 }
 
 export function drawHandlerMarkerCount(handler: LeafletDrawHandler | null): number {
@@ -448,12 +472,16 @@ export function drawHandlerMarkerCount(handler: LeafletDrawHandler | null): numb
   return handler._markers.length;
 }
 
+export function drawHandlerIsPolygon(handler: LeafletDrawHandler | null): boolean {
+  const kind = String(handler?.type || '').toLowerCase();
+  return kind === 'polygon';
+}
+
 /** Polygon needs ≥3 vertices; polyline ≥2. */
 export function drawHandlerCanFinish(handler: LeafletDrawHandler | null): boolean {
   if (!handler?._enabled) return false;
   const n = drawHandlerMarkerCount(handler);
-  const kind = String(handler.type || '').toLowerCase();
-  if (kind === 'polygon') return n >= 3;
+  if (drawHandlerIsPolygon(handler)) return n >= 3;
   return n >= 2;
 }
 
@@ -463,6 +491,7 @@ export function undoLastDrawVertex(): boolean {
   markDrawUiInteraction();
   try {
     h.deleteLastVertex();
+    notifyDrawHandlerChange();
     return true;
   } catch {
     return false;
@@ -476,9 +505,11 @@ export function finishActiveDrawing(): boolean {
   try {
     if (typeof h.completeShape === 'function') {
       h.completeShape();
+      notifyDrawHandlerChange();
       return true;
     }
     h.disable();
+    notifyDrawHandlerChange();
     return true;
   } catch {
     return false;
@@ -491,6 +522,7 @@ export function cancelActiveDrawing(): boolean {
   markDrawUiInteraction();
   try {
     h.disable();
+    notifyDrawHandlerChange();
     return true;
   } catch {
     return false;

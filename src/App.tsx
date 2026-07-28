@@ -14,6 +14,7 @@ import { InvitationOverlay } from './components/InvitationOverlay';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
 import { PrivacyGate } from './components/PrivacyGate';
+import { AppUnlockGate } from './components/AppUnlockGate';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { WorkshopModeBanner } from './components/WorkshopModeBanner';
 import { isWorkshopMode } from './lib/workshopMode';
@@ -89,7 +90,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   
-  return <PrivacyGate>{children}</PrivacyGate>;
+  return (
+    <AppUnlockGate>
+      <PrivacyGate>{children}</PrivacyGate>
+    </AppUnlockGate>
+  );
 }
 
 export default function App() {

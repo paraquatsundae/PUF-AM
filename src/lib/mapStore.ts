@@ -15,6 +15,7 @@ import {
 } from './farmGeometrySync';
 
 import type { FarmEnterpriseId, GeometryKindId, TreeSpeciesId } from '../../shared/farm/farmTypes';
+import type { InfraTypeId } from '../../shared/farm/infraTypes';
 
 export interface OrchardBlock {
   id: string;
@@ -43,10 +44,17 @@ export interface OrchardBlock {
 export interface InfrastructurePin {
   id: string;
   name: string;
-  type: 'weather' | 'soil' | 'irrigation' | '';
+  /** Sensor + farm assets (dam, internal zones, pipe, vehicle, fuel, hazard, …). */
+  type: InfraTypeId;
   status: 'active' | 'warning' | 'offline';
+  /** Label / centroid — always set (even for polygon/line assets). */
   lat: number;
   lng: number;
+  /** Polygon (dam / internal) or LineString (pipeline) GeoJSON Feature/geometry. */
+  geojson?: unknown;
+  /** Optional Meshy / third-party tracker id (vehicles) — reserved. */
+  trackerId?: string;
+  notes?: string;
 }
 
 export interface FarmTrack {
@@ -121,7 +129,8 @@ function filterByBounds<T extends { lat?: number; lng?: number; geojson?: any }>
   return items;
 }
 
-const useMapStoreInternal = create<MapState>((set, get) => ({
+/** Exposed for LAN pull / settings to force a geometry reload into the Zustand store. */
+export const useMapStoreInternal = create<MapState>((set, get) => ({
   blocks: [],
   pins: [],
   tracks: [],
@@ -383,6 +392,27 @@ export function useMapStore() {
     };
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
+  }, [farmId]);
+
+  // Multi-device: geometry is local-first + one-shot hydrate (no onSnapshot).
+  // Re-hydrate on focus and poll so tablet picks up browser-drawn pins.
+  useEffect(() => {
+    if (!farmId) return;
+    const refresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void store.loadData(farmId);
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', refresh);
+    const intervalId = window.setInterval(refresh, 30000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', refresh);
+      window.clearInterval(intervalId);
+    };
   }, [farmId]);
 
   const addBlock = useCallback(

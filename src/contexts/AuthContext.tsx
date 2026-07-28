@@ -9,8 +9,10 @@ import { createFarmAccount, redeemInvitePin } from '../lib/invitePinAuth';
 import {
   clearDeviceRememberedFlag,
   getLastDisplayName,
+  getLastFarm,
   markDeviceRemembered,
 } from '../lib/deviceSession';
+import { clearSessionUnlock } from '../lib/unlockPin';
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import {
   allFarmModules,
@@ -128,14 +130,19 @@ interface AuthContextType {
   signInWithInvitePin: (
     pin: string,
     displayName: string,
-    expectedFarmId?: string
+    expectedFarmId?: string,
+    farmName?: string
   ) => Promise<void>;
   createFarm: (
     farmName: string,
     displayName: string,
     opts?: { lat?: number; lng?: number; showNearby?: boolean }
-  ) => Promise<{ recoveryPin: string; token: string }>;
-  completeFarmSignIn: (token: string, displayName: string) => Promise<void>;
+  ) => Promise<{ recoveryPin: string; token: string; farmId: string; farmName: string }>;
+  completeFarmSignIn: (
+    token: string,
+    displayName: string,
+    farm?: { farmId?: string; farmName?: string }
+  ) => Promise<void>;
   logout: () => Promise<void>;
   acceptInvite: () => Promise<void>;
   declineInvite: () => Promise<void>;
@@ -446,6 +453,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   ? allFarmModules()
                   : (['dashboard'] as FarmModuleId[]),
             });
+            if (data.farmId) {
+              markDeviceRemembered(data.displayName || getLastDisplayName(), {
+                farmId: data.farmId,
+                farmName: getLastFarm()?.farmName,
+              });
+            }
             resolveIsAdmin(data.role).then(setIsAdmin).catch(() => setIsAdmin(data.role === 'admin'));
             setLoading(false);
           }, (err) => {
@@ -483,12 +496,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithInvitePin = async (
     pin: string,
     displayName: string,
-    expectedFarmId?: string
+    expectedFarmId?: string,
+    farmName?: string
   ) => {
-    const { token } = await redeemInvitePin(pin, displayName, expectedFarmId);
+    const { token, farmId } = await redeemInvitePin(pin, displayName, expectedFarmId);
     try {
       await signInWithCustomToken(auth, token);
-      markDeviceRemembered(displayName);
+      markDeviceRemembered(displayName, {
+        farmId,
+        farmName: farmName || getLastFarm()?.farmName,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes('offline') || msg.includes('network')) {
@@ -505,14 +522,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     displayName: string,
     opts?: { lat?: number; lng?: number; showNearby?: boolean }
   ) => {
-    const { token, recoveryPin } = await createFarmAccount(farmName, displayName, opts);
-    return { recoveryPin, token };
+    const { token, recoveryPin, farmId } = await createFarmAccount(farmName, displayName, opts);
+    return { recoveryPin, token, farmId, farmName };
   };
 
-  const completeFarmSignIn = async (token: string, displayName: string) => {
+  const completeFarmSignIn = async (
+    token: string,
+    displayName: string,
+    farm?: { farmId?: string; farmName?: string }
+  ) => {
     try {
       await signInWithCustomToken(auth, token);
-      markDeviceRemembered(displayName);
+      markDeviceRemembered(displayName, farm);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.toLowerCase().includes('offline') || msg.includes('network')) {
@@ -570,6 +591,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       clearDeviceRememberedFlag();
+      clearSessionUnlock();
       await signOut(auth);
     } catch (error) {
       console.error('Error signing out', error);
