@@ -8,7 +8,9 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 
 **Display vs technical IDs:** Operators see **PUF-AM**. Leave alone: `com.sentinut.farm`, `.pufom` / `PUFOM1`, `_pufom-sync._tcp`, `pufom_*` keys, npm name `walnut-farm-manager`, `sentinut_*` storage — see [`DEVELOPER_NOTES.md`](DEVELOPER_NOTES.md) §0.
 
-**Live app:** [https://pufom-quby5ye5pa-ts.a.run.app](https://pufom-quby5ye5pa-ts.a.run.app) (Cloud Run service still named `pufom` until Phase B rename). Redeploy: `npm run deploy:cloudrun`. Details: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
+**Live app:** [https://am.pufworks.farm](https://am.pufworks.farm) (Cloud Run service still named `pufom` until Phase B rename; fallback [*.run.app](https://pufom-quby5ye5pa-ts.a.run.app)). Redeploy: `npm run deploy:cloudrun`. Domain + APK releases: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
+
+**Android APK:** [GitHub Releases latest](https://github.com/paraquatsundae/PUF-AM/releases/latest) (Actions workflow `release-apk.yml`).
 
 **Local:** [http://localhost:3000](http://localhost:3000) via `npm run dev`.
 

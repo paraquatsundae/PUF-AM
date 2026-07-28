@@ -74,6 +74,37 @@ npm run open:android
 
 In Android Studio: run on a device/emulator. Set `VITE_WORKSHOP_MODE=true` in `.env` before `build:android` for demos without Google login.
 
+### CI releases (GitHub Actions)
+
+Public downloads come from **GitHub Releases**, not PUFworks-site `public/downloads/`.
+
+| Item | Value |
+|------|--------|
+| Workflow | `.github/workflows/release-apk.yml` |
+| Triggers | `workflow_dispatch` or tag `v*` |
+| Default artefact | `PUFAM.apk` (debug unless signing secrets set) |
+| Latest URL | https://github.com/paraquatsundae/PUF-AM/releases/latest |
+| Baked API URL | `https://am.pufworks.farm` |
+
+**Windows — dispatch a build:**
+
+```powershell
+cd C:\Projects\Walnut_farm_manager
+gh workflow run release-apk.yml
+# watch: gh run watch
+```
+
+Or: GitHub → **Actions** → **Release Android APK** → **Run workflow**.
+
+**Tag release:**
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+**Signed release later (optional):** add repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, then run the workflow with `build_type=release`. Never commit the keystore. Full domain cutover notes: `Plans/DEPLOY_CLOUD_RUN.md`.
+
 ### DPIRD weather cache (historic + daily)
 
 Safeguard against the 100-day API page trap:
