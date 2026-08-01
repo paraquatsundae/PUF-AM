@@ -227,3 +227,4 @@ Shelf files persist under `tmp/lan-sync/` (gitignored) while the PC is the hub.
 - NearMap / paid AU imagery
 - Tile packs on Capacitor Filesystem
 - Mapping issues (separate track)
+- **Freenet mist backup** (encrypted durable layer for diary/issues without paid cloud storage) — workshop: [FREENET_MIST_BACKUP.md](./FREENET_MIST_BACKUP.md)

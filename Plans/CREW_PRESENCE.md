@@ -40,6 +40,7 @@ Hardest; defer until P1–P2 prove useful in the paddock.
 
 | Option | Notes |
 |--------|-------|
+| **Reticulum** (LoRa RNodes + local links) | Preferred long-term for live presence / telemetry — see [FREENET_MIST_BACKUP.md](./FREENET_MIST_BACKUP.md). Freenet is for durable records, not this path. |
 | WebRTC data channels via hub signalling | Works when one device can still reach a signaler |
 | Nearby / Wi‑Fi Direct (Capacitor plugin) | Android-specific; research later |
 | Store-and-forward via USB / `.pufom` | Not “live”; out of scope for presence |
