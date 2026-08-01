@@ -1,7 +1,7 @@
 # PUFAM (Ag Manager) — Production Roadmap
 
 **Created:** 13 July 2026  
-**Last updated:** 27 July 2026 (Phase D — Offline Phase 3 / D-04)  
+**Last updated:** 1 August 2026 (Phase D — D-09 Freenet mist workshop)  
 **Status:** Active — Phases A–C code complete; deploy + Phase D product polish in flight  
 **Public name:** PUFAM — Ag Manager (repo folder still `Walnut_farm_manager`)  
 **Companion doc:** [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) §5 (13-step checklist)  
@@ -607,9 +607,10 @@ Not part of the original 13 steps. Track here so deploy ops and mixed-farm UX st
 | D-05 | Map infrastructure types (dams / pipes / vehicles…) | `done` | 2026-07-28 — infra catalog + OrchardMap draw/edit/sidebar; season/station/aqua deep UIs remain later (FARM_TYPES.md) |
 | D-05b | Dam texture + paddock area exclusions + internal zones | `done` | 2026-07-28 — water/hatch/gravel fills; areaHa net of dam/impassable; passable pads; see FARM_TYPES.md |
 | D-06 | Cloud Run / mDNS / `.pufom` rename Phase B | `deferred` | Keep wire names until cutover |
-| D-07 | Crew presence on map (cloud → LAN → mesh) | `in_progress` | P1+P2 done 2026-07-27; mesh P3 open — CREW_PRESENCE.md |
+| D-07 | Crew presence on map (cloud → LAN → mesh) | `in_progress` | P1+P2 done 2026-07-27; mesh P3 open — CREW_PRESENCE.md; live mesh → Reticulum (not Freenet) |
 | D-08 | Map overlays (highlights / bread trails / paddock names) | `done` | 2026-07-28 — MAP_OVERLAYS.md; timed check-this + 2 min trails + name watermarks |
 | D-03b | Tablet basemap blank (pack + skip/online) | `done` | 2026-07-27 — blob revoke, Esri-on-native, Capacitor Network |
+| D-09 | Freenet mist backup (records without paid cloud storage) | `workshop` | Design sketch 2026-08-01 — FREENET_MIST_BACKUP.md; hot+season contracts; invite→keys |
 
 **Deploy still pending from Phase C:** production secrets, `setAdminClaim.ts` for admin UIDs, optional Cloud Run service rename.
 
@@ -621,6 +622,7 @@ Record every status change here (newest first).
 
 | Date | Step | Action | Notes |
 |------|------|--------|-------|
+| 2026-08-01 | D-09 | Freenet mist workshop | Records contract shape (append-log hot + seasons); invite→key hierarchy; Reticulum for live only — FREENET_MIST_BACKUP.md |
 | 2026-07-28 | D-05b | Dam texture + exclusions | Water/hatch/gravel SVG patterns; internal_passable / internal_impassable; areaHa via turf.difference vs subtracting pins; paddock exterior unchanged |
 | 2026-07-28 | D-08 | Map overlays | Timed highlights, bread trails (2 min), paddock name watermarks — MAP_OVERLAYS.md |
 | 2026-07-28 | D-05 | Map infrastructure | INFRA_TYPES (dam/pipe/vehicle/fuel/hazard + sensors); OrchardMap draw modes, geojson edit, sidebar chips, metadata notes/trackerId; Meshy live track future |

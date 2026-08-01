@@ -105,6 +105,7 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 | [`Plans/SMOKE_TEST_LOG.md`](Plans/SMOKE_TEST_LOG.md) | Manual smoke tests |
 | [`Plans/OFFLINE_MAP_APK.md`](Plans/OFFLINE_MAP_APK.md) | Offline basemap + Capacitor APK |
 | [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md) | Invite PIN auth |
+| [`Plans/FREENET_MIST_BACKUP.md`](Plans/FREENET_MIST_BACKUP.md) | Workshop: Freenet mist + Reticulum data split |
 
 ### Tests
 
