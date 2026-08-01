@@ -18,6 +18,22 @@
 
 Full rename plan: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
 
+### Mist network & storage (experimental)
+
+**Firebase Auth + invite PINs remain the shipping path.** A longer-term “mist” design (local-first + Reticulum on-farm mesh + Freenet-style encrypted peer redundancy, no email / no subscription cloud) is documented as an **experimental fork** — do not merge it over production auth until proven.
+
+- Full plan: [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md)
+- Includes: data placement, hot/archive/manifest Freenet shape, map heads-up over Reticulum, and **invitation → key derivation → contract keys** (paper farm code + invite token).
+
+### Workshop hub keep-alive
+
+Bare `npm run dev` started from a Cursor agent shell often dies when the agent turn ends (`ERR_CONNECTION_REFUSED` on `:3000`). For a durable workshop hub:
+
+```bash
+nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
+# health: http://localhost:3000/api/health  ·  log: /tmp/pufam-dev.log
+```
+
 ## 1. The Good News: What We've Optimized
 We have made some smart decisions that buy us time and performance:
 *   **Decoupled UI (The Temporal Slider):** By ensuring the time-scrubbing slider only filters pre-loaded data, we prevented a catastrophic scenario where sliding the timeline would trigger hundreds of database queries per second.
