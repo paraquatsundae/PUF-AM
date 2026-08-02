@@ -23,7 +23,7 @@ Full rename plan: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
 **Firebase Auth + invite PINs remain the shipping path.** A longer-term “mist” design (local-first + Reticulum on-farm mesh + Freenet-style encrypted peer redundancy, no email / no subscription cloud) is documented as an **experimental fork** — do not merge it over production auth until proven.
 
 - Full plan: [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md)
-- Includes: data placement, hot/archive/manifest Freenet shape, map heads-up over Reticulum, and **invitation → key derivation → contract keys** (paper farm code + invite token).
+- Includes: data placement (farm bones on mist), hot/archive/manifest Freenet shape, **`FarmStore` plug-in units**, first-run FarmCode recovery UX, map heads-up over Reticulum, and **invitation → key derivation → contract keys** (paper farm code + invite token).
 
 ### Workshop hub keep-alive
 
