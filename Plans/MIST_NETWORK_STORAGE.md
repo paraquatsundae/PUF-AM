@@ -1,7 +1,7 @@
 # Mist network & storage (experimental fork)
 
 **Status:** Design workshop — **not** the production path.  
-**Date:** 2026-08-01  
+**Date:** 2026-08-02  
 **Product:** PUF-AM (Ag Manager)
 
 Firebase Auth + invite PINs + Firestore remain the **working production stack**. Mist work must land as an **experimental fork** (branch / feature flag / separate package path) so it cannot break PIN login or Cloud Run hosting.
@@ -42,8 +42,8 @@ Anyone running the app *may* host opaque encrypted fragments. Preferential repli
 Freenet replicates each **contract** across peers; it does **not** automatically split one logical archive into many contracts or apply erasure coding. Application-level design:
 
 - **Manifest** — small index: hot key, archive keys, periods, content hashes.
-- **Hot** — last 30–90 days of records; append-friendly deltas.
-- **Archive** — sealed time slices (season/year); mostly immutable; keep each well under tens of MB (hard cap ~50 MiB per contract).
+- **Hot** — last **90 days** of records (default); append-friendly deltas.
+- **Archive** — sealed time slices (**one contract per calendar year** in v1; season labels later without changing seal protocol); mostly immutable; keep each well under tens of MB (hard cap ~50 MiB per contract).
 - Optional: 2–3 location-diverse copies of critical archives; compression (e.g. zstd) before state bytes.
 - Phones: lightweight / on-demand Freenet peer; prefer one always-on **shed pin** per farm.
 
@@ -98,11 +98,15 @@ ArchiveSalt  = HKDF(FarmSeed, info = "freenet-archive-salt")
 # archive contract key for period P:
 ArchiveKey(P) = HKDF(ArchiveSalt, info = "archive:" || P)
 
-ReticulumFarmDest = HKDF(FarmSeed, info = "reticulum-farm-dest")  // group destination material
-MapAnnounceDest   = HKDF(FarmSeed, info = "reticulum-map-announce")
+ReticulumFarmDest   = HKDF(FarmSeed, info = "reticulum-farm-dest")
+MapAnnounceDest     = HKDF(FarmSeed, info = "reticulum-map-announce")
+TelemetryDest       = HKDF(FarmSeed, info = "reticulum-telemetry")
+JoinAssistDest      = HKDF(FarmSeed, info = "reticulum-join")
 
 InviteMaster = HKDF(FarmSeed, info = "invite-master")
 ```
+
+See **§ Reticulum destination naming** for traffic rules.
 
 **Invite token mint (admin device, offline-capable):**
 
@@ -147,6 +151,120 @@ record_id = ulid_or_timeordered || "-" || short_device_id || "-" || counter
 ```
 
 Prefer globally unique IDs so Hot merge is append-by-id + tombstone union (see Freenet Hot sketch below).
+
+---
+
+## Join bootstrap (QR v1)
+
+First join is **offline-capable**. QR is the v1 carrier; USB/file and Reticulum announce are secondary. NFC later.
+
+```mermaid
+sequenceDiagram
+  participant Admin
+  participant QR
+  participant NewDevice
+  Admin->>Admin: Mint InviteToken wrap JoinSecret
+  Admin->>Admin: AEAD wrap FarmSeed with JoinSecret
+  Admin->>QR: Encode JoinEnvelope
+  NewDevice->>QR: Scan
+  NewDevice->>NewDevice: Verify MAC unwrap JoinSecret
+  NewDevice->>NewDevice: Decrypt FarmSeed derive keys
+  NewDevice->>NewDevice: Create DeviceKeypair register member
+  NewDevice->>Admin: Optional Reticulum join-assist for map assets
+```
+
+### JoinEnvelope
+
+Versioned JSON, then compressed (e.g. zstd) and encoded as Crockford base32 (or QR binary) for scanning:
+
+| Field | Role |
+|-------|------|
+| `v` | `"mist-join-1"` |
+| `farm_id` | Public farm handle (hex/base32 of `FarmId`) |
+| `farm_name` | Display only |
+| `invite_token` | Human-typable invite (or `invite_id` + `mac`) |
+| `wrapped_farm_seed` | AEAD(`JoinSecret`, nonce, `FarmSeed`) so a pure-offline scan obtains `FarmSeed` without a live peer |
+| `role` | `admin` \| `farmer` \| `viewer` (capability at join) |
+| `expires` | ISO timestamp or null |
+| `schema` | `1` |
+
+Admin embeds `wrapped_farm_seed` at mint time (admin device already holds `FarmSeed`).
+
+### Security
+
+- Treat the QR as sensitive as the invite token (anyone who scans can join until the invite is spent/expired).
+- Prefer **single-use** invites for field crew.
+- **Paper wallet** still holds full `FarmCode` for recovery; QR join is not a substitute for the paper root.
+- After join, rotate/mark invite used on the admin device (and later on a mist invite-index contract if present).
+
+### Mesh path (same keys)
+
+If new device and admin are both on Reticulum, the same `JoinEnvelope` may be sent as LXMF / Resource to `JoinAssistDest` instead of QR. Cryptography is identical. Large map assets after join use Resource/Link on `JoinAssistDest` or farm group — never Freenet for tile packs.
+
+### Secondary carriers
+
+- USB / file: `JoinEnvelope` as `.pufam-join` (or similar) for air-gapped handoff.
+- Typed invite alone (no QR): requires a live peer that can unwrap `FarmSeed` for `JoinSecret` — not required for v1 if QR always carries `wrapped_farm_seed`.
+
+---
+
+## Reticulum destination naming
+
+All destinations derive from `FarmSeed` via HKDF (see § Invitation). Freeze these **info** strings for mist-v1:
+
+| Destination | HKDF `info` | Traffic |
+|-------------|-------------|---------|
+| Farm group | `reticulum-farm-dest` | Membership, general on-farm mesh |
+| Map announce | `reticulum-map-announce` | `map_update` heads-up only |
+| Telemetry | `reticulum-telemetry` | Personnel / sensors / ephemeral messages |
+| Join assist | `reticulum-join` | Optional live handoff of join envelope extras / large map assets after QR |
+
+### Implementer notes
+
+- Map HKDF output bytes → Reticulum/RNS destination material per RNS conventions (exact API call left to the experimental spike).
+- **Heads-up** JSON must stay LoRa-friendly: multi-packet or LXMF; do not put GeoJSON/tiles in announce payloads.
+- **Large assets** (boundaries file, tile packs): Reticulum Resource or Link only; hash-verify before replacing local copy.
+- Telemetry is never mirrored to Freenet.
+
+### Map heads-up flow (recap)
+
+1. Authorised user updates local map assets; bumps `map_version`.
+2. Publish short `map_update` to `MapAnnounceDest` (see payload sketch below).
+3. Peers compare `map_version` / asset hashes; pull changed assets from sender or any peer that already has them.
+4. Off-farm members: optional later fallback if map manifest is also published to mist (not required for v1 on-farm operation).
+
+---
+
+## Hot → Archive seal lifecycle
+
+**Defaults (mist-v1):**
+
+| Parameter | Value |
+|-----------|--------|
+| Hot window | **90 days** |
+| Archive partition | **One contract per calendar year** (`P = "YYYY"`) |
+| Seal actors | Any **admin** device; also **automated** when thresholds hit |
+| Auto triggers | `window_start` older than 90 days, **or** hot uncompressed JSON ≳ 1–2 MB, **or** admin “Seal year” |
+
+### Protocol
+
+1. **Trigger** — age, size, or admin action for period `P`.
+2. **Select** — records in Hot with `ts` ∈ calendar year `P` (and older than the retained hot window if sealing a sliding window mid-year).
+3. **Build** — Archive state (JSON list or zstd blob) + `content_hash` (SHA-256 of sealed bytes).
+4. **Publish** — Archive contract at `ArchiveKey(P)`.
+5. **Manifest** — `version++`; append `{ key, period, from, to, record_count, content_hash, created }`.
+6. **Hot cleanup** — remove sealed record payloads from Hot (tombstone ids optional); advance `window_start` / set `last_sealed`.
+7. **Device reconcile** — on sync, read Manifest first; pull any missing Archive contracts on demand (single-record / year slice = fast path; full restore = slow path).
+
+### Failure / idempotency
+
+- If Archive publish succeeds but Manifest update fails: retry Manifest with the same `period` + `content_hash` (idempotent).
+- Repair rule: “archive exists for `P` → Manifest must list it” — run on next admin online.
+- Do not create a second divergent archive for the same `P` unless `content_hash` matches; conflicting hashes require admin resolution (experimental: prefer first sealed hash, surface alert).
+
+### Erasure coding
+
+Optional later: application-level Reed–Solomon fragments as separate contracts. **Not** mist-v1; Freenet already replicates each whole contract.
 
 ---
 
@@ -232,11 +350,13 @@ Or compressed opaque blob + hash check.
 
 ## Open items (next pressure tests)
 
-- [ ] Freeze HKDF info strings + FarmCode encoding (entropy, printable alphabet).
-- [ ] Invite index storage location in pure-offline first join (QR / Reticulum announce vs mist).
-- [ ] Exact Reticulum destination naming from `ReticulumFarmDest`.
-- [ ] Seal/cron rules for Hot → Archive.
+- [x] Join bootstrap / QR `JoinEnvelope` (v1) — see **§ Join bootstrap**.
+- [x] Reticulum destination naming (`farm` / `map` / `telemetry` / `join`) — see **§ Reticulum destination naming**.
+- [x] Seal/cron rules for Hot → Archive — see **§ Hot → Archive seal lifecycle**.
+- [ ] Freeze FarmCode encoding (entropy bits, printable alphabet / Crockford groups).
+- [ ] Invite-index persistence on admin device after QR mint (local only vs mist invite contract).
 - [ ] Mobile peer policy (default contribute-storage = off).
+- [ ] Exact RNS API mapping: HKDF bytes → destination identity (spike).
 
 ---
 
