@@ -42,6 +42,9 @@ export {
 export { MemoryMistStore } from './memory-mist-store.ts';
 export type { MemoryMistStoreOptions } from './memory-mist-store.ts';
 
+export { IndexedDbMistStore } from './indexeddb-mist-store.ts';
+export type { IndexedDbMistStoreOptions } from './indexeddb-mist-store.ts';
+
 export { sealHotPeriod } from './seal-hot.ts';
 export type {
   ArchiveState,

@@ -1,10 +1,9 @@
 /**
  * Mist device session — local-only; not Firebase Auth.
  *
- * Workshop limitations (phase 4):
- * - FarmSeed is encrypted with AES-GCM + PBKDF2 when a device PIN is set.
- * - Without PIN, a random device key in localStorage wraps FarmSeed (workshop-only).
- * - This is not HSM-grade; document for operators.
+ * - FarmSeed is AES-GCM encrypted at rest (never plaintext in localStorage).
+ * - With device PIN: key derived via PBKDF2(pin, salt).
+ * - Without PIN (workshop skip): wrapped with a random device key — weaker, auto-unlock on reload.
  */
 
 import { bytesToHex, hexToBytes } from '../../units/mist-freenet/src/index.ts';
@@ -16,12 +15,21 @@ export type MistDeviceSession = {
   displayName: string;
   role: 'admin';
   createdAt: string;
-  /** Hex-encoded 32-byte FarmSeed — persisted encrypted in localStorage. */
+  /** Hex-encoded 32-byte FarmSeed — only in memory after decrypt; encrypted on disk. */
   farmSeedHex: string;
   hasDevicePin: boolean;
 };
 
+/** Non-secret metadata for unlock UI (no FarmSeed). */
+export type MistSessionMeta = {
+  farmId: string;
+  farmName: string;
+  displayName: string;
+  hasDevicePin: boolean;
+};
+
 const SESSION_BLOB_KEY = 'pufam.mist.session.v1';
+const SESSION_META_KEY = 'pufam.mist.sessionMeta.v1';
 const DEVICE_KEY_KEY = 'pufam.mist.deviceKey';
 
 function ls(): Storage | null {
@@ -127,6 +135,26 @@ export async function saveMistDeviceSession(
 ): Promise<void> {
   const blob = await encryptSession(session, devicePin);
   ls()?.setItem(SESSION_BLOB_KEY, JSON.stringify(blob));
+  saveMistSessionMeta({
+    farmId: session.farmId,
+    farmName: session.farmName,
+    displayName: session.displayName,
+    hasDevicePin: session.hasDevicePin,
+  });
+}
+
+export function saveMistSessionMeta(meta: MistSessionMeta): void {
+  ls()?.setItem(SESSION_META_KEY, JSON.stringify(meta));
+}
+
+export function getMistSessionMeta(): MistSessionMeta | null {
+  const raw = ls()?.getItem(SESSION_META_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as MistSessionMeta;
+  } catch {
+    return null;
+  }
 }
 
 export function hasMistDeviceSession(): boolean {
@@ -147,6 +175,7 @@ export async function loadMistDeviceSession(devicePin?: string): Promise<MistDev
 
 export function clearMistDeviceSession(): void {
   ls()?.removeItem(SESSION_BLOB_KEY);
+  ls()?.removeItem(SESSION_META_KEY);
   ls()?.removeItem(DEVICE_KEY_KEY);
 }
 

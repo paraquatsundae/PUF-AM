@@ -1,11 +1,12 @@
 /**
- * App-side FarmStore factory — cloud (Firebase passthrough) vs mist (MemoryMistStore in browser).
+ * App-side FarmStore factory — cloud (Firebase passthrough) vs mist (IndexedDB in browser).
  */
 
 import {
   createFarmStoreAdapter,
-  MemoryMistStore,
+  IndexedDbMistStore,
   type FarmStoreAdapter,
+  type MistStore,
 } from '../../units/mist-freenet/src/index.ts';
 import {
   getFarmStoreBackend,
@@ -13,40 +14,53 @@ import {
   type FarmStoreBackendPreference,
 } from './farmStoreBackend.ts';
 
-let browserMistStore: MemoryMistStore | null = null;
+let browserMistStore: IndexedDbMistStore | null = null;
+let browserMistStoreReady: Promise<IndexedDbMistStore> | null = null;
 
-function getBrowserMistStore(): MemoryMistStore {
-  if (!browserMistStore) {
-    browserMistStore = new MemoryMistStore({ backendId: 'memory-browser' });
+/** Ensure the singleton IndexedDB mist store is open (idempotent). */
+export async function ensureBrowserMistStore(): Promise<IndexedDbMistStore> {
+  if (browserMistStore) return browserMistStore;
+  if (!browserMistStoreReady) {
+    browserMistStoreReady = IndexedDbMistStore.open({ backendId: 'indexeddb-browser' }).then(
+      (store) => {
+        browserMistStore = store;
+        return store;
+      },
+    );
   }
-  return browserMistStore;
+  return browserMistStoreReady;
 }
 
-/** Reset in-memory mist store (workshop / sign-out). */
-export function resetBrowserMistStore(): void {
+/** Reset mist store singleton and optionally wipe IndexedDB (sign-out). */
+export async function resetBrowserMistStore(clearData = true): Promise<void> {
+  if (browserMistStore && clearData) {
+    await browserMistStore.clearAll();
+  }
   browserMistStore = null;
+  browserMistStoreReady = null;
 }
 
 /**
  * Select FarmStore adapter for the active backend.
  * `cloud` → Firebase/Firestore remains authoritative (mist surface is null).
- * `mist`  → in-browser MemoryMistStore for phase-4 theory tests.
+ * `mist`  → in-browser IndexedDbMistStore (durable across reload).
  */
-export function createAppFarmStore(
+export async function createAppFarmStore(
   _farmId: string,
   backend?: FarmStoreBackendPreference,
-): FarmStoreAdapter {
+): Promise<FarmStoreAdapter> {
   const pref = backend ?? getFarmStoreBackend();
   if (pref !== 'mist') {
     return createFarmStoreAdapter('cloud');
   }
-  return createFarmStoreAdapter('mist', getBrowserMistStore());
+  const store = await ensureBrowserMistStore();
+  return createFarmStoreAdapter('mist', store);
 }
 
-/** Shared mist store instance when mist backend is active (bones workshop). */
-export function getActiveMistStore(): MemoryMistStore | null {
+/** Shared mist store when mist backend is active (bones workshop). */
+export async function getActiveMistStore(): Promise<MistStore | null> {
   if (!isMistFarmStoreActive()) return null;
-  return getBrowserMistStore();
+  return ensureBrowserMistStore();
 }
 
 export type { FarmStoreAdapter };

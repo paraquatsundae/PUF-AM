@@ -15,7 +15,7 @@ export type BonesWorkshopResult = {
 const WORKSHOP_ASSET_ID = 'workshop-smoke';
 
 export async function runBonesWorkshopSmoke(farmId: string): Promise<BonesWorkshopResult> {
-  const store = getActiveMistStore();
+  const store = await getActiveMistStore();
   if (!store) {
     throw new Error('Mist store not active — select mist backend first');
   }
@@ -54,7 +54,7 @@ export async function runBonesWorkshopSmoke(farmId: string): Promise<BonesWorksh
 }
 
 export async function readBonesWorkshopSmoke(farmId: string): Promise<BonesWorkshopResult | null> {
-  const store = getActiveMistStore();
+  const store = await getActiveMistStore();
   if (!store) return null;
   const key = bonesKey(farmId, WORKSHOP_ASSET_ID);
   const entry = await store.get(key);

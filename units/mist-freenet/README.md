@@ -10,7 +10,8 @@ Experimental **Mist unit** for PUF-AM: encrypted durable storage over a Freenet-
 | **2 — Local disk** | `DiskMistStore`, hot→archive seal helper, vitest persistence tests | **Done** |
 | **3 — Freenet adapter** | `FreenetMistStore`, FCP transport, mock + disk cache hybrid | **Done** |
 | **4 — App wiring** | FarmCode, FarmStore factory, mist first-run, bones workshop | **Done** |
-| **5+** | Reticulum unit, invite join QR, Freenet in Electron main | Next |
+| **5 — Reload survival** | IndexedDB `MistStore`, device PIN unlock on reload, session encrypt | **Done** |
+| **6+** | Reticulum unit, invite join QR / FarmCode recovery on laptop B, Freenet in Electron main | Next |
 
 Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node binary.
 
@@ -32,6 +33,7 @@ Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node b
 | `src/mist-store.ts` | `MistStore` interface — put / get / list / watch / contribute / health / stats |
 | `src/farm-store.ts` | Thin `FarmStoreAdapter` — mist vs cloud backend boundary for the app |
 | `src/memory-mist-store.ts` | `MemoryMistStore` — in-memory implementation for contract tests |
+| `src/indexeddb-mist-store.ts` | `IndexedDbMistStore` — **browser** durable persistence (phase 5) |
 | `src/disk-mist-store.ts` | `DiskMistStore` — **Node-only** disk persistence (phase 2) |
 | `src/freenet-mist-store.ts` | `FreenetMistStore` — disk cache + FCP transport (phase 3) |
 | `src/freenet-transport.ts` | `FreenetTransport` interface |
@@ -109,19 +111,26 @@ await store.init();
 - FCP client covers ClientHello, ClientPut (direct CHK), ClientGet (direct) — not persistent queue / global watch / TestDDA disk paths.
 - Real network behavior (HTL, churn, insert success rate) requires a running node and manual verification.
 
-### Phase 5 (next)
+### Phase 5 — reload survival (done)
+
+- `IndexedDbMistStore` — browser FarmStore persists across full page reload (`pufam-mist-v1` IndexedDB)
+- Device session encrypted in `localStorage` (`pufam.mist.session.v1`); FarmSeed never plaintext when PIN mode is on
+- Optional **4-digit device PIN** → unlock gate after reload; skip-PIN workshop mode auto-restores (weaker)
+- Sign out clears session blob + IndexedDB mist entries
+- **Next (two-laptop):** recover/join with FarmCode on laptop B — same HKDF keys, no Freenet wire yet
+
+### Phase 6 (next)
 
 - Reticulum transport unit + map heads-up
 - Invite join QR / second-device recovery with FarmCode
 - Wire `FreenetMistStore` in Electron main (disk + Hyphanet)
-- Device PIN unlock on reload
 - Optional: USK for manifest, splitfiles for large archives
 
 ### Phase 4 — app wiring (done)
 
 - `src/mist/` — backend toggle (`pufam.farmStoreBackend`), `createAppFarmStore`, device session, bones workshop
 - `/login/mist-new-farm` — show-once FarmCode first-run (gated by `VITE_MIST_EXPERIMENTAL=true` or mist backend)
-- Settings → **Mist workshop** card — bones put/get smoke via `MemoryMistStore`
+- Settings → **Mist workshop** card — bones put/get smoke via `IndexedDbMistStore` (survives reload)
 - Default remains **Firebase**; production invite PIN login unchanged
 
 **Try locally:**
@@ -131,7 +140,16 @@ await store.init();
 VITE_MIST_EXPERIMENTAL=true npm run dev
 ```
 
-Then: Login → *Experimental: create offline mist farm* → write down FarmCode → optional device PIN → Farm setup → Settings → Mist workshop → *Bones put/get smoke*.
+Then: Login → *Experimental: create offline mist farm* → write down FarmCode → optional device PIN → Farm setup → Settings → Mist workshop → *Bones put/get smoke* → **reload the page** → PIN unlock (if set) → *Read last blob* still works.
+
+**Reload + PIN manual test (one laptop):**
+
+1. `VITE_MIST_EXPERIMENTAL=true npm run dev`
+2. Create mist farm with a 4-digit device PIN (do not skip).
+3. Settings → Mist workshop → *Bones put/get smoke* → note success message.
+4. Hard refresh (F5). Expect violet **Unlock mist farm** screen — enter device PIN (not FarmCode).
+5. Settings → *Read last blob* — should return the same workshop payload.
+6. Sign out → confirm session cleared; creating again requires new mist farm or FarmCode recovery (future).
 
 ## Hot contract shape (v1)
 
@@ -169,7 +187,7 @@ Disk budget defaults to **512 MiB** (`maxBytes`); configurable via ctor / `setMa
 
 ## How PUF-AM consumes (phase 4 — wired)
 
-App layer: `src/mist/createFarmStore.ts` selects `cloud` (Firebase default) vs `MemoryMistStore` in the browser. Backend preference: `localStorage` key `pufam.farmStoreBackend` (`firebase` | `mist`).
+App layer: `src/mist/createFarmStore.ts` selects `cloud` (Firebase default) vs `IndexedDbMistStore` in the browser. Backend preference: `localStorage` key `pufam.farmStoreBackend` (`firebase` | `mist`).
 
 ```ts
 import { createAppFarmStore } from '@/src/mist/createFarmStore.ts';

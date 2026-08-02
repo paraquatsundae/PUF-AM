@@ -6,8 +6,12 @@ import { trackMetric } from '../services/metricsService';
 import { resolveIsAdmin } from '../lib/adminAuth';
 import { isWorkshopMode, WORKSHOP_USER_DATA } from '../lib/workshopMode';
 import { isMistFarmSessionActive, tryLoadMistFarmSession } from '../mist/mistFarmSession.ts';
-import { clearMistDeviceSession } from '../mist/mistDeviceSession.ts';
-import { resetBrowserMistStore } from '../mist/createFarmStore.ts';
+import {
+  clearMistDeviceSession,
+  hasMistDeviceSession,
+  mistSessionNeedsPin,
+} from '../mist/mistDeviceSession.ts';
+import { ensureBrowserMistStore, resetBrowserMistStore } from '../mist/createFarmStore.ts';
 import { setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
 import { createFarmAccount, redeemInvitePin } from '../lib/invitePinAuth';
 import {
@@ -152,6 +156,10 @@ interface AuthContextType {
   declineInvite: () => Promise<void>;
   agreeToTerms: () => Promise<void>;
   hasModule: (moduleId: FarmModuleId) => boolean;
+  /** True when mist session exists but device PIN unlock is pending. */
+  mistLocked: boolean;
+  /** Unlock mist session with 4-digit device PIN; returns false on wrong PIN. */
+  unlockMistSession: (devicePin: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -165,6 +173,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [farmEnabledModules, setFarmEnabledModules] =
     useState<FarmModuleId[]>(allFarmModules());
+  const [mistLocked, setMistLocked] = useState(false);
+
+  const applyMistSession = async (devicePin?: string): Promise<boolean> => {
+    const loaded = await tryLoadMistFarmSession(devicePin);
+    if (!loaded) return false;
+    await ensureBrowserMistStore();
+    setUser(null);
+    setUserData(loaded.userData);
+    setIsAdmin(true);
+    setPendingInvite(null);
+    setError(null);
+    setFarmEnabledModules(allFarmModules());
+    setMistLocked(false);
+    return true;
+  };
 
   useEffect(() => {
     if (isWorkshopMode()) {
@@ -181,18 +204,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isMistFarmSessionActive()) {
       let cancelled = false;
       void (async () => {
-        const loaded = await tryLoadMistFarmSession();
+        if (mistSessionNeedsPin()) {
+          if (!cancelled) {
+            setMistLocked(true);
+            setLoading(false);
+          }
+          return;
+        }
+        const ok = await applyMistSession();
         if (cancelled) return;
-        if (loaded) {
-          setUser(null);
-          setUserData(loaded.userData);
-          setIsAdmin(true);
-          setPendingInvite(null);
-          setError(null);
-          setFarmEnabledModules(allFarmModules());
-        } else {
+        if (!ok) {
           setError(
-            'Mist session could not be unlocked. If you set a device PIN, reload support is phase 5 — recreate the mist farm or clear site data.',
+            'Mist session could not be restored. Recreate the mist farm or clear site data.',
           );
         }
         setLoading(false);
@@ -616,15 +639,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const unlockMistSession = async (devicePin: string): Promise<boolean> => {
+    const ok = await applyMistSession(devicePin);
+    if (!ok) return false;
+    return true;
+  };
+
   const logout = async () => {
     try {
-      if (isMistFarmSessionActive()) {
+      if (isMistFarmSessionActive() || hasMistDeviceSession()) {
         clearMistDeviceSession();
-        resetBrowserMistStore();
+        await resetBrowserMistStore(true);
         setFarmStoreBackend('firebase');
         setUser(null);
         setUserData(null);
         setIsAdmin(false);
+        setMistLocked(false);
         clearSessionUnlock();
         return;
       }
@@ -707,6 +737,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         declineInvite,
         agreeToTerms,
         hasModule,
+        mistLocked,
+        unlockMistSession,
       }}
     >
       {children}

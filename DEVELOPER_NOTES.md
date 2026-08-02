@@ -27,7 +27,8 @@ Full rename plan: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
 - **Phase 2 local disk (done):** `DiskMistStore` + `sealHotPeriod()` in the same unit — Node-only persistence; import `./src/node.ts` from main process.
 - **Phase 3 Freenet adapter (done):** `FreenetMistStore` + `FcpFreenetTransport` / `MockFreenetTransport` — disk cache + FCP CHK put/get; import `./src/node.ts` or `./src/freenet.ts`.
 - **Phase 4 app wiring (done):** FarmCode (`mist-fc-1`), `src/mist/` FarmStore factory + mist first-run at `/login/mist-new-farm`, Settings bones workshop. Default backend remains Firebase.
-- **Phase 5 (next):** Reticulum unit, invite join QR, Electron `FreenetMistStore`, device PIN reload.
+- **Phase 5 reload survival (done):** `IndexedDbMistStore`, encrypted device session + PIN unlock gate, bones persist across reload. Per-device only — cross-laptop = FarmCode recovery/join (next).
+- **Phase 6 (next):** Reticulum unit, invite join QR, Electron `FreenetMistStore`, FarmCode recovery on second laptop.
 
 ### Workshop hub keep-alive
 

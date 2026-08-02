@@ -16,7 +16,7 @@ import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 type Mode = 'join' | 'create';
 
 export function Login() {
-  const { user, signInWithInvitePin, createFarm, completeFarmSignIn, error: authError, loading } =
+  const { user, userData, signInWithInvitePin, createFarm, completeFarmSignIn, error: authError, loading, mistLocked } =
     useAuth();
   const [mode, setMode] = useState<Mode>('join');
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -45,10 +45,10 @@ export function Login() {
   const lastFarm = getLastFarm();
 
   useEffect(() => {
-    if (!loading && user && !authError && !recoveryPin && !pendingToken) {
+    if (!loading && (user || userData || mistLocked) && !authError && !recoveryPin && !pendingToken) {
       navigate('/', { replace: true });
     }
-  }, [user, authError, loading, navigate, recoveryPin, pendingToken]);
+  }, [user, userData, mistLocked, authError, loading, navigate, recoveryPin, pendingToken]);
 
   const loadNearby = useCallback(async () => {
     setLocating(true);

@@ -16,6 +16,7 @@ import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
 import { PrivacyGate } from './components/PrivacyGate';
 import { AppUnlockGate } from './components/AppUnlockGate';
+import { MistUnlockGate } from './components/MistUnlockGate';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { WorkshopModeBanner } from './components/WorkshopModeBanner';
 import { isWorkshopMode } from './lib/workshopMode';
@@ -50,7 +51,7 @@ function RouteFallback() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, userData, loading, error } = useAuth();
+  const { user, userData, loading, error, mistLocked } = useAuth();
 
   if (isWorkshopMode()) {
     return <>{children}</>;
@@ -67,7 +68,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (error) {
+  if (error && !mistLocked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
@@ -85,6 +86,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  if (mistLocked) {
+    return <MistUnlockGate>{children}</MistUnlockGate>;
   }
   
   if (!user && !userData) {
