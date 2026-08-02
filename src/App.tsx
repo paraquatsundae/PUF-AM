@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
+import { MistNewFarm } from './pages/MistNewFarm';
 import { Dashboard } from './pages/Dashboard';
 import { InvitationOverlay } from './components/InvitationOverlay';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
@@ -108,6 +109,7 @@ export default function App() {
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/login/mist-new-farm" element={<MistNewFarm />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/" element={

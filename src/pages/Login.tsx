@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   canShowWelcomeBack,
@@ -11,6 +11,7 @@ import { getDeviceCoords } from '../lib/deviceLocation';
 import { fetchNearbyFarms, type NearbyFarm } from '../lib/invitePinAuth';
 import { Loader2, KeyRound, Sprout, Copy, Check, MapPin, Navigation } from 'lucide-react';
 import { APP_NAME, APP_TAGLINE } from '../brand';
+import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 
 type Mode = 'join' | 'create';
 
@@ -446,6 +447,17 @@ export function Login() {
             <p className="text-[11px] text-slate-400 text-center">
               You become the farm admin and can mint worker invite PINs under Farm Management.
             </p>
+            {isMistExperimentalEnabled() && (
+              <p className="text-[11px] text-center pt-2 border-t border-slate-100">
+                <Link
+                  to="/login/mist-new-farm"
+                  className="font-semibold text-violet-700 hover:text-violet-900 underline underline-offset-2"
+                >
+                  Experimental: create offline mist farm
+                </Link>
+                <span className="text-slate-400 block mt-1">Separate from Firebase invite PINs</span>
+              </p>
+            )}
           </form>
         )}
       </div>

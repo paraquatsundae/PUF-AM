@@ -5,6 +5,10 @@ import { auth, db } from '../firebase';
 import { trackMetric } from '../services/metricsService';
 import { resolveIsAdmin } from '../lib/adminAuth';
 import { isWorkshopMode, WORKSHOP_USER_DATA } from '../lib/workshopMode';
+import { isMistFarmSessionActive, tryLoadMistFarmSession } from '../mist/mistFarmSession.ts';
+import { clearMistDeviceSession } from '../mist/mistDeviceSession.ts';
+import { resetBrowserMistStore } from '../mist/createFarmStore.ts';
+import { setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
 import { createFarmAccount, redeemInvitePin } from '../lib/invitePinAuth';
 import {
   clearDeviceRememberedFlag,
@@ -172,6 +176,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFarmEnabledModules(allFarmModules());
       setLoading(false);
       return;
+    }
+
+    if (isMistFarmSessionActive()) {
+      let cancelled = false;
+      void (async () => {
+        const loaded = await tryLoadMistFarmSession();
+        if (cancelled) return;
+        if (loaded) {
+          setUser(null);
+          setUserData(loaded.userData);
+          setIsAdmin(true);
+          setPendingInvite(null);
+          setError(null);
+          setFarmEnabledModules(allFarmModules());
+        } else {
+          setError(
+            'Mist session could not be unlocked. If you set a device PIN, reload support is phase 5 — recreate the mist farm or clear site data.',
+          );
+        }
+        setLoading(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
 
     let unsubscribeDoc: (() => void) | undefined;
@@ -547,7 +575,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Farm-level module catalog (owner toggles).
   useEffect(() => {
-    if (isWorkshopMode()) return;
+    if (isWorkshopMode() || isMistFarmSessionActive()) return;
     const farmId = userData?.farmId;
     if (!farmId) {
       setFarmEnabledModules(allFarmModules());
@@ -569,7 +597,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshFarmModules = async () => {
     const farmId = userData?.farmId;
-    if (!farmId || isWorkshopMode()) {
+    if (!farmId || isWorkshopMode() || isMistFarmSessionActive()) {
       setFarmEnabledModules(allFarmModules());
       return;
     }
@@ -590,6 +618,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      if (isMistFarmSessionActive()) {
+        clearMistDeviceSession();
+        resetBrowserMistStore();
+        setFarmStoreBackend('firebase');
+        setUser(null);
+        setUserData(null);
+        setIsAdmin(false);
+        clearSessionUnlock();
+        return;
+      }
       clearDeviceRememberedFlag();
       clearSessionUnlock();
       await signOut(auth);
