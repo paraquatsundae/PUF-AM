@@ -105,7 +105,7 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 | [`Plans/SMOKE_TEST_LOG.md`](Plans/SMOKE_TEST_LOG.md) | Manual smoke tests |
 | [`Plans/OFFLINE_MAP_APK.md`](Plans/OFFLINE_MAP_APK.md) | Offline basemap + Capacitor APK |
 | [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md) | Invite PIN auth (production) |
-| [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md) | Experimental mist: Reticulum + Freenet-style storage (fork; does not replace Firebase auth) |
+| [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md) | Experimental mist: Reticulum + Freenet-style storage (fork; does not replace Firebase auth). Laptop B recovery: `/login/mist-recover` with FarmCode — same `farmId`, local IndexedDB only until Freenet sync. |
 
 ### Tests
 

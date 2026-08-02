@@ -11,7 +11,8 @@ Experimental **Mist unit** for PUF-AM: encrypted durable storage over a Freenet-
 | **3 — Freenet adapter** | `FreenetMistStore`, FCP transport, mock + disk cache hybrid | **Done** |
 | **4 — App wiring** | FarmCode, FarmStore factory, mist first-run, bones workshop | **Done** |
 | **5 — Reload survival** | IndexedDB `MistStore`, device PIN unlock on reload, session encrypt | **Done** |
-| **6+** | Reticulum unit, invite join QR / FarmCode recovery on laptop B, Freenet in Electron main | Next |
+| **6 — FarmCode recovery** | `/login/mist-recover` — laptop B joins with paper FarmCode; same `farmId`, local-only blobs | **Done** |
+| **7+** | Reticulum unit, invite join QR, Freenet in Electron main, cross-device bone sync | Next |
 
 Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node binary.
 

@@ -72,7 +72,9 @@ export {
   formatFarmCode,
   isValidFarmCode,
   mintFarmCode,
+  normalizeFarmCodeInput,
   parseFarmCode,
 } from './farm-code.ts';
 
 export { bytesToHex, hexToBytes, hkdfSha256, MIST_HKDF_SALT } from './farm-seed.ts';
+export { getSubtleCrypto, hasSubtleCrypto } from './subtle-crypto.ts';

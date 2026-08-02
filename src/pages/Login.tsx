@@ -448,15 +448,25 @@ export function Login() {
               You become the farm admin and can mint worker invite PINs under Farm Management.
             </p>
             {isMistExperimentalEnabled() && (
-              <p className="text-[11px] text-center pt-2 border-t border-slate-100">
-                <Link
-                  to="/login/mist-new-farm"
-                  className="font-semibold text-violet-700 hover:text-violet-900 underline underline-offset-2"
-                >
-                  Experimental: create offline mist farm
-                </Link>
+              <div className="text-[11px] text-center pt-2 border-t border-slate-100 space-y-1">
+                <p>
+                  <Link
+                    to="/login/mist-new-farm"
+                    className="font-semibold text-violet-700 hover:text-violet-900 underline underline-offset-2"
+                  >
+                    Experimental: create offline mist farm
+                  </Link>
+                </p>
+                <p>
+                  <Link
+                    to="/login/mist-recover"
+                    className="font-semibold text-violet-700 hover:text-violet-900 underline underline-offset-2"
+                  >
+                    Recover mist farm with FarmCode
+                  </Link>
+                </p>
                 <span className="text-slate-400 block mt-1">Separate from Firebase invite PINs</span>
-              </p>
+              </div>
             )}
           </form>
         )}

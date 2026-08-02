@@ -13,6 +13,7 @@ import {
   formatFarmCode,
   isValidFarmCode,
   mintFarmCode,
+  normalizeFarmCodeInput,
   parseFarmCode,
 } from './src/farm-code.ts';
 import { bytesToHex, deriveFarmId, deriveFarmSeed, hexToBytes } from './src/farm-seed.ts';
@@ -100,5 +101,38 @@ describe('FarmCode mist-fc-1', () => {
     const minted = encodeFarmCodeFromBytes(new Uint8Array(16));
     expect(minted.startsWith('mist-fc-1')).toBe(true);
     expect(decodeFarmCodeBytes(minted).length).toBe(FARM_CODE_RAW_BYTES);
+  });
+
+  it('normalizes messy paste strings from mint display', async () => {
+    const code = await mintFarmCode();
+
+    const messyVariants = [
+      code.toLowerCase(),
+      code.replace('  ', ' '),
+      code.replace(/-/g, ' - '),
+      `FarmCode: ${code}`,
+      code.replace(/(.{28})/, '$1\n'),
+      code.replace(/^mist-fc-1\s+/, ''),
+      code.replace(/0/g, 'O').replace(/1/g, 'I').replace(/^mist-fc-I\s+/, 'mist-fc-1  '),
+    ];
+
+    for (const messy of messyVariants) {
+      const normalized = normalizeFarmCodeInput(messy);
+      expect(normalized).toBe(code);
+      expect(isValidFarmCode(messy)).toBe(true);
+      const parsed = await parseFarmCode(messy);
+      expect(parsed.formatted).toBe(code);
+    }
+  });
+
+  it('reports specific validation failures', () => {
+    expect(() => normalizeFarmCodeInput('')).toThrow(/empty/i);
+    expect(() => normalizeFarmCodeInput('FAKE-BODY')).toThrow(/prefix/i);
+    expect(() => normalizeFarmCodeInput('mist-fc-2  ' + 'A'.repeat(27))).toThrow(/unsupported/i);
+
+    const formatted = encodeFarmCodeFromBytes(sampleBytes);
+    const body = formatted.replace(/^mist-fc-1\s+/, '').replace(/-/g, '');
+    const badCheck = formatFarmCode(body.slice(0, -1) + (body.endsWith('0') ? '1' : '0'));
+    expect(() => decodeFarmCodeBytes(badCheck)).toThrow(/check character/i);
   });
 });

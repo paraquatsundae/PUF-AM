@@ -17,7 +17,7 @@ const K = new Uint32Array([
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
-function sha256Bytes(data: Uint8Array): Uint8Array {
+export function sha256Bytes(data: Uint8Array): Uint8Array {
   const len = data.length;
   const bitLen = len * 8;
   const padLen = ((len + 9 + 63) & ~63) >>> 0;
@@ -102,4 +102,39 @@ function sha256Bytes(data: Uint8Array): Uint8Array {
 export function sha256Hex(data: Uint8Array): string {
   const digest = sha256Bytes(data);
   return [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+const SHA256_BLOCK = 64;
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const len = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(len);
+  let off = 0;
+  for (const p of parts) {
+    out.set(p, off);
+    off += p.length;
+  }
+  return out;
+}
+
+/** HMAC-SHA-256 — browser + Node without Web Crypto. */
+export function hmacSha256(key: Uint8Array, data: Uint8Array): Uint8Array {
+  let k = key;
+  if (k.length > SHA256_BLOCK) {
+    k = sha256Bytes(k);
+  }
+  if (k.length < SHA256_BLOCK) {
+    const padded = new Uint8Array(SHA256_BLOCK);
+    padded.set(k);
+    k = padded;
+  }
+
+  const ipad = new Uint8Array(SHA256_BLOCK);
+  const opad = new Uint8Array(SHA256_BLOCK);
+  for (let i = 0; i < SHA256_BLOCK; i++) {
+    ipad[i] = k[i]! ^ 0x36;
+    opad[i] = k[i]! ^ 0x5c;
+  }
+
+  return sha256Bytes(concatBytes(opad, sha256Bytes(concatBytes(ipad, data))));
 }

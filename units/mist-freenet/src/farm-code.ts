@@ -40,6 +40,61 @@ function stripSeparators(body: string): string {
   return body.replace(/[\s-]/g, '');
 }
 
+/** Strip common UI labels pasted with the code. */
+function stripFarmCodeLabels(input: string): string {
+  return input.replace(/^(?:farm\s*code|recovery\s*(?:code|key))\s*:?\s*/i, '').trim();
+}
+
+/**
+ * Normalize messy paste input before parse/validate.
+ * Handles labels, newlines, spaces around hyphens (incl. `mist - fc - 1`), body-only paste, case.
+ */
+export function normalizeFarmCodeInput(raw: string): string {
+  let s = stripFarmCodeLabels(raw.trim());
+  if (!s) {
+    throw new FarmCodeError('FarmCode is empty');
+  }
+
+  // Collapse whitespace/newlines, then normalize hyphen spacing (fixes spaced version prefix too).
+  s = s.replace(/\s+/g, ' ').replace(/\s*-\s*/g, '-');
+
+  let version = FARM_CODE_VERSION;
+  let rest = s;
+
+  const prefixMatch = s.match(/^(mist-fc-\d+)-?(.*)$/i);
+  if (prefixMatch) {
+    version = prefixMatch[1]!.toLowerCase();
+    rest = prefixMatch[2] ?? '';
+  }
+
+  const body = stripSeparators(rest)
+    .split('')
+    .map(normalizeCrockfordChar)
+    .join('');
+
+  if (!prefixMatch) {
+    if (body.length === FARM_CODE_BODY_LEN) {
+      version = FARM_CODE_VERSION;
+    } else {
+      throw new FarmCodeError(
+        `Missing FarmCode version prefix (expected ${FARM_CODE_VERSION}) — paste the full line including prefix`,
+      );
+    }
+  }
+
+  if (version !== FARM_CODE_VERSION) {
+    throw new FarmCodeError(`Unsupported FarmCode version: ${version}`);
+  }
+
+  if (body.length !== FARM_CODE_BODY_LEN) {
+    throw new FarmCodeError(
+      `FarmCode body must be ${FARM_CODE_BODY_LEN} symbols after removing spaces and hyphens (got ${body.length})`,
+    );
+  }
+
+  return formatFarmCode(body);
+}
+
 /** Format 27 body symbols (payload+check) with hyphens + version prefix. */
 export function formatFarmCode(body: string): string {
   const grouped = groupCrockfordBody(body);
@@ -60,21 +115,19 @@ export async function mintFarmCode(): Promise<string> {
 
 /** Parse version prefix; returns remainder after prefix or throws. */
 export function splitFarmCodeVersion(input: string): { version: string; body: string } {
-  const trimmed = input.trim();
-  const match = trimmed.match(/^(mist-fc-\d+)\s+(.+)$/i);
+  const normalized = normalizeFarmCodeInput(input);
+  const match = normalized.match(/^(mist-fc-\d+)\s{2}(.+)$/i);
   if (!match) {
     throw new FarmCodeError(`Missing or unknown FarmCode version prefix (expected ${FARM_CODE_VERSION})`);
   }
   const version = match[1]!.toLowerCase();
-  if (version !== FARM_CODE_VERSION) {
-    throw new FarmCodeError(`Unsupported FarmCode version: ${version}`);
-  }
   return { version, body: match[2]! };
 }
 
 /** Validate structure + check char; decode to 16 bytes (no HKDF). */
 export function decodeFarmCodeBytes(input: string): Uint8Array {
-  const { body } = splitFarmCodeVersion(input);
+  const canonical = normalizeFarmCodeInput(input);
+  const { body } = splitFarmCodeVersion(canonical);
   const normalized = stripSeparators(body)
     .split('')
     .map(normalizeCrockfordChar)
@@ -102,11 +155,12 @@ export function decodeFarmCodeBytes(input: string): Uint8Array {
 
 /** Full parse: validate, decode, derive FarmSeed + FarmId. */
 export async function parseFarmCode(input: string): Promise<ParsedFarmCode> {
-  const { version } = splitFarmCodeVersion(input);
-  const bytes = decodeFarmCodeBytes(input);
+  const canonical = normalizeFarmCodeInput(input);
+  const { version } = splitFarmCodeVersion(canonical);
+  const bytes = decodeFarmCodeBytes(canonical);
   const farmSeed = await deriveFarmSeed(bytes);
   const farmId = await deriveFarmId(farmSeed);
-  const body = stripSeparators(splitFarmCodeVersion(input).body)
+  const body = stripSeparators(splitFarmCodeVersion(canonical).body)
     .split('')
     .map(normalizeCrockfordChar)
     .join('');

@@ -1,15 +1,52 @@
 /**
- * FarmSeed / FarmId derivation (mist-v1) via HKDF-SHA-256 (Web Crypto).
+ * FarmSeed / FarmId derivation (mist-v1) via HKDF-SHA-256.
+ * Pure JS (RFC 5869) so FarmCode works on LAN HTTP without a secure context.
  * @see Plans/MIST_NETWORK_STORAGE.md § Invitation
  */
 
+import { hmacSha256 } from './hash.ts';
+
 export const MIST_HKDF_SALT = 'pufam-mist-v1';
+
+const HKDF_HASH_LEN = 32;
 
 function toHex(bytes: Uint8Array): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** HKDF-SHA-256 expand; returns `length` bytes. */
+function hkdfExtract(salt: Uint8Array, ikm: Uint8Array): Uint8Array {
+  const s = salt.length > 0 ? salt : new Uint8Array(HKDF_HASH_LEN);
+  return hmacSha256(s, ikm);
+}
+
+function hkdfExpand(prk: Uint8Array, info: Uint8Array, length: number): Uint8Array {
+  const n = Math.ceil(length / HKDF_HASH_LEN);
+  const out = new Uint8Array(length);
+  let t = new Uint8Array(0);
+  let pos = 0;
+
+  for (let i = 1; i <= n; i++) {
+    t = hmacSha256(prk, concat(t, info, new Uint8Array([i])));
+    const copyLen = Math.min(HKDF_HASH_LEN, length - pos);
+    out.set(t.subarray(0, copyLen), pos);
+    pos += copyLen;
+  }
+
+  return out;
+}
+
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const len = parts.reduce((n, p) => n + p.length, 0);
+  const out = new Uint8Array(len);
+  let off = 0;
+  for (const p of parts) {
+    out.set(p, off);
+    off += p.length;
+  }
+  return out;
+}
+
+/** HKDF-SHA-256 expand; returns `length` bytes (matches Web Crypto HKDF). */
 export async function hkdfSha256(
   ikm: Uint8Array,
   salt: string,
@@ -17,18 +54,8 @@ export async function hkdfSha256(
   length: number,
 ): Promise<Uint8Array> {
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: 'HKDF',
-      hash: 'SHA-256',
-      salt: enc.encode(salt),
-      info: enc.encode(info),
-    },
-    key,
-    length * 8,
-  );
-  return new Uint8Array(bits);
+  const prk = hkdfExtract(enc.encode(salt), ikm);
+  return hkdfExpand(prk, enc.encode(info), length);
 }
 
 /** FarmSeed = HKDF(FarmCode_bytes, salt, info="farm-seed") — 32 bytes. */

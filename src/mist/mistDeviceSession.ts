@@ -7,6 +7,7 @@
  */
 
 import { bytesToHex, hexToBytes } from '../../units/mist-freenet/src/index.ts';
+import { getSubtleCrypto } from '../../units/mist-freenet/src/subtle-crypto.ts';
 
 export type MistDeviceSession = {
   uid: string;
@@ -47,11 +48,12 @@ function randomHex(bytes: number): string {
 }
 
 async function deriveAesKeyFromPin(pin: string, salt: Uint8Array): Promise<CryptoKey> {
+  const subtle = getSubtleCrypto();
   const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, [
+  const keyMaterial = await subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, [
     'deriveKey',
   ]);
-  return crypto.subtle.deriveKey(
+  return subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: 120_000, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
@@ -61,8 +63,9 @@ async function deriveAesKeyFromPin(pin: string, salt: Uint8Array): Promise<Crypt
 }
 
 async function deriveAesKeyFromDeviceKey(deviceKeyHex: string): Promise<CryptoKey> {
+  const subtle = getSubtleCrypto();
   const raw = hexToBytes(deviceKeyHex);
-  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, false, [
+  return subtle.importKey('raw', raw, { name: 'AES-GCM', length: 256 }, false, [
     'encrypt',
     'decrypt',
   ]);
@@ -101,7 +104,7 @@ async function encryptSession(session: MistDeviceSession, pin?: string): Promise
     mode = 'device';
   }
 
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+  const ct = await getSubtleCrypto().encrypt({ name: 'AES-GCM', iv }, key, plaintext);
   return {
     v: 1,
     mode,
@@ -125,7 +128,7 @@ async function decryptSession(blob: EncryptedBlob, pin?: string): Promise<MistDe
     key = await deriveAesKeyFromDeviceKey(deviceKeyHex);
   }
 
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  const plain = await getSubtleCrypto().decrypt({ name: 'AES-GCM', iv }, key, ct);
   return JSON.parse(new TextDecoder().decode(plain)) as MistDeviceSession;
 }
 
