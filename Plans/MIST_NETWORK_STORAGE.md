@@ -113,8 +113,8 @@ Prototype order:
 2. First-run setup flow + device session (**§ First-run setup**). Phase 4 covers owner create path; crew join / PIN reload → phase 5.
 3. Local event log / CRDT-friendly store.
 4. Farm bones publish/pull on mist + Reticulum map heads-up.
-5. Freenet Hot contract.
-6. Archive sealing + Manifest.
+5. **Freenet Hot contract — local bridge (done):** `src/mist/mistHotBridge.ts` mirrors `pufom_farm_local` diary/issues → `hot/current` (farm-export-shaped payloads, AEAD when FarmSeed unlocked); auto-publish on local save when mist device session active; manual publish in Settings → Mist workshop. Seal cron / Freenet wire deferred.
+6. Archive sealing + Manifest (`sealHotPeriod()` exists; app trigger manual).
 7. Lightweight Freenet host/client spike (**§ Freenet peer implementation**).
 
 ---

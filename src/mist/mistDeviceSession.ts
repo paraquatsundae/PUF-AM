@@ -180,6 +180,7 @@ export function clearMistDeviceSession(): void {
   ls()?.removeItem(SESSION_BLOB_KEY);
   ls()?.removeItem(SESSION_META_KEY);
   ls()?.removeItem(DEVICE_KEY_KEY);
+  void import('./mistHotBridge.ts').then((m) => m.clearCachedFarmSeedForHot());
 }
 
 export function mistSessionNeedsPin(): boolean {

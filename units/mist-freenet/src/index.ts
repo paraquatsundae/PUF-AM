@@ -78,3 +78,11 @@ export {
 
 export { bytesToHex, hexToBytes, hkdfSha256, MIST_HKDF_SALT } from './farm-seed.ts';
 export { getSubtleCrypto, hasSubtleCrypto } from './subtle-crypto.ts';
+
+export {
+  HOT_CONTRACT_HKDF_INFO,
+  deriveHotContractKey,
+  decryptHotBlob,
+  encryptHotBlob,
+  type HotCiphertextEnvelope,
+} from './hot-crypto.ts';

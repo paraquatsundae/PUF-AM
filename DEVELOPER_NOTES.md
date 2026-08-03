@@ -21,7 +21,8 @@ Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** 
 - **Phase 4 app wiring (done):** FarmCode (`mist-fc-1`), `src/mist/` FarmStore factory + mist first-run at `/login/mist-new-farm`, Settings bones workshop. Default backend remains Firebase.
 - **Phase 5 reload survival (done):** `IndexedDbMistStore`, encrypted device session + PIN unlock gate, bones persist across reload. Per-device only until Freenet sync.
 - **Phase 6 FarmCode recovery (done):** `/login/mist-recover` — laptop B enters existing FarmCode → same `farmId` + local IndexedDB; blobs from laptop A stay local-only until Freenet sync ships.
-- **Phase 7 (next):** Reticulum unit, invite join QR, Electron `FreenetMistStore`, cross-device bone sync.
+- **Phase 7 local → Hot bridge (done):** `mistHotBridge.ts` — diary/issues from `pufom_farm_local` → `hot/current` (AEAD via `freenet-hot` HKDF); auto-publish when mist device session active; Settings workshop UI. Firestore/outbox unchanged.
+- **Phase 8 (next):** Reticulum unit, invite join QR, Electron `FreenetMistStore`, cross-device bone sync, `sealHotPeriod` app trigger.
 
 ### Workshop hub keep-alive
 

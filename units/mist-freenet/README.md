@@ -10,6 +10,7 @@ Experimental **Mist unit** for PUF-AM: encrypted durable storage over a Freenet-
 | **2 — Local disk** | `DiskMistStore`, hot→archive seal helper, vitest persistence tests | **Done** |
 | **3 — Freenet adapter** | `FreenetMistStore`, FCP transport, mock + disk cache hybrid | **Done** |
 | **4 — App wiring** | FarmCode, FarmStore factory, mist first-run, bones workshop | **Done** |
+| **5 — Hot bridge** | Local diary/issues → `hot/current` (AEAD, farm-export adapter) | **Done** |
 | **5 — Reload survival** | IndexedDB `MistStore`, device PIN unlock on reload, session encrypt | **Done** |
 | **6 — FarmCode recovery** | `/login/mist-recover` — laptop B joins with paper FarmCode; same `farmId`, local-only blobs | **Done** |
 | **7+** | Reticulum unit, invite join QR, Freenet in Electron main, cross-device bone sync | Next |
@@ -154,7 +155,13 @@ Then: Login → *Experimental: create offline mist farm* → write down FarmCode
 
 ## Hot contract shape (v1)
 
-Hot is a **single blob** at `hotKey(farmId)` → `mist/v1/farm/{farmId}/hot/current`. The ciphertext is JSON `HotState` (records array + window metadata). `sealHotPeriod()` reads that blob, seals matching calendar-year records into `archive/{period}`, updates `manifest`, and trims sealed records from hot.
+Hot is a **single blob** at `hotKey(farmId)` → `mist/v1/farm/{farmId}/hot/current`. Payload is JSON **`HotState`** (records array + window metadata). Each record’s `payload` reuses **farm-export-shaped** diary/issue rows (`src/mist/hotAdapter.ts`).
+
+**At rest (app bridge):** when FarmSeed is unlocked, bytes are **AES-256-GCM** wrapped (`units/mist-freenet/src/hot-crypto.ts`, HKDF `info = "freenet-hot"`). Plaintext HotState JSON is still accepted on read for `sealHotPeriod()` workshop tests.
+
+**App bridge:** `src/mist/mistHotBridge.ts` — publish/read, auto-mirror after local diary/issue saves when mist device session is active. Status: `localStorage` `pufam.mist.hotPublish.v1.{farmId}`.
+
+`sealHotPeriod()` reads hot/current, seals matching calendar-year records into `archive/{period}`, updates `manifest`, and trims sealed records from hot.
 
 ## Disk layout (`DiskMistStore` / `FreenetMistStore` cache)
 

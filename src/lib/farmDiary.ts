@@ -227,6 +227,9 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     const { upsertLocalEntity } = await import('./localFarmRepo');
     await upsertLocalEntity(farmId, 'diary', newEvent, { queueCloud: true });
 
+    const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
+    scheduleMistHotAutoPublish(farmId);
+
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       await diaryApi.saveEvent(farmId, newEvent);
@@ -259,6 +262,9 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     const { upsertLocalEntity } = await import('./localFarmRepo');
     await upsertLocalEntity(farmId, 'diary', updated, { queueCloud: true });
 
+    const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
+    scheduleMistHotAutoPublish(farmId);
+
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       await diaryApi.saveEvent(farmId, updated);
@@ -275,6 +281,9 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
 
     const { deleteLocalEntity } = await import('./localFarmRepo');
     await deleteLocalEntity(farmId, 'diary', id, { queueCloud: true });
+
+    const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
+    scheduleMistHotAutoPublish(farmId);
 
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;

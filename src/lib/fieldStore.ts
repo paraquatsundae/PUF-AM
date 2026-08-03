@@ -256,6 +256,9 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     const kind = stamped.status === 'archived' ? 'issues_archive' : 'issues';
     await upsertLocalEntity(farmId, kind, stamped, { queueCloud: true });
 
+    const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
+    scheduleMistHotAutoPublish(farmId);
+
     if (isLocalOnlyFarmSession()) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
@@ -287,6 +290,8 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     if (updated) {
       const { upsertLocalEntity } = await import('./localFarmRepo');
       await upsertLocalEntity(farmId, 'issues', updated, { queueCloud: true });
+      const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
+      scheduleMistHotAutoPublish(farmId);
     }
 
     if (isLocalOnlyFarmSession()) return;
