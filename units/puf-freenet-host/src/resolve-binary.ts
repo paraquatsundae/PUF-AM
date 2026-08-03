@@ -52,6 +52,11 @@ export function freenetOsTag(platform: string): string {
   return 'linux';
 }
 
+/** `<os>-<arch>` — keys the vendor dir and `scripts/freenet-binaries.json`. */
+export function freenetPlatformTag(platform: string, arch: string): string {
+  return `${freenetOsTag(platform)}-${arch}`;
+}
+
 export function freenetBinaryFileName(name: string, platform: string): string {
   return platform === 'win32' ? `${name}.exe` : name;
 }
@@ -68,6 +73,20 @@ function defaultIsExecutable(candidate: string, platform: string): boolean {
 /** Join/resolve with the *target* platform's rules so `platform` overrides are meaningful. */
 function pathFor(platform: string): path.PlatformPath {
   return platform === 'win32' ? path.win32 : path.posix;
+}
+
+/**
+ * The dev vendor dir (§5.3 step 4), populated by `scripts/fetch-freenet-binaries.mjs`.
+ * Exported so that script's `vendorDirTemplate` can be asserted against the path
+ * this resolver actually searches — the two silently disagreeing would mean a
+ * populated `vendor/` losing to a stray binary on `PATH`.
+ */
+export function freenetVendorDir(
+  repoRoot: string,
+  platform: string = process.platform,
+  arch: string = process.arch,
+): string {
+  return pathFor(platform).join(repoRoot, 'vendor', 'freenet', freenetPlatformTag(platform, arch));
 }
 
 function pathEntries(env: Record<string, string | undefined>, platform: string): string[] {
@@ -111,13 +130,7 @@ export function resolveFreenetBinary(
 
   if (options.repoRoot) {
     candidates.push({
-      candidate: p.join(
-        options.repoRoot,
-        'vendor',
-        'freenet',
-        `${freenetOsTag(platform)}-${arch}`,
-        fileName,
-      ),
+      candidate: p.join(freenetVendorDir(options.repoRoot, platform, arch), fileName),
       source: 'vendor',
     });
   }

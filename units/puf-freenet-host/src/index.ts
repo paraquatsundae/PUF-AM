@@ -22,6 +22,8 @@ export {
   FREENET_BINARY,
   freenetBinaryFileName,
   freenetOsTag,
+  freenetPlatformTag,
+  freenetVendorDir,
   resolveFreenetBinary,
   resolveFreenetBinaryOrThrow,
 } from './resolve-binary.ts';

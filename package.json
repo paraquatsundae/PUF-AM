@@ -22,6 +22,12 @@
     "desktop:build": "node scripts/build-desktop.mjs",
     "desktop:start": "electron .",
     "desktop:dev": "npm run build && npm run desktop:build && npm run desktop:start",
+    "desktop:vendor": "node scripts/fetch-freenet-binaries.mjs",
+    "desktop:vendor:linux": "node scripts/fetch-freenet-binaries.mjs --platform linux-x64",
+    "desktop:vendor:win": "node scripts/fetch-freenet-binaries.mjs --platform win-x64",
+    "desktop:vendor:verify": "node scripts/fetch-freenet-binaries.mjs --verify",
+    "desktop:verify:pack": "node scripts/verify-pack-contract.mjs",
+    "desktop:smoke:host": "tsx scripts/smoke-freenet-host.ts",
     "deploy:rules": "node scripts/deployFirestoreRules.mjs",
     "deploy:cloudrun": "powershell -ExecutionPolicy Bypass -File scripts/deploy-cloudrun.ps1"
   },

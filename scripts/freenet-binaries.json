@@ -1,0 +1,80 @@
+{
+  "//": "Pinned Freenet binaries bundled into PUF-AM. Committed; the binaries themselves are not (see vendor/README.md).",
+  "//pin": "freenet and fdev MUST come from the same release tag: the pack-contract code hash and the fdev PUT path are both version-sensitive. Bumping this file means re-running scripts/verify-pack-contract.mjs.",
+  "//source": "Checksums transcribed from the release's own SHA256SUMS.txt; extracted-binary checksums computed from those archives.",
+  "version": "0.2.119",
+  "releaseTag": "v0.2.119",
+  "repository": "https://github.com/freenet/freenet-core",
+  "assetBaseUrl": "https://github.com/freenet/freenet-core/releases/download/v0.2.119",
+  "checksumsUrl": "https://github.com/freenet/freenet-core/releases/download/v0.2.119/SHA256SUMS.txt",
+  "toolVersions": {
+    "//": "Reported by `--version`. fdev carries its own version line, hence the mismatch with the release tag.",
+    "freenet": "0.2.119",
+    "fdev": "0.3.281"
+  },
+  "license": {
+    "//": "freenet-core is AGPL-3.0. LICENSE.md states that distributing the unmodified binary alongside an app that talks to it over WebSocket does not make that app a derivative work — which is exactly what PUF-AM does. The text still ships next to the binaries.",
+    "spdx": "AGPL-3.0-only",
+    "fileName": "LICENSE.md",
+    "url": "https://raw.githubusercontent.com/freenet/freenet-core/v0.2.119/LICENSE.md",
+    "sha256": "017fe2f6c0f4387bbe511354953677e6101123e8307373048645379e8da2c577"
+  },
+  "packContract": {
+    "//": "Bundled pack-contract WASM. codeHashB58 must equal PACK_CONTRACT_CODE_HASH_B58 in units/mist-freenet/src/freenet02-pack.ts — a drift there silently changes every published mist URI.",
+    "path": "units/mist-freenet/assets/pack-contract.wasm",
+    "sha256": "df285090a043f2d2ceb9e53bc370681a2d28f146c4430f63f52607063b752d95",
+    "codeHashB58": "5Piu7V1PjjcPVnTvUbyMdDiyvwoBprBPZ4GFUHfabyzW",
+    "contractApiVersion": "0.0.1"
+  },
+  "vendorDirTemplate": "vendor/freenet/{platformTag}",
+  "platforms": {
+    "linux-x64": {
+      "//": "musl builds: statically linked, so they run on Fedora without matching a host glibc.",
+      "status": "verified",
+      "binaries": [
+        {
+          "name": "freenet",
+          "fileName": "freenet",
+          "asset": "freenet-x86_64-unknown-linux-musl.tar.gz",
+          "assetSha256": "dc8d25bb02cb55f0bd43fb9b126803bc4732837c40786de72edde94d403a357b",
+          "archiveEntry": "freenet",
+          "sha256": "b6ba1c3dd643be83d5f557d47536980645547303899ce109ff398b90430eea3a",
+          "bytes": 55834632
+        },
+        {
+          "name": "fdev",
+          "fileName": "fdev",
+          "asset": "fdev-x86_64-unknown-linux-musl.tar.gz",
+          "assetSha256": "e1fa6341020cea4e5eeaf67ff86fe71b7d634ec149d1c989fa196f4b9d14042e",
+          "archiveEntry": "fdev",
+          "sha256": "7d2e349db051db449fed5afd1062f2cf9ef276934781c9134d57cf626d42dc67",
+          "bytes": 37818088
+        }
+      ]
+    },
+    "win-x64": {
+      "//": "Checksums pinned from the same release. Not yet launched on a Windows host — that lands with the NSIS build in Phase 3.",
+      "status": "unverified",
+      "binaries": [
+        {
+          "name": "freenet",
+          "fileName": "freenet.exe",
+          "asset": "freenet-x86_64-pc-windows-msvc.zip",
+          "assetSha256": "b7f355d7dd2515bc6bf86c73428f0f38e8b92f09d28c1b75d45ce57b536e0f3e",
+          "archiveEntry": "freenet.exe",
+          "sha256": "865eb5f7330fe0c8175b8121bfbfa4f90d1e5335149738faf415d40fef96cd81",
+          "bytes": 48212480
+        },
+        {
+          "name": "fdev",
+          "fileName": "fdev.exe",
+          "asset": "fdev-x86_64-pc-windows-msvc.zip",
+          "assetSha256": "1f3631ec729ef1ec1f58e0d7560f7b4a7b329567fe31016a944494ea743dbfd5",
+          "archiveEntry": "fdev.exe",
+          "sha256": "7ea032dc0290609dd2b708fabaa6af9ec6f7f73e31e49f9a24bbcc4e984c2bcb",
+          "bytes": 33053184
+        }
+      ]
+    }
+  }
+}

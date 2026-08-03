@@ -1,15 +1,21 @@
 # PUF-AM desktop shell (Electron)
 
-**Status:** Phase 1 (~2026-08-03) — this runs. Freenet resolves from `PATH`; bundled binaries
-and installers are Phase 2/3.
+**Status:** Phase 2 (~2026-08-04) — this runs, with pinned Freenet binaries out of `vendor/`.
+Installers are Phase 3.
 **Plan (authoritative):** [`Plans/DESKTOP_FREENET_PLUGIN.md`](../Plans/DESKTOP_FREENET_PLUGIN.md)
 
 ## Running it
 
 ```bash
+npm run desktop:vendor           # once: fetch the pinned freenet + fdev (~93 MB)
 npm run desktop:dev              # vite build + bundle main/preload + launch
 MIST_FREENET=1 npm run desktop:dev   # ...and start the Freenet host
 ```
+
+`desktop:vendor` is a one-off per checkout — it populates `vendor/freenet/<os>-<arch>/`, which the
+host prefers over anything on `PATH`, so the app exercises the *pinned* binary rather than whatever
+the developer happens to have installed. Skip it and Freenet still resolves from `PATH`; status will
+say `source: 'path'`, which is the tell. Details: [`vendor/README.md`](../vendor/README.md).
 
 `desktop:dev` rebuilds everything. Once built, `npm run desktop:start` relaunches in seconds —
 but rebuild (`npm run build`) if you last ran `build:android`, because the Capacitor build emits
@@ -17,10 +23,20 @@ relative asset paths that break on SPA sub-routes.
 
 | Script | Does |
 |--------|------|
+| `desktop:vendor` | Fetch + checksum the pinned `freenet`/`fdev` for this platform |
+| `desktop:vendor:linux` / `:win` | Same, for a named platform (cross-fetch is fine — files are only staged) |
+| `desktop:vendor:verify` | Re-check `vendor/` against the pins, no network |
+| `desktop:verify:pack` | Bundled `pack-contract.wasm` still matches its pinned code hash |
+| `desktop:smoke:host` | Start a real node from the resolved binary on a spare port, assert `managed`, stop |
 | `desktop:build` | esbuild `main.ts` + `preload.ts` → `desktop/build/*.cjs` |
 | `desktop:start` | `electron .` — assumes `dist/` and `desktop/build/` are current |
 | `desktop:dev` | `build` + `desktop:build` + `desktop:start` |
 | `lint:desktop` | `tsc -p desktop/tsconfig.json` (this dir is excluded from the root lint) |
+
+`desktop:smoke:host` is the quick "is Freenet actually working" check, and it does **not** need
+Electron or a display. It uses a spare port and throwaway dirs on purpose, so a workshop
+`freenet network` on `:7509` is neither attached to nor killed — attaching would tell you nothing
+about which binary got resolved.
 
 Useful env (dev only — a packaged app never reads `.env`): `MIST_FREENET=1` starts the Freenet
 host, `FREENET_WS_PORT` moves off `:7509`, `PUF_FREENET_BIN` pins a binary, `PUF_CLOUD_API_BASE`
@@ -107,7 +123,8 @@ and nothing from `desktop/` itself. `desktop/` stays excluded from the root lint
 
 ## Not yet done
 
-Bundled `freenet`/`fdev` binaries (Phase 2 — the host falls back to `PATH`) · installers
-(Phase 3) · loopback bearer token or IPC-only Freenet calls (Phase 4) · mDNS LAN-hub advertising
+Installers (Phase 3 — `extraResources` will move `vendor/` into `resources/freenet`, at which point
+status reports `source: 'bundled'` instead of `'vendor'`) · loopback bearer token or IPC-only
+Freenet calls (Phase 4) · mDNS LAN-hub advertising
 (`server.ts` starts it; the shell does not yet) · a desktop-aware Mist workshop card · menus, tray,
 window state, icons · code signing · auto-updater (out of scope by workspace policy).

@@ -3,7 +3,7 @@
 **PUF Freenet Host** — runs a Freenet node *inside* a PUF app. This unit owns the node's
 lifecycle so the operator never installs, launches, or configures Freenet separately.
 
-**Status:** Phase 0 scaffold (~2026-08-03) — interface frozen, Node implementation landed, not yet wired into a shell.
+**Status:** Phase 2 (~2026-08-04) — interface frozen, wired into the Electron shell, supervising the pinned `freenet` 0.2.119 out of `vendor/`.
 **Plan:** [`Plans/DESKTOP_FREENET_PLUGIN.md`](../../Plans/DESKTOP_FREENET_PLUGIN.md)
 **Fork target:** this package becomes **PUF-FN** ([`Plans/NAMING.md`](../../Plans/NAMING.md) §1). Its public surface is the fork boundary — keep it narrow.
 
@@ -72,9 +72,11 @@ await host.stop();
 ### Exit code 42
 
 Freenet exits **42** to request an update; applying it needs a supervisor, which this host
-deliberately is not. Bundled binaries are version-pinned alongside the `pack-contract` code
-hash in `units/mist-freenet/src/freenet02-pack.ts` — updating in place would silently change
-every published URI. The host sets `updateRequired`, emits `update-required`, and stops.
+deliberately is not. Bundled binaries are version-pinned in `scripts/freenet-binaries.json`
+alongside the `pack-contract` code hash in `units/mist-freenet/src/freenet02-pack.ts` — updating in
+place would silently change every published URI. The host sets `updateRequired`, emits
+`update-required`, and stops. Bumping the pin is a deliberate edit plus
+`npm run desktop:verify:pack`, not something the running node gets to decide.
 
 ## Binary resolution
 
@@ -90,10 +92,17 @@ what it actually exercised.
 | 5 | `path` | `PATH` — today's `~/.local/bin/freenet` |
 
 `<os>` uses electron-builder's `${os}` naming (`linux` / `win` / `mac`) so `vendor/` matches
-the `extraResources` mapping.
+the `extraResources` mapping. `freenetVendorDir(repoRoot, platform, arch)` is exported for exactly
+that reason: `scripts/fetch-freenet-binaries.mjs` writes the directory this function names, and
+`tests/freenetVendorManifest.test.ts` asserts they agree. A disagreement would not raise an error —
+it would quietly resolve a stray `PATH` binary instead.
 
 Step 4 only runs when the caller passes the **`repoRoot`** option — omit it and a dev `vendor/`
 build silently loses to whatever is on `PATH`.
+
+Populate `vendor/` with `npm run desktop:vendor` (see [`vendor/README.md`](../../vendor/README.md));
+`npm run desktop:smoke:host` then proves the resolved binary actually spawns a node, without
+Electron and without touching a workshop node on `:7509`.
 
 ## Env contract for mist
 
@@ -101,8 +110,9 @@ build silently loses to whatever is on `PATH`.
 `FREENET_TRANSPORT=ws02`, `FREENET_WS_URL`, `FREENET_WS_PORT`, plus optional `FDEV_BIN`,
 `FREENET_PACK_WASM`, `MIST_FREENET_ROOT`. No change to `mist-freenet` is required.
 
-`fdev` is still needed for **PUT** on 0.2.118 (the flatbuffers PUT path hangs); it is spawned
-transiently per put by `mist-freenet`, not supervised here.
+`fdev` is still needed for **PUT** on 0.2.x (the flatbuffers PUT path hangs); it is spawned
+transiently per put by `mist-freenet`, not supervised here. It is pinned from the same release tag
+as `freenet` — a mismatched pair is a real failure mode, not a theoretical one.
 
 ## Modules
 

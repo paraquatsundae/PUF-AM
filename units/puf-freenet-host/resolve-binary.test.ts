@@ -5,6 +5,8 @@ import {
   FREENET_BINARY,
   freenetBinaryFileName,
   freenetOsTag,
+  freenetPlatformTag,
+  freenetVendorDir,
   resolveFreenetBinary,
   resolveFreenetBinaryOrThrow,
 } from './src/resolve-binary.ts';
@@ -30,6 +32,25 @@ describe('freenetBinaryFileName', () => {
   it('adds .exe on Windows only', () => {
     expect(freenetBinaryFileName(FREENET_BINARY, 'win32')).toBe('freenet.exe');
     expect(freenetBinaryFileName(FREENET_BINARY, 'linux')).toBe('freenet');
+  });
+});
+
+describe('freenetPlatformTag', () => {
+  it('keys the vendor dir and scripts/freenet-binaries.json the same way', () => {
+    expect(freenetPlatformTag('linux', 'x64')).toBe('linux-x64');
+    expect(freenetPlatformTag('win32', 'x64')).toBe('win-x64');
+  });
+});
+
+describe('freenetVendorDir', () => {
+  it('is where scripts/fetch-freenet-binaries.mjs writes', () => {
+    expect(freenetVendorDir('/repo', 'linux', 'x64')).toBe('/repo/vendor/freenet/linux-x64');
+  });
+
+  it('uses win32 separators for a Windows target', () => {
+    expect(freenetVendorDir('C:\\Projects\\am', 'win32', 'x64')).toBe(
+      'C:\\Projects\\am\\vendor\\freenet\\win-x64',
+    );
   });
 });
 
@@ -90,6 +111,55 @@ describe('resolveFreenetBinary', () => {
     expect(result.binary).toEqual({
       path: '/repo/vendor/freenet/linux-x64/freenet',
       source: 'vendor',
+    });
+  });
+
+  it('prefers a populated vendor/ over an installed ~/.local/bin/freenet', () => {
+    // The Phase 2 acceptance check: `npm run desktop:vendor` must beat whatever the
+    // developer happens to have installed, or the workshop tests the wrong binary.
+    const result = resolveFreenetBinary(FREENET_BINARY, {
+      ...linux,
+      repoRoot: '/repo',
+      env: { PATH: '/home/op/.local/bin:/usr/bin' },
+      isExecutable: presence(
+        '/repo/vendor/freenet/linux-x64/freenet',
+        '/home/op/.local/bin/freenet',
+      ),
+    });
+
+    expect(result.binary).toEqual({
+      path: '/repo/vendor/freenet/linux-x64/freenet',
+      source: 'vendor',
+    });
+  });
+
+  it('resolves fdev out of the same vendor dir as freenet', () => {
+    const result = resolveFreenetBinary(FDEV_BINARY, {
+      ...linux,
+      repoRoot: '/repo',
+      env: { PATH: '/home/op/.local/bin' },
+      isExecutable: presence('/repo/vendor/freenet/linux-x64/fdev', '/home/op/.local/bin/fdev'),
+    });
+
+    expect(result.binary).toEqual({ path: '/repo/vendor/freenet/linux-x64/fdev', source: 'vendor' });
+  });
+
+  it('finds bundled Windows binaries under the packaged resources dir', () => {
+    const result = resolveFreenetBinary(FREENET_BINARY, {
+      platform: 'win32',
+      arch: 'x64',
+      searchPaths: ['C:\\Program Files\\PUF-AM\\resources\\freenet'],
+      repoRoot: 'C:\\Projects\\am',
+      env: { PATH: 'C:\\Windows\\System32' },
+      isExecutable: presence(
+        'C:\\Program Files\\PUF-AM\\resources\\freenet\\freenet.exe',
+        'C:\\Projects\\am\\vendor\\freenet\\win-x64\\freenet.exe',
+      ),
+    });
+
+    expect(result.binary).toEqual({
+      path: 'C:\\Program Files\\PUF-AM\\resources\\freenet\\freenet.exe',
+      source: 'bundled',
     });
   });
 

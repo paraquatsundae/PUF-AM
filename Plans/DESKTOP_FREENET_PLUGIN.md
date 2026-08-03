@@ -1,6 +1,6 @@
 # PUF-AM desktop installer + Freenet as an in-app plugin
 
-**Status:** Phase 1 done — the Electron shell runs (~2026-08-03). Next: Phase 2 (bundle Freenet binaries). Not shipped.
+**Status:** Phase 2 done — Freenet binaries are pinned and bundled (~2026-08-04). Next: Phase 3 (installers). Not shipped.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
 **Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
 
@@ -60,7 +60,7 @@ Tauri's win is bundle size, and it evaporates here: to reuse any of the existing
 
 ### 4.1 Honest statement of the constraint
 
-Freenet 0.2.118 is a **Rust binary** (`freenet`, 55 MB) with a local WebSocket API on `:7509`. There is no embeddable Freenet library or browser/WASM peer we can link into a Node process today. Additionally, PUT on 0.2.118 still requires the **`fdev`** CLI — the flatbuffers PUT path in `@freenetorg/freenet-stdlib` hangs against that node version (documented in `units/mist-freenet/src/freenet02-fdev-put.ts`).
+Freenet 0.2.119 (the pinned version — see §8.4) is a **Rust binary** (`freenet`, 55 MB) with a local WebSocket API on `:7509`. There is no embeddable Freenet library or browser/WASM peer we can link into a Node process today. Additionally, PUT on 0.2.x still requires the **`fdev`** CLI (37 MB) — the flatbuffers PUT path in `@freenetorg/freenet-stdlib` hangs against that node version (documented in `units/mist-freenet/src/freenet02-fdev-put.ts`).
 
 So "plugin" in v1 means **ownership, not linkage**.
 
@@ -131,10 +131,12 @@ Full type list: [`units/puf-freenet-host/src/types.ts`](../units/puf-freenet-hos
 | 1 | explicit `binaryPath` option | caller |
 | 2 | `PUF_FREENET_BIN` / `PUF_FDEV_BIN` | env (workshop override) |
 | 3 | `binarySearchPaths` | Electron passes `${process.resourcesPath}/freenet` |
-| 4 | repo vendor dir | `vendor/freenet/<platform>-<arch>/` (dev, gitignored) — requires the `repoRoot` option |
+| 4 | repo vendor dir | `vendor/freenet/<os>-<arch>/` (dev, gitignored) — requires the `repoRoot` option |
 | 5 | `PATH` | picks up today's `~/.local/bin/freenet` |
 
 Reporting the `source` in status is deliberate: the workshop needs to know whether it is testing the bundled binary or a stray PATH one.
+
+`<os>` is electron-builder's `${os}` (`linux` / `win` / `mac`), so `vendor/` and `extraResources` share one layout. That directory name is produced by `freenetVendorDir()` in the host unit and consumed by `scripts/fetch-freenet-binaries.mjs` via the manifest's `vendorDirTemplate`; `tests/freenetVendorManifest.test.ts` asserts the two agree, because the failure mode of a disagreement is not an error — it is a populated `vendor/` silently losing to `PATH`.
 
 ### 5.4 Lifecycle rules
 
@@ -222,14 +224,23 @@ Binding an HTTP API to `127.0.0.1` means any local process can reach it. That is
   resources/
     app.asar                        renderer bundle + main + server/ + units/
     freenet/
-      freenet(.exe)                 pinned Freenet core (0.2.118)
+      freenet(.exe)                 pinned Freenet core (0.2.119)
       fdev(.exe)                    PUT path until native PUT lands
-      LICENSE, NOTICE               upstream attribution
+      LICENSE.md                    upstream AGPL-3.0 text
     contracts/
       pack-contract.wasm            code hash 5Piu7V1PjjcPVnTvUbyMdDiyvwoBprBPZ4GFUHfabyzW
 ```
 
-`pack-contract.wasm` moves out of `app.asar` into `resources/contracts/` because `fdev --code` needs a **real filesystem path** — asar-packed files are not directly readable by a child process. Same reason the binaries live in `extraResources`. The bundled WASM's `fdev inspect` code hash is pinned in `units/mist-freenet/src/freenet02-pack.ts`; **bundled WASM and that constant must be verified together** in CI or a smoke step, or every published URI silently changes.
+`pack-contract.wasm` moves out of `app.asar` into `resources/contracts/` because `fdev --code` needs a **real filesystem path** — asar-packed files are not directly readable by a child process. Same reason the binaries live in `extraResources`. The bundled WASM's `fdev inspect` code hash is pinned in `units/mist-freenet/src/freenet02-pack.ts`; **bundled WASM and that constant must be verified together**, or every published URI silently changes.
+
+Phase 2 landed that verification as `npm run desktop:verify:pack` ([`scripts/verify-pack-contract.mjs`](../scripts/verify-pack-contract.mjs)), split by what each half needs:
+
+| Check | Needs | On mismatch |
+|-------|-------|-------------|
+| SHA-256 of the WASM vs `scripts/freenet-binaries.json` | nothing | fail |
+| `fdev inspect <wasm> code` vs the same manifest | a resolvable `fdev` | fail |
+
+With no `fdev` present the second check is skipped with a warning (`--require-fdev` makes it fatal — that is the Phase 3 packaging gate). A third guard is hermetic: `tests/freenetVendorManifest.test.ts` asserts the manifest's `codeHashB58` still equals `PACK_CONTRACT_CODE_HASH_B58` and that the committed WASM still matches its pinned digest, so a drift fails `npm test` with no binaries installed at all.
 
 ### 7.2 Per-OS data locations
 
@@ -292,12 +303,35 @@ Main-process TypeScript needs a build step (Electron cannot execute `.ts`, and t
 
 One wrinkle worth knowing: `import.meta` is empty in a CJS bundle, and `units/mist-freenet/src/freenet02-pack.ts` reads `import.meta.url` at module load to locate its pack contract. The build defines a `__filename`-based shim so the bundle does not throw on import, **and** `desktop/main.ts` sets `FREENET_PACK_WASM` explicitly — the shim resolves to the bundle, not the asset, so it alone is not enough.
 
-### 8.4 Binary procurement (blocking Phase 2)
+### 8.4 Binary procurement (settled in Phase 2)
 
-- **Fedora x64:** present at `~/.local/bin/{freenet,fdev}` 0.2.118 — copy into `vendor/freenet/linux-x64/`.
-- **Windows x64:** **not obtained yet.** Needs upstream `freenet.exe` + `fdev.exe` at the *same pinned version*. Mixed versions across platforms are not acceptable — pack-contract code hash and PUT behaviour are version-sensitive.
-- **License:** confirm upstream terms and ship `LICENSE`/`NOTICE` in `resources/freenet/` before any redistribution.
-- `vendor/` is build input, **gitignored** — do not commit ~93 MB of binaries. Add a `scripts/fetch-freenet-binaries` step that downloads pinned releases and verifies checksums.
+**Pinned to `v0.2.119`** in [`scripts/freenet-binaries.json`](../scripts/freenet-binaries.json) — the single source of truth for version, asset names, and checksums. Both platforms come from the *same release tag*: mixing versions is not acceptable, because the pack-contract code hash and the `fdev` PUT path are both version-sensitive.
+
+| Platform | Assets | Status |
+|----------|--------|--------|
+| `linux-x64` | `freenet-x86_64-unknown-linux-musl.tar.gz`, `fdev-x86_64-unknown-linux-musl.tar.gz` | **verified** — fetched, checksum-matched, spawned a `managed` node (§14 Phase 2) |
+| `win-x64` | `freenet-x86_64-pc-windows-msvc.zip`, `fdev-x86_64-pc-windows-msvc.zip` | **pinned, not yet launched** — staged and checksum-verified by cross-fetch from Fedora; running it is Phase 3 on the Windows box |
+
+Upstream publishes a `SHA256SUMS.txt` per release, so the pins are transcribed rather than invented. musl builds are chosen for Linux deliberately: statically linked, so they do not have to match a host glibc across Fedora versions.
+
+**Procurement is no longer a blocker on either leg.** The earlier "Windows not obtained" note was wrong about availability — `freenet-x86_64-pc-windows-msvc.zip` has shipped in every recent release. What remains open is *execution* on Windows, not acquisition.
+
+**License — cleared for redistribution.** `freenet-core` is **AGPL-3.0**, and its `LICENSE.md` says so explicitly:
+
+> Simply bundling or distributing the unmodified `freenet-core` binary alongside your app does **not** trigger the AGPL's copyleft requirements for your own code.
+
+PUF-AM's relationship to the node is exactly the case that text carves out — a loopback WebSocket, no linkage, no modification. So PUF-AM's own licensing is unaffected. The upstream `LICENSE.md` is fetched into the vendor dir and ships beside the binaries in `resources/freenet/`.
+
+**`vendor/` stays gitignored** (~93 MB); the manifest, the fetch script, and [`vendor/README.md`](../vendor/README.md) are what get committed.
+
+```bash
+npm run desktop:vendor          # host platform
+npm run desktop:vendor:linux    # linux-x64
+npm run desktop:vendor:win      # win-x64 (cross-fetch is fine — the files are only staged)
+npm run desktop:vendor:verify   # no network; re-check what is on disk
+```
+
+Every download is checksummed **twice** — archive, then extracted binary — and a mismatch aborts. Upstream tarballs store mode `0644`, so the script also marks the binaries executable; skipping that is how "bundled binary present but unusable" looks. For an air-gapped or CI build, `PUF_FREENET_ASSET_DIR` points at a directory of pre-downloaded archives and nothing is fetched, with the same checksum gates.
 
 ---
 
@@ -396,15 +430,36 @@ Landed:
 
 **Still open before this phase is closed in the field:** an end-to-end Firebase login and a Hot publish/pull from inside the window (needs operator credentials and a warmed peer, not a workshop bench check).
 
-### Phase 2 — bundle Freenet
+### Phase 2 — bundle Freenet (**done**, ~2026-08-04)
 
-`scripts/fetch-freenet-binaries` with pinned version + checksums · `vendor/freenet/<platform>-<arch>/` (gitignored) · `pack-contract.wasm` served from `resources/contracts/` · WASM ↔ code-hash verification step · host prefers bundled over PATH · Windows binary procurement.
+Landed:
 
-**Done when:** with `~/.local/bin/freenet` renamed away, the app still starts a node, and status reports `source: 'bundled'`.
+- [`scripts/freenet-binaries.json`](../scripts/freenet-binaries.json) — the pin: `v0.2.119`, asset names, archive **and** extracted-binary SHA-256 for `linux-x64` and `win-x64`, license digest, pack-contract digest + code hash (§8.4).
+- [`scripts/fetch-freenet-binaries.mjs`](../scripts/fetch-freenet-binaries.mjs) → `vendor/freenet/<os>-<arch>/{freenet,fdev,LICENSE.md,VENDOR.json}`. Double checksum gate, `chmod +x` (upstream ships `0644`), idempotent re-runs, `--verify` for a network-free re-check, `PUF_FREENET_ASSET_DIR` for offline/CI. tar.gz and zip are handled in-process — no new dependency, no shelling out to `tar`.
+- [`scripts/verify-pack-contract.mjs`](../scripts/verify-pack-contract.mjs) — WASM digest always, `fdev inspect` code hash when `fdev` resolves (§7.1).
+- [`scripts/smoke-freenet-host.ts`](../scripts/smoke-freenet-host.ts) (`npm run desktop:smoke:host`) — starts a real node from the resolved binary on a **spare port with throwaway dirs**, asserts `mode: managed` and a non-`PATH` source, then stops. Deliberately `attachIfRunning: false`: attaching to a workshop node on `:7509` would prove nothing about which binary was resolved, and this must never touch that node.
+- Scripts: `desktop:vendor`, `desktop:vendor:linux`, `desktop:vendor:win`, `desktop:vendor:verify`, `desktop:verify:pack`, `desktop:smoke:host`.
+- `freenetVendorDir()` / `freenetPlatformTag()` exported from the host unit so the vendor layout has one definition, plus 11 new hermetic tests (`tests/freenetVendorManifest.test.ts`, extra cases in `units/puf-freenet-host/resolve-binary.test.ts`) covering manifest ↔ resolver agreement, vendor-beats-`PATH`, bundled-beats-vendor on Windows, and the pack-contract pin. No network, no node, no populated `vendor/`.
+- `.gitignore` narrowed to `vendor/*` with `!vendor/README.md`, so the directory documents itself while the binaries stay out (§8.4).
 
-### Phase 3 — installers
+**Verified on Fedora:** `npm run desktop:vendor:linux` fetches and verifies both binaries; `npm run desktop:smoke:host` then reports `mode: managed`, `source: vendor`, `Freenet version: 0.2.119` and stops cleanly, while the operator's own `freenet network` on `:7509` keeps running untouched. `npm run desktop:verify:pack` confirms the bundled WASM still hashes to `5Piu7V1PjjcPVnTvUbyMdDiyvwoBprBPZ4GFUHfabyzW` under the *pinned* `fdev` 0.3.281 — that is what makes the version bump safe. `npm run desktop:vendor:win` stages checksum-verified `freenet.exe` + `fdev.exe`.
+
+The `source` reported in dev is **`vendor`**, not `bundled`: `bundled` means Electron's `resources/freenet/`, which only exists once electron-builder runs in Phase 3. The plan's original wording conflated the two. Precedence is what actually matters and it holds — a populated `vendor/` outranks `~/.local/bin/freenet`.
+
+**Note on the pinned version:** the plan previously said 0.2.118. 0.2.119 is what upstream ships and what the workshop machine already runs, and the pack-contract code hash is unchanged across the two, so nothing published under the old node is stranded.
+
+**Still open before this phase is closed in the field:** `freenet.exe` has never been *launched* (Phase 3, on the Windows box), and a bundled-binary publish/pull still needs a warmed peer and operator credentials — same caveat Phase 1 carries.
+
+### Phase 3 — installers (next)
 
 `electron-builder` config (§8.2) · Fedora `rpm` + `AppImage` on the Fedora box · Windows `nsis` + `portable` on the Windows box · `dnf install` / installer smoke on a clean-ish user account.
+
+Phase 2 leaves this set up rather than open-ended:
+
+- `extraResources` maps `vendor/freenet/${os}-${arch}` → `resources/freenet` and the pack WASM → `resources/contracts/`; both source paths now exist and are checksum-verified.
+- The build must run `desktop:vendor:verify` and `desktop:verify:pack --require-fdev` **before** packaging, so a stale or half-fetched `vendor/` cannot ship.
+- First launch of a packaged build is the first time `status().binary.source` should read `bundled` instead of `vendor` — that is the signal `extraResources` landed where the resolver looks.
+- Windows is where `freenet.exe` first actually runs (§8.4). Treat a `win-x64` launch as new information, not a formality, and flip its manifest `status` to `verified` once it spawns a node.
 
 **Done when:** a machine with **no Node, no npm, no Freenet** installs the artifact, launches PUF-AM, and completes a Freenet publish.
 
@@ -424,15 +479,17 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 
 | Risk | Mitigation / status |
 |------|---------------------|
-| Windows `freenet.exe` availability at pinned version | **Open** — blocks Phase 2 Windows leg. Fedora-first ship is acceptable |
+| Windows `freenet.exe` availability at pinned version | **Closed** — `freenet-x86_64-pc-windows-msvc.zip` + `fdev` zip ship in `v0.2.119`; both pinned and staged (§8.4). Never *launched* on Windows, which is Phase 3 work |
 | Installer size ~250 MB with binaries | Accepted for workshop distribution; no auto-updater to amortize |
 | Fresh app-owned peer identity slows first publish | Documented warm-up; start host at launch; consider attach-to-existing as a workshop default |
 | Exit code 42 update loop | Host never auto-updates; surfaces `updateRequired` and stops (§5.4) |
-| Bundled WASM drifts from pinned code hash | Verification step in Phase 2; publishing with a mismatched hash silently changes every URI |
+| Bundled WASM drifts from pinned code hash | **Closed** — `npm run desktop:verify:pack` plus a hermetic test on the pin (§7.1). Publishing with a mismatched hash silently changes every URI, so this fails the build rather than warning |
+| Redistributing an AGPL binary | **Closed** — upstream `LICENSE.md` explicitly exempts bundling the unmodified binary alongside an app that talks to it over a network protocol; the text ships beside the binaries (§8.4) |
 | Loopback API reachable by local processes | Ephemeral port + loopback bind now; token/IPC in Phase 4 (§6.3) |
 | `process.cwd()` assumptions in `server/*` | Audited in Phase 1. `firebaseAdmin.ts` is the only other reader and `/api/auth/*` is cloud-only. `getMistFreenetRootDir()` fell back to `cwd()/tmp`, so `main.ts` now sets `MIST_FREENET_ROOT` unconditionally at boot |
 | Two PUF apps racing for `:7509` | Attach mode; only the spawner may stop the node |
-| Freenet upstream API churn (0.2.x is moving fast) | Version pinned in `vendor/`; `fdev` removal tracked as PUF-FN work |
+| Freenet upstream API churn (0.2.x is moving fast) | Version pinned in `scripts/freenet-binaries.json` and checksum-enforced; `fdev` removal tracked as PUF-FN work |
+| `fdev` version drifting from `freenet` | Both pinned from one release tag. Worth knowing: the workshop's own `~/.local/bin/fdev` was 0.3.280 against `freenet` 0.2.119, i.e. already mismatched — exactly the drift the pin exists to stop |
 
 ---
 
@@ -440,6 +497,8 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 
 - [`units/puf-freenet-host/README.md`](../units/puf-freenet-host/README.md) — plugin unit API and lifecycle
 - [`desktop/README.md`](../desktop/README.md) — shell layout, build commands (Phase 1+)
+- [`vendor/README.md`](../vendor/README.md) — how to populate the bundled binaries, and why they are not committed
+- [`scripts/freenet-binaries.json`](../scripts/freenet-binaries.json) — the version pin and every checksum
 - [`units/mist-freenet/README.md`](../units/mist-freenet/README.md) — mist storage, ws02 transport, pack-contract addressing
 - [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) — mist crypto, FarmCode, Hot/bones/Archive
 - [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) — two-laptop Opennet flow and the sidecar pattern being retired for desktop

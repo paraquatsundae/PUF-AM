@@ -10,6 +10,9 @@ firebase-applet-config.json
 firebase-blueprint.json
 secrets/
 tmp/
-vendor/
+# Build input, not source: ~93 MB of pinned Freenet binaries, fetched by
+# `npm run desktop:vendor`. The pins live in scripts/freenet-binaries.json.
+vendor/*
+!vendor/README.md
 release/
 desktop/build/
