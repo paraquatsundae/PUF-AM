@@ -23,7 +23,7 @@ Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** 
 - **Phase 6 FarmCode recovery (done):** `/login/mist-recover` — laptop B enters existing FarmCode → same `farmId` + local IndexedDB; blobs from laptop A stay local-only until Freenet sync ships.
 - **Phase 7 local → Hot bridge (done):** `mistHotBridge.ts` — diary/issues from `pufom_farm_local` → `hot/current` (AEAD via `freenet-hot` HKDF); auto-publish when mist device session active; Settings workshop UI. Firestore/outbox unchanged.
 - **Phase 8 two-laptop smoke (done, ~2026-08-03):** Pre-Freenet two-laptop pass — Laptop A create + local Hot; Laptop B **FarmCode recovery** → same `farmId` on localhost; bones/Hot per-device (expected). See [`Plans/MIST_TWO_LAPTOP_SMOKE.md`](Plans/MIST_TWO_LAPTOP_SMOKE.md).
-- **Phase 9+ (pre-Freenet workshop frozen ~2026-08-03):** Reticulum unit, invite join QR, in-process Freenet client plug-in, cross-device bone sync, `sealHotPeriod` app trigger. Live Freenet wiring **not started** — see frozen decisions below.
+- **Phase 9+ (pre-Freenet workshop frozen ~2026-08-03):** Reticulum unit, invite join QR, in-process Freenet client plug-in, cross-device bone sync, `sealHotPeriod` app trigger. **Phase 9 in-process Freenet plug-in — build started ~2026-08-03** (server-hosted FCP + workshop UI; live Hyphanet still required on :9481).
 
 #### Milestone — two-laptop FarmCode recovery (pre-Freenet, ~2026-08-03)
 
@@ -50,8 +50,8 @@ Team workshop captured the following before wiring live Freenet. Full detail: [`
 
 **Still blocked (implementation):**
 
-- Cross-device Hot/bones sync via in-process Freenet client
-- Reticulum unit, invite join QR, `sealHotPeriod` app trigger, Electron/main wiring
+- Cross-device Hot/bones sync via in-process Freenet client — **Hot FCP path started** (server peer + workshop publish/pull); bones/manifest Freenet sync deferred
+- Reticulum unit, invite join QR, `sealHotPeriod` app trigger
 
 ### Workshop hub keep-alive
 

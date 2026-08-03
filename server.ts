@@ -70,11 +70,17 @@ async function startServer() {
     void import("./server/mdnsHub.ts")
       .then(({ startPufomMdns }) => startPufomMdns(PORT))
       .catch((err) => console.warn("[mdns] not started:", err));
+    void import("./server/freenetPeerHost.ts")
+      .then(({ maybeAutoStartFreenetPeer }) => maybeAutoStartFreenetPeer())
+      .catch((err) => console.warn("[mist-freenet] auto-start skipped:", err));
   });
 
   const shutdown = () => {
     void import("./server/mdnsHub.ts")
       .then(({ stopPufomMdns }) => stopPufomMdns())
+      .catch(() => undefined);
+    void import("./server/freenetPeerHost.ts")
+      .then(({ shutdownFreenetPeerHost }) => shutdownFreenetPeerHost())
       .catch(() => undefined);
     server.close(() => process.exit(0));
   };

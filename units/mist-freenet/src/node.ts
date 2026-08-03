@@ -11,6 +11,7 @@ export {
   FreenetMistStore,
   MistStorageFullError,
   MockFreenetTransport,
+  createFreenetPeer,
   mockChkUriFromContent,
 } from './freenet.ts';
 export type {
@@ -20,6 +21,9 @@ export type {
   FreenetKeyRecord,
   FreenetMistStoreOptions,
   FreenetOutboxEntry,
+  FreenetPeer,
+  FreenetPeerOptions,
+  FreenetPeerStatus,
   FreenetPutOptions,
   FreenetPutResult,
   FreenetTransport,

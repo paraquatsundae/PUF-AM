@@ -4,6 +4,7 @@ import { registerAccessPinRoutes } from "./accessPinRoutes.ts";
 import { registerWeatherCacheRoutes } from "./weatherCacheRoutes.ts";
 import { registerChillRoutes } from "./chillRoutes.ts";
 import { registerLanSyncRoutes } from "./lanSyncRoutes.ts";
+import { registerMistFreenetRoutes } from "./mistFreenetRoutes.ts";
 import { getDpirdApiKey } from "./envSecrets.ts";
 import {
   fetchDpirdDailySummaries,
@@ -41,6 +42,7 @@ export function createApiApp(): Express {
   registerWeatherCacheRoutes(app);
   registerChillRoutes(app);
   registerLanSyncRoutes(app);
+  registerMistFreenetRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });

@@ -19,3 +19,6 @@ export type { MockFreenetTransportOptions } from './mock-freenet-transport.ts';
 export type { FreenetKeyRecord, FreenetKeyIndex, FreenetOutboxEntry } from './freenet-keys.ts';
 
 export { MistStorageFullError } from './errors.ts';
+
+export { createFreenetPeer } from './freenet-peer.ts';
+export type { FreenetPeer, FreenetPeerOptions, FreenetPeerStatus } from './freenet-peer.ts';

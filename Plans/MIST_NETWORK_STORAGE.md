@@ -122,7 +122,7 @@ Prototype order:
 5. **Freenet Hot contract — local bridge (done):** `src/mist/mistHotBridge.ts` mirrors `pufom_farm_local` diary/issues → `hot/current` (farm-export-shaped payloads, AEAD when FarmSeed unlocked); auto-publish on local save when mist device session active; manual publish in Settings → Mist workshop. Seal cron / Freenet wire deferred.
 6. **Two-laptop FarmCode recovery (done, ~2026-08-03):** Laptop B recover → same `farmId`; bones/Hot per-device. Smoke doc: [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md).
 7. Archive sealing + Manifest (`sealHotPeriod()` exists; app trigger manual).
-8. Lightweight Freenet host/client spike (**§ Freenet peer implementation**, **§ Pre-Freenet workshop decisions**) — workshop frozen ~2026-08-03; **implementation not started** (in-process plug-in, encrypt-before-upload, KiB CHK path).
+8. Lightweight Freenet host/client spike (**§ Freenet peer implementation**, **§ Pre-Freenet workshop decisions**) — **Phase 9 build started** (~2026-08-03): server-hosted FCP peer + workshop Hot publish/pull; live Hyphanet on :9481 still required.
 
 ---
 
@@ -822,7 +822,7 @@ Pointers: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop 
 - [x] Exact RNS API mapping: HKDF bytes → destination identity (spike) — see **§ Reticulum destination naming → RNS API mapping**.
 - [ ] **`FarmStore` interface spike** — map current Firestore paths to contract; prove Firebase backend unchanged in production build.
 - [ ] **Farm bones mist contract** — publish/version/`content_hash` on `BonesKey` (§ Invitation), pull-on-join path.
-- [ ] **Lightweight Freenet host/client** in-process plug-in — workshop frozen ~2026-08-03 (encrypt-before-upload, KiB CHK, PUF-FN fork boundary); **implementation not started** (see **§ Pre-Freenet workshop decisions**, **§ Freenet peer implementation**).
+- [ ] **Lightweight Freenet host/client** in-process plug-in — **Phase 9 build started** (~2026-08-03): `FreenetPeer`, server FCP routes, workshop Hot sync; bones/manifest Freenet path deferred (see **§ Pre-Freenet workshop decisions**, **§ Freenet peer implementation**).
 - [x] **First-run UI prototype** — show-once FarmCode, confirm written down, optional device PIN copy (phase 4 — `/login/mist-new-farm`).
 
 ---

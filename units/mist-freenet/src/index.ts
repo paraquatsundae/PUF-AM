@@ -86,3 +86,8 @@ export {
   encryptHotBlob,
   type HotCiphertextEnvelope,
 } from './hot-crypto.ts';
+
+export type { FreenetPeerStatus } from './freenet-peer.ts';
+
+export { isMistAeadEnvelope, assertCiphertextForFreenet } from './ciphertext-guard.ts';
+export type { AssertCiphertextOptions } from './ciphertext-guard.ts';

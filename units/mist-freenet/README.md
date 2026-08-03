@@ -14,7 +14,7 @@ Experimental **Mist unit** for PUF-AM: encrypted durable storage over a Freenet-
 | **5 — Reload survival** | IndexedDB `MistStore`, device PIN unlock on reload, session encrypt | **Done** |
 | **6 — FarmCode recovery** | `/login/mist-recover` — laptop B joins with paper FarmCode; same `farmId`, local-only blobs | **Done** |
 | **7 — Two-laptop smoke** | Pre-Freenet A→B recovery on localhost; bones/Hot per-device (expected) | **Done** (~2026-08-03) |
-| **8+** | Reticulum unit, invite join QR, in-process Freenet plug-in, cross-device bone sync | **Workshop frozen** (~2026-08-03) — **implementation not started**; see Phase 8+ below |
+| **8+** | Reticulum unit, invite join QR, in-process Freenet plug-in, cross-device bone sync | **Phase 9 in-process plug-in — build started** (~2026-08-03); see Phase 9 below |
 
 Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node binary.
 
@@ -38,6 +38,8 @@ Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node b
 | `src/memory-mist-store.ts` | `MemoryMistStore` — in-memory implementation for contract tests |
 | `src/indexeddb-mist-store.ts` | `IndexedDbMistStore` — **browser** durable persistence (phase 5) |
 | `src/disk-mist-store.ts` | `DiskMistStore` — **Node-only** disk persistence (phase 2) |
+| `src/freenet-peer.ts` | `FreenetPeer` / `createFreenetPeer` — in-process lifecycle (phase 9) |
+| `src/ciphertext-guard.ts` | Encrypt-before-upload guard for Freenet puts |
 | `src/freenet-mist-store.ts` | `FreenetMistStore` — disk cache + FCP transport (phase 3) |
 | `src/freenet-transport.ts` | `FreenetTransport` interface |
 | `src/fcp-freenet-transport.ts` | `FcpFreenetTransport` — real FCPv2 over TCP (`node:net`) |
@@ -126,7 +128,26 @@ await store.init();
 - Sign out clears session blob + IndexedDB mist entries
 - **Two-laptop smoke (done, ~2026-08-03):** Laptop B FarmCode recovery → same `farmId`; bones/Hot per-device until Freenet or interim LAN sync
 
-### Phase 8+ (pre-Freenet workshop frozen ~2026-08-03)
+### Phase 9 — in-process Freenet plug-in (build started ~2026-08-03)
+
+- **`FreenetPeer` / `createFreenetPeer`** — `start` / `stop` / `status` lifecycle wrapping `FcpFreenetTransport` + `FreenetMistStore` (`src/freenet-peer.ts`; Node via `./node.ts`, browser-safe status type via `./index.ts`).
+- **Server-hosted FCP** — PUF-AM has no Electron main; the peer runs **in-process with Express** (`server/freenetPeerHost.ts`, `server/mistFreenetRoutes.ts`). Optional auto-start when `MIST_FREENET=1`.
+- **Browser proxy** — `src/mist/mistFreenetClient.ts` + Settings **Mist workshop** card: peer connect/disconnect, Publish/Pull Hot via `/api/mist/freenet/...`.
+- **Encrypt before upload** — `assertCiphertextForFreenet` on `FreenetMistStore.put()`; Hot must be AEAD envelope from `encryptHotBlob`.
+- **Hyphanet still required** for live network — FCP talks to `localhost:9481`; full JVM in-browser is out of scope. Mock transport tests cover sync without a node.
+
+**Enable locally:**
+
+```bash
+VITE_MIST_EXPERIMENTAL=true MIST_FREENET=1 npm run dev
+# Settings → Mist workshop → Connect Freenet peer → Publish Hot to Freenet
+# With Hyphanet installed + FCP on 9481: status shows connected
+# Without Hyphanet: peer starts, status disconnected (graceful); mock tests still pass
+```
+
+**Two-laptop (with Hyphanet on each PC):** Laptop A publish Hot to Freenet; Laptop B recover FarmCode → Pull Hot from Freenet (same Freenet mesh).
+
+### Phase 8+ (remaining — not started)
 
 Workshop captured design constraints before live Freenet wiring. **Do not implement the in-app client in this pass** — document-only freeze. Full checklist: [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_STORAGE.md) § Pre-Freenet workshop decisions.
 

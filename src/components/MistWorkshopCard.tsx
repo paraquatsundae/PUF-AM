@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Cloud, Database, FlaskConical, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Cloud, Database, FlaskConical, Loader2, Radio } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getFarmStoreBackend,
@@ -9,12 +9,27 @@ import {
 } from '../mist/farmStoreBackend.ts';
 import { readBonesWorkshopSmoke, runBonesWorkshopSmoke } from '../mist/bonesWorkshop.ts';
 import {
+  fetchFreenetPeerStatus,
+  publishHotToFreenet,
+  pullHotFromFreenet,
+  startFreenetPeer,
+  stopFreenetPeer,
+  type FreenetPeerStatus,
+} from '../mist/mistFreenetClient.ts';
+import {
   getMistHotPublishStatus,
   isMistHotMirrorAvailable,
   publishLocalFarmToMistHot,
   readMistHotCurrent,
   type MistHotPublishStatus,
 } from '../mist/mistHotBridge.ts';
+
+function freenetStatusLabel(status: FreenetPeerStatus | null): string {
+  if (!status?.running) return 'stopped';
+  if (status.freenet === 'connected') return 'connected';
+  if (status.freenet === 'connecting') return 'connecting…';
+  return 'disconnected (Hyphanet not on :9481?)';
+}
 
 export function MistWorkshopCard() {
   const { userData } = useAuth();
@@ -26,11 +41,23 @@ export function MistWorkshopCard() {
     farmId ? getMistHotPublishStatus(farmId) : null,
   );
   const [hotMirrorAvailable, setHotMirrorAvailable] = useState(() => isMistHotMirrorAvailable());
+  const [freenetStatus, setFreenetStatus] = useState<FreenetPeerStatus | null>(null);
+  const [freenetBusy, setFreenetBusy] = useState(false);
+
+  const refreshFreenetStatus = useCallback(async () => {
+    try {
+      const status = await fetchFreenetPeerStatus();
+      setFreenetStatus(status);
+    } catch {
+      setFreenetStatus(null);
+    }
+  }, []);
 
   useEffect(() => {
     setHotMirrorAvailable(isMistHotMirrorAvailable());
     if (farmId) setHotStatus(getMistHotPublishStatus(farmId));
-  }, [farmId, backend]);
+    void refreshFreenetStatus();
+  }, [farmId, backend, refreshFreenetStatus]);
 
   if (!isMistExperimentalEnabled() && backend !== 'mist') {
     return null;
@@ -117,6 +144,77 @@ export function MistWorkshopCard() {
     }
   };
 
+  const connectFreenet = async () => {
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const status = await startFreenetPeer({ contribute: false });
+      setFreenetStatus(status);
+      setSmokeResult(
+        status.freenet === 'connected'
+          ? `Freenet peer connected (${status.backendId})`
+          : `Freenet peer started but ${freenetStatusLabel(status)}`,
+      );
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Freenet connect failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const disconnectFreenet = async () => {
+    setFreenetBusy(true);
+    try {
+      const status = await stopFreenetPeer();
+      setFreenetStatus(status);
+      setSmokeResult('Freenet peer stopped');
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Freenet disconnect failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const publishHotFreenet = async () => {
+    if (!farmId) return;
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const result = await publishHotToFreenet(farmId);
+      setHotStatus(getMistHotPublishStatus(farmId));
+      setSmokeResult(
+        `Hot on Freenet — ${result.storageKey} · hash ${result.contentHash.slice(0, 12)}…${result.freenetPending ? ' · insert pending' : ''}${result.freenetUri ? ` · ${result.freenetUri.slice(0, 24)}…` : ''}`,
+      );
+      await refreshFreenetStatus();
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Freenet Hot publish failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const pullHotFreenet = async () => {
+    if (!farmId) return;
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const result = await pullHotFromFreenet(farmId);
+      const readBack = await readMistHotCurrent(farmId);
+      setSmokeResult(
+        readBack
+          ? `Pulled Hot from Freenet → local IndexedDB — ${readBack.hot.records.length} records · hash ${result.contentHash.slice(0, 12)}…`
+          : `Pulled ciphertext · hash ${result.contentHash.slice(0, 12)}… (unlock session to decrypt)`,
+      );
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Freenet Hot pull failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const freenetUp = freenetStatus?.running && freenetStatus.freenet === 'connected';
+  const workshopBusy = smokeBusy || freenetBusy;
+
   return (
     <div className="bg-white p-6 rounded-2xl border border-violet-200 shadow-sm space-y-4">
       <div className="flex items-start gap-3">
@@ -126,7 +224,7 @@ export function MistWorkshopCard() {
         <div>
           <h2 className="text-lg font-bold text-slate-900">Mist workshop (experimental)</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Phase 5 — IndexedDB FarmStore + local diary/issues → mist Hot. Firebase remains default for production farms.
+            Phase 9 — IndexedDB + in-process Freenet peer (server FCP). Firebase remains default for production farms.
           </p>
         </div>
       </div>
@@ -158,6 +256,60 @@ export function MistWorkshopCard() {
         </button>
       </div>
 
+      <div className="space-y-2 pt-2 border-t border-slate-100">
+        <div className="flex items-center gap-2">
+          <Radio className="w-4 h-4 text-violet-600" />
+          <p className="text-xs font-semibold text-slate-700">Freenet peer (in-process)</p>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          FCP client runs inside this app&apos;s Node server — not a separate Hyphanet UI. A local Hyphanet node on{' '}
+          <code className="font-mono">localhost:9481</code> is still required for real network inserts.
+        </p>
+        <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+          Status:{' '}
+          <span className="font-mono">{freenetStatusLabel(freenetStatus)}</span>
+          {freenetStatus?.running ? (
+            <>
+              {' '}
+              · contribute={String(freenetStatus.contribute)} · backend={freenetStatus.backendId}
+            </>
+          ) : null}
+          {freenetStatus?.lastError ? (
+            <span className="block text-amber-700 mt-1">{freenetStatus.lastError}</span>
+          ) : null}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {!freenetStatus?.running ? (
+            <button
+              type="button"
+              disabled={workshopBusy}
+              onClick={() => void connectFreenet()}
+              className="px-3 py-2 rounded-lg bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              {freenetBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              Connect Freenet peer
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={workshopBusy}
+              onClick={() => void disconnectFreenet()}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
+            >
+              Disconnect peer
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={workshopBusy}
+            onClick={() => void refreshFreenetStatus()}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
+          >
+            Refresh status
+          </button>
+        </div>
+      </div>
+
       {hotMirrorAvailable && farmId && (
         <div className="space-y-2 pt-2 border-t border-slate-100">
           <p className="text-xs font-semibold text-slate-700">Local → mist Hot</p>
@@ -175,20 +327,38 @@ export function MistWorkshopCard() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={smokeBusy}
+              disabled={workshopBusy}
               onClick={() => void publishHot()}
               className="px-3 py-2 rounded-lg bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
             >
-              {smokeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              {workshopBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
               Publish local diary/issues to mist Hot
             </button>
             <button
               type="button"
-              disabled={smokeBusy}
+              disabled={workshopBusy}
               onClick={() => void readHot()}
               className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
             >
-              Read Hot back (smoke)
+              Read Hot back (local)
+            </button>
+            <button
+              type="button"
+              disabled={workshopBusy || !freenetUp}
+              title={freenetUp ? undefined : 'Connect Freenet peer first'}
+              onClick={() => void publishHotFreenet()}
+              className="px-3 py-2 rounded-lg bg-indigo-700 text-white text-xs font-semibold disabled:opacity-50"
+            >
+              Publish Hot to Freenet
+            </button>
+            <button
+              type="button"
+              disabled={workshopBusy || !freenetStatus?.running}
+              title={freenetStatus?.running ? undefined : 'Start Freenet peer first'}
+              onClick={() => void pullHotFreenet()}
+              className="px-3 py-2 rounded-lg border border-indigo-200 text-xs font-semibold text-indigo-800"
+            >
+              Pull Hot from Freenet
             </button>
           </div>
         </div>
@@ -202,16 +372,16 @@ export function MistWorkshopCard() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={smokeBusy}
+              disabled={workshopBusy}
               onClick={() => void runSmoke()}
               className="px-3 py-2 rounded-lg bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
             >
-              {smokeBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+              {workshopBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
               Bones put/get smoke
             </button>
             <button
               type="button"
-              disabled={smokeBusy}
+              disabled={workshopBusy}
               onClick={() => void readSmoke()}
               className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
             >

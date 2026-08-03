@@ -49,6 +49,7 @@ describe('FreenetMistStore (mock transport)', () => {
       rootDir,
       transport,
       contribute: options.contribute ?? false,
+      allowPlaintextForTests: true,
     });
     await store.init();
     return store;
@@ -81,6 +82,7 @@ describe('FreenetMistStore (mock transport)', () => {
     const store2 = new FreenetMistStore({
       rootDir,
       transport: new MockFreenetTransport(),
+      allowPlaintextForTests: true,
     });
     await store2.init();
     const bones = await store2.list(kindPrefix(FARM, 'bones'));
@@ -104,7 +106,7 @@ describe('FreenetMistStore (mock transport)', () => {
     expect(transport.getPutCount()).toBe(0);
 
     const transportUp = new MockFreenetTransport();
-    const store2 = new FreenetMistStore({ rootDir, transport: transportUp });
+    const store2 = new FreenetMistStore({ rootDir, transport: transportUp, allowPlaintextForTests: true });
     await store2.init();
     const flushed = await store2.flushOutbox();
     expect(flushed).toBe(1);
@@ -182,7 +184,7 @@ describe('sealHotPeriod on FreenetMistStore', () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), 'mist-freenet-seal-'));
     try {
       const transport = new MockFreenetTransport();
-      const store = new FreenetMistStore({ rootDir, transport });
+      const store = new FreenetMistStore({ rootDir, transport, allowPlaintextForTests: true });
       await store.init();
 
       await store.put(

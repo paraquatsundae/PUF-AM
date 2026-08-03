@@ -13,6 +13,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { assertCiphertextForFreenet } from './ciphertext-guard.ts';
 import { DiskMistStore, type DiskMistStoreOptions } from './disk-mist-store.ts';
 import type { FreenetOutboxEntry, FreenetKeyIndex, FreenetKeyRecord } from './freenet-keys.ts';
 import { freenetIndexPath, outboxPath } from './freenet-keys.ts';
@@ -35,6 +36,8 @@ export type FreenetMistStoreOptions = DiskMistStoreOptions & {
   transport: FreenetTransport;
   /** Attempt FCP connect on init (default false — connect on first insert). */
   connectOnInit?: boolean;
+  /** Vitest only — skip encrypt-before-upload guard. */
+  allowPlaintextForTests?: boolean;
 };
 
 async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
@@ -61,6 +64,7 @@ export class FreenetMistStore implements MistStore {
   private readonly cache: DiskMistStore;
   private readonly transport: FreenetTransport;
   private readonly connectOnInit: boolean;
+  private readonly allowPlaintextForTests: boolean;
   private freenetIndex: FreenetKeyIndex = {};
   private outbox: FreenetOutboxEntry[] = [];
   private ready: Promise<void>;
@@ -71,6 +75,7 @@ export class FreenetMistStore implements MistStore {
 
     this.transport = options.transport;
     this.connectOnInit = options.connectOnInit ?? false;
+    this.allowPlaintextForTests = options.allowPlaintextForTests ?? false;
     this.backendId = options.backendId ?? 'freenet-mist';
     this.rootDir = path.resolve(options.rootDir);
     this.cache = new DiskMistStore({
@@ -109,6 +114,9 @@ export class FreenetMistStore implements MistStore {
 
   async put(key: string, ciphertext: Uint8Array, meta: MistPutMeta): Promise<PutResult> {
     await this.ready;
+    assertCiphertextForFreenet(key, ciphertext, {
+      allowPlaintext: this.allowPlaintextForTests,
+    });
     const result = await this.cache.put(key, ciphertext, meta);
 
     this.freenetIndex[key] = {
