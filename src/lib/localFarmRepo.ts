@@ -193,3 +193,40 @@ export async function pendingOutboxCount(farmId: string): Promise<number> {
   const ops = await listOutbox(farmId);
   return ops.length;
 }
+
+export type LocalFarmEntityCounts = {
+  diary: number;
+  issues: number;
+  issuesArchive: number;
+  outbox: number;
+};
+
+export async function countLocalFarmEntities(farmId: string): Promise<LocalFarmEntityCounts> {
+  const [diary, issues, issuesArchive, outbox] = await Promise.all([
+    listLocalEntities(farmId, 'diary'),
+    listLocalEntities(farmId, 'issues'),
+    listLocalEntities(farmId, 'issues_archive'),
+    listOutbox(farmId),
+  ]);
+  return {
+    diary: diary.length,
+    issues: issues.length,
+    issuesArchive: issuesArchive.length,
+    outbox: outbox.length,
+  };
+}
+
+/** Wipe diary/issues for one farm; returns counts before wipe. Outbox cleared too. */
+export async function wipeLocalFarmEntitiesForFarm(farmId: string): Promise<LocalFarmEntityCounts> {
+  const before = await countLocalFarmEntities(farmId);
+  await Promise.all([
+    replaceLocalEntities(farmId, 'diary', []),
+    replaceLocalEntities(farmId, 'issues', []),
+    replaceLocalEntities(farmId, 'issues_archive', []),
+  ]);
+
+  const ops = await listOutbox(farmId);
+  await Promise.all(ops.map((op) => removeOutboxOp(op.id)));
+
+  return before;
+}

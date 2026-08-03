@@ -13,6 +13,22 @@ export type { FreenetMistStoreOptions } from './freenet-mist-store.ts';
 export type { FreenetTransport, FreenetPutOptions, FreenetPutResult, FreenetTransportHealth } from './freenet-transport.ts';
 export { FcpFreenetTransport } from './fcp-freenet-transport.ts';
 export type { FcpFreenetTransportOptions } from './fcp-freenet-transport.ts';
+export { Freenet02WsTransport } from './freenet02-ws-transport.ts';
+export type { Freenet02WsTransportOptions } from './freenet02-ws-transport.ts';
+export {
+  createFreenetTransport,
+  describeFreenetTransportKind,
+  resolveFreenetTransportKind,
+} from './create-freenet-transport.ts';
+export type { CreateFreenetTransportOptions, FreenetTransportKind } from './create-freenet-transport.ts';
+export { encodeFreenet02Uri, parseFreenet02Uri, isFreenet02Uri, FREENET02_URI_PREFIX } from './freenet02-uri.ts';
+export {
+  blake3Bytes,
+  loadPackContractWasm,
+  packParametersFromBlob,
+  FREENET02_MAX_BLOB_BYTES,
+  DEFAULT_PACK_CONTRACT_WASM,
+} from './freenet02-pack.ts';
 export { MockFreenetTransport, mockChkUriFromContent } from './mock-freenet-transport.ts';
 export type { MockFreenetTransportOptions } from './mock-freenet-transport.ts';
 

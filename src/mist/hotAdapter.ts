@@ -8,9 +8,18 @@
  */
 
 import type { HotRecord, HotState } from '../../units/mist-freenet/src/seal-hot.ts';
+import type { DiaryEvent } from '../lib/farmDiary';
+import type { FieldIssue } from '../lib/fieldStore';
 import type { FarmExportDiaryEvent, FarmExportIssue, FarmExportV1 } from '../lib/farmExport';
 
 export const HOT_WINDOW_DAYS = 90;
+
+export const DIARY_HOT_RECORD_TYPES = new Set<DiaryEvent['type']>([
+  'spray',
+  'irrigation',
+  'work',
+  'nutrition',
+]);
 
 /** UTC midnight at start of the rolling hot window (default 90 days). */
 export function hotWindowStart(now = Date.now()): string {
@@ -70,5 +79,59 @@ export function buildHotStateFromFarmExport(
     records,
     tombstones: prev?.tombstones ?? [],
     last_sealed: prev?.last_sealed ?? null,
+  };
+}
+
+function exportDiaryToDiaryEvent(row: FarmExportDiaryEvent): DiaryEvent {
+  const { blockName: _blockName, ...rest } = row;
+  return rest as DiaryEvent;
+}
+
+function exportIssueToFieldIssue(row: FarmExportIssue): FieldIssue {
+  const { hasPhoto: _hasPhoto, ...rest } = row;
+  return rest as FieldIssue;
+}
+
+export type HotFarmEntities = {
+  diary: DiaryEvent[];
+  issues: FieldIssue[];
+  issuesArchive: FieldIssue[];
+};
+
+/** Inverse of `buildHotStateFromFarmExport` — Hot records → local entity rows. */
+export function hotStateToFarmEntities(hot: HotState): HotFarmEntities {
+  const diary: DiaryEvent[] = [];
+  const issues: FieldIssue[] = [];
+  const issuesArchive: FieldIssue[] = [];
+
+  for (const record of hot.records) {
+    if (DIARY_HOT_RECORD_TYPES.has(record.type as DiaryEvent['type'])) {
+      diary.push(exportDiaryToDiaryEvent(record.payload as FarmExportDiaryEvent));
+      continue;
+    }
+    if (record.type === 'issue') {
+      issues.push(exportIssueToFieldIssue(record.payload as FarmExportIssue));
+      continue;
+    }
+    if (record.type === 'issue_archived') {
+      issuesArchive.push(exportIssueToFieldIssue(record.payload as FarmExportIssue));
+    }
+  }
+
+  return { diary, issues, issuesArchive };
+}
+
+export function countHotFarmEntities(hot: HotState): {
+  diary: number;
+  issues: number;
+  issuesArchive: number;
+  records: number;
+} {
+  const entities = hotStateToFarmEntities(hot);
+  return {
+    diary: entities.diary.length,
+    issues: entities.issues.length,
+    issuesArchive: entities.issuesArchive.length,
+    records: hot.records.length,
   };
 }

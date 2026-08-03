@@ -2,9 +2,9 @@
  * Mist key ↔ Freenet URI mapping (v1).
  *
  * Strategy:
- * - Ciphertext blobs are inserted as **CHK** (content-addressed, immutable).
- * - Local index maps mist key → CHK URI + content_hash (see FreenetMistStore index).
- * - Mutable contracts (hot/current, manifest) are re-put as new CHK blobs; the mist
+ * - Ciphertext blobs are inserted as **CHK** (FCP) or **FN02@…** (Freenet 0.2 pack-contract).
+ * - Local index maps mist key → URI + content_hash (see FreenetMistStore index).
+ * - Mutable contracts (hot/current, manifest) are re-put as new blobs; the mist
  *   key always points at the latest URI in the local index. USK/SSK updates are deferred.
  *
  * Browsers cannot run a full Freenet node; only Node/Electron main may use FCP.

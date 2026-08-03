@@ -23,6 +23,11 @@ export type FreenetTransportHealth = {
   host?: string;
   port?: number;
   nodeVersion?: string;
+  /** `fcp` | `ws02` | `mock` — which wire backend is active. */
+  transportId?: string;
+  /** Full endpoint when useful (e.g. ws://127.0.0.1:7509/v1/contract/command). */
+  endpoint?: string;
+  lastError?: string;
 };
 
 export interface FreenetTransport {

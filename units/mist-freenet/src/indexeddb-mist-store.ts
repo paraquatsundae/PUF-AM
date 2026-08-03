@@ -138,6 +138,20 @@ export class IndexedDbMistStore implements MistStore {
     };
   }
 
+  /** Remove one entry (workshop wipe / disaster-recovery smoke). */
+  async deleteKey(key: string): Promise<boolean> {
+    await this.init();
+    const db = this.db!;
+    const existed = (await this.get(key)) !== null;
+    if (!existed) return false;
+
+    await this.txPromise(db, ENTRIES_STORE, 'readwrite', (tx) => {
+      tx.objectStore(ENTRIES_STORE).delete(key);
+    });
+    this.notifyWatchers(key, null);
+    return true;
+  }
+
   async list(prefix: string): Promise<MistEntry[]> {
     await this.init();
     const db = this.db!;

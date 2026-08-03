@@ -157,6 +157,8 @@ export class FcpFreenetTransport implements FreenetTransport {
       host: this.host,
       port: this.port,
       nodeVersion: this.nodeVersion,
+      transportId: 'fcp',
+      endpoint: `tcp://${this.host}:${this.port}`,
     };
   }
 

@@ -59,6 +59,15 @@ export class MemoryMistStore implements MistStore {
     return this.entries.get(key) ?? null;
   }
 
+  /** Remove one entry (workshop wipe / disaster-recovery smoke). */
+  async deleteKey(key: string): Promise<boolean> {
+    const existed = this.entries.delete(key);
+    if (existed) {
+      this.notifyWatchers(key, null);
+    }
+    return existed;
+  }
+
   async list(prefix: string): Promise<MistEntry[]> {
     const out: MistEntry[] = [];
     for (const entry of this.entries.values()) {

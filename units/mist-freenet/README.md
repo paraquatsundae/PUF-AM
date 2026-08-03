@@ -89,15 +89,28 @@ Key naming follows [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_ST
 6. **`contribute=false` (default)** — own inserts still run (durability), but FCP uses low priority (`PriorityClass=6`) and `ExtraInsertsSingleBlock=0`. Does not enable foreign replication (future `replicate()` still gated).
 7. **Browser** — cannot run FCP or `fs`; import `./index.ts` only. Production target: **in-process Freenet plug-in** inside PUF-AM (workshop frozen ~2026-08-03); external Hyphanet node remains for dev/live FCP tests.
 
-### FCP configuration
+### FCP / WebSocket configuration
 
 | Env / option | Default | Purpose |
 |--------------|---------|---------|
+| `FREENET_TRANSPORT` | `ws02` | `ws02` / `ws` / `freenet02` → Freenet 0.2 WebSocket; `fcp` / `hyphanet` → legacy Hyphanet FCP |
+| `FREENET_WS_URL` | `ws://127.0.0.1:7509/v1/contract/command` | Freenet 0.2 node WebSocket API (also implies ws02 when transport unset) |
+| `FREENET_WS_AUTH` | _(empty)_ | Optional WS auth token (localhost usually needs none) |
+| `FREENET_PACK_WASM` | `units/mist-freenet/assets/pack-contract.wasm` | Pack-contract WASM for immutable blob puts |
 | `FREENET_FCP_HOST` | `127.0.0.1` | Hyphanet node FCP host |
-| `FREENET_FCP_PORT` | `9481` | FCP port (enabled by default on Hyphanet) |
-| `FcpFreenetTransportOptions.clientName` | `PUF-AM-mist` | FCP ClientHello name |
+| `FREENET_FCP_PORT` | `9481` | FCP port (Hyphanet legacy) |
 
-Install [Hyphanet](https://www.hyphanet.org/) locally, ensure FCP is enabled, then:
+**Freenet 0.2 workshop (Rust node on :7509):**
+
+```bash
+VITE_MIST_EXPERIMENTAL=true MIST_FREENET=1 \
+  FREENET_TRANSPORT=ws02 \
+  FREENET_WS_URL=ws://127.0.0.1:7509/v1/contract/command \
+  npm run dev
+# Settings → Mist workshop → Connect Freenet peer → Publish Hot to Freenet
+```
+
+**Legacy Hyphanet FCP:**
 
 ```ts
 import { FcpFreenetTransport, FreenetMistStore } from '../units/mist-freenet/src/node.ts';
@@ -111,10 +124,23 @@ const store = new FreenetMistStore({
 await store.init();
 ```
 
-### Limitations (phase 3)
+### Freenet 0.2 addressing (mist keys → network)
+
+Freenet 0.2 has no CHK insert API. Mist uses the **freenet-git pack-contract** WASM:
+
+- **Parameters** = BLAKE3-32(ciphertext)
+- **State** = ciphertext bytes (already AEAD-sealed by caller)
+- **URI** = `FN02@<base58-contract-instance-id>` where instance id = `BLAKE3(BLAKE3(wasm) || parameters)`
+- Local `_mist/freenet-index.json` still maps mist key → URI + `content_hash` (same as FCP path)
+
+Pull on laptop B: resolve mist key from local index (or re-publish flow) → `getBlob(FN02@…)` → disk cache.
+
+### Limitations (phase 3 + ws02)
 
 - No USK/SSK mutable Freenet keys — hot/manifest use replace-pointer-via-local-index.
-- No splitfile support for **KiB-class** payloads (workshop frozen ~2026-08-03) — Hot/bones/manifest use single-block CHK. Splitfiles deferred for larger assets (tile packs, multi-MiB archives).
+- **Freenet 0.2:** pack-contract only (64 KiB single blob); PUT uses `fdev execute put` (native WS) — flatbuffers SDK PUT hangs on 0.2.118; GET uses `@freenetorg/freenet-stdlib` flatbuffers.
+- **FCP vs FN02 URIs are not interchangeable** — index entries from one transport cannot be fetched with the other.
+- No splitfile support for **KiB-class** payloads (workshop frozen ~2026-08-03) — Hot/bones/manifest use single-block blobs. Splitfiles deferred for larger assets (tile packs, multi-MiB archives).
 - No cross-device watch/push — `watch()` is local disk only.
 - No `replicate()` for foreign copies — `contribute` flag is persisted and reflected in health/stats only.
 - FCP client covers ClientHello, ClientPut (direct CHK), ClientGet (direct) — not persistent queue / global watch / TestDDA disk paths.

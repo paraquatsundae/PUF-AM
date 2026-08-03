@@ -17,6 +17,15 @@ import {
   type FreenetPeerStatus,
 } from '../mist/mistFreenetClient.ts';
 import {
+  formatEntityCounts,
+  formatRehydrateResult,
+  formatWipeResult,
+  getLocalFarmEntityCounts,
+  recoverLocalFarmFromFreenet,
+  refreshFarmUiAfterRecovery,
+  wipeLocalFarmForDisasterRecovery,
+} from '../mist/mistDisasterRecovery.ts';
+import {
   getMistHotPublishStatus,
   isMistHotMirrorAvailable,
   publishLocalFarmToMistHot,
@@ -24,11 +33,35 @@ import {
   type MistHotPublishStatus,
 } from '../mist/mistHotBridge.ts';
 
+function freenetEndpointSummary(status: FreenetPeerStatus): string | undefined {
+  return (
+    status.endpoint ??
+    (status.host && status.port != null ? `${status.host}:${status.port}` : undefined)
+  );
+}
+
+function freenetDisconnectedHint(status: FreenetPeerStatus): string {
+  const ep = freenetEndpointSummary(status);
+  const isWs02 = status.transportId === 'ws02';
+  if (isWs02) {
+    return ep ? `Freenet 0.2 not reachable @ ${ep}` : 'Freenet 0.2 node not on :7509?';
+  }
+  return ep ? `Hyphanet FCP not reachable @ ${ep}` : 'Hyphanet not on :9481?';
+}
+
 function freenetStatusLabel(status: FreenetPeerStatus | null): string {
   if (!status?.running) return 'stopped';
-  if (status.freenet === 'connected') return 'connected';
-  if (status.freenet === 'connecting') return 'connecting…';
-  return 'disconnected (Hyphanet not on :9481?)';
+  if (status.freenet === 'connected') {
+    const ep = freenetEndpointSummary(status) ?? '';
+    return ep
+      ? `connected (${status.transportLabel ?? status.transportId ?? 'freenet'} @ ${ep})`
+      : 'connected';
+  }
+  if (status.freenet === 'connecting') {
+    const ep = freenetEndpointSummary(status);
+    return ep ? `connecting to ${ep}…` : 'connecting…';
+  }
+  return `disconnected (${freenetDisconnectedHint(status)})`;
 }
 
 export function MistWorkshopCard() {
@@ -212,6 +245,84 @@ export function MistWorkshopCard() {
     }
   };
 
+  const showLocalCounts = async () => {
+    if (!farmId) return;
+    setSmokeBusy(true);
+    try {
+      const counts = await getLocalFarmEntityCounts(farmId);
+      setSmokeResult(`Local pufom_farm_local — ${formatEntityCounts(counts)}`);
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Count failed');
+    } finally {
+      setSmokeBusy(false);
+    }
+  };
+
+  const publishBackupToFreenet = async () => {
+    if (!farmId) return;
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const local = await publishLocalFarmToMistHot(farmId);
+      if (!local) {
+        setSmokeResult('Hot mirror unavailable — unlock mist device session first');
+        return;
+      }
+      const remote = await publishHotToFreenet(farmId);
+      setHotStatus(getMistHotPublishStatus(farmId));
+      setSmokeResult(
+        `Backup on Freenet — local ${local.recordCount} records → ${remote.storageKey} · hash ${remote.contentHash.slice(0, 12)}…${remote.freenetPending ? ' · insert pending' : ''}`,
+      );
+      await refreshFreenetStatus();
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Backup publish failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const simulateLocalLoss = async () => {
+    if (!farmId) return;
+    const ok = window.confirm(
+      'Workshop disaster smoke: wipe local diary, issues, and mist Hot for this farm?\n\n' +
+        'Kept: FarmCode, device session (FarmSeed), farm geometry.\n' +
+        'Requires Freenet backup to recover.',
+    );
+    if (!ok) return;
+
+    setSmokeBusy(true);
+    setSmokeResult(null);
+    try {
+      const result = await wipeLocalFarmForDisasterRecovery(farmId, {
+        clearHot: true,
+        clearBonesWorkshop: false,
+      });
+      setHotStatus(null);
+      await refreshFarmUiAfterRecovery(farmId);
+      setSmokeResult(formatWipeResult(result));
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Local wipe failed');
+    } finally {
+      setSmokeBusy(false);
+    }
+  };
+
+  const recoverFromFreenet = async () => {
+    if (!farmId) return;
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const result = await recoverLocalFarmFromFreenet(farmId);
+      setHotStatus(getMistHotPublishStatus(farmId));
+      await refreshFarmUiAfterRecovery(farmId);
+      setSmokeResult(`${formatRehydrateResult(result)} · hash ${result.contentHash.slice(0, 12)}…`);
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Freenet recovery failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
   const freenetUp = freenetStatus?.running && freenetStatus.freenet === 'connected';
   const workshopBusy = smokeBusy || freenetBusy;
 
@@ -224,7 +335,7 @@ export function MistWorkshopCard() {
         <div>
           <h2 className="text-lg font-bold text-slate-900">Mist workshop (experimental)</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Phase 9 — IndexedDB + in-process Freenet peer (server FCP). Firebase remains default for production farms.
+            Phase 9 — IndexedDB + in-process Freenet peer (server transport). Firebase remains default for production farms.
           </p>
         </div>
       </div>
@@ -262,8 +373,11 @@ export function MistWorkshopCard() {
           <p className="text-xs font-semibold text-slate-700">Freenet peer (in-process)</p>
         </div>
         <p className="text-[11px] text-slate-500">
-          FCP client runs inside this app&apos;s Node server — not a separate Hyphanet UI. A local Hyphanet node on{' '}
-          <code className="font-mono">localhost:9481</code> is still required for real network inserts.
+          Transport runs inside this app&apos;s Node server. Default:{' '}
+          <strong>Freenet 0.2</strong> WebSocket at{' '}
+          <code className="font-mono">ws://127.0.0.1:7509/v1/contract/command</code>. Legacy Hyphanet
+          FCP (<code className="font-mono">FREENET_TRANSPORT=fcp</code>, <code className="font-mono">:9481</code>)
+          is opt-in.
         </p>
         <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
           Status:{' '}
@@ -271,7 +385,8 @@ export function MistWorkshopCard() {
           {freenetStatus?.running ? (
             <>
               {' '}
-              · contribute={String(freenetStatus.contribute)} · backend={freenetStatus.backendId}
+              · transport={freenetStatus.transportId ?? '?'} · contribute=
+              {String(freenetStatus.contribute)}
             </>
           ) : null}
           {freenetStatus?.lastError ? (
@@ -359,6 +474,53 @@ export function MistWorkshopCard() {
               className="px-3 py-2 rounded-lg border border-indigo-200 text-xs font-semibold text-indigo-800"
             >
               Pull Hot from Freenet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hotMirrorAvailable && farmId && (
+        <div className="space-y-2 pt-2 border-t border-amber-100">
+          <p className="text-xs font-semibold text-amber-900">Freenet loss / recovery smoke</p>
+          <p className="text-[11px] text-slate-500">
+            End-to-end: publish Hot to Freenet → simulate local loss → pull + rehydrate diary/issues.
+            Freenet peer must be connected (<code className="font-mono">FREENET_TRANSPORT=ws02</code>, node on{' '}
+            <code className="font-mono">localhost:7509</code>).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={workshopBusy || !freenetUp}
+              title={freenetUp ? undefined : 'Connect Freenet peer first'}
+              onClick={() => void publishBackupToFreenet()}
+              className="px-3 py-2 rounded-lg bg-amber-700 text-white text-xs font-semibold disabled:opacity-50"
+            >
+              1. Publish backup (Hot → Freenet)
+            </button>
+            <button
+              type="button"
+              disabled={workshopBusy}
+              onClick={() => void simulateLocalLoss()}
+              className="px-3 py-2 rounded-lg bg-red-700 text-white text-xs font-semibold disabled:opacity-50"
+            >
+              2. Simulate local loss
+            </button>
+            <button
+              type="button"
+              disabled={workshopBusy || !freenetStatus?.running}
+              title={freenetStatus?.running ? undefined : 'Start Freenet peer first'}
+              onClick={() => void recoverFromFreenet()}
+              className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+            >
+              3. Recover from Freenet
+            </button>
+            <button
+              type="button"
+              disabled={workshopBusy}
+              onClick={() => void showLocalCounts()}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
+            >
+              Local counts
             </button>
           </div>
         </div>

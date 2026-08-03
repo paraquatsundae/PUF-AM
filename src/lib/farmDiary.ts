@@ -316,6 +316,16 @@ const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
   }
 }));
 
+/** Force reload diary from pufom_farm_local (e.g. after mist disaster-recovery rehydrate). */
+export function forceReloadFarmDiary(
+  farmId: string,
+  startDate?: string,
+  endDate?: string,
+): void {
+  useFarmDiaryStore.setState({ isLoaded: false, isLoading: true });
+  void useFarmDiaryStore.getState().loadData(farmId, startDate, endDate);
+}
+
 export function useFarmDiary(startDate?: string, endDate?: string) {
   const { userData } = useAuth();
   const farmId = userData?.farmId;

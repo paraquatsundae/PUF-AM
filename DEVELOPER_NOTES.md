@@ -17,13 +17,18 @@ Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** 
 - Full plan: [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md)
 - **Phase 1 contract (frozen API):** [`units/mist-freenet/`](units/mist-freenet/) — types + `MistStore` + `FarmStoreAdapter`; no app wiring yet.
 - **Phase 2 local disk (done):** `DiskMistStore` + `sealHotPeriod()` in the same unit — Node-only persistence; import `./src/node.ts` from main process.
-- **Phase 3 Freenet adapter (done):** `FreenetMistStore` + `FcpFreenetTransport` / `MockFreenetTransport` — disk cache + FCP CHK put/get; import `./src/node.ts` or `./src/freenet.ts`.
+- **Phase 3 Freenet adapter (done):** `FreenetMistStore` + `FcpFreenetTransport` / `Freenet02WsTransport` / `MockFreenetTransport` — disk cache + put/get; import `./src/node.ts` or `./src/freenet.ts`.
 - **Phase 4 app wiring (done):** FarmCode (`mist-fc-1`), `src/mist/` FarmStore factory + mist first-run at `/login/mist-new-farm`, Settings bones workshop. Default backend remains Firebase.
 - **Phase 5 reload survival (done):** `IndexedDbMistStore`, encrypted device session + PIN unlock gate, bones persist across reload. Per-device only until Freenet sync.
 - **Phase 6 FarmCode recovery (done):** `/login/mist-recover` — laptop B enters existing FarmCode → same `farmId` + local IndexedDB; blobs from laptop A stay local-only until Freenet sync ships.
 - **Phase 7 local → Hot bridge (done):** `mistHotBridge.ts` — diary/issues from `pufom_farm_local` → `hot/current` (AEAD via `freenet-hot` HKDF); auto-publish when mist device session active; Settings workshop UI. Firestore/outbox unchanged.
 - **Phase 8 two-laptop smoke (done, ~2026-08-03):** Pre-Freenet two-laptop pass — Laptop A create + local Hot; Laptop B **FarmCode recovery** → same `farmId` on localhost; bones/Hot per-device (expected). See [`Plans/MIST_TWO_LAPTOP_SMOKE.md`](Plans/MIST_TWO_LAPTOP_SMOKE.md).
-- **Phase 9+ (pre-Freenet workshop frozen ~2026-08-03):** Reticulum unit, invite join QR, in-process Freenet client plug-in, cross-device bone sync, `sealHotPeriod` app trigger. **Phase 9 in-process Freenet plug-in — build started ~2026-08-03** (server-hosted FCP + workshop UI; live Hyphanet still required on :9481).
+- **Phase 9+ (pre-Freenet workshop frozen ~2026-08-03):** Reticulum unit, invite join QR, in-process Freenet client plug-in, cross-device bone sync, `sealHotPeriod` app trigger. **Phase 9 in-process Freenet plug-in — ws02 transport added ~2026-08-03** (Freenet 0.2 WebSocket on :7509 + legacy FCP; workshop publish/pull Hot).
+- **Phase 9 disaster-recovery smoke (done):** `mistDisasterRecovery.ts` + Settings → *Freenet loss / recovery smoke* — publish Hot → Freenet, wipe local `pufom_farm_local` + hot/current, pull + rehydrate. FarmCode/device session preserved. Unit tests: `src/mist/mistDisasterRecovery.test.ts`.
+
+#### Milestone — Hot loss / Freenet recovery (ws02, ~2026-08-03)
+
+**Workshop smoke succeeded:** Settings → *Freenet loss / recovery smoke* — publish Hot to Freenet 0.2 (`FREENET_TRANSPORT=ws02`, WebSocket `localhost:7509`), wipe local `pufom_farm_local` + mist `hot/current`, pull ciphertext and rehydrate diary/issues. FarmCode and mist device session preserved. Operator-reported successful rehydrate of **3 diary** entries; Freenet Hot contract hash prefix **`a31a5a98…`**. See [`Plans/MIST_TWO_LAPTOP_SMOKE.md`](Plans/MIST_TWO_LAPTOP_SMOKE.md) § Single-laptop disaster-recovery smoke.
 
 #### Milestone — two-laptop FarmCode recovery (pre-Freenet, ~2026-08-03)
 

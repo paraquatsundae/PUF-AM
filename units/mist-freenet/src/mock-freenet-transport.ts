@@ -78,7 +78,13 @@ export class MockFreenetTransport implements FreenetTransport {
 
   async health(): Promise<FreenetTransportHealth> {
     const status: FreenetConnectionStatus = this.connected ? 'connected' : 'disconnected';
-    return { status, host: this.host, port: this.port, nodeVersion: 'MockFred,0.7,test,0' };
+    return {
+      status,
+      host: this.host,
+      port: this.port,
+      nodeVersion: 'MockFred,0.7,test,0',
+      transportId: 'mock',
+    };
   }
 
   /** Test helpers */

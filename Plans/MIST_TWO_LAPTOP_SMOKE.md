@@ -148,8 +148,56 @@ nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
 ## Automated checks (either laptop)
 
 ```bash
-npm test -- tests/mistHotBridge.test.ts units/mist-freenet/hot-crypto.test.ts
+npm test -- tests/mistHotBridge.test.ts units/mist-freenet/hot-crypto.test.ts src/mist/mistDisasterRecovery.test.ts
 ```
+
+---
+
+## Single-laptop disaster-recovery smoke (Freenet 0.2)
+
+Validates **record → Hot → Freenet → wipe local → recover** on one machine. Requires a running Freenet 0.2 node with WebSocket on `localhost:7509`.
+
+### Server env (restart dev server after setting)
+
+```bash
+export FREENET_TRANSPORT=ws02
+export VITE_MIST_EXPERIMENTAL=true
+npm run dev
+```
+
+Optional: `FREENET_WS_URL=ws://127.0.0.1:7509/v0/websocket` if not default.
+
+### UI flow (Settings → Mist workshop)
+
+1. Unlock mist device session (FarmCode + PIN if set).
+2. Add at least one **diary** entry and one **field issue**.
+3. **Connect Freenet peer** — status should show `connected (ws02 @ …)`.
+4. **1. Publish backup (Hot → Freenet)** — local AEAD Hot, then FN02 insert.
+5. **Local counts** — note diary/issue counts (optional).
+6. **2. Simulate local loss** — confirm destructive dialog. Wipes:
+   - `pufom_farm_local` diary, issues, issues_archive, outbox for this `farmId`
+   - mist `hot/current` in `pufam-mist-v1`
+   - last Hot publish metadata in `localStorage`
+7. **Local counts** again — should show zeros.
+8. **3. Recover from Freenet** — pull ciphertext, decrypt with FarmSeed, rehydrate local store + refresh UI.
+
+### Preserved vs wiped
+
+| Preserved | Wiped (workshop smoke) |
+|-----------|-------------------------|
+| FarmCode / mist device session (`FarmSeed`) | `pufom_farm_local` diary/issues/archive + outbox |
+| Farm geometry (`farmGeometryIdb`) | Local mist `hot/current` blob |
+| Freenet peer copy of Hot (after step 1) | Last Hot publish status in `localStorage` |
+| Bones workshop blob (unless you extend wipe opts) | In-memory diary/issue UI until refresh |
+
+
+
+### Milestone (~2026-08-03)
+
+Operator workshop: after publish → wipe → recover, **3 diary** entries rehydrated from Freenet 0.2 ws02 (`localhost:7509`); Hot contract hash prefix **`a31a5a98…`**.
+
+
+**Not committed** — workshop-only; run before field demos.
 
 ---
 

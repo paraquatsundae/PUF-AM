@@ -1,8 +1,8 @@
 /**
  * Server-side singleton for the in-process Freenet peer (PUF-AM Express host).
  *
- * Hyphanet/Freenet node must still run locally on FCP port 9481 for live network.
- * This module is the FCP *client* hosted inside PUF-AM — not a separate daemon.
+ * Supports Hyphanet FCP (:9481) or Freenet 0.2 WebSocket (:7509) via env.
+ * This module is the Freenet *client* hosted inside PUF-AM — not a separate daemon.
  */
 
 import { join } from 'node:path';

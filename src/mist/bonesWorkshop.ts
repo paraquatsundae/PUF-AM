@@ -14,6 +14,8 @@ export type BonesWorkshopResult = {
 
 const WORKSHOP_ASSET_ID = 'workshop-smoke';
 
+export const BONES_WORKSHOP_ASSET_ID = WORKSHOP_ASSET_ID;
+
 export async function runBonesWorkshopSmoke(farmId: string): Promise<BonesWorkshopResult> {
   const store = await getActiveMistStore();
   if (!store) {
