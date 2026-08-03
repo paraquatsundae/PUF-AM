@@ -187,7 +187,7 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
   }
 
   function buildArgs(): string[] {
-    return [
+    const args = [
       networkMode,
       '--ws-api-address',
       wsHost,
@@ -200,6 +200,12 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
       '--log-dir',
       logDir,
     ];
+    // Only when asked: the default 31337 is what NAT traversal and gateways expect,
+    // so moving it costs connectivity. It exists for running beside another node.
+    if (options.networkPort !== undefined) {
+      args.push('--network-port', String(options.networkPort));
+    }
+    return args;
   }
 
   function settleExitWaiters(): void {

@@ -2,11 +2,17 @@
  * Prove the vendored Freenet binary actually runs under the host, without Electron.
  *
  * This is the Phase 2 acceptance check (`Plans/DESKTOP_FREENET_PLUGIN.md` Phase 2).
- * It deliberately uses a **spare port and throwaway dirs**, so a workshop
- * `freenet network` on `:7509` keeps running and is never attached to or killed —
- * attaching would prove nothing about which binary we resolved.
+ * It runs a **second, throwaway node**, which takes more isolation than it looks:
+ * spare WS API port, throwaway config/data/log dirs, *and* a spare
+ * `--network-port`. The last one is not optional — Freenet's peer-to-peer UDP
+ * socket defaults to 31337 regardless of the WS port, so two nodes with different
+ * `--ws-api-port` values still contend for it, which can destabilise the node that
+ * was there first.
  *
- * Usage: npx tsx scripts/smoke-freenet-host.ts [--port 7609] [--keep]
+ * `attachIfRunning` is off on purpose: attaching to a workshop `freenet network`
+ * would prove nothing about which binary we resolved, which is the whole question.
+ *
+ * Usage: npx tsx scripts/smoke-freenet-host.ts [--port 7609] [--network-port 31437] [--keep]
  *   --keep  leave the temp config/data/log dirs behind for inspection
  *
  * Needs a populated `vendor/` (`npm run desktop:vendor`) or a `PUF_FREENET_BIN`.
@@ -21,10 +27,18 @@ import { createFreenetHost } from '../units/puf-freenet-host/src/index.ts';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
+function numericFlag(argv: string[], flag: string, fallback: number): number {
+  const index = argv.indexOf(flag);
+  if (index === -1) return fallback;
+  const value = Number(argv[index + 1]);
+  if (!Number.isInteger(value) || value <= 0) throw new Error(`${flag} needs a port number`);
+  return value;
+}
+
 const argv = process.argv.slice(2);
 const keep = argv.includes('--keep');
-const portFlag = argv.indexOf('--port');
-const wsPort = portFlag === -1 ? 7609 : Number(argv[portFlag + 1]);
+const wsPort = numericFlag(argv, '--port', 7609);
+const networkPort = numericFlag(argv, '--network-port', 31437);
 
 const root = mkdtempSync(path.join(tmpdir(), 'puf-freenet-smoke-'));
 
@@ -33,6 +47,7 @@ const host = createFreenetHost({
   dataDir: path.join(root, 'data'),
   logDir: path.join(root, 'logs'),
   wsPort,
+  networkPort,
   repoRoot: REPO_ROOT,
   // A spare port has nothing on it; if something *is* there, fail loudly rather
   // than reporting a pass for someone else's node.
@@ -45,7 +60,7 @@ host.on((event) => {
 });
 
 async function main(): Promise<void> {
-  console.log(`smoke: ws port ${wsPort}, dirs under ${root}`);
+  console.log(`smoke: ws port ${wsPort}, network port ${networkPort}, dirs under ${root}`);
   const status = await host.start();
 
   console.log(`  mode      ${status.mode}`);

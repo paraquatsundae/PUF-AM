@@ -118,6 +118,13 @@ export type FreenetHostOptions = {
   /** Loopback by default; the node must not be exposed beyond this machine. */
   wsHost?: string;
   wsPort?: number;
+  /**
+   * Freenet's peer-to-peer UDP port (`--network-port`, default 31337). Leave unset
+   * in production — the default is what NAT traversal and gateways expect. Set it
+   * only to run a second node beside an existing one, which otherwise contends for
+   * the same socket even though the WS API ports differ.
+   */
+  networkPort?: number;
   /** `network` = Opennet (default). `local` is dev-only and joins no network. */
   networkMode?: 'network' | 'local';
   /** Explicit binary path — highest precedence in resolution. */
