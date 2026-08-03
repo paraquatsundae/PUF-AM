@@ -1,0 +1,427 @@
+# PUF-AM desktop installer + Freenet as an in-app plugin
+
+**Status:** Phase 0 — architecture frozen, scaffolding landed (~2026-08-03). Not shipped.
+**Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
+**Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
+
+Related: [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) (mist crypto/contracts) · [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) (current two-laptop workshop flow this replaces) · [`NAMING.md`](NAMING.md) §1–2 (product + build identifiers) · [`units/puf-freenet-host/README.md`](../units/puf-freenet-host/README.md) (plugin unit) · [`desktop/README.md`](../desktop/README.md) (shell).
+
+---
+
+## 1. Problem
+
+Today a farmer who wants mist/Freenet must run **three things**: `freenet network`, `npm run dev` (Express sidecar on `:3000`), and a browser pointed at `https://am.pufworks.farm`. The browser then cross-origins its Freenet calls back to `127.0.0.1:3000` (`getMistFreenetApiBaseUrl()` in `src/lib/apiBase.ts`). That is a workshop scaffold, not a product.
+
+**End state:** one downloadable installer per platform. The operator launches **PUF-AM**, and Freenet is already running inside it — no second app, no terminal, no `npm`, no sidecar URL.
+
+---
+
+## 2. Frozen decisions
+
+| # | Decision | Value |
+|---|----------|-------|
+| 1 | **Desktop shell** | **Electron** + `electron-builder` (see §3) |
+| 2 | **v1 plugin model** | **Managed child process** of a bundled `freenet` binary, owned by PUF-AM. No separate UI, no separate installer, no user-visible daemon (see §4) |
+| 3 | **Plugin home** | New unit **`units/puf-freenet-host/`** — lifecycle + wire only; mist crypto stays in `units/mist-freenet/` (see §5) |
+| 4 | **Renderer ↔ Node** | In-main Express bound to **loopback + ephemeral port**; renderer is served same-origin from it (see §6) |
+| 5 | **Desktop sidecar requirement** | **Eliminated.** Desktop never calls `am.pufworks.farm` for Freenet, and never needs `npm run dev` |
+| 6 | **Network mode** | **Opennet** (`freenet network`). No darknet friend config, no first-run Freenet wizard — silent defaults |
+| 7 | **Cloud default** | Firebase stays the default backend. Mist/Freenet stays behind `VITE_MIST_EXPERIMENTAL` + the mist backend toggle |
+| 8 | **Android APK** | **Out of scope this phase.** Capacitor build must keep working unchanged (see §12) |
+| 9 | **Fork target** | `units/puf-freenet-host/` is the future **PUF-FN** repo. Its public surface is the fork boundary |
+
+---
+
+## 3. Shell choice — Electron (frozen)
+
+### The comparison that actually matters for this repo
+
+| Concern | Electron | Tauri |
+|---------|----------|-------|
+| Freenet peer host (`units/mist-freenet/src/node.ts`) | Runs **as-is** in main — `node:net`, `node:fs`, `node:child_process` all native | Needs a Node runtime shipped as a Tauri sidecar, or a Rust rewrite of the peer |
+| Express API (`server/createApiApp.ts`, 40+ routes) | Runs **as-is** in main | Rewrite in Rust/axum, or ship Node sidecar |
+| `@freenetorg/freenet-stdlib` (flatbuffers GET) | npm dep, works | npm dep — only usable if Node is present, i.e. sidecar |
+| `bonjour-service` mDNS hub (`server/mdnsHub.ts`) | Works | Rust mDNS rewrite |
+| Bundle size | ~150 MB + ~93 MB Freenet binaries | ~10 MB + Node sidecar (~50 MB) + ~93 MB Freenet binaries |
+| Fedora `.rpm` + Windows NSIS from one config | `electron-builder` — yes | `tauri-bundler` — yes |
+| Rust in the build chain | Not required | Required on both build hosts |
+
+### Rationale
+
+The entire Node-side surface this product needs — Freenet peer, transport, Express routes, mDNS, `fdev` spawning — **already exists in TypeScript running on Node**. Electron makes that the main process for free.
+
+Tauri's win is bundle size, and it evaporates here: to reuse any of the existing Node code Tauri must ship a Node sidecar binary. That is *the same shape as the sidecar pattern the user rejected*, just relocated into the installer, and it costs a Rust toolchain on both build hosts plus native-module packaging for a Node runtime we would no longer control. Tauri only becomes the right answer once the Freenet host and mist store are Rust/WASM — which is the **PUF-FN** endgame (§4.3), not v1.
+
+**What we accept by choosing Electron:** ~150 MB baseline install, Chromium patch cadence, and a heavier memory floor (~200 MB idle). All acceptable for a shed/office laptop. Revisit only if PUF-AM desktop ever needs to run on constrained cab hardware.
+
+---
+
+## 4. What "plugin inside PUF-AM" means in v1
+
+### 4.1 Honest statement of the constraint
+
+Freenet 0.2.118 is a **Rust binary** (`freenet`, 55 MB) with a local WebSocket API on `:7509`. There is no embeddable Freenet library or browser/WASM peer we can link into a Node process today. Additionally, PUT on 0.2.118 still requires the **`fdev`** CLI — the flatbuffers PUT path in `@freenetorg/freenet-stdlib` hangs against that node version (documented in `units/mist-freenet/src/freenet02-fdev-put.ts`).
+
+So "plugin" in v1 means **ownership, not linkage**.
+
+### 4.2 v1 — PUF Freenet Host plugin (managed child process)
+
+`units/puf-freenet-host/` owns the **entire lifecycle** of a bundled Freenet node:
+
+- **Bundled** — `freenet` (+ `fdev`) ship inside the PUF-AM installer as app resources. The operator never downloads, installs, or configures Freenet.
+- **Started by PUF-AM** — spawned on app launch when mist is enabled; stopped on app quit. No systemd unit, no `freenet service install`, no tray icon of its own, no separate window.
+- **App-owned state** — `--config-dir` / `--data-dir` / `--log-dir` point under PUF-AM's `userData` (§7). The node is invisible in the operator's home directory layout.
+- **No API surface of its own** — nothing talks to `:7509` except PUF-AM. The port binds loopback (`--ws-api-address 127.0.0.1`).
+- **Attach, don't fight** — if a Freenet node is already listening (a workshop `freenet network`, or another PUF unit that got there first), the host **attaches** to it instead of spawning a second node, and will not kill it on quit. One node per machine, shared by PUF units.
+
+From the operator's point of view there is exactly one app, one icon, one process tree. That satisfies the requirement. It is not a linked library, and this doc does not pretend otherwise.
+
+### 4.3 Path to true embedding (PUF-FN, later)
+
+| Step | What changes | Blocked on |
+|------|--------------|------------|
+| Drop `fdev` | Native PUT encoding over the existing WS connection → one child process instead of two | Upstream flatbuffers PUT fix, or reimplementing native PUT frames |
+| Rust host, in-proc | Link `freenet-core` as a Rust library behind a NAPI/`neon` addon or Tauri command | Upstream exposing an embeddable peer API |
+| WASM peer | Freenet peer compiled to WASM inside the renderer/worker | Not on the upstream roadmap for 0.2; transport/NAT make it implausible near-term |
+
+Because every one of those swaps sits **behind the `FreenetHostPlugin` interface** (§5), none of them touch `mist-freenet`, the Express routes, or the UI. That is the whole point of the separate unit.
+
+---
+
+## 5. Plugin interface — `units/puf-freenet-host/`
+
+### 5.1 Why a new unit, not more `mist-freenet`
+
+`mist-freenet` is **storage semantics**: `MistStore`, AEAD sealing, FarmSeed HKDF, pack-contract addressing, disk cache, outbox. Process supervision of a native binary is an unrelated concern, and it is the concern that forks into PUF-FN. Mixing them would drag mist crypto into every future consumer (PUF-mobile hub, PUFworks units) that only wants "start a node, put ciphertext".
+
+Dependency direction is **one-way and inverted**: `puf-freenet-host` has **no import of `mist-freenet`**. The consumer injects a wire client. PUF-AM's adapter — the only glue file — wraps `Freenet02WsTransport`.
+
+```
+units/puf-freenet-host/   ← lifecycle + wire contract (future PUF-FN)     no mist imports
+units/mist-freenet/       ← MistStore, crypto, transport, pack-contract   no host imports
+server/ or desktop/       ← the ~20-line adapter that marries them
+```
+
+### 5.2 Interface (frozen for v1)
+
+```ts
+export interface FreenetHostPlugin {
+  readonly id: string;                                 // 'puf-freenet-host'
+  start(): Promise<FreenetHostStatus>;
+  stop(): Promise<FreenetHostStatus>;
+  status(): Promise<FreenetHostStatus>;
+  putCiphertext(bytes: Uint8Array, options?: FreenetPutCiphertextOptions): Promise<FreenetPutCiphertextResult>;
+  getCiphertext(uri: string): Promise<Uint8Array | null>;
+  on(listener: (event: FreenetHostEvent) => void): () => void;   // returns unsubscribe
+}
+
+export type FreenetHostMode = 'stopped' | 'starting' | 'managed' | 'attached' | 'failed';
+```
+
+`FreenetHostStatus` carries `mode`, `reachable`, `wsUrl`, `pid`, resolved `binary` (`{ path, source, version }`), the three dirs, `updateRequired`, and `lastError`. Events are `state` / `log` / `exit` / `update-required`.
+
+`putCiphertext` / `getCiphertext` are **ciphertext-only by contract** — the host never sees plaintext and never holds farm keys. Sealing stays in `mist-freenet` (`assertCiphertextForFreenet` still guards `FreenetMistStore.put()`). If no wire client is injected, both throw `FreenetWireUnavailableError` rather than silently no-op.
+
+Full type list: [`units/puf-freenet-host/src/types.ts`](../units/puf-freenet-host/src/types.ts).
+
+### 5.3 Binary resolution order
+
+| # | Source | Where |
+|---|--------|-------|
+| 1 | explicit `binaryPath` option | caller |
+| 2 | `PUF_FREENET_BIN` / `PUF_FDEV_BIN` | env (workshop override) |
+| 3 | `binarySearchPaths` | Electron passes `${process.resourcesPath}/freenet` |
+| 4 | repo vendor dir | `vendor/freenet/<platform>-<arch>/` (dev, gitignored) |
+| 5 | `PATH` | picks up today's `~/.local/bin/freenet` |
+
+Reporting the `source` in status is deliberate: the workshop needs to know whether it is testing the bundled binary or a stray PATH one.
+
+### 5.4 Lifecycle rules
+
+| Situation | Behaviour |
+|-----------|-----------|
+| Port already reachable + `attachIfRunning` | `mode: 'attached'`; **never** spawn a second node |
+| Spawn succeeds, port reachable within timeout | `mode: 'managed'` |
+| Spawn succeeds, port never opens | `mode: 'failed'` + `lastError`; app stays usable on Firebase/local |
+| Unexpected exit, `autoRestart` | Restart with backoff, capped attempts, then `failed` |
+| **Exit code 42** | Freenet is requesting an update. `updateRequired: true`, emit `update-required`, **do not auto-restart and do not auto-update** — the operator (or a later opt-in flow) runs `freenet update`. Bundled binaries are pinned; silently clobbering them would break the pinned pack-contract code hash |
+| `stop()` while `attached` | Detach only. Killing a node PUF-AM did not start would break other PUF units and the workshop |
+| App quit | `stop()` on managed node with SIGTERM → grace period → SIGKILL |
+
+### 5.5 Env contract handed to `mist-freenet`
+
+The host publishes the node's coordinates; the mist transport consumes them unchanged (no code change in `mist-freenet`):
+
+| Variable | Set by host to |
+|----------|----------------|
+| `FREENET_TRANSPORT` | `ws02` |
+| `FREENET_WS_URL` | `ws://127.0.0.1:<port>/v1/contract/command` |
+| `FREENET_WS_PORT` | `<port>` (consumed by `fdev --port`) |
+| `FDEV_BIN` | resolved bundled `fdev` path |
+| `FREENET_PACK_WASM` | bundled `pack-contract.wasm` path |
+| `MIST_FREENET_ROOT` | `<userData>/mist-freenet` |
+
+---
+
+## 6. Desktop architecture — and how the sidecar dies
+
+### 6.1 Process picture
+
+```
+┌─ PUF-AM (Electron) ─────────────────────────────────────────────┐
+│                                                                 │
+│  main process (Node)                                            │
+│    ├── FreenetHostPlugin ──spawn──► freenet (child, loopback WS)│
+│    │        └── fdev (transient, per PUT)                       │
+│    ├── FreenetPeer (mist-freenet)  ── ws02 ──► :<port>          │
+│    ├── Express createApiApp()  →  127.0.0.1:<ephemeral>         │
+│    └── serves dist/ from that same port                         │
+│                                                                 │
+│  renderer (BrowserWindow, contextIsolation on)                   │
+│    ├── loads http://127.0.0.1:<ephemeral>   ← same-origin       │
+│    ├── /api/mist/freenet/*  → in-app Express (loopback)         │
+│    ├── /api/auth/*, /api/weather/*  → https://am.pufworks.farm  │
+│    └── Firebase Auth / Firestore → direct, unchanged            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Serving the built bundle from the same loopback port the API listens on means `getApiBaseUrl()` returns `''` (same-origin) with **zero client changes**, no CORS, and no CSP special-casing. The whole `isProductionAppHost()` → `http://127.0.0.1:3000` branch simply never fires on desktop.
+
+### 6.2 Route split on desktop
+
+Some routes must stay in the cloud because they need server secrets the operator will never have.
+
+| Route family | Desktop target | Why |
+|--------------|----------------|-----|
+| `/api/mist/freenet/*` | **in-app** (loopback) | The Freenet node is on this machine |
+| `/api/sync/*`, `/api/presence/*`, `/api/highlights/*` | **in-app** | Desktop *is* the LAN hub (mDNS + `.pufom` sync) |
+| `/api/auth/*` (invite PIN, members, farm create) | **cloud** | Needs a Firebase Admin service account — never ships to an operator machine |
+| `/api/weather/*` (DPIRD, chill, blight) | **cloud** | Needs `DPIRD_API_KEY`, a server-only secret |
+
+Implementation: the preload injects `window.pufamDesktop = { apiBase, freenetApiBase, ... }`; `src/lib/apiBase.ts` grows a desktop branch that returns the **cloud** base for `/api/*` and `''` for Freenet. This is the *inverse* of today's hack: instead of "browse the cloud, sidecar for Freenet", it becomes "run locally, cloud only for cloud-only secrets".
+
+`server/firebaseAdmin.ts` resolves `secrets/` and `firebase-applet-config.json` from `process.cwd()`, which is meaningless in a packaged app — another reason `/api/auth/*` must not be served locally. Desktop builds must **not** bundle `secrets/`.
+
+### 6.3 Loopback exposure — honest note
+
+Binding an HTTP API to `127.0.0.1` means any local process can reach it. That is **not a regression**: today's `npm run dev` binds `0.0.0.0:3000` (LAN-reachable), so loopback-only plus an ephemeral port is strictly better. Phase 4 hardening: per-launch bearer token minted in main, injected via preload, required by a guard middleware — and/or move Freenet calls to `contextBridge` IPC and stop exposing HTTP entirely.
+
+---
+
+## 7. Bundle layout and data directories
+
+### 7.1 Shipped resources
+
+```
+<install root>/
+  PUF-AM(.exe)                      Electron shell
+  resources/
+    app.asar                        renderer bundle + main + server/ + units/
+    freenet/
+      freenet(.exe)                 pinned Freenet core (0.2.118)
+      fdev(.exe)                    PUT path until native PUT lands
+      LICENSE, NOTICE               upstream attribution
+    contracts/
+      pack-contract.wasm            code hash 5Piu7V1PjjcPVnTvUbyMdDiyvwoBprBPZ4GFUHfabyzW
+```
+
+`pack-contract.wasm` moves out of `app.asar` into `resources/contracts/` because `fdev --code` needs a **real filesystem path** — asar-packed files are not directly readable by a child process. Same reason the binaries live in `extraResources`. The bundled WASM's `fdev inspect` code hash is pinned in `units/mist-freenet/src/freenet02-pack.ts`; **bundled WASM and that constant must be verified together** in CI or a smoke step, or every published URI silently changes.
+
+### 7.2 Per-OS data locations
+
+| Path | Fedora | Windows |
+|------|--------|---------|
+| Electron `userData` | `~/.config/PUF-AM/` | `%APPDATA%\PUF-AM\` |
+| Freenet config | `<userData>/freenet/config/` | same shape |
+| Freenet data (contracts, peer keys) | `<userData>/freenet/data/` | same |
+| Freenet logs | `<userData>/freenet/logs/` | same |
+| Mist cache / index / outbox | `<userData>/mist-freenet/` | same |
+
+**App-owned dirs deliberately do not reuse `~/.local/share/freenet`.** Consequence: on first launch the app-owned node is a **new Opennet peer** and needs the usual 5–15 min bootstrap before GETs resolve (see [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) § Opennet gaps). Mitigations: start the host at app launch rather than at first publish, surface a "connecting to Freenet" state instead of an error, and keep the data dir across launches so identity is stable after run one. Workshop machines can point at the existing node via `PUF_FREENET_BIN` + attach mode.
+
+---
+
+## 8. Packaging
+
+### 8.1 Targets
+
+| Platform | Targets | Notes |
+|----------|---------|-------|
+| Fedora | **`rpm`** (primary) + **`AppImage`** | `rpm` needs `rpm-build` on the build host; AppImage is the no-install fallback |
+| Windows | **`nsis`** installer + **`portable`** | Build NSIS **on Windows** — cross-building from Linux needs wine and is not worth it here |
+| Debian/Ubuntu | `deb` (optional) | Free from the same config; not a target platform |
+
+Cross-platform builds are **not** attempted from one host. Fedora artifacts build on Fedora, Windows artifacts on the `C:\Projects` Windows box.
+
+### 8.2 `electron-builder` sketch
+
+```jsonc
+{
+  "appId": "farm.pufworks.am",           // desktop only; Android com.sentinut.farm stays frozen
+  "productName": "PUF-AM",
+  "directories": { "output": "release" }, // NOT dist/ — that is Vite's output
+  "files": ["dist/**", "desktop/build/**", "server/**", "units/**", "shared/**", "package.json"],
+  "extraResources": [
+    { "from": "vendor/freenet/${os}-${arch}", "to": "freenet" },
+    { "from": "units/mist-freenet/assets/pack-contract.wasm", "to": "contracts/pack-contract.wasm" }
+  ],
+  "linux":  { "target": ["rpm", "AppImage"], "category": "Science", "executableName": "puf-am" },
+  "win":    { "target": ["nsis", "portable"] },
+  "nsis":   { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true },
+  "publish": null                         // workshop builds; no auto-updater (AGENTS.md rule 9)
+}
+```
+
+### 8.3 Native and heavy dependencies
+
+| Dependency | Action |
+|------------|--------|
+| `better-sqlite3` | **Drop or exclude.** Listed in `package.json` but unused (`Dockerfile` says so). Keeping it forces `@electron/rebuild` against Electron's ABI for nothing |
+| `firebase-admin` | Exclude from the desktop bundle — `/api/auth/*` is cloud-only (§6.2) |
+| `bonjour-service` | Keep; pure JS, powers the LAN hub |
+| `@freenetorg/freenet-stdlib` | Keep; GET path |
+| `vite`, `tsx`, `firebase-tools` | Dev only — must not reach `files` |
+
+Main-process TypeScript needs a build step (Electron cannot execute `.ts`, and the repo uses `.ts` extensions in import specifiers). Phase 1 adds an esbuild bundle of `desktop/main.ts` + `desktop/preload.ts` → `desktop/build/`, bundling `server/` and `units/` in the process.
+
+### 8.4 Binary procurement (blocking Phase 2)
+
+- **Fedora x64:** present at `~/.local/bin/{freenet,fdev}` 0.2.118 — copy into `vendor/freenet/linux-x64/`.
+- **Windows x64:** **not obtained yet.** Needs upstream `freenet.exe` + `fdev.exe` at the *same pinned version*. Mixed versions across platforms are not acceptable — pack-contract code hash and PUT behaviour are version-sensitive.
+- **License:** confirm upstream terms and ship `LICENSE`/`NOTICE` in `resources/freenet/` before any redistribution.
+- `vendor/` is build input, **gitignored** — do not commit ~93 MB of binaries. Add a `scripts/fetch-freenet-binaries` step that downloads pinned releases and verifies checksums.
+
+---
+
+## 9. First run and operator experience
+
+**No Freenet wizard.** Freenet uses Opennet with silent defaults; the only decision a farmer makes is the existing mist opt-in.
+
+| Launch | What the operator sees |
+|--------|------------------------|
+| Firebase user (default) | Normal PUF-AM. Freenet host never starts. Zero Freenet UI |
+| Mist enabled, run 1 | Existing FarmCode first-run. Freenet starts silently in the background; status card shows *connecting* → *connected*; publishes may need the documented bootstrap wait |
+| Mist enabled, run 2+ | Node reuses its data dir; connects in seconds |
+| Freenet binary missing/corrupt | Status shows `failed` with the resolved path. App fully usable on Firebase or local-only; no modal, no crash |
+
+The existing Settings → **Mist workshop** card becomes the single Freenet surface: mode (`managed`/`attached`), reachability, binary source + version, data dir, and publish/pull actions. No second window, no tray icon, no separate installer entry.
+
+---
+
+## 10. What does not change
+
+- **Firebase Auth + invite PIN stays the shipping path.** Desktop routes those calls to `am.pufworks.farm`.
+- **Mist stays experimental**, gated by `VITE_MIST_EXPERIMENTAL` and the `pufam.farmStoreBackend` toggle.
+- **Encrypt-before-upload is unchanged** — the host handles ciphertext only.
+- **`mist-freenet` public API is unchanged** — no rewrite of `FreenetPeer`, `FreenetMistStore`, or the routes.
+- **Cloud Run keeps `MIST_FREENET_DISABLED=1`.** The web path keeps working exactly as today, including the sidecar branch for anyone still using it. Only *desktop* stops needing a sidecar.
+- **Capacitor Android build is untouched** (§12).
+
+---
+
+## 11. Out of scope this phase
+
+Android APK changes · code signing / notarization (Windows EV cert, Linux GPG) · auto-updater (AGENTS.md rule 9: no public distribution pipeline) · WASM/library Freenet embed (§4.3) · mutable Freenet contracts / deterministic URIs (Option B in [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md)) · Reticulum unit · replacing loopback HTTP with pure IPC (Phase 4 hardening candidate).
+
+**Future Android note:** the phone will not run a Freenet peer. It either syncs to a desktop PUF-AM acting as **LAN hub** (the `/api/sync/*` + mDNS path that already exists), or waits for a Freenet Android peer upstream. Not this phase.
+
+---
+
+## 12. Not breaking Android
+
+| Guard | Why it holds |
+|-------|--------------|
+| `capacitor.config.ts` untouched | Desktop adds no Capacitor plugin |
+| `vite.config.ts` untouched | `VITE_CAPACITOR=1` base-path logic unchanged; desktop uses the standard web build |
+| `desktop/` excluded from root `tsconfig.json` | `npm run lint` stays green before `electron` is installed; `desktop/tsconfig.json` covers it afterwards |
+| `units/puf-freenet-host/` is Node-only | Never imported by renderer code, so it cannot leak into the APK bundle |
+| `electron` / `electron-builder` land in `devDependencies` | Not in the Capacitor runtime graph |
+
+Regression check each phase: `npm run lint && npm test && npm run build`, plus `npm run build:android` before any phase is called done.
+
+---
+
+## 13. Migration from the current workshop flow
+
+| Today | After Phase 4 |
+|-------|---------------|
+| `freenet network` in terminal 1 | Started by PUF-AM |
+| `MIST_FREENET=1 npm run dev` in terminal 2 | Gone — the app *is* the server |
+| Browse `https://am.pufworks.farm` | Launch PUF-AM |
+| Freenet calls cross-origin to `127.0.0.1:3000` | Same-origin loopback, ephemeral port |
+| `~/.local/share/freenet` (user's node) | `<userData>/freenet/data` (app-owned), or attach to the user's node |
+| Join ticket copy/paste between laptops | **Unchanged** — still Option A until mutable contracts land |
+
+The workshop flow keeps working throughout: `npm run dev` + external `freenet network` is unaffected, and the host's attach mode plus `PUF_FREENET_BIN` mean a developer's existing node is still usable.
+
+---
+
+## 14. Phased build order
+
+### Phase 0 — plan + scaffold (**done**, ~2026-08-03)
+
+Landed:
+
+- This document.
+- [`units/puf-freenet-host/`](../units/puf-freenet-host/README.md) — frozen interface, Node implementation (spawn/attach/stop, restart backoff, exit-42 handling, binary resolution, TCP probe), 19 hermetic tests (no node or network needed).
+- [`server/freenetHostWire.ts`](../server/freenetHostWire.ts) — the one glue file wrapping `Freenet02WsTransport` as a `FreenetWireClient`.
+- [`desktop/`](../desktop/README.md) — `main.ts` (single-instance lock, host ownership, IPC), `preload.ts` (`window.pufamDesktop`), `localApi.ts` (loopback ephemeral-port Express + static `dist/`), `tsconfig.json`.
+- Pointers in `DEVELOPER_NOTES.md`, `NAMING.md` (§1 product names, §2 desktop build ids, §3 env vars), `README.md`, `.env.example`. `vendor/` and `release/` gitignored.
+
+**No `electron` dependency installed yet** and `desktop/` is excluded from the root `tsconfig.json`, so `npm run lint`, `npm test`, `npm run build`, and `npm run build:android` are all unaffected.
+
+### Phase 1 — Electron shell
+
+`npm i -D electron electron-builder esbuild` · esbuild bundle for `desktop/main.ts` + `desktop/preload.ts` · `npm run desktop:dev` opens a window serving the built app from a loopback ephemeral port · `preload` exposes `window.pufamDesktop` · `src/lib/apiBase.ts` gains the desktop branch (§6.2) · Freenet host started via **PATH-resolved** binary.
+
+**Done when:** the window shows PUF-AM, Firebase login works, Settings → Mist workshop reports `mode: managed` against a PATH `freenet`, and publish/pull Hot succeeds — with no `npm run dev` and no browser.
+
+### Phase 2 — bundle Freenet
+
+`scripts/fetch-freenet-binaries` with pinned version + checksums · `vendor/freenet/<platform>-<arch>/` (gitignored) · `pack-contract.wasm` served from `resources/contracts/` · WASM ↔ code-hash verification step · host prefers bundled over PATH · Windows binary procurement.
+
+**Done when:** with `~/.local/bin/freenet` renamed away, the app still starts a node, and status reports `source: 'bundled'`.
+
+### Phase 3 — installers
+
+`electron-builder` config (§8.2) · Fedora `rpm` + `AppImage` on the Fedora box · Windows `nsis` + `portable` on the Windows box · `dnf install` / installer smoke on a clean-ish user account.
+
+**Done when:** a machine with **no Node, no npm, no Freenet** installs the artifact, launches PUF-AM, and completes a Freenet publish.
+
+### Phase 4 — retire the desktop sidecar path
+
+Desktop never resolves `am.pufworks.farm` for `/api/mist/freenet/*` · loopback guard (bearer token and/or IPC) · two-machine A→B join-ticket smoke using **installers only** · update [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) to mark the sidecar section *workshop/web only*.
+
+**Done when:** the two-Fedora pass criteria are met with zero terminals open.
+
+### Phase 5 — PUF-FN extraction (later, optional)
+
+Move `units/puf-freenet-host/` to its own repo, publish as a private package, consume from PUF-AM and one other PUF unit. Interface must not need to change — if it does, Phase 0–4 got the boundary wrong.
+
+---
+
+## 15. Risks and open questions
+
+| Risk | Mitigation / status |
+|------|---------------------|
+| Windows `freenet.exe` availability at pinned version | **Open** — blocks Phase 2 Windows leg. Fedora-first ship is acceptable |
+| Installer size ~250 MB with binaries | Accepted for workshop distribution; no auto-updater to amortize |
+| Fresh app-owned peer identity slows first publish | Documented warm-up; start host at launch; consider attach-to-existing as a workshop default |
+| Exit code 42 update loop | Host never auto-updates; surfaces `updateRequired` and stops (§5.4) |
+| Bundled WASM drifts from pinned code hash | Verification step in Phase 2; publishing with a mismatched hash silently changes every URI |
+| Loopback API reachable by local processes | Ephemeral port + loopback bind now; token/IPC in Phase 4 (§6.3) |
+| `process.cwd()` assumptions in `server/*` | `/api/auth/*` is cloud-only; audit remaining `cwd()` reads during Phase 1 |
+| Two PUF apps racing for `:7509` | Attach mode; only the spawner may stop the node |
+| Freenet upstream API churn (0.2.x is moving fast) | Version pinned in `vendor/`; `fdev` removal tracked as PUF-FN work |
+
+---
+
+## 16. References
+
+- [`units/puf-freenet-host/README.md`](../units/puf-freenet-host/README.md) — plugin unit API and lifecycle
+- [`desktop/README.md`](../desktop/README.md) — shell layout, build commands (Phase 1+)
+- [`units/mist-freenet/README.md`](../units/mist-freenet/README.md) — mist storage, ws02 transport, pack-contract addressing
+- [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) — mist crypto, FarmCode, Hot/bones/Archive
+- [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) — two-laptop Opennet flow and the sidecar pattern being retired for desktop
+- [`NAMING.md`](NAMING.md) §1–2 — PUF-AM / PUF-FN naming, desktop build identifiers
+- [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Mist network & storage — phase log

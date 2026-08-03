@@ -1,0 +1,11 @@
+{
+  "name": "@pufworks/puf-freenet-host",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PUF Freenet Host — in-app Freenet node lifecycle plugin (future PUF-FN)",
+  "type": "module",
+  "scripts": {
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --config ../../vitest.config.ts units/puf-freenet-host"
+  }
+}

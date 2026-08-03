@@ -12,6 +12,7 @@ Related plans (not duplicated here):
 | [`RENAME_TO_PUFAM.md`](RENAME_TO_PUFAM.md) | Phase A/B rebrand checklist (UI done; infra deferred) |
 | [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) | Mist crypto, FarmCode, Hot/Archive, pre-Freenet workshop decisions (experimental) |
 | [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md) | Pre-Freenet two-laptop smoke — recovery pass done ~2026-08-03 |
+| [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers; Freenet as an in-app plugin (Electron frozen) |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Human-readable `farm-export.json` sketch |
 | [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) | Architecture audit, roadmap checklist, mist phase log |
 
@@ -28,7 +29,9 @@ Related plans (not duplicated here):
 | **Sentinut** | Historical company/Android namespace only (`com.sentinut.farm`, `@sentinut.local` Auth emails) | Product name in new docs or UI |
 | **Walnut_farm_manager** | Local clone folder name only — **no rename required** | Implies walnut-only product (mixed-enterprise app) |
 | **Walnut-Farm-Manager** | Archived GitHub repo — reference/history only | Active remote or deploy target |
-| **PUF-FN** | Future product name for the **Freenet client unit** when it forks out of PUF-AM (in-process plug-in today → standalone repo later) | Current mist storage unit (`mist-freenet`); not a shipping product yet |
+| **PUF-AM Desktop** | The Electron shell + installers (Fedora `rpm`/AppImage, Windows NSIS/portable). Docs shorthand for the packaged app | A separate product — it *is* PUF-AM; do not brand installers differently |
+| **PUF Freenet Host** | The in-app Freenet lifecycle plugin — unit `units/puf-freenet-host/`, package `@pufworks/puf-freenet-host`, `hostId` `puf-freenet-host` | The mist storage unit (`mist-freenet`); a user-visible app or service name |
+| **PUF-FN** | Future product name for the **Freenet client unit** when `units/puf-freenet-host/` forks into its own repo (in-app plugin today → standalone repo later) | Current mist storage unit (`mist-freenet`) or the host unit's present package name; not a shipping product yet |
 
 **Brand source of truth (UI strings):** `src/brand.ts` — `APP_SHORT_NAME` = `PUF-AM`, `APP_NAME` = `PUF-Ag Manager`.
 
@@ -44,6 +47,11 @@ Related plans (not duplicated here):
 | GitHub repo | `PUF-AM` | Display name done; folder may stay `Walnut_farm_manager` |
 | Capacitor / Android `appId` | `com.sentinut.farm` | **Frozen** — Play / sideload continuity |
 | Capacitor `appName` | `PUF-Ag Manager` | User-facing; update with brand |
+| Desktop (Electron) `appId` | `farm.pufworks.am` | Desktop only — **do not** reuse the Android `com.sentinut.farm` |
+| Desktop `productName` | `PUF-AM` | Drives `~/.config/PUF-AM` and `%APPDATA%\PUF-AM`; renaming migrates operator data |
+| Desktop Linux `executableName` | `puf-am` | Binary + `.desktop` entry name |
+| electron-builder output dir | `release/` | **Not** `dist/` — that is Vite's output |
+| Bundled Freenet binaries (build input) | `vendor/freenet/<os>-<arch>/` | `<os>` is electron-builder `${os}` (`linux`/`win`/`mac`); gitignored |
 | Cloud Run service | `pufom-…a.run.app` | Phase B — DNS cutover planned |
 | Public URL | `https://am.pufworks.farm` | Canonical; `APP_URL` / `VITE_APP_URL` |
 | mDNS LAN sync | `_pufom-sync._tcp` (`PUFOM_MDNS_TYPE`) | Dual-advertise if renamed |
@@ -64,6 +72,10 @@ Related plans (not duplicated here):
 | `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in** |
 | `VITE_REQUIRE_AUTH` | Client | Forces login even if workshop enabled |
 | `VITE_MIST_EXPERIMENTAL` | Client | Shows mist farm create/recover on login |
+| `MIST_FREENET` | Server / desktop main | `1` enables the in-process Freenet peer (and, on desktop, starts the bundled node) |
+| `PUF_FREENET_BIN` | Desktop / server | Workshop override for the `freenet` binary — outranks bundled and `PATH` |
+| `PUF_FDEV_BIN` | Desktop / server | Same for `fdev` (still required for PUT on 0.2.118) |
+| `PUF_CLOUD_API_BASE` | Desktop main | Override for cloud-only routes (`/api/auth/*`, `/api/weather/*`); default `https://am.pufworks.farm` |
 | `DPIRD_API_KEY` | **Server only** | Never `VITE_*` — would bake into APK |
 
 Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys that must not ship in the client bundle **never** use the `VITE_` prefix.
@@ -207,7 +219,8 @@ Top-level collections (production):
 | **`Plans/*.md`** | Durable design, roadmaps, acceptance criteria, naming-adjacent specs |
 | **`DEVELOPER_NOTES.md`** | Architecture audit, quick checklist, pointers to Plans — **not** a second naming glossary |
 | **`README.md`** | Operator/dev onboarding, links into Plans |
-| **`units/*/README.md`** | Package-local API notes (e.g. mist-freenet) |
+| **`units/*/README.md`** | Package-local API notes (e.g. mist-freenet, puf-freenet-host) |
+| **`desktop/README.md`** | Electron shell layout + build commands (plan stays in `Plans/`) |
 | **`SITE_SYNOPSIS.txt`** | PUFworks-site module blurb — keep aligned with `brand.ts` |
 
 ### Adding or updating a plan

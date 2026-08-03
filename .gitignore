@@ -10,3 +10,6 @@ firebase-applet-config.json
 firebase-blueprint.json
 secrets/
 tmp/
+vendor/
+release/
+desktop/build/

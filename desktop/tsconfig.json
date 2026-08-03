@@ -1,0 +1,16 @@
+{
+  "//": "Mirrors the root compiler options: typechecking follows imports into server/, which is not strict-clean. units/puf-freenet-host uses strict because it has no such imports.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["*.ts"]
+}
