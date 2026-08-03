@@ -169,7 +169,7 @@ classDiagram
 *   **Blight risk engine:** Migrating to **Ji et al. 2025** process model (see §4.2). Legacy PUFOM multiplicative index remains for Research / what-if until cut over is complete.
 *   **Dryer engine:** Exponential decay fit on moisture readings for configured dryers.
 *   **Nutrition / water pages:** Application diaries writing `DiaryEvent` records (soil lab XLSX deferred; `nutritionService` retained for later).
-*   **Farm data export (planned):** Human-readable `farm-export.json` (diary + field issues → xlsx); see [`Plans/FARM_EXPORT_JSON_XLSX.md`](Plans/FARM_EXPORT_JSON_XLSX.md). Complements `.pufom` device sync — does not replace it.
+*   **Farm data export (v1 wired):** Human-readable `farm-export.json` (+ optional xlsx / photo zip) from local IndexedDB — parallel to Firestore; see [`Plans/FARM_EXPORT_JSON_XLSX.md`](Plans/FARM_EXPORT_JSON_XLSX.md). Complements `.pufom` device sync — does not replace it.
 *   **Auth:** Invite PIN sessions (not Google-only). Workshop mode can run UI without Firestore. See §4.1 Auth UX.
 *   **Weather:** Prefer Firestore cache + Cloud Functions refresh; client may ensure/backfill in dev.
 

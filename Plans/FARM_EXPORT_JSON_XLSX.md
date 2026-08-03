@@ -1,6 +1,6 @@
 # Farm export — `farm-export.json` → xlsx (sketch)
 
-**Status:** Planned (docs only — no UI implementation yet)  
+**Status:** v1 implemented (Settings → Offline & sync + Diary JSON/Excel buttons)  
 **Product:** PUF-AM (Ag Manager) — local folder may be `Walnut_farm_manager`  
 **Naming:** [`NAMING.md`](NAMING.md) § Export formats (distinct from `.pufom` / `PUFOM1`)  
 **Audience:** Production Firebase path first; mist fork consumes the same record shape later.
@@ -316,12 +316,12 @@ No implementation in mist units until production export helper exists and field 
 
 ## 8. Implementation checklist (post-approval)
 
-- [ ] `collectFarmExportBundle(farmId, scope)` → envelope object (diary: all local rows; blockName resolution)
-- [ ] Download JSON from Settings + Diary
-- [ ] `farmExportToXlsx(bundle)` using `xlsx` or SheetJS CE (`Issues` + `IssuesArchive` sheets)
-- [ ] Optional photo sidecar zip (`photos/{issueId}.jpg`, compressed)
+- [x] `collectFarmExportBundle(farmId, scope)` → envelope object (diary: all local rows; blockName resolution) — `src/lib/farmExport.ts` (`buildFarmExportJson`)
+- [x] Download JSON from Settings + Diary
+- [x] `farmExportToXlsx(bundle)` using `xlsx` (`Issues` + `IssuesArchive` sheets)
+- [x] Optional photo sidecar zip (`photos/{issueId}.jpg`, compressed)
 - [ ] Workshop Node script for JSON → xlsx
-- [ ] Tests: golden JSON fixture + column header snapshot
+- [x] Tests: golden JSON fixture + column header snapshot — `tests/farmExport.test.ts`
 - [ ] Phase 2: geometry export spec
 
 ---

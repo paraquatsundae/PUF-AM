@@ -37,7 +37,13 @@ import {
   pushLanBundle,
   type SyncPendingCounts,
 } from '../lib/pufomSync';
+import {
+  downloadFarmExportJson,
+  downloadFarmExportXlsx,
+  downloadFarmExportZip,
+} from '../lib/farmExport';
 import { useMapStoreInternal } from '../lib/mapStore';
+import { getLastFarm } from '../lib/deviceSession';
 import { clsx } from 'clsx';
 
 export function OfflineSyncCard() {
@@ -66,6 +72,7 @@ export function OfflineSyncCard() {
   const [peers, setPeers] = useState<PufomSyncPeer[]>([]);
   const [selectedPeer, setSelectedPeer] = useState(getSelectedSyncPeerBase());
   const [hubLabel, setHubLabel] = useState<string | null>(null);
+  const [includeExportPhotos, setIncludeExportPhotos] = useState(false);
   const [scanSource, setScanSource] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -246,6 +253,87 @@ export function OfflineSyncCard() {
           )}
           Flush to cloud
         </button>
+      </div>
+
+      <div className="border-t border-slate-100 pt-4 space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">Export JSON / Excel (local)</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Human-readable <code className="text-[11px]">farm-export.json</code> for spreadsheets and
+            archives — not the compressed <code className="text-[11px]">.pufom</code> sync pack.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            checked={includeExportPhotos}
+            onChange={(e) => setIncludeExportPhotos(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Include compressed issue photos in zip sidecar
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() =>
+              void run('export-json', async () => {
+                const farmName = getLastFarm()?.farmName;
+                const { filename } = await downloadFarmExportJson(farmId, { farmName });
+                setMessage(`Saved ${filename}`);
+              })
+            }
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {busy === 'export-json' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            Export JSON
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() =>
+              void run('export-xlsx', async () => {
+                const farmName = getLastFarm()?.farmName;
+                const { filename } = await downloadFarmExportXlsx(farmId, { farmName });
+                setMessage(`Saved ${filename}`);
+              })
+            }
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {busy === 'export-xlsx' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            Download Excel
+          </button>
+          <button
+            type="button"
+            disabled={!!busy}
+            onClick={() =>
+              void run('export-zip', async () => {
+                const farmName = getLastFarm()?.farmName;
+                const { filename } = await downloadFarmExportZip(farmId, {
+                  farmName,
+                  includePhotos: includeExportPhotos,
+                });
+                setMessage(`Saved ${filename}`);
+              })
+            }
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-indigo-200 text-indigo-900 text-sm font-medium hover:bg-indigo-50 disabled:opacity-50"
+          >
+            {busy === 'export-zip' ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            Export zip
+          </button>
+        </div>
       </div>
 
       <div className="border-t border-slate-100 pt-4 space-y-3">

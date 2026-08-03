@@ -25,6 +25,8 @@ import { issuesForBlock } from '../lib/blockIssueCounts';
 import { DEFAULT_CHEMICALS, DEFAULT_BIOLOGICALS, DEFAULT_CARRIERS, DEFAULT_ADJUVANTS } from '../constants';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { downloadFarmExportJson, downloadFarmExportXlsx } from '../lib/farmExport';
+import { getLastFarm } from '../lib/deviceSession';
 
 type DiaryFilter = 'all' | 'plans' | 'spray' | 'irrigation' | 'nutrition' | 'work';
 type LogTab = 'spray' | 'irrigation' | 'plan';
@@ -48,6 +50,7 @@ export function FarmDiary() {
   const [filter, setFilter] = useState<DiaryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [safetyForEventId, setSafetyForEventId] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState<'json' | 'xlsx' | null>(null);
   const [linkedIssueId, setLinkedIssueId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1006,9 +1009,55 @@ export function FarmDiary() {
                     onClick={handleExport}
                     disabled={filteredEvents.length === 0}
                     className="p-2 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-slate-50 disabled:opacity-40"
-                    title="Export CSV"
+                    title="Export diary CSV (filtered view)"
                   >
                     <Download className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!farmId || !!exportBusy}
+                    title="Export JSON (local) — all diary rows on device"
+                    onClick={() => {
+                      if (!farmId) return;
+                      void (async () => {
+                        setExportBusy('json');
+                        try {
+                          await downloadFarmExportJson(farmId, {
+                            farmName: getLastFarm()?.farmName || settings.farmName,
+                            includeIssues: false,
+                            includeIssuesArchive: false,
+                          });
+                        } finally {
+                          setExportBusy(null);
+                        }
+                      })();
+                    }}
+                    className="px-2 py-2 bg-white border border-slate-200 text-[10px] font-semibold uppercase tracking-wide text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    {exportBusy === 'json' ? '…' : 'JSON'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!farmId || !!exportBusy}
+                    title="Export Excel (local) — all diary rows on device"
+                    onClick={() => {
+                      if (!farmId) return;
+                      void (async () => {
+                        setExportBusy('xlsx');
+                        try {
+                          await downloadFarmExportXlsx(farmId, {
+                            farmName: getLastFarm()?.farmName || settings.farmName,
+                            includeIssues: false,
+                            includeIssuesArchive: false,
+                          });
+                        } finally {
+                          setExportBusy(null);
+                        }
+                      })();
+                    }}
+                    className="px-2 py-2 bg-white border border-slate-200 text-[10px] font-semibold uppercase tracking-wide text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40"
+                  >
+                    {exportBusy === 'xlsx' ? '…' : 'Excel'}
                   </button>
                 </div>
               </div>

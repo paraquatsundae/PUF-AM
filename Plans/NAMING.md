@@ -134,7 +134,7 @@ Three distinct formats — **do not conflate**:
 | Format | Discriminator | Extension / filename | Purpose |
 |--------|---------------|----------------------|---------|
 | **PUFOM bundle** | `format: "pufom"`, magic `PUFOM1\n`, gzip JSON | `.pufom` | Device-to-device / LAN sync; geometry + diary + issues (`pufomSync.ts`, `shared/sync/pufomBundle.ts`) |
-| **Farm export** | `format: "farm-export"`, `v: 1` | `*_farm-export.json` | Human-readable archive → Excel; **planned** — see [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) |
+| **Farm export** | `format: "farm-export"`, `v: 1` | `*_farm-export.json` | Human-readable archive → Excel — see [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) |
 | **Mist join envelope** | (mist-v1) | `.pufam-join` (sketch) | Air-gapped crew join — see [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) |
 
 **Rules:**
