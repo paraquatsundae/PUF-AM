@@ -66,8 +66,9 @@ export function MistRecoverFarm() {
             <p className="font-semibold text-emerald-950">Farm recovered</p>
             <p className="text-emerald-800 mt-1 font-mono text-xs break-all">farmId: {parsed.farmId}</p>
             <p className="text-emerald-700 text-xs mt-2">
-              Same cryptographic identity as the device that minted this FarmCode. Bones you put here stay
-              on this device until Freenet sync ships.
+              Same cryptographic identity as the device that minted this FarmCode. On laptop B, paste the
+              join ticket from laptop A in Settings → Mist workshop → <strong>Fetch farm from Freenet</strong>{' '}
+              (after Connect Freenet peer).
             </p>
           </div>
 
@@ -155,8 +156,8 @@ export function MistRecoverFarm() {
           <div className="text-sm space-y-1">
             <p className="font-semibold">Recovery root — not day-to-day login</p>
             <p>
-              FarmCode re-derives your farm&apos;s cryptographic identity on this laptop. It does not download
-              another device&apos;s IndexedDB blobs yet — cross-device bone sync requires Freenet (not wired).
+              FarmCode re-derives your farm&apos;s cryptographic identity on this laptop. Diary, issues, and
+              boundaries arrive via Freenet join ticket after you recover (Settings → Mist workshop).
             </p>
           </div>
         </div>

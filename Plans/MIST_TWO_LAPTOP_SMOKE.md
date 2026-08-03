@@ -207,7 +207,7 @@ Operator workshop: after publish → wipe → recover, **3 diary** entries rehyd
 |------|--------|
 | FarmCode identity recovery (B → same `farmId`) | **Done** (~2026-08-03) |
 | Per-device bones / Hot on localhost | **Done** (expected isolation) |
-| Cross-device Hot/bones replication (A → B) | **Blocked** — Freenet wire or interim LAN after pre-Freenet workshop |
+| Cross-device Hot/bones replication (A → B) | **Workshop Option A** — FN02 URI handoff; see [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) |
 | Live Hyphanet / FCP go-live | **Blocked** — team workshop on remaining items first |
 | Workshop outcome capture | **Pending** — paste team discussion notes into [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop when ready |
 

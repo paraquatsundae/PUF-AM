@@ -38,6 +38,7 @@ function isObviousPlaintextFarmJson(bytes: Uint8Array): boolean {
       return true;
     }
     if (typeof o.farmId === 'string' && o.kind === 'bones-workshop') return true;
+    if (typeof o.farmId === 'string' && o.kind === 'farm-geometry') return true;
     return false;
   } catch {
     return false;

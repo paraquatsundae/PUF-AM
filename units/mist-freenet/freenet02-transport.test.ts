@@ -53,3 +53,31 @@ describe('packParametersFromBlob', () => {
     expect(() => packParametersFromBlob(big)).toThrow(/splitfiles not supported/);
   });
 });
+
+describe('normalizeMistFreenetUri', () => {
+  it('accepts FN02@ prefix', async () => {
+    const { normalizeMistFreenetUri } = await import('./src/freenet-uri-normalize.ts');
+    const uri = 'FN02@GR5hs75vNK8A1peMoJAyVSRJ4Tspn2pgnYQeco8ptUdp';
+    expect(normalizeMistFreenetUri(uri)).toBe(uri);
+  });
+
+  it('wraps bare base58 contract id', async () => {
+    const { normalizeMistFreenetUri } = await import('./src/freenet-uri-normalize.ts');
+    const id = 'GR5hs75vNK8A1peMoJAyVSRJ4Tspn2pgnYQeco8ptUdp';
+    expect(normalizeMistFreenetUri(id)).toBe(`FN02@${id}`);
+  });
+
+  it('accepts legacy CHK@ URIs', async () => {
+    const { normalizeMistFreenetUri } = await import('./src/freenet-uri-normalize.ts');
+    const chk = 'CHK@abc,def,AAEC--8';
+    expect(normalizeMistFreenetUri(chk)).toBe(chk);
+  });
+
+  it('rejects empty and garbage input', async () => {
+    const { normalizeMistFreenetUri, InvalidFreenetUriError } = await import(
+      './src/freenet-uri-normalize.ts'
+    );
+    expect(() => normalizeMistFreenetUri('')).toThrow(InvalidFreenetUriError);
+    expect(() => normalizeMistFreenetUri('not-a-uri')).toThrow(/Invalid Freenet URI/);
+  });
+});

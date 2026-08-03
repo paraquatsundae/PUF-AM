@@ -23,6 +23,10 @@ export {
 export type { CreateFreenetTransportOptions, FreenetTransportKind } from './create-freenet-transport.ts';
 export { encodeFreenet02Uri, parseFreenet02Uri, isFreenet02Uri, FREENET02_URI_PREFIX } from './freenet02-uri.ts';
 export {
+  InvalidFreenetUriError,
+  normalizeMistFreenetUri,
+} from './freenet-uri-normalize.ts';
+export {
   blake3Bytes,
   loadPackContractWasm,
   packParametersFromBlob,

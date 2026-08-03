@@ -25,6 +25,8 @@ Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** 
 - **Phase 8 two-laptop smoke (done, ~2026-08-03):** Pre-Freenet two-laptop pass — Laptop A create + local Hot; Laptop B **FarmCode recovery** → same `farmId` on localhost; bones/Hot per-device (expected). See [`Plans/MIST_TWO_LAPTOP_SMOKE.md`](Plans/MIST_TWO_LAPTOP_SMOKE.md).
 - **Phase 9+ (pre-Freenet workshop frozen ~2026-08-03):** Reticulum unit, invite join QR, in-process Freenet client plug-in, cross-device bone sync, `sealHotPeriod` app trigger. **Phase 9 in-process Freenet plug-in — ws02 transport added ~2026-08-03** (Freenet 0.2 WebSocket on :7509 + legacy FCP; workshop publish/pull Hot).
 - **Phase 9 disaster-recovery smoke (done):** `mistDisasterRecovery.ts` + Settings → *Freenet loss / recovery smoke* — publish Hot → Freenet, wipe local `pufom_farm_local` + hot/current, pull + rehydrate. FarmCode/device session preserved. Unit tests: `src/mist/mistDisasterRecovery.test.ts`.
+- **Phase 10 two-Fedora Freenet (workshop, Option A):** Cross-laptop Hot + bones via **join ticket** (`{ hotUri, bonesUri }`). See [`Plans/MIST_TWO_FEDORA_FREENET.md`](Plans/MIST_TWO_FEDORA_FREENET.md). Option B (deterministic mutable contract) deferred.
+- **Phase 10b production + local sidecar (~2026-08-03):** `am.pufworks.farm` ships mist UI (`VITE_MIST_EXPERIMENTAL=true`); Freenet API calls default to `http://127.0.0.1:3000` sidecar (`getMistFreenetApiBaseUrl`). Cloud Run sets `MIST_FREENET_DISABLED=1`. Each laptop runs `freenet network` + `MIST_FREENET=1 npm run dev` while browsing production HTTPS.
 
 #### Milestone — Hot loss / Freenet recovery (ws02, ~2026-08-03)
 

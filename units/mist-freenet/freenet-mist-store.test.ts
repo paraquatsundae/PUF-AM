@@ -166,6 +166,27 @@ describe('FreenetMistStore (mock transport)', () => {
     expect(transport.hasUri(uri)).toBe(true);
     expect(transport.getGetCount()).toBeGreaterThan(0);
   });
+
+  it('pullByUri fetches when freenet-index empty (two-laptop B)', async () => {
+    const storeA = await openStore();
+    const key = hotKey(FARM, 'current');
+    const data = new TextEncoder().encode('hot-from-laptop-a');
+    await storeA.put(key, data, { kind: 'hot' });
+    const uri = storeA.getFreenetRecord(key)!.uri;
+
+    const storeB = new FreenetMistStore({
+      rootDir: await mkdtemp(path.join(os.tmpdir(), 'mist-freenet-b-')),
+      transport,
+      allowPlaintextForTests: true,
+    });
+    await storeB.init();
+
+    expect(storeB.getFreenetRecord(key)).toBeUndefined();
+    const pulled = await storeB.pullByUri(key, uri);
+    expect(pulled).not.toBeNull();
+    expect(new TextDecoder().decode(pulled!.ciphertext)).toBe('hot-from-laptop-a');
+    expect(storeB.getFreenetRecord(key)?.uri).toBe(uri);
+  });
 });
 
 function sampleHotState(records: HotState['records']): Uint8Array {

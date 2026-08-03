@@ -6,7 +6,11 @@
  */
 
 import type { Express, Request, Response } from 'express';
-import { hotKey } from '../units/mist-freenet/src/index.ts';
+import { bonesKey, hotKey } from '../units/mist-freenet/src/index.ts';
+import {
+  InvalidFreenetUriError,
+  normalizeMistFreenetUri,
+} from '../units/mist-freenet/src/freenet-uri-normalize.ts';
 import type { MistPutMeta } from '../units/mist-freenet/src/types.ts';
 import {
   createFreenetPeerHost,
@@ -172,6 +176,33 @@ export function registerMistFreenetRoutes(app: Express): void {
     }
   });
 
+  app.get('/api/mist/freenet/hot/record/:farmId', async (req, res) => {
+    if (mistApiUnavailable(req, res)) return;
+    try {
+      const farmId = String(req.params.farmId || '').trim();
+      if (!farmId) {
+        return res.status(400).json({ error: 'farmId is required' });
+      }
+
+      const key = hotKey(farmId, 'current');
+      const peer = await ensureFreenetPeer({ start: false });
+      const record = peer.getStore().getFreenetRecord(key);
+      if (!record?.uri) {
+        return res.status(404).json({ error: 'no indexed Hot URI on this device' });
+      }
+
+      res.json({
+        storageKey: key,
+        freenetUri: record.uri,
+        contentHash: record.content_hash,
+        freenetPending: record.pending ?? false,
+        insertedAt: record.insertedAt,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'hot record failed' });
+    }
+  });
+
   app.get('/api/mist/freenet/hot/:farmId', async (req, res) => {
     if (mistApiUnavailable(req, res)) return;
     try {
@@ -182,19 +213,162 @@ export function registerMistFreenetRoutes(app: Express): void {
 
       const key = hotKey(farmId, 'current');
       const peer = await ensureFreenetPeer({ start: true });
-      const entry = await peer.getStore().get(key);
+      const store = peer.getStore();
+      const entry = await store.get(key);
       if (!entry) {
-        return res.status(404).json({ error: 'hot/current not on Freenet cache or network' });
+        const record = store.getFreenetRecord(key);
+        return res.status(404).json({
+          error: 'hot/current not on Freenet cache or network',
+          indexedUri: record?.uri,
+        });
       }
 
+      const record = store.getFreenetRecord(key);
       res.json({
         storageKey: key,
         ciphertextBase64: bytesToBase64(entry.ciphertext),
         contentHash: entry.meta.content_hash,
         size: entry.meta.size,
+        freenetUri: record?.uri,
+        freenetPending: record?.pending ?? false,
       });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'hot pull failed' });
+    }
+  });
+
+  app.post('/api/mist/freenet/hot/pull-by-uri/:farmId', async (req, res) => {
+    if (mistApiUnavailable(req, res)) return;
+    try {
+      const farmId = String(req.params.farmId || '').trim();
+      const rawUri = String(req.body?.freenetUri || '').trim();
+      const contentHash = String(req.body?.contentHash || '').trim() || undefined;
+
+      if (!farmId || !rawUri) {
+        return res.status(400).json({ error: 'farmId and body.freenetUri are required' });
+      }
+
+      let freenetUri: string;
+      try {
+        freenetUri = normalizeMistFreenetUri(rawUri);
+      } catch (err) {
+        const message =
+          err instanceof InvalidFreenetUriError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'invalid Freenet URI';
+        return res.status(400).json({ error: message });
+      }
+
+      const key = hotKey(farmId, 'current');
+      const peer = await ensureFreenetPeer({ start: true });
+      const store = peer.getStore();
+      const entry = await store.pullByUri(key, freenetUri, contentHash);
+      if (!entry) {
+        return res.status(404).json({
+          error: 'Hot not found on Freenet at URI (Opennet propagation may still be in progress)',
+          freenetUri,
+        });
+      }
+
+      res.json({
+        storageKey: key,
+        freenetUri,
+        contentHash: entry.meta.content_hash,
+        size: entry.meta.size,
+        ciphertextBase64: bytesToBase64(entry.ciphertext),
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'hot pull-by-uri failed' });
+    }
+  });
+
+  const BONES_GEOMETRY_ASSET = 'farm-geometry';
+
+  app.post('/api/mist/freenet/bones/publish/:farmId', async (req, res) => {
+    if (mistApiUnavailable(req, res)) return;
+    try {
+      const farmId = String(req.params.farmId || '').trim();
+      const ciphertextBase64 = String(req.body?.ciphertextBase64 || '').trim();
+      if (!farmId || !ciphertextBase64) {
+        return res.status(400).json({ error: 'farmId and body.ciphertextBase64 are required' });
+      }
+
+      const key = bonesKey(farmId, BONES_GEOMETRY_ASSET);
+      const peer = await ensureFreenetPeer({ start: true });
+      const store = peer.getStore();
+      const ciphertext = base64ToBytes(ciphertextBase64);
+      const contentHash =
+        String(req.body?.contentHash || '').trim() ||
+        (await import('../units/mist-freenet/src/hash.ts')).sha256Hex(ciphertext);
+
+      const result = await store.put(key, ciphertext, {
+        kind: 'bones',
+        content_hash: contentHash,
+        size: ciphertext.byteLength,
+        version: 1,
+      });
+
+      const record = store.getFreenetRecord(key);
+      res.json({
+        storageKey: key,
+        contentHash: result.contentHash,
+        freenetUri: record?.uri,
+        freenetPending: record?.pending ?? true,
+        publishedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'bones publish failed';
+      const status = message.includes('plaintext') || message.includes('AEAD') ? 400 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  app.post('/api/mist/freenet/bones/pull-by-uri/:farmId', async (req, res) => {
+    if (mistApiUnavailable(req, res)) return;
+    try {
+      const farmId = String(req.params.farmId || '').trim();
+      const rawUri = String(req.body?.freenetUri || '').trim();
+      const contentHash = String(req.body?.contentHash || '').trim() || undefined;
+
+      if (!farmId || !rawUri) {
+        return res.status(400).json({ error: 'farmId and body.freenetUri are required' });
+      }
+
+      let freenetUri: string;
+      try {
+        freenetUri = normalizeMistFreenetUri(rawUri);
+      } catch (err) {
+        const message =
+          err instanceof InvalidFreenetUriError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'invalid Freenet URI';
+        return res.status(400).json({ error: message });
+      }
+
+      const key = bonesKey(farmId, BONES_GEOMETRY_ASSET);
+      const peer = await ensureFreenetPeer({ start: true });
+      const store = peer.getStore();
+      const entry = await store.pullByUri(key, freenetUri, contentHash);
+      if (!entry) {
+        return res.status(404).json({
+          error: 'Bones not found on Freenet at URI (Opennet propagation may still be in progress)',
+          freenetUri,
+        });
+      }
+
+      res.json({
+        storageKey: key,
+        freenetUri,
+        contentHash: entry.meta.content_hash,
+        size: entry.meta.size,
+        ciphertextBase64: bytesToBase64(entry.ciphertext),
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'bones pull-by-uri failed' });
     }
   });
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Cloud, Database, FlaskConical, Loader2, Radio } from 'lucide-react';
+import { Cloud, Copy, Database, FlaskConical, Loader2, Radio } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   getFarmStoreBackend,
@@ -10,13 +10,16 @@ import {
 import { readBonesWorkshopSmoke, runBonesWorkshopSmoke } from '../mist/bonesWorkshop.ts';
 import {
   fetchFreenetPeerStatus,
+  publishFarmToFreenet,
   publishHotToFreenet,
   pullHotFromFreenet,
+  pullHotFromFreenetByUri,
   startFreenetPeer,
   stopFreenetPeer,
   type FreenetPeerStatus,
 } from '../mist/mistFreenetClient.ts';
 import {
+  fetchAndRehydrateFarmFromFreenet,
   formatEntityCounts,
   formatRehydrateResult,
   formatWipeResult,
@@ -25,6 +28,8 @@ import {
   refreshFarmUiAfterRecovery,
   wipeLocalFarmForDisasterRecovery,
 } from '../mist/mistDisasterRecovery.ts';
+import { formatJoinTicket } from '../mist/mistJoinTicket.ts';
+import { getMistFreenetApiBaseUrl, usesLocalFreenetSidecar } from '../lib/apiBase.ts';
 import {
   getMistHotPublishStatus,
   isMistHotMirrorAvailable,
@@ -76,6 +81,13 @@ export function MistWorkshopCard() {
   const [hotMirrorAvailable, setHotMirrorAvailable] = useState(() => isMistHotMirrorAvailable());
   const [freenetStatus, setFreenetStatus] = useState<FreenetPeerStatus | null>(null);
   const [freenetBusy, setFreenetBusy] = useState(false);
+  const [pasteUri, setPasteUri] = useState('');
+  const [joinTicket, setJoinTicket] = useState('');
+  const [uriCopied, setUriCopied] = useState(false);
+  const [ticketCopied, setTicketCopied] = useState(false);
+
+  const lastFreenetUri = hotStatus?.freenetUri;
+  const lastBonesUri = hotStatus?.bonesFreenetUri;
 
   const refreshFreenetStatus = useCallback(async () => {
     try {
@@ -95,6 +107,9 @@ export function MistWorkshopCard() {
   if (!isMistExperimentalEnabled() && backend !== 'mist') {
     return null;
   }
+
+  const freenetSidecar = usesLocalFreenetSidecar();
+  const freenetApiBase = getMistFreenetApiBaseUrl();
 
   const onBackendChange = (next: FarmStoreBackendPreference) => {
     setFarmStoreBackend(next);
@@ -216,11 +231,103 @@ export function MistWorkshopCard() {
       const result = await publishHotToFreenet(farmId);
       setHotStatus(getMistHotPublishStatus(farmId));
       setSmokeResult(
-        `Hot on Freenet — ${result.storageKey} · hash ${result.contentHash.slice(0, 12)}…${result.freenetPending ? ' · insert pending' : ''}${result.freenetUri ? ` · ${result.freenetUri.slice(0, 24)}…` : ''}`,
+        result.freenetUri
+          ? `Hot on Freenet — copy URI below for laptop B · hash ${result.contentHash.slice(0, 12)}…${result.freenetPending ? ' · insert pending' : ''}`
+          : `Hot on Freenet — ${result.storageKey} · hash ${result.contentHash.slice(0, 12)}…${result.freenetPending ? ' · insert pending' : ''}`,
       );
       await refreshFreenetStatus();
     } catch (err) {
       setSmokeResult(err instanceof Error ? err.message : 'Freenet Hot publish failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const copyFreenetUri = async () => {
+    if (!lastFreenetUri) return;
+    try {
+      await navigator.clipboard.writeText(lastFreenetUri);
+      setUriCopied(true);
+      setTimeout(() => setUriCopied(false), 2000);
+    } catch {
+      setSmokeResult('Clipboard copy failed — select and copy the URI manually');
+    }
+  };
+
+  const copyJoinTicket = async () => {
+    const text =
+      joinTicket ||
+      (lastFreenetUri && lastBonesUri
+        ? formatJoinTicket({
+            v: 1,
+            hotUri: lastFreenetUri,
+            bonesUri: lastBonesUri,
+            hotContentHash: hotStatus?.contentHash,
+            bonesContentHash: hotStatus?.bonesContentHash,
+          })
+        : '');
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setTicketCopied(true);
+      setTimeout(() => setTicketCopied(false), 2000);
+    } catch {
+      setSmokeResult('Clipboard copy failed — select and copy the join ticket manually');
+    }
+  };
+
+  const publishFarmFreenet = async () => {
+    if (!farmId) return;
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const result = await publishFarmToFreenet(farmId);
+      setHotStatus(getMistHotPublishStatus(farmId));
+      setJoinTicket(result.joinTicketText);
+      setSmokeResult(
+        `Farm on Freenet — Hot ${result.hot.contentHash.slice(0, 12)}… + bones ${result.bones.contentHash.slice(0, 12)}… · copy join ticket below`,
+      );
+      await refreshFreenetStatus();
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Publish farm to Freenet failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const fetchFarmFreenet = async () => {
+    if (!farmId || !pasteUri.trim()) return;
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const result = await fetchAndRehydrateFarmFromFreenet(farmId, pasteUri.trim());
+      setHotStatus(getMistHotPublishStatus(farmId));
+      await refreshFarmUiAfterRecovery(farmId);
+      setSmokeResult(
+        `${formatRehydrateResult(result.hot)} · geometry ${result.geometry.before.blocks}→${result.geometry.after.blocks} blocks, ${result.geometry.before.pins}→${result.geometry.after.pins} pins`,
+      );
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Fetch farm from Freenet failed');
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
+  const pullHotFreenetByUri = async () => {
+    if (!farmId || !pasteUri.trim()) return;
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const result = await pullHotFromFreenetByUri(farmId, pasteUri.trim(), hotStatus?.contentHash);
+      setHotStatus(getMistHotPublishStatus(farmId));
+      const readBack = await readMistHotCurrent(farmId);
+      setSmokeResult(
+        readBack
+          ? `Pulled Hot by URI → local IndexedDB — ${readBack.hot.records.length} records · hash ${result.contentHash.slice(0, 12)}…`
+          : `Pulled ciphertext by URI · hash ${result.contentHash.slice(0, 12)}… (unlock session to decrypt)`,
+      );
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Pull by URI failed');
     } finally {
       setFreenetBusy(false);
     }
@@ -312,7 +419,11 @@ export function MistWorkshopCard() {
     setFreenetBusy(true);
     setSmokeResult(null);
     try {
-      const result = await recoverLocalFarmFromFreenet(farmId);
+      const uri = pasteUri.trim() || lastFreenetUri;
+      const result = await recoverLocalFarmFromFreenet(farmId, undefined, {
+        freenetUri: uri || undefined,
+        contentHash: hotStatus?.contentHash,
+      });
       setHotStatus(getMistHotPublishStatus(farmId));
       await refreshFarmUiAfterRecovery(farmId);
       setSmokeResult(`${formatRehydrateResult(result)} · hash ${result.contentHash.slice(0, 12)}…`);
@@ -375,10 +486,21 @@ export function MistWorkshopCard() {
         <p className="text-[11px] text-slate-500">
           Transport runs inside this app&apos;s Node server. Default:{' '}
           <strong>Freenet 0.2</strong> WebSocket at{' '}
-          <code className="font-mono">ws://127.0.0.1:7509/v1/contract/command</code>. Legacy Hyphanet
-          FCP (<code className="font-mono">FREENET_TRANSPORT=fcp</code>, <code className="font-mono">:9481</code>)
-          is opt-in.
+          <code className="font-mono text-[10px]">127.0.0.1:7509</code> (ws02). Legacy Hyphanet FCP
+          at <code className="font-mono text-[10px]">127.0.0.1:9481</code> when{' '}
+          <code className="font-mono text-[10px]">FREENET_TRANSPORT=fcp</code>.
         </p>
+        {freenetSidecar ? (
+          <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Production UI — Freenet API calls go to local sidecar{' '}
+            <code className="font-mono text-[10px]">{freenetApiBase}</code>. On this laptop run{' '}
+            <code className="font-mono text-[10px]">freenet network</code> plus{' '}
+            <code className="font-mono text-[10px]">
+              FREENET_TRANSPORT=ws02 MIST_FREENET=1 npm run dev
+            </code>{' '}
+            (laptop A also needs <code className="font-mono text-[10px]">fdev</code> for publish).
+          </p>
+        ) : null}
         <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
           Status:{' '}
           <span className="font-mono">{freenetStatusLabel(freenetStatus)}</span>
@@ -426,6 +548,80 @@ export function MistWorkshopCard() {
       </div>
 
       {hotMirrorAvailable && farmId && (
+        <div className="space-y-2 pt-2 border-t border-emerald-100">
+          <p className="text-xs font-semibold text-emerald-900">Two-laptop Freenet sync (A → B)</p>
+          <p className="text-[11px] text-slate-500">
+            Laptop A: draw boundaries + diary, then <strong>Publish farm to Freenet</strong> (Hot + bones).
+            Copy the join ticket. Laptop B: recover FarmCode → Connect peer → paste ticket →{' '}
+            <strong>Fetch farm from Freenet</strong>.
+          </p>
+          {(joinTicket || (lastFreenetUri && lastBonesUri)) ? (
+            <div className="text-[11px] bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 space-y-1.5">
+              <p className="font-semibold text-emerald-900">Join ticket (copy for laptop B)</p>
+              <pre className="font-mono break-all text-emerald-800 whitespace-pre-wrap text-[10px] max-h-32 overflow-auto">
+                {joinTicket ||
+                  formatJoinTicket({
+                    v: 1,
+                    hotUri: lastFreenetUri!,
+                    bonesUri: lastBonesUri!,
+                    hotContentHash: hotStatus?.contentHash,
+                    bonesContentHash: hotStatus?.bonesContentHash,
+                  })}
+              </pre>
+              <button
+                type="button"
+                disabled={workshopBusy}
+                onClick={() => void copyJoinTicket()}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded border border-emerald-200 text-emerald-800 text-[10px] font-semibold"
+              >
+                <Copy className="w-3 h-3" />
+                {ticketCopied ? 'Copied' : 'Copy join ticket'}
+              </button>
+            </div>
+          ) : null}
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-slate-600" htmlFor="mist-join-ticket-paste">
+              Paste join ticket (laptop B)
+            </label>
+            <textarea
+              id="mist-join-ticket-paste"
+              rows={4}
+              value={pasteUri}
+              onChange={(e) => setPasteUri(e.target.value)}
+              placeholder={'JSON { "v": 1, "hotUri": "FN02@…", "bonesUri": "FN02@…" }\nor two lines: hot URI then bones URI'}
+              className="w-full text-[11px] font-mono px-2 py-1.5 rounded border border-slate-200"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={workshopBusy || !freenetUp}
+              title={freenetUp ? undefined : 'Connect Freenet peer first'}
+              onClick={() => void publishFarmFreenet()}
+              className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+            >
+              Publish farm to Freenet (Hot + bones)
+            </button>
+            <button
+              type="button"
+              disabled={workshopBusy || !freenetStatus?.running || !pasteUri.trim()}
+              title={
+                !pasteUri.trim()
+                  ? 'Paste join ticket from laptop A first'
+                  : freenetStatus?.running
+                    ? undefined
+                    : 'Start Freenet peer first'
+              }
+              onClick={() => void fetchFarmFreenet()}
+              className="px-3 py-2 rounded-lg border border-emerald-300 text-xs font-semibold text-emerald-900 bg-emerald-50"
+            >
+              Fetch farm from Freenet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hotMirrorAvailable && farmId && (
         <div className="space-y-2 pt-2 border-t border-slate-100">
           <p className="text-xs font-semibold text-slate-700">Local → mist Hot</p>
           <p className="text-[11px] text-slate-500">
@@ -437,8 +633,51 @@ export function MistWorkshopCard() {
             <p className="text-[11px] text-slate-600 bg-violet-50 border border-violet-100 rounded-lg px-3 py-2">
               Last published {hotStatus.publishedAt.slice(0, 19)}Z — {hotStatus.recordCount} records · hash{' '}
               <span className="font-mono">{hotStatus.contentHash.slice(0, 16)}…</span>
+              {hotStatus.freenetUri ? (
+                <>
+                  {' '}
+                  · Freenet{' '}
+                  {hotStatus.freenetPublishedAt
+                    ? hotStatus.freenetPublishedAt.slice(0, 19) + 'Z'
+                    : 'published'}
+                </>
+              ) : null}
             </p>
           )}
+          {lastFreenetUri && lastBonesUri ? (
+            <div className="text-[11px] bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 space-y-1">
+              <p className="font-semibold text-indigo-900">Individual URIs (legacy handoff)</p>
+              <p className="font-mono break-all text-indigo-800 text-[10px]">Hot: {lastFreenetUri}</p>
+              <p className="font-mono break-all text-indigo-800 text-[10px]">Bones: {lastBonesUri}</p>
+            </div>
+          ) : lastFreenetUri ? (
+            <div className="text-[11px] bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 space-y-1.5">
+              <p className="font-semibold text-indigo-900">Hot Freenet URI (copy for laptop B)</p>
+              <p className="font-mono break-all text-indigo-800">{lastFreenetUri}</p>
+              <button
+                type="button"
+                disabled={workshopBusy}
+                onClick={() => void copyFreenetUri()}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded border border-indigo-200 text-indigo-800 text-[10px] font-semibold"
+              >
+                <Copy className="w-3 h-3" />
+                {uriCopied ? 'Copied' : 'Copy URI'}
+              </button>
+            </div>
+          ) : null}
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold text-slate-600" htmlFor="mist-freenet-uri-paste">
+              Paste Hot FN02 URI (laptop B — empty index)
+            </label>
+            <input
+              id="mist-freenet-uri-paste"
+              type="text"
+              value={pasteUri}
+              onChange={(e) => setPasteUri(e.target.value)}
+              placeholder="FN02@… or bare base58 contract id from laptop A"
+              className="w-full text-[11px] font-mono px-2 py-1.5 rounded border border-slate-200"
+            />
+          </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -475,6 +714,21 @@ export function MistWorkshopCard() {
             >
               Pull Hot from Freenet
             </button>
+            <button
+              type="button"
+              disabled={workshopBusy || !freenetStatus?.running || !pasteUri.trim()}
+              title={
+                !pasteUri.trim()
+                  ? 'Paste FN02 URI from laptop A first'
+                  : freenetStatus?.running
+                    ? undefined
+                    : 'Start Freenet peer first'
+              }
+              onClick={() => void pullHotFreenetByUri()}
+              className="px-3 py-2 rounded-lg border border-indigo-300 text-xs font-semibold text-indigo-900 bg-indigo-50"
+            >
+              Pull Hot by URI
+            </button>
           </div>
         </div>
       )}
@@ -484,6 +738,7 @@ export function MistWorkshopCard() {
           <p className="text-xs font-semibold text-amber-900">Freenet loss / recovery smoke</p>
           <p className="text-[11px] text-slate-500">
             End-to-end: publish Hot to Freenet → simulate local loss → pull + rehydrate diary/issues.
+            Two-laptop: copy <strong>FN02 URI</strong> on A, paste on B, then <strong>Pull Hot by URI</strong> or step 3.
             Freenet peer must be connected (<code className="font-mono">FREENET_TRANSPORT=ws02</code>, node on{' '}
             <code className="font-mono">localhost:7509</code>).
           </p>

@@ -76,6 +76,37 @@ if (Test-Path "firebase-applet-config.json") {
   }
 }
 
+# Canonical production hostname (custom domain). Fallback run.app still works.
+$AppUrl = if ($env:APP_URL) { $env:APP_URL.Trim().Trim('"').Trim("'") } else { "https://am.pufworks.farm" }
+if (Test-Path ".env") {
+  $appLine = Get-Content .env | Where-Object { $_ -match '^\s*APP_URL\s*=' } | Select-Object -First 1
+  if ($appLine) {
+    $fromEnv = ($appLine -split '=', 2)[1].Trim().Trim('"').Trim("'")
+    if ($fromEnv -and $fromEnv -notmatch 'localhost') { $AppUrl = $fromEnv }
+  }
+}
+
+# Vite bakes VITE_* at image build time; .env is in .gcloudignore so pass build env explicitly.
+$mapsKey = $null
+$viteAppUrl = $AppUrl
+if (Test-Path ".env") {
+  $mapsLine = Get-Content .env | Where-Object { $_ -match '^\s*VITE_GOOGLE_MAPS_API_KEY\s*=' } | Select-Object -First 1
+  if ($mapsLine) {
+    $mapsKey = ($mapsLine -split '=', 2)[1].Trim().Trim('"').Trim("'")
+    if ($mapsKey -eq "YOUR_GOOGLE_MAPS_API_KEY") { $mapsKey = $null }
+  }
+  $viteLine = Get-Content .env | Where-Object { $_ -match '^\s*VITE_APP_URL\s*=' } | Select-Object -First 1
+  if ($viteLine) {
+    $fromVite = ($viteLine -split '=', 2)[1].Trim().Trim('"').Trim("'")
+    if ($fromVite -and $fromVite -notmatch 'localhost') { $viteAppUrl = $fromVite }
+  }
+}
+
+$buildEnv = "VITE_APP_URL=$viteAppUrl,VITE_MIST_EXPERIMENTAL=true"
+if ($mapsKey) { $buildEnv = "$buildEnv,VITE_GOOGLE_MAPS_API_KEY=$mapsKey" }
+else { Write-Warning "VITE_GOOGLE_MAPS_API_KEY missing in .env — satellite basemap will be unavailable in this build." }
+
+Write-Host "APP_URL:  $AppUrl"
 Write-Host "Building and deploying (Cloud Build + Cloud Run)..."
 & $gcloudCmd run deploy $Service `
   --source . `
@@ -87,7 +118,8 @@ Write-Host "Building and deploying (Cloud Build + Cloud Run)..."
   --cpu 1 `
   --min-instances 0 `
   --max-instances 3 `
-  --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=$ProjectId,FIRESTORE_DATABASE_ID=$firestoreDb" `
+  --set-build-env-vars $buildEnv `
+  --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=$ProjectId,FIRESTORE_DATABASE_ID=$firestoreDb,APP_URL=$AppUrl,MIST_FREENET_DISABLED=1" `
   --set-secrets "DPIRD_API_KEY=DPIRD_API_KEY:latest"
 
 if ($LASTEXITCODE -ne 0) { throw "Cloud Run deploy failed (exit $LASTEXITCODE)" }
@@ -95,10 +127,12 @@ if ($LASTEXITCODE -ne 0) { throw "Cloud Run deploy failed (exit $LASTEXITCODE)" 
 $url = & $gcloudCmd run services describe $Service --region $Region --format="value(status.url)"
 Write-Host ""
 Write-Host "Deployed: $url"
-Write-Host "Health:   $url/api/health"
+Write-Host "Canonical: $AppUrl"
+Write-Host "Health:   $AppUrl/api/health (or $url/api/health)"
 Write-Host ""
 Write-Host "Next:"
-Write-Host "  1. Set APP_URL and VITE_APP_URL in .env to $url (then rebuild Android if needed)"
-Write-Host "  2. Add Maps HTTP referrer: $url/*"
-Write-Host "  3. Grant the Cloud Run SA Firebase Admin if invite PIN fails (roles/firebase.admin or datastore user)"
-Write-Host "  4. Point Capacitor: CAP_PACKAGED=1 with VITE_API_BASE_URL=$url"
+Write-Host "  1. Domain map + DNS: see Plans/DEPLOY_CLOUD_RUN.md (am.pufworks.farm)"
+Write-Host "  2. Firebase Auth authorized domain: am.pufworks.farm"
+Write-Host "  3. Maps HTTP referrer: https://am.pufworks.farm/* (keep $url/* as fallback)"
+Write-Host "  4. Grant the Cloud Run SA Firebase Admin if invite PIN fails"
+Write-Host "  5. Capacitor: CAP_PACKAGED=1 with VITE_API_BASE_URL=$AppUrl"

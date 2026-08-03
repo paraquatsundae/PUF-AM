@@ -14,9 +14,27 @@ import {
 export function createApiApp(): Express {
   const app = express();
 
-  // Capacitor (https://localhost) and LAN devices call this API cross-origin.
+  // Capacitor, LAN devices, and am.pufworks.farm → local Freenet sidecar call cross-origin.
+  const allowedCorsOrigins = new Set([
+    'https://am.pufworks.farm',
+    'https://pufom-quby5ye5pa-ts.a.run.app',
+  ]);
+
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    const origin = req.headers.origin;
+    let allowOrigin = '*';
+    if (origin) {
+      if (
+        allowedCorsOrigins.has(origin) ||
+        origin.startsWith('http://127.0.0.1:') ||
+        origin.startsWith('http://localhost:') ||
+        origin === 'https://localhost' ||
+        origin === 'capacitor://localhost'
+      ) {
+        allowOrigin = origin;
+      }
+    }
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',

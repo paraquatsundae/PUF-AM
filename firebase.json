@@ -19,5 +19,22 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": "hosting-stub",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "pufom",
+          "region": "australia-southeast1"
+        }
+      }
+    ]
   }
 }

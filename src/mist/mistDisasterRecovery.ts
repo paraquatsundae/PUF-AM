@@ -15,7 +15,10 @@ import { BONES_WORKSHOP_ASSET_ID } from './bonesWorkshop.ts';
 import { countHotFarmEntities, hotStateToFarmEntities } from './hotAdapter.ts';
 import { getMistStoreForHotBridge, readMistHotCurrent } from './mistHotBridge.ts';
 import { clearMistHotPublishStatus } from './mistHotPublishMeta.ts';
-import { pullHotFromFreenet } from './mistFreenetClient.ts';
+import { rehydrateFarmGeometryFromBones } from './bonesGeometry.ts';
+import { readMistBonesFarmGeometry } from './mistBonesBridge.ts';
+import { fetchFarmFromFreenetByJoinTicket, pullHotFromFreenet, pullHotFromFreenetByUri } from './mistFreenetClient.ts';
+import { parseJoinTicketInput } from './mistJoinTicket.ts';
 
 export type { LocalFarmEntityCounts };
 
@@ -49,6 +52,16 @@ export type RehydrateLocalFarmResult = {
 export type RecoverFromHotResult = RehydrateLocalFarmResult & {
   contentHash: string;
   source: 'local-hot' | 'freenet-hot';
+};
+
+export type RehydrateGeometryFromBonesResult = {
+  before: { blocks: number; pins: number; tracks: number; hasViewport: boolean };
+  after: { blocks: number; pins: number; tracks: number; hasViewport: boolean };
+};
+
+export type FetchFarmFromFreenetResult = {
+  hot: RecoverFromHotResult;
+  geometry: RehydrateGeometryFromBonesResult;
 };
 
 async function deleteMistStoreKey(store: MistStore, key: string): Promise<boolean> {
@@ -154,8 +167,11 @@ export async function recoverLocalFarmFromMistHot(
 export async function recoverLocalFarmFromFreenet(
   farmId: string,
   devicePin?: string,
+  opts?: { freenetUri?: string; contentHash?: string },
 ): Promise<RecoverFromHotResult> {
-  const pull = await pullHotFromFreenet(farmId);
+  const pull = opts?.freenetUri?.trim()
+    ? await pullHotFromFreenetByUri(farmId, opts.freenetUri, opts.contentHash)
+    : await pullHotFromFreenet(farmId);
   const readBack = await readMistHotCurrent(farmId, devicePin);
   if (!readBack) {
     throw new Error('Pulled Hot ciphertext but decrypt failed — unlock mist device session');
@@ -169,17 +185,59 @@ export async function recoverLocalFarmFromFreenet(
   };
 }
 
+/** Decrypt local farm-geometry bones and write to sentinut_farm_geometry. */
+export async function recoverLocalGeometryFromMistBones(
+  farmId: string,
+  devicePin?: string,
+): Promise<RehydrateGeometryFromBonesResult> {
+  const readBack = await readMistBonesFarmGeometry(farmId, devicePin);
+  if (!readBack) {
+    throw new Error('No local farm-geometry bones — pull from Freenet first');
+  }
+
+  const result = await rehydrateFarmGeometryFromBones(farmId, readBack.payload);
+  return { before: result.before, after: result.after };
+}
+
+/**
+ * Pull Hot + bones from Freenet using join ticket → decrypt → rehydrate diary/issues + geometry.
+ */
+export async function fetchAndRehydrateFarmFromFreenet(
+  farmId: string,
+  joinTicketInput: string,
+  devicePin?: string,
+): Promise<FetchFarmFromFreenetResult> {
+  const ticket = parseJoinTicketInput(joinTicketInput);
+  if (!ticket) {
+    throw new Error('Invalid join ticket — paste JSON { hotUri, bonesUri } or two URI lines');
+  }
+
+  await fetchFarmFromFreenetByJoinTicket(farmId, ticket);
+
+  const hot = await recoverLocalFarmFromMistHot(farmId, devicePin);
+  const geometry = await recoverLocalGeometryFromMistBones(farmId, devicePin);
+
+  return {
+    hot: { ...hot, source: 'freenet-hot' as const },
+    geometry,
+  };
+}
+
 /** Refresh in-memory zustand stores after rehydrate (best-effort). */
 export async function refreshFarmUiAfterRecovery(farmId: string): Promise<void> {
-  const [{ useFieldStore }, { forceReloadFarmDiary }] = await Promise.all([
+  const [{ useFieldStore }, { forceReloadFarmDiary }, { useMapStoreInternal }] = await Promise.all([
     import('../lib/fieldStore'),
     import('../lib/farmDiary'),
+    import('../lib/mapStore'),
   ]);
 
   useFieldStore.setState({ isLoaded: false, isArchiveLoaded: false });
   useFieldStore.getState().loadData(farmId);
   useFieldStore.getState().loadArchive(farmId);
   forceReloadFarmDiary(farmId);
+
+  useMapStoreInternal.setState({ isLoaded: false });
+  await useMapStoreInternal.getState().loadData(farmId);
 }
 
 export function formatEntityCounts(counts: LocalFarmEntityCounts): string {

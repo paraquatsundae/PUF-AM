@@ -87,6 +87,14 @@ export {
   type HotCiphertextEnvelope,
 } from './hot-crypto.ts';
 
+export {
+  BONES_CONTRACT_HKDF_INFO,
+  deriveBonesContractKey,
+  decryptBonesBlob,
+  encryptBonesBlob,
+  type BonesCiphertextEnvelope,
+} from './bones-crypto.ts';
+
 export type { FreenetPeerStatus } from './freenet-peer.ts';
 
 export { isMistAeadEnvelope, assertCiphertextForFreenet } from './ciphertext-guard.ts';

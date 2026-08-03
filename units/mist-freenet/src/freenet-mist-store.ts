@@ -17,7 +17,9 @@ import { assertCiphertextForFreenet } from './ciphertext-guard.ts';
 import { DiskMistStore, type DiskMistStoreOptions } from './disk-mist-store.ts';
 import type { FreenetOutboxEntry, FreenetKeyIndex, FreenetKeyRecord } from './freenet-keys.ts';
 import { freenetIndexPath, outboxPath } from './freenet-keys.ts';
+import { normalizeMistFreenetUri } from './freenet-uri-normalize.ts';
 import type { FreenetTransport } from './freenet-transport.ts';
+import { sha256Hex } from './hash.ts';
 import { parseMistKey } from './keys.ts';
 import { mockChkUriFromContent } from './mock-freenet-transport.ts';
 import type { MistStore } from './mist-store.ts';
@@ -261,6 +263,48 @@ export class FreenetMistStore implements MistStore {
   /** Freenet URI for a mist key when indexed. */
   getFreenetRecord(key: string): FreenetKeyRecord | undefined {
     return this.freenetIndex[key];
+  }
+
+  /**
+   * Fetch ciphertext by URI when local index is empty (two-laptop workshop).
+   * Updates disk cache + freenet-index on success.
+   */
+  async pullByUri(key: string, uri: string, contentHash?: string): Promise<MistEntry | null> {
+    await this.ready;
+    const normalizedUri = normalizeMistFreenetUri(uri);
+
+    const cached = await this.cache.get(key);
+    if (cached && (!contentHash || cached.meta.content_hash === contentHash)) {
+      return cached;
+    }
+
+    if (!this.transport.isConnected()) {
+      try {
+        await this.transport.connect();
+      } catch {
+        return null;
+      }
+    }
+
+    try {
+      const remote = await this.transport.getBlob(normalizedUri);
+      if (!remote) return null;
+
+      const parsed = parseMistKey(key);
+      const kind = parsed?.kind ?? 'bones';
+      const hash = contentHash ?? sha256Hex(remote);
+      await this.cache.put(key, remote, { kind, content_hash: hash });
+      this.freenetIndex[key] = {
+        uri: normalizedUri,
+        content_hash: hash,
+        insertedAt: Date.now(),
+        pending: false,
+      };
+      await this.persistIndex();
+      return this.cache.get(key);
+    } catch {
+      return null;
+    }
   }
 
   /** Test helper — remove all persisted state. */

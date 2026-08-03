@@ -6,6 +6,9 @@
  * - Local index maps mist key → URI + content_hash (see FreenetMistStore index).
  * - Mutable contracts (hot/current, manifest) are re-put as new blobs; the mist
  *   key always points at the latest URI in the local index. USK/SSK updates are deferred.
+ * - **Two-laptop (Option A):** FN02 URI must be copied from laptop A and pasted on B
+ *   (`pullByUri`) — B's freenet-index is empty after FarmCode recovery. See
+ *   Plans/MIST_TWO_FEDORA_FREENET.md.
  *
  * Browsers cannot run a full Freenet node; only Node/Electron main may use FCP.
  */
