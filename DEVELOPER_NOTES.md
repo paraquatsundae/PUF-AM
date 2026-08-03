@@ -22,7 +22,36 @@ Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** 
 - **Phase 5 reload survival (done):** `IndexedDbMistStore`, encrypted device session + PIN unlock gate, bones persist across reload. Per-device only until Freenet sync.
 - **Phase 6 FarmCode recovery (done):** `/login/mist-recover` — laptop B enters existing FarmCode → same `farmId` + local IndexedDB; blobs from laptop A stay local-only until Freenet sync ships.
 - **Phase 7 local → Hot bridge (done):** `mistHotBridge.ts` — diary/issues from `pufom_farm_local` → `hot/current` (AEAD via `freenet-hot` HKDF); auto-publish when mist device session active; Settings workshop UI. Firestore/outbox unchanged.
-- **Phase 8 (next):** Reticulum unit, invite join QR, Electron `FreenetMistStore`, cross-device bone sync, `sealHotPeriod` app trigger.
+- **Phase 8 two-laptop smoke (done, ~2026-08-03):** Pre-Freenet two-laptop pass — Laptop A create + local Hot; Laptop B **FarmCode recovery** → same `farmId` on localhost; bones/Hot per-device (expected). See [`Plans/MIST_TWO_LAPTOP_SMOKE.md`](Plans/MIST_TWO_LAPTOP_SMOKE.md).
+- **Phase 9+ (pre-Freenet workshop frozen ~2026-08-03):** Reticulum unit, invite join QR, in-process Freenet client plug-in, cross-device bone sync, `sealHotPeriod` app trigger. Live Freenet wiring **not started** — see frozen decisions below.
+
+#### Milestone — two-laptop FarmCode recovery (pre-Freenet, ~2026-08-03)
+
+**Two-laptop FarmCode recovery succeeded (pre-Freenet):** Laptop B recovered the mist farm with paper FarmCode; the same identity path (`farmId`, FarmSeed HKDF keys) works offline on localhost. Bones and Hot remain **per-device** (not synced across laptops). Live Freenet go-live is **not** the next step without further workshop.
+
+Firebase Auth + invite PINs remain the **shipping path**; mist stays an **experimental fork** behind `VITE_MIST_EXPERIMENTAL` / mist backend toggle.
+
+#### Pre-Freenet workshop (frozen ~2026-08-03)
+
+Team workshop captured the following before wiring live Freenet. Full detail: [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md) § Pre-Freenet workshop decisions; unit notes: [`units/mist-freenet/README.md`](units/mist-freenet/README.md) Phase 8+.
+
+**Unchanged constraints:**
+
+- Mist remains an **experimental fork**; **Firebase Auth + invite PINs** stay the shipping path.
+- **Two-laptop FarmCode recovery** succeeded pre-Freenet (~2026-08-03) — same `farmId`, per-device bones/Hot until sync ships.
+- **Per-device Hot/bones** until Freenet (or interim LAN) cross-device sync is implemented.
+
+**Frozen decisions (do not implement client yet):**
+
+1. **Encrypt before upload** — farm ciphertext is sealed with Hot AEAD / FarmSeed HKDF **before** Freenet insert. Freenet CHK content-addressing is transport only; it is **not** a substitute for farm encryption.
+2. **No splitfiles for KiB-class payloads** — Hot, bones, and manifest blobs stay on the **single-block CHK** path at KiB scale. Freenet splitfiles/fragmentation deferred until larger assets (e.g. tile packs, multi-MiB archives) need it.
+3. **In-process Freenet client** — lightweight Freenet host runs **inside PUF-AM** as a **plug-in unit** (same compartmentalized pattern as `mist-freenet` today), **not** a separate always-on daemon the farmer must install or manage.
+4. **Future fork: PUF-FN** — the in-app client will likely split into its own **PUF-FN** unit/repo later; plug-in boundary must stay clean for that fork. Product name: [`Plans/NAMING.md`](Plans/NAMING.md) §1.
+
+**Still blocked (implementation):**
+
+- Cross-device Hot/bones sync via in-process Freenet client
+- Reticulum unit, invite join QR, `sealHotPeriod` app trigger, Electron/main wiring
 
 ### Workshop hub keep-alive
 

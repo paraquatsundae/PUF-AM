@@ -1,7 +1,7 @@
 # Mist network & storage (experimental fork)
 
-**Status:** Design workshop — **not** the production path.  
-**Date:** 2026-08-02  
+**Status:** Design workshop — **not** the production path. Pre-Freenet two-laptop FarmCode recovery **succeeded** (~2026-08-03); pre-Freenet workshop decisions **frozen** (~2026-08-03). Cross-device Hot/bones sync and live Freenet wiring **not started**.  
+**Date:** 2026-08-02 (milestone + workshop update 2026-08-03)  
 **Product:** PUF-AM (Ag Manager)
 
 **Naming:** [`NAMING.md`](NAMING.md) §7 (mist paths, FarmCode, `pufam-mist-v1` IDB) — product/storage glossary not repeated here.
@@ -68,12 +68,18 @@ Freenet replicates each **contract** across peers; it does **not** automatically
 - Optional: 2–3 location-diverse copies of critical archives; compression (e.g. zstd) before state bytes.
 - Phones: lightweight / on-demand Freenet peer; prefer one always-on **shed pin** per farm.
 
-**Freenet peer implementation (intent):**
+**Freenet peer implementation (intent + pre-Freenet workshop ~2026-08-03):**
 
 - Build a **lightweight Freenet-compatible host/client** suitable for phones and tablets — resource-aware (battery, disk, background execution) and aligned with **§ Mobile peer policy**.
+- **In-process plug-in (frozen):** the Freenet client runs **inside PUF-AM** as a compartmentalized **plug-in unit** — same pattern as [`units/mist-freenet/`](../units/mist-freenet/) today. It is **not** a separate always-on background daemon the farmer must install or manage.
+- **Future fork (frozen):** the client will likely split into its own **PUF-FN** unit/repo later; the in-app plug-in boundary must stay clean for that fork. Product name: [`NAMING.md`](NAMING.md) §1.
+- **Encrypt before upload (frozen):** all farm payloads are **AEAD-sealed under FarmSeed / contract keys before Freenet insert**. Freenet CHK is transport and content-addressing only — **not** a substitute for farm encryption (aligns with existing Hot AEAD in `hot-crypto.ts`).
+- **KiB-class CHK only (frozen):** Hot, bones, and manifest payloads at KiB scale use the **single-block CHK** path — no Freenet splitfiles/fragmentation for v1 small blobs. Larger assets (tile packs, multi-MiB archives) may use splitfiles later; document when evaluated.
 - **v1 target:** run on the **actual Freenet network** (not a mock or isolated testnet).
 - **Future (not a v1 blocker):** optional **parallel Freenet-style network for PUFworks** — separate namespace / bootstrap if the global Freenet mesh is unsuitable for farm contracts; document when evaluated.
 - Per-farm and per-device **storage contribution limits** stay relatively stable; effective farm capacity grows as more members and always-on hosts opt in to `contribute_storage` — mobile defaults remain client-only (see **§ Mobile peer policy**).
+
+See also **§ Pre-Freenet workshop decisions** for the authoritative checklist.
 
 **Longevity:** treat Freenet as multi-device sync + short-to-medium redundancy. Multi-year survival = local caches + automated offline backups + at least one subscribed pin. Re-seed from any member who still has data.
 
@@ -114,8 +120,9 @@ Prototype order:
 3. Local event log / CRDT-friendly store.
 4. Farm bones publish/pull on mist + Reticulum map heads-up.
 5. **Freenet Hot contract — local bridge (done):** `src/mist/mistHotBridge.ts` mirrors `pufom_farm_local` diary/issues → `hot/current` (farm-export-shaped payloads, AEAD when FarmSeed unlocked); auto-publish on local save when mist device session active; manual publish in Settings → Mist workshop. Seal cron / Freenet wire deferred.
-6. Archive sealing + Manifest (`sealHotPeriod()` exists; app trigger manual).
-7. Lightweight Freenet host/client spike (**§ Freenet peer implementation**).
+6. **Two-laptop FarmCode recovery (done, ~2026-08-03):** Laptop B recover → same `farmId`; bones/Hot per-device. Smoke doc: [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md).
+7. Archive sealing + Manifest (`sealHotPeriod()` exists; app trigger manual).
+8. Lightweight Freenet host/client spike (**§ Freenet peer implementation**, **§ Pre-Freenet workshop decisions**) — workshop frozen ~2026-08-03; **implementation not started** (in-process plug-in, encrypt-before-upload, KiB CHK path).
 
 ---
 
@@ -780,6 +787,27 @@ Operators who enable `allow_mobile_contribute` should understand these tradeoffs
 
 ---
 
+## Pre-Freenet workshop decisions (frozen ~2026-08-03)
+
+Captured before wiring live Freenet. **Do not implement the in-app client until a dedicated spike** — these are design constraints only.
+
+| # | Decision | Detail |
+|---|----------|--------|
+| 1 | **Encrypt before upload** | Farm bytes are AEAD-sealed under `FarmSeed` / contract keys (`freenet-hot`, `freenet-bones`, …) **before** FCP insert. Freenet CHK is transport + content-addressing only — **not** farm encryption. |
+| 2 | **No splitfiles for KiB-class** | Hot, bones, manifest at KiB scale use **single-block CHK** (`ClientPut` direct). No splitfiles/fragmentation for v1 small payloads. Larger assets (tile packs, multi-MiB archives) may differ later. |
+| 3 | **In-process plug-in client** | Lightweight Freenet host runs **inside PUF-AM** as a compartmentalized plug-in unit — same idea as [`units/mist-freenet/`](../units/mist-freenet/) today. **Not** a separate always-on daemon the farmer installs or manages. |
+| 4 | **Future fork: PUF-FN** | Client likely splits into **PUF-FN** unit/repo later; in-app boundary must allow a clean fork. See [`NAMING.md`](NAMING.md) §1. |
+
+**Unchanged from prior milestones:**
+
+- Mist = **experimental fork**; **Firebase Auth + invite PINs** = shipping path.
+- **Two-laptop FarmCode recovery** succeeded pre-Freenet (~2026-08-03).
+- **Per-device Hot/bones** until Freenet cross-device sync ships.
+
+Pointers: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop · [`units/mist-freenet/README.md`](../units/mist-freenet/README.md) Phase 8+.
+
+---
+
 ## Open items (next pressure tests)
 
 - [x] Join bootstrap / QR `JoinEnvelope` (v1) — see **§ Join bootstrap**.
@@ -794,7 +822,7 @@ Operators who enable `allow_mobile_contribute` should understand these tradeoffs
 - [x] Exact RNS API mapping: HKDF bytes → destination identity (spike) — see **§ Reticulum destination naming → RNS API mapping**.
 - [ ] **`FarmStore` interface spike** — map current Firestore paths to contract; prove Firebase backend unchanged in production build.
 - [ ] **Farm bones mist contract** — publish/version/`content_hash` on `BonesKey` (§ Invitation), pull-on-join path.
-- [ ] **Lightweight Freenet host/client** on phone/tablet — resource caps, actual Freenet network join (see **§ Freenet peer implementation**).
+- [ ] **Lightweight Freenet host/client** in-process plug-in — workshop frozen ~2026-08-03 (encrypt-before-upload, KiB CHK, PUF-FN fork boundary); **implementation not started** (see **§ Pre-Freenet workshop decisions**, **§ Freenet peer implementation**).
 - [x] **First-run UI prototype** — show-once FarmCode, confirm written down, optional device PIN copy (phase 4 — `/login/mist-new-farm`).
 
 ---

@@ -1,5 +1,7 @@
 # Mist two-laptop smoke (pre-Freenet)
 
+**Status (2026-08-03):** **Recovery pass achieved** — two-laptop FarmCode recovery succeeded on localhost (Laptop A create → Laptop B recover → same `farmId`). Bones and Hot remain per-device; no cross-laptop sync yet. **Live Freenet is not next** without a pre-Freenet workshop ([`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop).
+
 Validate **FarmCode identity**, **IndexedDB mist store**, and **local → Hot bridge** on two Fedora laptops **without** a Hyphanet/Freenet node. Each browser profile keeps its own IndexedDB and `localStorage`; there is no cross-device sync until Freenet ships.
 
 ## What you CAN test (no Freenet)
@@ -148,6 +150,18 @@ nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
 ```bash
 npm test -- tests/mistHotBridge.test.ts units/mist-freenet/hot-crypto.test.ts
 ```
+
+---
+
+## What remains (post-recovery)
+
+| Item | Status |
+|------|--------|
+| FarmCode identity recovery (B → same `farmId`) | **Done** (~2026-08-03) |
+| Per-device bones / Hot on localhost | **Done** (expected isolation) |
+| Cross-device Hot/bones replication (A → B) | **Blocked** — Freenet wire or interim LAN after pre-Freenet workshop |
+| Live Hyphanet / FCP go-live | **Blocked** — team workshop on remaining items first |
+| Workshop outcome capture | **Pending** — paste team discussion notes into [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop when ready |
 
 ---
 

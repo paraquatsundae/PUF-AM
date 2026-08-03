@@ -10,7 +10,8 @@ Related plans (not duplicated here):
 | Doc | Scope |
 |-----|--------|
 | [`RENAME_TO_PUFAM.md`](RENAME_TO_PUFAM.md) | Phase A/B rebrand checklist (UI done; infra deferred) |
-| [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) | Mist crypto, FarmCode, Hot/Archive (experimental) |
+| [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) | Mist crypto, FarmCode, Hot/Archive, pre-Freenet workshop decisions (experimental) |
+| [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md) | Pre-Freenet two-laptop smoke — recovery pass done ~2026-08-03 |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Human-readable `farm-export.json` sketch |
 | [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) | Architecture audit, roadmap checklist, mist phase log |
 
@@ -27,6 +28,7 @@ Related plans (not duplicated here):
 | **Sentinut** | Historical company/Android namespace only (`com.sentinut.farm`, `@sentinut.local` Auth emails) | Product name in new docs or UI |
 | **Walnut_farm_manager** | Local clone folder name only — **no rename required** | Implies walnut-only product (mixed-enterprise app) |
 | **Walnut-Farm-Manager** | Archived GitHub repo — reference/history only | Active remote or deploy target |
+| **PUF-FN** | Future product name for the **Freenet client unit** when it forks out of PUF-AM (in-process plug-in today → standalone repo later) | Current mist storage unit (`mist-freenet`); not a shipping product yet |
 
 **Brand source of truth (UI strings):** `src/brand.ts` — `APP_SHORT_NAME` = `PUF-AM`, `APP_NAME` = `PUF-Ag Manager`.
 
@@ -120,6 +122,7 @@ Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys
 | `pufam.mist.session.v1` | `mistDeviceSession.ts` |
 | `pufam.mist.sessionMeta.v1` | `mistDeviceSession.ts` |
 | `pufam.mist.deviceKey` | `mistDeviceSession.ts` |
+| `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts |
 
 ### CSS / DOM (non-storage)
 

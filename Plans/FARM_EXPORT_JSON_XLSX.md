@@ -25,7 +25,7 @@
 - **Photo binaries in JSON/xlsx** — no base64 or hi-res in the main package; optional compressed **`photos/` sidecar zip** (§2.4). Hi-res on-device / **Reticulum** transfer is out of scope for farm-export.
 - **Full-farm admin export** — Farm Management “Export Data” placeholder is out of scope until diary/issues path is proven.
 - **Import / round-trip** — v1 is export-only; import remains `.pufom` or future dedicated importer.
-- **Mist Hot/Archive wiring** — documented as future consumer of the same record arrays; no seal/cron work here.
+- **Mist Hot/Archive wiring** — Hot local bridge done (`mistHotBridge.ts`); seal/cron deferred.
 
 ---
 

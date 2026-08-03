@@ -13,7 +13,8 @@ Experimental **Mist unit** for PUF-AM: encrypted durable storage over a Freenet-
 | **5 — Hot bridge** | Local diary/issues → `hot/current` (AEAD, farm-export adapter) | **Done** |
 | **5 — Reload survival** | IndexedDB `MistStore`, device PIN unlock on reload, session encrypt | **Done** |
 | **6 — FarmCode recovery** | `/login/mist-recover` — laptop B joins with paper FarmCode; same `farmId`, local-only blobs | **Done** |
-| **7+** | Reticulum unit, invite join QR, Freenet in Electron main, cross-device bone sync | Next |
+| **7 — Two-laptop smoke** | Pre-Freenet A→B recovery on localhost; bones/Hot per-device (expected) | **Done** (~2026-08-03) |
+| **8+** | Reticulum unit, invite join QR, in-process Freenet plug-in, cross-device bone sync | **Workshop frozen** (~2026-08-03) — **implementation not started**; see Phase 8+ below |
 
 Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node binary.
 
@@ -68,19 +69,23 @@ Key naming follows [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_ST
      └────────────────┘              └─────────┬──────────┘
                                                │ FCPv2 TCP
                                      ┌─────────▼──────────┐
-                                     │ Local Hyphanet node │
-                                     │ (localhost:9481)    │
+                                     │ Freenet transport  │
+                                     │ in-process plug-in │
+                                     │ (PUF-FN fork later)│
                                      └────────────────────┘
 ```
+
+> **Workshop note (~2026-08-03):** Production target is an **in-process** Freenet client inside PUF-AM, not a farmer-managed Hyphanet daemon. The external node in dev tests (`localhost:9481`) is optional for FCP validation only.
 
 **Design choices (v1):**
 
 1. **Hybrid cache** — every `put` lands in `DiskMistStore` first (latency, offline reads). FCP insert runs when a node is reachable.
-2. **CHK addressing** — ciphertext blobs insert as content-addressed **CHK** blocks. Local `_mist/freenet-index.json` maps mist key → CHK URI + `content_hash`.
-3. **Mutable keys (hot, manifest)** — each update is a new CHK insert; the local index pointer is replaced. USK/SSK in-place updates deferred.
-4. **Node down** — cache serves reads/writes; failed inserts queue in `_mist/freenet-outbox.json`; `flushOutbox()` retries when FCP reconnects.
-5. **`contribute=false` (default)** — own inserts still run (durability), but FCP uses low priority (`PriorityClass=6`) and `ExtraInsertsSingleBlock=0`. Does not enable foreign replication (future `replicate()` still gated).
-6. **Browser** — cannot run FCP or `fs`; import `./index.ts` only. Electron main / Node workshop uses `./node.ts`.
+2. **Encrypt before upload (frozen ~2026-08-03)** — callers seal farm bytes with AEAD / FarmSeed keys **before** `put()`. CHK insert carries ciphertext only; Freenet is not farm encryption.
+3. **CHK addressing** — ciphertext blobs insert as content-addressed **CHK** blocks. Local `_mist/freenet-index.json` maps mist key → CHK URI + `content_hash`.
+4. **Mutable keys (hot, manifest)** — each update is a new CHK insert; the local index pointer is replaced. USK/SSK in-place updates deferred.
+5. **Node down** — cache serves reads/writes; failed inserts queue in `_mist/freenet-outbox.json`; `flushOutbox()` retries when FCP reconnects.
+6. **`contribute=false` (default)** — own inserts still run (durability), but FCP uses low priority (`PriorityClass=6`) and `ExtraInsertsSingleBlock=0`. Does not enable foreign replication (future `replicate()` still gated).
+7. **Browser** — cannot run FCP or `fs`; import `./index.ts` only. Production target: **in-process Freenet plug-in** inside PUF-AM (workshop frozen ~2026-08-03); external Hyphanet node remains for dev/live FCP tests.
 
 ### FCP configuration
 
@@ -107,7 +112,7 @@ await store.init();
 ### Limitations (phase 3)
 
 - No USK/SSK mutable Freenet keys — hot/manifest use replace-pointer-via-local-index.
-- No splitfile support — blobs must fit a single CHK block (~32 KiB practical; larger blobs need phase 4+ splitfile client).
+- No splitfile support for **KiB-class** payloads (workshop frozen ~2026-08-03) — Hot/bones/manifest use single-block CHK. Splitfiles deferred for larger assets (tile packs, multi-MiB archives).
 - No cross-device watch/push — `watch()` is local disk only.
 - No `replicate()` for foreign copies — `contribute` flag is persisted and reflected in health/stats only.
 - FCP client covers ClientHello, ClientPut (direct CHK), ClientGet (direct) — not persistent queue / global watch / TestDDA disk paths.
@@ -119,14 +124,33 @@ await store.init();
 - Device session encrypted in `localStorage` (`pufam.mist.session.v1`); FarmSeed never plaintext when PIN mode is on
 - Optional **4-digit device PIN** → unlock gate after reload; skip-PIN workshop mode auto-restores (weaker)
 - Sign out clears session blob + IndexedDB mist entries
-- **Next (two-laptop):** recover/join with FarmCode on laptop B — same HKDF keys, no Freenet wire yet
+- **Two-laptop smoke (done, ~2026-08-03):** Laptop B FarmCode recovery → same `farmId`; bones/Hot per-device until Freenet or interim LAN sync
 
-### Phase 6 (next)
+### Phase 8+ (pre-Freenet workshop frozen ~2026-08-03)
+
+Workshop captured design constraints before live Freenet wiring. **Do not implement the in-app client in this pass** — document-only freeze. Full checklist: [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_STORAGE.md) § Pre-Freenet workshop decisions.
+
+**Frozen architecture (Freenet client):**
+
+| Decision | Implication for this unit |
+|----------|---------------------------|
+| **Encrypt before upload** | `FreenetMistStore.put()` must receive **already AEAD-sealed** bytes (Hot via `hot-crypto.ts`, bones/manifest same pattern). CHK insert is transport only — Freenet does not replace farm encryption. |
+| **KiB-class = single CHK** | Hot, bones, manifest stay on **direct CHK** (`ClientPut` / `ClientGet`). No splitfiles for KiB payloads; splitfile client deferred until tile packs / multi-MiB archives need it. |
+| **In-process plug-in** | Freenet host runs **inside PUF-AM** as a compartmentalized unit (this package + future transport layer), **not** a separate Hyphanet daemon the farmer manages. External node remains optional for dev/live FCP tests only. |
+| **Future fork: PUF-FN** | Transport/host layer should expose a narrow interface so it can split into **PUF-FN** repo later without rewriting `MistStore` / `FarmStoreAdapter`. See [`Plans/NAMING.md`](../../Plans/NAMING.md) §1. |
+
+**Still per prior milestones:**
+
+- **Experimental fork** — Firebase default unchanged.
+- **Two-laptop FarmCode recovery** done (~2026-08-03); bones/Hot **per-device** until Freenet sync ships.
+
+**Next implementation (not started):**
 
 - Reticulum transport unit + map heads-up
-- Invite join QR / second-device recovery with FarmCode
-- Wire `FreenetMistStore` in Electron main (disk + Hyphanet)
-- Optional: USK for manifest, splitfiles for large archives
+- Invite join QR (crew join path)
+- In-process Freenet client wired to `FreenetMistStore` (Electron/main or embedded host)
+- Cross-device Hot/bones sync via FCP
+- Optional later: USK for manifest, splitfiles for large archives
 
 ### Phase 4 — app wiring (done)
 
@@ -202,7 +226,7 @@ import { createAppFarmStore } from '@/src/mist/createFarmStore.ts';
 import { mintFarmCode, parseFarmCode } from '@/units/mist-freenet/src/index.ts';
 
 const adapter = createAppFarmStore(farmId); // respects pufam.farmStoreBackend
-// Electron main (future): DiskMistStore / FreenetMistStore via units/mist-freenet/src/node.ts
+// Future: in-process Freenet plug-in (PUF-FN) behind FreenetMistStore — see Phase 8+
 ```
 
 Feature modules still use Firestore directly today; bones workshop in Settings proves mist put/get end-to-end.
