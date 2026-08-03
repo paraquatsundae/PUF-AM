@@ -114,7 +114,7 @@ await store.init();
 
 ### Phase 5 — reload survival (done)
 
-- `IndexedDbMistStore` — browser FarmStore persists across full page reload (`pufam-mist-v1` IndexedDB)
+- `IndexedDbMistStore` — browser FarmStore persists across full page reload (`pufam-mist-v1` IndexedDB; see [`Plans/NAMING.md`](../../Plans/NAMING.md) §7)
 - Device session encrypted in `localStorage` (`pufam.mist.session.v1`); FarmSeed never plaintext when PIN mode is on
 - Optional **4-digit device PIN** → unlock gate after reload; skip-PIN workshop mode auto-restores (weaker)
 - Sign out clears session blob + IndexedDB mist entries

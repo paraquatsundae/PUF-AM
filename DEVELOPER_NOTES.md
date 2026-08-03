@@ -4,19 +4,11 @@
 **Current Phase:** Prototype / Thick Client
 **Target Scale:** 10,000+ Concurrent Users
 
-## 0. Naming glossary (display vs wire)
+## 0. Naming (display vs wire)
 
-| Name | Role |
-|------|------|
-| **PUF-AM** / **PUF-AM — Ag Manager** | User-facing display name (Login, shell header, About, Capacitor `appName`, HTML title). Source: `src/brand.ts`. |
-| **PUF-AM** (GitHub) | Active repo: [paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM). Local clone folder may remain `Walnut_farm_manager` — do not require renaming the directory. |
-| **PUFOM** | Legacy / wire protocol brand: `.pufom` bundles, `PUFOM1` magic, mDNS `_pufom-sync._tcp`, keys `pufom_*`, Cloud Run service `pufom-…`. Unchanged — do **not** rename casually. |
-| **walnut-farm-manager** | npm `package.json` `name` — technical id only; leave as-is so scripts stay stable. |
-| **com.sentinut.farm** | Capacitor / Android `appId` — keep for install continuity. |
-| **sentinut_*** | localStorage / IndexedDB key prefixes — keep for data continuity. |
-| **Walnut-Farm-Manager** (archived) | Legacy GitHub repo [paraquatsundae/Walnut-Farm-Manager](https://github.com/paraquatsundae/Walnut-Farm-Manager) — archived; not the active remote. |
+**Authoritative reference:** [`Plans/NAMING.md`](Plans/NAMING.md) — product names, env vars, IndexedDB/localStorage keys, mist paths, export formats, Firestore layout, doc procedures, legacy vs preferred.
 
-Full rename plan: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
+Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** (`.pufom`, `pufom_*`, `_pufom-sync._tcp`); Android **`com.sentinut.farm`** and **`sentinut_*`** storage are frozen for continuity. Rebrand checklist: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
 
 ### Mist network & storage (experimental)
 
@@ -177,6 +169,7 @@ classDiagram
 *   **Blight risk engine:** Migrating to **Ji et al. 2025** process model (see §4.2). Legacy PUFOM multiplicative index remains for Research / what-if until cut over is complete.
 *   **Dryer engine:** Exponential decay fit on moisture readings for configured dryers.
 *   **Nutrition / water pages:** Application diaries writing `DiaryEvent` records (soil lab XLSX deferred; `nutritionService` retained for later).
+*   **Farm data export (planned):** Human-readable `farm-export.json` (diary + field issues → xlsx); see [`Plans/FARM_EXPORT_JSON_XLSX.md`](Plans/FARM_EXPORT_JSON_XLSX.md). Complements `.pufom` device sync — does not replace it.
 *   **Auth:** Invite PIN sessions (not Google-only). Workshop mode can run UI without Firestore. See §4.1 Auth UX.
 *   **Weather:** Prefer Firestore cache + Cloud Functions refresh; client may ensure/backfill in dev.
 

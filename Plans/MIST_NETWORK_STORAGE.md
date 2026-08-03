@@ -4,6 +4,8 @@
 **Date:** 2026-08-02  
 **Product:** PUF-AM (Ag Manager)
 
+**Naming:** [`NAMING.md`](NAMING.md) §7 (mist paths, FarmCode, `pufam-mist-v1` IDB) — product/storage glossary not repeated here.
+
 Firebase Auth + invite PINs + Firestore remain the **working production stack**. Mist work must land as an **experimental fork** (branch / feature flag / separate package path) so it cannot break PIN login or Cloud Run hosting.
 
 Authoritative short pointer: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Mist (experimental).

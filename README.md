@@ -4,9 +4,9 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 
 **Repo:** [https://github.com/paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM) (local folder may still be `Walnut_farm_manager`).
 
-**Brand:** **PUF-AM** = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
+**Brand:** **PUF-AM** = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/NAMING.md`](Plans/NAMING.md) and rebrand checklist [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
 
-**Display vs technical IDs:** Operators see **PUF-AM**. Leave alone: `com.sentinut.farm`, `.pufom` / `PUFOM1`, `_pufom-sync._tcp`, `pufom_*` keys, npm name `walnut-farm-manager`, `sentinut_*` storage — see [`DEVELOPER_NOTES.md`](DEVELOPER_NOTES.md) §0.
+**Display vs technical IDs:** Operators see **PUF-AM**. Wire/sync and storage legacy ids (`com.sentinut.farm`, `.pufom`, `pufom_*`, `sentinut_*`, …) — see [`Plans/NAMING.md`](Plans/NAMING.md).
 
 **Live app:** [https://am.pufworks.farm](https://am.pufworks.farm) (Cloud Run service still named `pufom` until Phase B rename; fallback [*.run.app](https://pufom-quby5ye5pa-ts.a.run.app)). Redeploy: `npm run deploy:cloudrun`. Domain + APK releases: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
 
@@ -100,6 +100,7 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 | Document | Contents |
 |----------|----------|
+| [`Plans/NAMING.md`](Plans/NAMING.md) | Product, storage keys, export formats, Firestore paths, doc procedures |
 | [`Plans/ROADMAP.md`](Plans/ROADMAP.md) | Full plan: tasks, acceptance criteria, progress |
 | [`DEVELOPER_NOTES.md`](DEVELOPER_NOTES.md) §5 | Quick-reference checklist |
 | [`Plans/SMOKE_TEST_LOG.md`](Plans/SMOKE_TEST_LOG.md) | Manual smoke tests |

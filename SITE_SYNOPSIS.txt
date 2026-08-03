@@ -19,6 +19,7 @@ SYNOPSIS
 
 SOURCES
 - README.md
+- Plans/NAMING.md (authoritative naming)
 - src/brand.ts
 - Plans/RENAME_TO_PUFAM.md
 - Plans/ROADMAP.md (status header)

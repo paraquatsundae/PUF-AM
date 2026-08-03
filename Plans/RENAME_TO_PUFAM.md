@@ -1,6 +1,8 @@
 # Rename: PUFOM → PUFAM (Ag Manager)
 
-**Public brand:** **PUFAM** = **PUF** + **AM** (Ag Manager)  
+**Naming authority:** [`NAMING.md`](NAMING.md) — full glossary, storage keys, and legacy vs preferred rules. This file is the **Phase A/B rebrand checklist** only.
+
+**Public brand:** **PUFAM** / **PUF-AM** = **PUF** + **AM** (Ag Manager)  
 **Former:** PUFOM = PUF + OM (Orchard Manager)
 
 ## Phase A — done / in progress (user-facing)
