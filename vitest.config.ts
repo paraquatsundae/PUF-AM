@@ -12,6 +12,12 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "tests/**/*.test.ts", "units/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "tests/**/*.test.ts",
+      "units/**/*.test.ts",
+      // Only the Electron-free parts of desktop/ are testable; main.ts needs a real shell.
+      "desktop/**/*.test.ts",
+    ],
   },
 });

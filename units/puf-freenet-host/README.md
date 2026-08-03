@@ -41,6 +41,7 @@ const host = createFreenetHost({
   dataDir: `${userData}/freenet/data`,
   logDir: `${userData}/freenet/logs`,
   binarySearchPaths: [`${process.resourcesPath}/freenet`],  // Electron packaged
+  repoRoot: app.getAppPath(),                                // enables the vendor/ lookup
   wire: mistWireAdapter,                                     // wraps Freenet02WsTransport
 });
 
@@ -90,6 +91,9 @@ what it actually exercised.
 
 `<os>` uses electron-builder's `${os}` naming (`linux` / `win` / `mac`) so `vendor/` matches
 the `extraResources` mapping.
+
+Step 4 only runs when the caller passes the **`repoRoot`** option — omit it and a dev `vendor/`
+build silently loses to whatever is on `PATH`.
 
 ## Env contract for mist
 

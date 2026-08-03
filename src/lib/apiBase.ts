@@ -1,7 +1,25 @@
 import { Capacitor } from '@capacitor/core';
 
+import { getDesktopBridge, isDesktopShell } from './desktopBridge.ts';
+
 /** Session override from NSD / Offline & sync peer picker (packaged APK). */
 let runtimeApiBase: string | null = null;
+
+/**
+ * Routes the desktop shell must not serve itself: they need a Firebase Admin
+ * service account or `DPIRD_API_KEY`, which never ship to an operator machine.
+ * Everything else — Freenet, LAN sync, presence — is local by design.
+ * See `Plans/DESKTOP_FREENET_PLUGIN.md` §6.2.
+ */
+const DESKTOP_CLOUD_ONLY_PREFIXES = ['/api/auth/', '/api/weather/'];
+
+function desktopCloudBaseFor(path: string): string {
+  const bridge = getDesktopBridge();
+  if (!bridge) return '';
+  return DESKTOP_CLOUD_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix))
+    ? bridge.cloudApiBase
+    : '';
+}
 
 /**
  * Base URL for Express `/api/*` routes.
@@ -10,12 +28,19 @@ let runtimeApiBase: string | null = null;
  * - Packaged Capacitor Android (https://localhost assets): http://10.0.2.2:3000 (emulator)
  * - Physical packaged device: set VITE_API_BASE_URL=http://<pc-lan-ip>:3000
  * - Or select a hub after NSD scan (setRuntimeApiBaseUrl)
+ * - Electron desktop: always '' (same-origin loopback); see `apiUrl()`
  */
 export function setRuntimeApiBaseUrl(baseUrl: string | null): void {
   runtimeApiBase = baseUrl ? baseUrl.replace(/\/$/, '') : null;
 }
 
 export function getApiBaseUrl(): string {
+  // Electron serves the renderer from the in-app Express, so same-origin is always
+  // correct here. The LAN-hub picker and VITE_API_BASE_URL target other machines;
+  // on desktop this machine *is* the hub. Cloud-only routes are redirected by path
+  // in `apiUrl()`.
+  if (isDesktopShell()) return '';
+
   if (runtimeApiBase) return runtimeApiBase;
 
   const fromEnv = String(import.meta.env.VITE_API_BASE_URL || '')
@@ -53,8 +78,8 @@ export function getApiBaseUrl(): string {
 }
 
 export function apiUrl(path: string): string {
-  const base = getApiBaseUrl();
   const p = path.startsWith('/') ? path : `/${path}`;
+  const base = desktopCloudBaseFor(p) || getApiBaseUrl();
   return base ? `${base}${p}` : p;
 }
 
@@ -73,8 +98,14 @@ export function isProductionAppHost(): boolean {
  * API base for `/api/mist/freenet/*` only.
  * On am.pufworks.farm the browser talks to a local Express sidecar (127.0.0.1:3000)
  * where Freenet 0.2 runs on the laptop — not Cloud Run's container.
+ * The Electron desktop shell has no sidecar: it hosts the node itself, same-origin.
  */
 export function getMistFreenetApiBaseUrl(): string {
+  // Desktop runs the Freenet node in its own main process, so the sidecar branch
+  // below must never fire — that is the whole point of the Electron shell.
+  const desktop = getDesktopBridge();
+  if (desktop) return desktop.freenetApiBase;
+
   const fromEnv = String(import.meta.env.VITE_MIST_FREENET_API || '')
     .trim()
     .replace(/\/$/, '');

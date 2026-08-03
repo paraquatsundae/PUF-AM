@@ -1,6 +1,6 @@
 # PUF-AM desktop installer + Freenet as an in-app plugin
 
-**Status:** Phase 0 — architecture frozen, scaffolding landed (~2026-08-03). Not shipped.
+**Status:** Phase 1 done — the Electron shell runs (~2026-08-03). Next: Phase 2 (bundle Freenet binaries). Not shipped.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
 **Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
 
@@ -131,7 +131,7 @@ Full type list: [`units/puf-freenet-host/src/types.ts`](../units/puf-freenet-hos
 | 1 | explicit `binaryPath` option | caller |
 | 2 | `PUF_FREENET_BIN` / `PUF_FDEV_BIN` | env (workshop override) |
 | 3 | `binarySearchPaths` | Electron passes `${process.resourcesPath}/freenet` |
-| 4 | repo vendor dir | `vendor/freenet/<platform>-<arch>/` (dev, gitignored) |
+| 4 | repo vendor dir | `vendor/freenet/<platform>-<arch>/` (dev, gitignored) — requires the `repoRoot` option |
 | 5 | `PATH` | picks up today's `~/.local/bin/freenet` |
 
 Reporting the `source` in status is deliberate: the workshop needs to know whether it is testing the bundled binary or a stray PATH one.
@@ -198,7 +198,11 @@ Some routes must stay in the cloud because they need server secrets the operator
 | `/api/auth/*` (invite PIN, members, farm create) | **cloud** | Needs a Firebase Admin service account — never ships to an operator machine |
 | `/api/weather/*` (DPIRD, chill, blight) | **cloud** | Needs `DPIRD_API_KEY`, a server-only secret |
 
-Implementation: the preload injects `window.pufamDesktop = { apiBase, freenetApiBase, ... }`; `src/lib/apiBase.ts` grows a desktop branch that returns the **cloud** base for `/api/*` and `''` for Freenet. This is the *inverse* of today's hack: instead of "browse the cloud, sidecar for Freenet", it becomes "run locally, cloud only for cloud-only secrets".
+Implementation (landed in Phase 1): the preload injects `window.pufamDesktop = { cloudApiBase, freenetApiBase, ... }` ([`src/lib/desktopBridge.ts`](../src/lib/desktopBridge.ts)); `src/lib/apiBase.ts` routes **by path prefix** — `getApiBaseUrl()` returns `''` so everything is same-origin, and `apiUrl()` redirects only `/api/auth/*` and `/api/weather/*` to the cloud. Routing per-path rather than per-base matters: a single cloud base would drag `/api/sync/*` off the machine that *is* the hub. The desktop branch also outranks the LAN-hub picker and `VITE_API_BASE_URL`, which both name *other* machines.
+
+This is the *inverse* of today's hack: instead of "browse the cloud, sidecar for Freenet", it becomes "run locally, cloud only for cloud-only secrets".
+
+The config rides on a command-line flag ([`desktop/desktopConfig.ts`](../desktop/desktopConfig.ts)), not IPC, so `apiBase.ts` can read it synchronously on first paint — before any fetch could target the wrong origin. A missing or corrupt flag falls back to same-origin everywhere, because a local 404 beats silently posting farm data somewhere unintended.
 
 `server/firebaseAdmin.ts` resolves `secrets/` and `firebase-applet-config.json` from `process.cwd()`, which is meaningless in a packaged app — another reason `/api/auth/*` must not be served locally. Desktop builds must **not** bundle `secrets/`.
 
@@ -282,7 +286,11 @@ Cross-platform builds are **not** attempted from one host. Fedora artifacts buil
 | `@freenetorg/freenet-stdlib` | Keep; GET path |
 | `vite`, `tsx`, `firebase-tools` | Dev only — must not reach `files` |
 
-Main-process TypeScript needs a build step (Electron cannot execute `.ts`, and the repo uses `.ts` extensions in import specifiers). Phase 1 adds an esbuild bundle of `desktop/main.ts` + `desktop/preload.ts` → `desktop/build/`, bundling `server/` and `units/` in the process.
+Main-process TypeScript needs a build step (Electron cannot execute `.ts`, and the repo uses `.ts` extensions in import specifiers). Phase 1 landed [`scripts/build-desktop.mjs`](../scripts/build-desktop.mjs): esbuild bundles `desktop/main.ts` + `desktop/preload.ts` → `desktop/build/*.cjs`, pulling in `desktop/`, `server/`, `units/`, and `shared/`.
+
+**npm packages stay external** (`packages: 'external'`). Bundling them in would mean flattening `firebase-admin`'s dynamic requires and grpc's native bindings for no benefit — TypeScript is the only thing Electron genuinely cannot load. Electron resolves the rest from `node_modules`, and electron-builder ships production deps into the asar in Phase 3.
+
+One wrinkle worth knowing: `import.meta` is empty in a CJS bundle, and `units/mist-freenet/src/freenet02-pack.ts` reads `import.meta.url` at module load to locate its pack contract. The build defines a `__filename`-based shim so the bundle does not throw on import, **and** `desktop/main.ts` sets `FREENET_PACK_WASM` explicitly — the shim resolves to the bundle, not the asset, so it alone is not enough.
 
 ### 8.4 Binary procurement (blocking Phase 2)
 
@@ -370,11 +378,23 @@ Landed:
 
 **No `electron` dependency installed yet** and `desktop/` is excluded from the root `tsconfig.json`, so `npm run lint`, `npm test`, `npm run build`, and `npm run build:android` are all unaffected.
 
-### Phase 1 — Electron shell
+### Phase 1 — Electron shell (**done**, ~2026-08-03)
 
-`npm i -D electron electron-builder esbuild` · esbuild bundle for `desktop/main.ts` + `desktop/preload.ts` · `npm run desktop:dev` opens a window serving the built app from a loopback ephemeral port · `preload` exposes `window.pufamDesktop` · `src/lib/apiBase.ts` gains the desktop branch (§6.2) · Freenet host started via **PATH-resolved** binary.
+Landed:
 
-**Done when:** the window shows PUF-AM, Firebase login works, Settings → Mist workshop reports `mode: managed` against a PATH `freenet`, and publish/pull Hot succeeds — with no `npm run dev` and no browser.
+- `electron` 43, `electron-builder` 26, `esbuild` in `devDependencies`.
+- [`scripts/build-desktop.mjs`](../scripts/build-desktop.mjs) → `desktop/build/{main,preload}.cjs` (§8.3).
+- Scripts: **`desktop:build`** (bundle main/preload), **`desktop:start`** (launch), **`desktop:dev`** (build web + main, then launch), **`lint:desktop`**.
+- `package.json` gains `main` and **`productName: "PUF-AM"`** — the latter is what makes `userData` resolve to `~/.config/PUF-AM` instead of `~/.config/walnut-farm-manager`. Set now, before any operator has data under the wrong path.
+- [`desktop/desktopConfig.ts`](../desktop/desktopConfig.ts) — one encode/decode for the main→preload flag, so the two ends cannot drift.
+- [`src/lib/desktopBridge.ts`](../src/lib/desktopBridge.ts) + the `apiBase.ts` route split (§6.2).
+- `main.ts`: `.env` loaded in dev only (never in a packaged app), `MIST_FREENET_ROOT` anchored under `userData` **even when the host fails to start**, external links opened in the operator's browser, SIGINT/SIGTERM → clean quit so a Ctrl-C in `desktop:dev` cannot orphan a managed node.
+- `FreenetHostOptions.repoRoot` — without it, resolution step 4 (§5.3) was unreachable from the host and Phase 2's `vendor/` dir would have silently lost to `PATH`.
+- Tests: 15 new (config flag codec, `apiBase` desktop routing, vendor resolution). No Freenet node or network needed.
+
+**Verified on Fedora:** window opens and serves the built UI from `127.0.0.1:<ephemeral>`; `/api/health` and the SPA fallback answer; with a workshop node already on `:7509` the host reports **`mode: attached`** and leaves it running on quit; on a free port it reports **`mode: managed source: path`**, spawns under `~/.config/PUF-AM/freenet/{config,data,logs}`, and stops only its own node at quit.
+
+**Still open before this phase is closed in the field:** an end-to-end Firebase login and a Hot publish/pull from inside the window (needs operator credentials and a warmed peer, not a workshop bench check).
 
 ### Phase 2 — bundle Freenet
 
@@ -410,7 +430,7 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 | Exit code 42 update loop | Host never auto-updates; surfaces `updateRequired` and stops (§5.4) |
 | Bundled WASM drifts from pinned code hash | Verification step in Phase 2; publishing with a mismatched hash silently changes every URI |
 | Loopback API reachable by local processes | Ephemeral port + loopback bind now; token/IPC in Phase 4 (§6.3) |
-| `process.cwd()` assumptions in `server/*` | `/api/auth/*` is cloud-only; audit remaining `cwd()` reads during Phase 1 |
+| `process.cwd()` assumptions in `server/*` | Audited in Phase 1. `firebaseAdmin.ts` is the only other reader and `/api/auth/*` is cloud-only. `getMistFreenetRootDir()` fell back to `cwd()/tmp`, so `main.ts` now sets `MIST_FREENET_ROOT` unconditionally at boot |
 | Two PUF apps racing for `:7509` | Attach mode; only the spawner may stop the node |
 | Freenet upstream API churn (0.2.x is moving fast) | Version pinned in `vendor/`; `fdev` removal tracked as PUF-FN work |
 

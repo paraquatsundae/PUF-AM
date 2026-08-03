@@ -107,7 +107,7 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 | [`Plans/OFFLINE_MAP_APK.md`](Plans/OFFLINE_MAP_APK.md) | Offline basemap + Capacitor APK |
 | [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md) | Invite PIN auth (production) |
 | [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md) | Experimental mist: Reticulum + Freenet-style storage (fork; does not replace Firebase auth). Laptop B recovery: `/login/mist-recover` with FarmCode — same `farmId`, local IndexedDB only until Freenet sync. |
-| [`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers with Freenet running as an in-app plugin (Electron frozen). Plan + scaffold only — no `electron` dependency yet. |
+| [`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers with Freenet running as an in-app plugin (Electron frozen). Phase 1 done — `npm run desktop:dev` runs the shell; binaries and installers are Phase 2/3. |
 
 ### Tests
 

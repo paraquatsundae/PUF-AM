@@ -48,7 +48,7 @@ Related plans (not duplicated here):
 | Capacitor / Android `appId` | `com.sentinut.farm` | **Frozen** — Play / sideload continuity |
 | Capacitor `appName` | `PUF-Ag Manager` | User-facing; update with brand |
 | Desktop (Electron) `appId` | `farm.pufworks.am` | Desktop only — **do not** reuse the Android `com.sentinut.farm` |
-| Desktop `productName` | `PUF-AM` | Drives `~/.config/PUF-AM` and `%APPDATA%\PUF-AM`; renaming migrates operator data |
+| Desktop `productName` | `PUF-AM` | Set in `package.json`. Drives `~/.config/PUF-AM` and `%APPDATA%\PUF-AM`; renaming strands operator data (Freenet identity + mist cache) |
 | Desktop Linux `executableName` | `puf-am` | Binary + `.desktop` entry name |
 | electron-builder output dir | `release/` | **Not** `dist/` — that is Vite's output |
 | Bundled Freenet binaries (build input) | `vendor/freenet/<os>-<arch>/` | `<os>` is electron-builder `${os}` (`linux`/`win`/`mac`); gitignored |

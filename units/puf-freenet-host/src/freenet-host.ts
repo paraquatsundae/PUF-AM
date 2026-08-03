@@ -298,6 +298,7 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
       resolved = resolveFreenetBinaryOrThrow(FREENET_BINARY, {
         binaryPath: options.binaryPath,
         searchPaths: options.binarySearchPaths,
+        repoRoot: options.repoRoot,
         env: baseEnv,
       });
     } catch (err) {

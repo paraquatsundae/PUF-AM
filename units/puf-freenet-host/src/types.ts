@@ -124,6 +124,8 @@ export type FreenetHostOptions = {
   binaryPath?: string;
   /** Extra directories to search, e.g. Electron `${process.resourcesPath}/freenet`. */
   binarySearchPaths?: string[];
+  /** Enables the `vendor/freenet/<os>-<arch>/` dev lookup (plan §5.3 step 4). */
+  repoRoot?: string;
   /** Use an already-running node instead of spawning a second one (default true). */
   attachIfRunning?: boolean;
   /** Restart the managed node after an unexpected exit (default true). */

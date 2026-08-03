@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createFreenetHost, freenetHostEnv } from './src/freenet-host.ts';
+import { freenetBinaryFileName, freenetOsTag } from './src/resolve-binary.ts';
 import { FreenetWireUnavailableError } from './src/errors.ts';
 import type { FreenetChildProcess, FreenetHostEvent } from './src/types.ts';
 
@@ -161,6 +162,35 @@ describe('createFreenetHost', () => {
     ]);
     expect(spawnedArgs).toContain(dirs().dataDir);
     expect(spawnedArgs).toContain(dirs().logDir);
+  });
+
+  it('finds the vendor build when the host is given a repo root', async () => {
+    // Without the repoRoot passthrough, resolution step 4 (plan §5.3) is unreachable
+    // from the host and Phase 2's vendor/ dir would silently lose to PATH.
+    const vendorDir = path.join(
+      tmpRoot,
+      'vendor',
+      'freenet',
+      `${freenetOsTag(process.platform)}-${process.arch}`,
+    );
+    mkdirSync(vendorDir, { recursive: true });
+    const vendorBinary = path.join(vendorDir, freenetBinaryFileName('freenet', process.platform));
+    writeFileSync(vendorBinary, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+
+    const host = createFreenetHost({
+      ...dirs(),
+      repoRoot: tmpRoot,
+      env: { PATH: '' },
+      probe: queuedProbe([false, true]),
+      readVersion: async () => undefined,
+      spawn: () => createFakeChild(),
+    });
+
+    const status = await host.start();
+
+    expect(status.mode).toBe('managed');
+    expect(status.binary?.source).toBe('vendor');
+    expect(status.binary?.path).toBe(vendorBinary);
   });
 
   it('terminates a managed node on stop', async () => {
