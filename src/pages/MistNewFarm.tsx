@@ -237,7 +237,7 @@ export function MistNewFarm() {
         </form>
 
         <Link to="/login" className="block text-center text-sm text-slate-500 hover:text-slate-800">
-          Back to Firebase login
+          Back to storage choice
         </Link>
       </div>
     </div>

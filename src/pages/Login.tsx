@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   canShowWelcomeBack,
@@ -9,11 +9,43 @@ import {
 } from '../lib/deviceSession';
 import { getDeviceCoords } from '../lib/deviceLocation';
 import { fetchNearbyFarms, type NearbyFarm } from '../lib/invitePinAuth';
-import { Loader2, KeyRound, Sprout, Copy, Check, MapPin, Navigation } from 'lucide-react';
-import { APP_NAME, APP_TAGLINE } from '../brand';
-import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
+import {
+  Loader2,
+  KeyRound,
+  Sprout,
+  Copy,
+  Check,
+  MapPin,
+  Navigation,
+  ArrowLeft,
+  ChevronRight,
+  Cloud,
+  Network,
+} from 'lucide-react';
+import { APP_LOGO_SRC, APP_NAME, APP_TAGLINE } from '../brand';
+import { getFarmStoreBackend, isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
+import { isDesktopShell } from '../lib/desktopBridge.ts';
+import { freenetOptionState, initialLoginStep, type LoginStep } from '../lib/loginStorageChoice.ts';
 
 type Mode = 'join' | 'create';
+
+function BrandHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div>
+      <div className="mx-auto h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden shadow-sm ring-1 ring-emerald-900/20">
+        <img
+          src={APP_LOGO_SRC}
+          alt={APP_NAME}
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+      <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">{title}</h2>
+      <p className="mt-1 text-center text-sm font-medium text-emerald-800">{APP_TAGLINE}</p>
+      {subtitle && <p className="mt-2 text-center text-sm text-slate-600">{subtitle}</p>}
+    </div>
+  );
+}
 
 export function Login() {
   const { user, userData, signInWithInvitePin, createFarm, completeFarmSignIn, error: authError, loading, mistLocked } =
@@ -39,6 +71,20 @@ export function Login() {
   const [locating, setLocating] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
   const [showNearbyOnCreate, setShowNearbyOnCreate] = useState(true);
+  const freenetOption = freenetOptionState({
+    mistEnabled: isMistExperimentalEnabled(),
+    desktop: isDesktopShell(),
+  });
+  const [step, setStep] = useState<LoginStep>(() =>
+    initialLoginStep({
+      freenet: freenetOptionState({
+        mistEnabled: isMistExperimentalEnabled(),
+        desktop: isDesktopShell(),
+      }),
+      welcomeBack: canShowWelcomeBack(),
+      backend: getFarmStoreBackend(),
+    })
+  );
   const navigate = useNavigate();
 
   const error = localError || authError;
@@ -71,11 +117,13 @@ export function Login() {
     }
   }, []);
 
+  // Only ask for GPS once the operator has actually chosen the cloud path — the
+  // storage chooser should never trigger a location prompt.
   useEffect(() => {
-    if (mode === 'join' && !welcomeBack) {
+    if (step === 'firebase' && mode === 'join' && !welcomeBack) {
       void loadNearby();
     }
-  }, [mode, loadNearby, welcomeBack]);
+  }, [step, mode, loadNearby, welcomeBack]);
 
   if (loading) {
     return (
@@ -192,31 +240,193 @@ export function Login() {
     );
   }
 
+  if (step === 'choose') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-lg w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl">
+          <BrandHeader
+            title={`Welcome to ${APP_NAME}`}
+            subtitle="Choose where this farm’s records are kept. Both options work in the paddock without signal — they differ in how devices find each other."
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep('firebase');
+              setLocalError(null);
+            }}
+            className="w-full text-left rounded-2xl border-2 border-emerald-600 bg-emerald-50/60 p-5 hover:bg-emerald-50 transition-colors"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0">
+                <Cloud className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-slate-900">Cloud sync</h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 rounded-full px-2 py-0.5">
+                    Recommended
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600 mt-1">
+                  Every device sees the same farm. Crew join with an invite PIN from the manager — no
+                  Google account needed. Each new phone or laptop needs internet the first time it
+                  signs in.
+                </p>
+                <p className="text-[11px] text-slate-400 mt-2">Stored with Firebase</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-emerald-700 shrink-0 mt-2" />
+            </div>
+          </button>
+
+          {freenetOption === 'available' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setStep('freenet');
+                setLocalError(null);
+              }}
+              className="w-full text-left rounded-2xl border-2 border-violet-300 bg-white p-5 hover:border-violet-500 hover:bg-violet-50/50 transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-violet-700 text-white shrink-0">
+                  <Network className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-slate-900">Offline Freenet network</h3>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-violet-800 bg-violet-100 rounded-full px-2 py-0.5">
+                      Experimental
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600 mt-1">
+                    No cloud account. This device holds the farm and shares it computer-to-computer
+                    over Freenet. You write a <strong>FarmCode</strong> on paper — that is what gets
+                    the farm back if the device is lost.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-2">Stored on this device (mist)</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-violet-700 shrink-0 mt-2" />
+              </div>
+            </button>
+          ) : (
+            <div className="w-full text-left rounded-2xl border-2 border-slate-200 bg-slate-50 p-5">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-slate-300 text-white shrink-0">
+                  <Network className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-slate-500">Offline Freenet network</h3>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-200 rounded-full px-2 py-0.5">
+                      Off
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Keep a farm on this computer and share it over Freenet, with no cloud account.
+                  </p>
+                  <p className="text-[11px] font-medium text-slate-500 mt-2">
+                    Turn on <strong>Start Freenet when {APP_NAME} opens</strong> in Settings → Farm
+                    sync between laptops, then reopen this screen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <p className="text-[11px] text-slate-400 text-center">
+            Cloud farms and Freenet farms are separate — an invite PIN never opens a Freenet farm,
+            and a FarmCode never opens a cloud farm.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'freenet') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-lg w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-violet-200">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+              Offline Freenet · experimental
+            </p>
+            <h2 className="text-2xl font-extrabold text-slate-900 mt-1">Freenet farm</h2>
+            <p className="text-sm text-slate-600 mt-2">
+              This device stores the farm. Nothing goes to the cloud, and there are no invite PINs
+              here.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login/mist-new-farm')}
+            className="w-full text-left rounded-2xl border-2 border-violet-300 p-5 hover:border-violet-500 hover:bg-violet-50/50 transition-colors"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-violet-700 text-white shrink-0">
+                <Sprout className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-slate-900">Start a new farm</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Creates the farm on this device and shows a <strong>FarmCode</strong> once — write
+                  it down and keep it off the computer. You become the farm owner.
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-violet-700 shrink-0 mt-2" />
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login/mist-recover')}
+            className="w-full text-left rounded-2xl border-2 border-violet-300 p-5 hover:border-violet-500 hover:bg-violet-50/50 transition-colors"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-violet-700 text-white shrink-0">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-slate-900">Join a farm I already have</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Type the <strong>FarmCode</strong> from your paper copy. The diary, issues, and
+                  boundaries arrive after you enter the owner’s short{' '}
+                  <strong>join ticket</strong>.
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-violet-700 shrink-0 mt-2" />
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStep('choose')}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to storage choice
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl">
-        <div>
-          <div className="mx-auto h-20 w-20 rounded-2xl flex items-center justify-center overflow-hidden shadow-sm ring-1 ring-emerald-900/20">
-            <img
-              src="/logo.png"
-              alt={APP_NAME}
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-          </div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-900">
-            {welcomeBack ? `Welcome back, ${displayName.split(' ')[0] || displayName}` : `Welcome to ${APP_NAME}`}
-          </h2>
-          <p className="mt-1 text-center text-sm font-medium text-emerald-800">{APP_TAGLINE}</p>
-          <p className="mt-2 text-center text-sm text-slate-600">
-            {welcomeBack
+        <BrandHeader
+          title={
+            welcomeBack
+              ? `Welcome back, ${displayName.split(' ')[0] || displayName}`
+              : `Cloud sync · ${APP_NAME}`
+          }
+          subtitle={
+            welcomeBack
               ? 'Session was cleared — enter your farm invite PIN once to restore this device. (New phones/tablets/laptops always need this invite PIN the first time.)'
-              : 'Tap a nearby farm, then enter your invite PIN — no Google account needed. Each new device needs that invite PIN once; then you can set a personal unlock PIN in Settings.'}
-          </p>
-        </div>
+              : 'Tap a nearby farm, then enter your invite PIN — no Google account needed. Each new device needs that invite PIN once; then you can set a personal unlock PIN in Settings.'
+          }
+        />
 
         {!welcomeBack && (
         <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
@@ -447,28 +657,21 @@ export function Login() {
             <p className="text-[11px] text-slate-400 text-center">
               You become the farm admin and can mint worker invite PINs under Farm Management.
             </p>
-            {isMistExperimentalEnabled() && (
-              <div className="text-[11px] text-center pt-2 border-t border-slate-100 space-y-1">
-                <p>
-                  <Link
-                    to="/login/mist-new-farm"
-                    className="font-semibold text-violet-700 hover:text-violet-900 underline underline-offset-2"
-                  >
-                    Experimental: create offline mist farm
-                  </Link>
-                </p>
-                <p>
-                  <Link
-                    to="/login/mist-recover"
-                    className="font-semibold text-violet-700 hover:text-violet-900 underline underline-offset-2"
-                  >
-                    Recover mist farm with FarmCode
-                  </Link>
-                </p>
-                <span className="text-slate-400 block mt-1">Separate from Firebase invite PINs</span>
-              </div>
-            )}
           </form>
+        )}
+
+        {freenetOption !== 'hidden' && (
+          <button
+            type="button"
+            onClick={() => {
+              setStep('choose');
+              setLocalError(null);
+            }}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 pt-2 border-t border-slate-100"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Not using cloud storage? Choose again
+          </button>
         )}
       </div>
     </div>

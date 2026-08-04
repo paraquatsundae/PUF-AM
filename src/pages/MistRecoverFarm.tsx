@@ -235,10 +235,10 @@ export function MistRecoverFarm() {
 
         <div className="text-sm text-center space-y-2 pt-2 border-t border-slate-100">
           <Link to="/login/mist-new-farm" className="text-violet-700 hover:text-violet-900 font-medium">
-            Mint a new mist farm instead
+            Start a new Freenet farm instead
           </Link>
           <Link to="/login" className="block text-slate-500 hover:text-slate-800">
-            Back to Firebase login
+            Back to storage choice
           </Link>
         </div>
       </div>
