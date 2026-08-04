@@ -29,6 +29,7 @@ import type {
   FreenetHostOptions,
   FreenetHostPlugin,
   FreenetHostStatus,
+  FreenetHostStatusOptions,
   FreenetPutCiphertextOptions,
   FreenetPutCiphertextResult,
 } from './types.ts';
@@ -416,10 +417,28 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     return snapshot();
   }
 
-  async function status(): Promise<FreenetHostStatus> {
-    if (mode === 'managed' || mode === 'attached') {
-      reachable = await probe(wsHost, wsPort, PROBE_TIMEOUT_MS);
+  async function status(statusOptions?: FreenetHostStatusOptions): Promise<FreenetHostStatus> {
+    // `start()` owns the probe loop while starting; a second prober would race it.
+    if (mode === 'starting') return snapshot();
+
+    const live = mode === 'managed' || mode === 'attached';
+    if (!live && !statusOptions?.probe) return snapshot();
+
+    const answered = await probe(wsHost, wsPort, PROBE_TIMEOUT_MS);
+
+    if (live) {
+      reachable = answered;
+    } else if (answered && attachIfRunning) {
+      // A node appeared since we last looked — an operator's `freenet network`,
+      // another PUF unit, or our own start that timed out and then came up. Use
+      // it on the same terms as `doStart`: attached, never killed by us.
+      mode = 'attached';
+      reachable = true;
+      startedAt = new Date().toISOString();
+      lastError = undefined;
+      emitState();
     }
+
     return snapshot();
   }
 

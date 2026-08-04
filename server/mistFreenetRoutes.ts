@@ -52,7 +52,9 @@ export function registerMistFreenetRoutes(app: Express): void {
     if (mistApiUnavailable(req, res)) return;
     try {
       const contribute = Boolean(req.body?.contribute);
-      const peer = await ensureFreenetPeer({ start: true, contribute });
+      // `start: false` — starting here would connect and flush the outbox twice,
+      // and the second pass reports its failures as if the connect had failed.
+      const peer = await ensureFreenetPeer({ start: false, contribute });
       const status = await peer.start();
       res.json(status);
     } catch (err) {

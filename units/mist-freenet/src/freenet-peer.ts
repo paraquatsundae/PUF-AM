@@ -109,9 +109,19 @@ export function createFreenetPeer(options: FreenetPeerOptions): FreenetPeer {
       if (connectOnStart) {
         try {
           await transport.connect();
-          await store.flushOutbox();
         } catch (err) {
           lastError = err instanceof Error ? err.message : String(err);
+        }
+
+        if (!lastError) {
+          try {
+            await store.flushOutbox();
+          } catch (err) {
+            // The peer *is* connected; only the pending inserts failed. Saying so
+            // keeps the workshop card from reading as a failed connect.
+            const message = err instanceof Error ? err.message : String(err);
+            lastError = `connected — outbox flush deferred: ${message}`;
+          }
         }
       }
 

@@ -55,6 +55,18 @@ export type FreenetHostEvent =
 
 export type FreenetHostEventListener = (event: FreenetHostEvent) => void;
 
+export type FreenetHostStatusOptions = {
+  /**
+   * Probe the WS port even while stopped or failed, attaching when a node answers.
+   *
+   * Off by default so a status read never touches the network for a host that
+   * owns nothing. The workshop "Refresh node status" button turns it on: without
+   * a probe, a node started outside this host (or after a failed start) can never
+   * be noticed, and the button looks broken.
+   */
+  probe?: boolean;
+};
+
 export type FreenetPutCiphertextOptions = {
   identifier?: string;
 };
@@ -80,7 +92,7 @@ export interface FreenetHostPlugin {
   readonly id: string;
   start(): Promise<FreenetHostStatus>;
   stop(): Promise<FreenetHostStatus>;
-  status(): Promise<FreenetHostStatus>;
+  status(options?: FreenetHostStatusOptions): Promise<FreenetHostStatus>;
   putCiphertext(
     bytes: Uint8Array,
     options?: FreenetPutCiphertextOptions,

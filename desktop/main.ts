@@ -175,8 +175,24 @@ async function startFreenet(): Promise<FreenetHostStatus | null> {
   }
 }
 
+/**
+ * Answer "what is the node doing *right now*" — always from a live probe.
+ *
+ * The host object is created on demand because mist may have been off at boot:
+ * without this, every status read before the first start returned `null` and the
+ * workshop's refresh button could never report anything. Creating a host spawns
+ * nothing; only `start()` does. A node that answers the probe is adopted as
+ * `attached`, so its coordinates must reach `units/mist-freenet` too.
+ */
+async function readFreenetStatus(): Promise<FreenetHostStatus> {
+  if (!freenetHost) freenetHost = createHost();
+  const status = await freenetHost.status({ probe: true });
+  if (status.reachable) applyFreenetEnv(status);
+  return status;
+}
+
 function registerIpc(): void {
-  ipcMain.handle('puf-freenet:status', async () => freenetHost?.status() ?? null);
+  ipcMain.handle('puf-freenet:status', async () => readFreenetStatus());
   ipcMain.handle('puf-freenet:start', async () => startFreenet());
   ipcMain.handle('puf-freenet:stop', async () => freenetHost?.stop() ?? null);
 }

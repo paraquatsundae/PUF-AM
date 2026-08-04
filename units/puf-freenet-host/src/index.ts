@@ -49,6 +49,7 @@ export type {
   FreenetHostOptions,
   FreenetHostPlugin,
   FreenetHostStatus,
+  FreenetHostStatusOptions,
   FreenetProbeFn,
   FreenetPutCiphertextOptions,
   FreenetPutCiphertextResult,

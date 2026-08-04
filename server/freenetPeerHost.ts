@@ -90,7 +90,8 @@ export async function maybeAutoStartFreenetPeer(): Promise<void> {
   if (!isMistFreenetEnabled()) return;
 
   try {
-    const status = await ensureFreenetPeer({ start: true });
+    const peer = await ensureFreenetPeer({ start: true });
+    const status = await peer.status();
     console.log(
       `[mist-freenet] peer auto-started — freenet=${status.freenet} root=${status.rootDir}`,
     );

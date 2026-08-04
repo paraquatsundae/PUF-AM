@@ -92,6 +92,25 @@ describe('createFreenetHost', () => {
     expect(status.updateRequired).toBe(false);
   });
 
+  it('adopts a node that appeared since the last look when asked to probe', async () => {
+    // The workshop refresh button is the only way to notice a node started
+    // outside this host, or one that came up after our own start timed out.
+    let nodeIsUp = false;
+    const host = createFreenetHost({
+      ...dirs(),
+      probe: async () => nodeIsUp,
+    });
+
+    expect((await host.status({ probe: true })).mode).toBe('stopped');
+
+    nodeIsUp = true;
+    const status = await host.status({ probe: true });
+
+    expect(status.mode).toBe('attached');
+    expect(status.reachable).toBe(true);
+    expect(status.pid).toBeUndefined();
+  });
+
   it('attaches to an already-running node instead of spawning a second one', async () => {
     let spawnCalls = 0;
     const host = createFreenetHost({

@@ -81,6 +81,28 @@ function freenetHostLabel(status: FreenetHostStatus | null): string {
   return bits.join(' · ');
 }
 
+function checkedAtLabel(): string {
+  return new Date().toLocaleTimeString();
+}
+
+/**
+ * Operators read the node's own "External address" line and expect that UDP port
+ * here. It is a different socket for a different job, so spell both out rather
+ * than leave a mismatch looking like a misconfiguration.
+ */
+function FreenetPortRoles() {
+  return (
+    <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+      <span className="font-semibold text-slate-700">Two different ports — a mismatch is normal.</span>{' '}
+      <code className="font-mono text-[10px]">127.0.0.1:7509</code> is the node&apos;s local
+      WebSocket API: the only port PUF-AM talks to, and it never leaves this machine. The{' '}
+      <strong>External address</strong> UDP port your Freenet client shows (e.g.{' '}
+      <code className="font-mono text-[10px]">35712</code>) is the peer-to-peer Opennet socket other
+      peers reach you on. They are unrelated numbers and will not match.
+    </p>
+  );
+}
+
 export function MistWorkshopCard() {
   const { userData } = useAuth();
   const farmId = userData?.farmId;
@@ -107,19 +129,19 @@ export function MistWorkshopCard() {
     try {
       const status = await fetchFreenetPeerStatus();
       setFreenetStatus(status);
+      return status;
     } catch {
       setFreenetStatus(null);
+      return null;
     }
   }, []);
 
   const refreshHostStatus = useCallback(async () => {
     const bridge = getDesktopBridge();
-    if (!bridge) return;
-    try {
-      setHostStatus(await bridge.freenet.status());
-    } catch {
-      setHostStatus(null);
-    }
+    if (!bridge) return null;
+    const status = await bridge.freenet.status();
+    setHostStatus(status);
+    return status;
   }, []);
 
   useEffect(() => {
@@ -131,7 +153,7 @@ export function MistWorkshopCard() {
   useEffect(() => {
     const bridge = getDesktopBridge();
     if (!bridge) return;
-    void refreshHostStatus();
+    refreshHostStatus().catch(() => setHostStatus(null));
     return bridge.freenet.onState(setHostStatus);
   }, [refreshHostStatus]);
 
@@ -225,6 +247,42 @@ export function MistWorkshopCard() {
     }
   };
 
+  /**
+   * A status read that changes nothing looks identical to a dead button, so the
+   * refresh actions always report what they saw and when they saw it.
+   */
+  const onRefreshHostStatus = async () => {
+    setHostBusy(true);
+    setSmokeResult(null);
+    try {
+      const status = await refreshHostStatus();
+      setSmokeResult(
+        status
+          ? `Node re-checked ${checkedAtLabel()} — ${freenetHostLabel(status)}`
+          : 'Node status unavailable — desktop shell only',
+      );
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Node status refresh failed');
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const onRefreshPeerStatus = async () => {
+    setFreenetBusy(true);
+    setSmokeResult(null);
+    try {
+      const status = await refreshFreenetStatus();
+      setSmokeResult(
+        status
+          ? `Peer re-checked ${checkedAtLabel()} — ${freenetStatusLabel(status)}`
+          : 'Peer status unreachable — is the mist Freenet API running?',
+      );
+    } finally {
+      setFreenetBusy(false);
+    }
+  };
+
   const startFreenetNode = async () => {
     const bridge = getDesktopBridge();
     if (!bridge) return;
@@ -268,11 +326,15 @@ export function MistWorkshopCard() {
     try {
       const status = await startFreenetPeer({ contribute: false });
       setFreenetStatus(status);
-      setSmokeResult(
-        status.freenet === 'connected'
-          ? `Freenet peer connected (${status.backendId})`
-          : `Freenet peer started but ${freenetStatusLabel(status)}`,
-      );
+      if (status.freenet === 'connected') {
+        setSmokeResult(
+          status.lastError
+            ? `Freenet peer connected (${status.backendId}) — note: ${status.lastError}`
+            : `Freenet peer connected (${status.backendId})`,
+        );
+      } else {
+        setSmokeResult(`Freenet peer started but ${freenetStatusLabel(status)}`);
+      }
     } catch (err) {
       setSmokeResult(err instanceof Error ? err.message : 'Freenet connect failed');
     } finally {
@@ -504,7 +566,8 @@ export function MistWorkshopCard() {
     }
   };
 
-  const freenetUp = freenetStatus?.running && freenetStatus.freenet === 'connected';
+  const freenetConnected = freenetStatus?.freenet === 'connected';
+  const freenetUp = freenetStatus?.running && freenetConnected;
   const workshopBusy = smokeBusy || freenetBusy || hostBusy;
   const hostRunning = hostStatus?.mode === 'managed' || hostStatus?.mode === 'attached';
 
@@ -601,9 +664,10 @@ export function MistWorkshopCard() {
             <button
               type="button"
               disabled={workshopBusy}
-              onClick={() => void refreshHostStatus()}
-              className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
+              onClick={() => void onRefreshHostStatus()}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 disabled:opacity-50 inline-flex items-center gap-1.5"
             >
+              {hostBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
               Refresh node status
             </button>
           </div>
@@ -644,9 +708,17 @@ export function MistWorkshopCard() {
             </>
           ) : null}
           {freenetStatus?.lastError ? (
-            <span className="block text-amber-700 mt-1">{freenetStatus.lastError}</span>
+            // Connected peers still carry the last wire message. Shown as a note so
+            // a stale or outbox-only complaint does not read as a failed connect.
+            <span
+              className={`block mt-1 ${freenetConnected ? 'text-slate-500' : 'text-amber-700'}`}
+            >
+              {freenetConnected ? 'Note: ' : ''}
+              {freenetStatus.lastError}
+            </span>
           ) : null}
         </p>
+        <FreenetPortRoles />
         <div className="flex flex-wrap gap-2">
           {!freenetStatus?.running ? (
             <button
@@ -671,9 +743,10 @@ export function MistWorkshopCard() {
           <button
             type="button"
             disabled={workshopBusy}
-            onClick={() => void refreshFreenetStatus()}
-            className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
+            onClick={() => void onRefreshPeerStatus()}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 disabled:opacity-50 inline-flex items-center gap-1.5"
           >
+            {freenetBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
             Refresh status
           </button>
         </div>
