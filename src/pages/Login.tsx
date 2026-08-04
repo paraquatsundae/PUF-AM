@@ -326,8 +326,9 @@ export function Login() {
                     Keep a farm on this computer and share it over Freenet, with no cloud account.
                   </p>
                   <p className="text-[11px] font-medium text-slate-500 mt-2">
-                    Turn on <strong>Start Freenet when {APP_NAME} opens</strong> in Settings → Farm
-                    sync between laptops, then reopen this screen.
+                    Switched off in this install. Reopen with Freenet enabled — Settings →{' '}
+                    <strong>Farm sync between laptops</strong> on a mist build, otherwise the
+                    <code className="font-mono"> MIST_FREENET=1</code> launch flag.
                   </p>
                 </div>
               </div>
