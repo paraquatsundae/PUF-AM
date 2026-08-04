@@ -1,7 +1,7 @@
 # PUF-AM desktop shell (Electron)
 
-**Status:** Phase 2 (~2026-08-04) — this runs, with pinned Freenet binaries out of `vendor/`.
-Installers are Phase 3.
+**Status:** Phase 3 (~2026-08-04) — the Fedora AppImage builds and launches with Freenet running from
+bundled binaries. Windows installers need a Windows host.
 **Plan (authoritative):** [`Plans/DESKTOP_FREENET_PLUGIN.md`](../Plans/DESKTOP_FREENET_PLUGIN.md)
 
 ## Running it
@@ -25,12 +25,14 @@ relative asset paths that break on SPA sub-routes.
 |--------|------|
 | `desktop:vendor` | Fetch + checksum the pinned `freenet`/`fdev` for this platform |
 | `desktop:vendor:linux` / `:win` | Same, for a named platform (cross-fetch is fine — files are only staged) |
-| `desktop:vendor:verify` | Re-check `vendor/` against the pins, no network |
+| `desktop:vendor:verify` | Re-check `vendor/` against the pins, no network (`:linux` / `:win` for a named platform) |
 | `desktop:verify:pack` | Bundled `pack-contract.wasm` still matches its pinned code hash |
+| `desktop:verify:deps` | The packaged `node_modules` allowlist still matches what the bundle requires |
 | `desktop:smoke:host` | Start a real node from the resolved binary on a spare port, assert `managed`, stop |
 | `desktop:build` | esbuild `main.ts` + `preload.ts` → `desktop/build/*.cjs` |
 | `desktop:start` | `electron .` — assumes `dist/` and `desktop/build/` are current |
 | `desktop:dev` | `build` + `desktop:build` + `desktop:start` |
+| `desktop:dist:*` | Packaged installers — see [Installers](#installers) |
 | `lint:desktop` | `tsc -p desktop/tsconfig.json` (this dir is excluded from the root lint) |
 
 `desktop:smoke:host` is the quick "is Freenet actually working" check, and it does **not** need
@@ -45,6 +47,58 @@ overrides the cloud target.
 **Operator data lives in `~/.config/PUF-AM/`** (`%APPDATA%\PUF-AM` on Windows) — Freenet config,
 data, and logs plus the mist cache. That path comes from `productName` in `package.json`;
 changing it strands existing farms.
+
+## Installers
+
+Config: [`electron-builder.yml`](../electron-builder.yml). Output: `release/` (gitignored).
+
+```bash
+npm run desktop:dist:linux:appimage   # Fedora: AppImage only — nothing extra to install
+npm run desktop:dist:linux            # Fedora: AppImage + rpm (see prerequisites below)
+npm run desktop:dist:win              # Windows: NSIS installer + portable — run this on Windows
+npm run desktop:dist                  # host platform, whatever that is
+```
+
+Every one of those gates packaging on the vendored binaries for the *target* platform, the
+pack-contract code hash (with `fdev` mandatory), a fresh web + main bundle, and the `node_modules`
+allowlist. Do not call `electron-builder` directly — that is how a stale `vendor/` ships.
+
+### Running the Fedora artifact
+
+```bash
+./release/PUF-AM-0.1.0.AppImage                    # Firebase / local-only
+MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage     # ...and start the bundled Freenet node
+```
+
+No install step, no root, no Node on the machine. Mark it executable if git or a browser dropped the
+bit (`chmod +x`). A packaged app ignores `.env`, so mist is opt-in via the environment until the
+Settings surface carries it.
+
+If a workshop `freenet network` already holds `:7509`, the packaged app **attaches** to it and
+reports `mode: attached` — correct behaviour, but it tells you nothing about the bundled binary. Add
+`FREENET_WS_PORT=7609` to make it spawn its own and report `source: bundled`.
+
+The `rpm` target needs two host packages Fedora 44 does not install by default:
+
+```bash
+sudo dnf install rpm-build libxcrypt-compat   # rpmbuild, plus the libcrypt.so.1 fpm's Ruby links
+sudo dnf install ./release/puf-am-0.1.0.x86_64.rpm
+```
+
+### Windows
+
+`npm run desktop:dist:win` on Fedora builds a complete `release/win-unpacked/` — asar, `freenet.exe`,
+`fdev.exe`, pack WASM — and then fails at the NSIS step with `spawn wine ENOENT`. Cross-building the
+installer is not supported here. On the Windows box:
+
+```powershell
+npm ci
+npm run desktop:vendor:win     # once: fetch the pinned freenet.exe + fdev.exe
+npm run desktop:dist:win       # → release\PUF-AM Setup 0.1.0.exe + PUF-AM 0.1.0.exe (portable)
+```
+
+`freenet.exe` has never been launched. Treat the first Windows run as new information, and flip
+`win-x64` to `verified` in `scripts/freenet-binaries.json` once it spawns a node.
 
 ## Why Electron
 
@@ -108,10 +162,10 @@ If a node is already listening on the WS port — a workshop `freenet network`, 
 
 - **CJS output on purpose** — no ESM/`__dirname` friction in Electron main.
 - `main.ts` imports `.ts` specifiers (repo convention). esbuild resolves them; Electron never sees TypeScript. That is the *only* reason this build step exists.
-- **npm packages stay external.** Bundling them would flatten `firebase-admin`'s dynamic requires and grpc's native bindings for no gain.
+- **npm packages stay external.** Bundling them would flatten `firebase-admin`'s dynamic requires and grpc's native bindings for no gain. The cost is that the packaged asar has to carry the main process's runtime closure explicitly, which is what `desktop:verify:deps` keeps honest.
 - `import.meta` is empty in CJS, and `units/mist-freenet` reads `import.meta.url` at module load. The build shims it from `__filename` so the bundle does not throw, and `main.ts` sets `FREENET_PACK_WASM` explicitly because the shim points at the bundle, not the asset.
 - `desktop/build/` is gitignored.
-- `better-sqlite3` never appears in the bundle (it is unused, so no Electron ABI rebuild) and `firebase-admin` stays external and cloud-only.
+- `better-sqlite3` is gone from the repo (unused, and it would have forced an Electron ABI rebuild). `firebase-admin` is cloud-only and never packaged, which is why `server/firebaseAdmin.ts` loads it on first use instead of importing it — a static import made the packaged main process die at boot.
 
 ### Typechecking this directory
 
@@ -123,8 +177,8 @@ and nothing from `desktop/` itself. `desktop/` stays excluded from the root lint
 
 ## Not yet done
 
-Installers (Phase 3 — `extraResources` will move `vendor/` into `resources/freenet`, at which point
-status reports `source: 'bundled'` instead of `'vendor'`) · loopback bearer token or IPC-only
-Freenet calls (Phase 4) · mDNS LAN-hub advertising
-(`server.ts` starts it; the shell does not yet) · a desktop-aware Mist workshop card · menus, tray,
-window state, icons · code signing · auto-updater (out of scope by workspace policy).
+Windows `nsis`/`portable` artifacts and the first `freenet.exe` launch · a Fedora `rpm` (needs the
+two host packages above) · mist opt-in from the UI rather than `MIST_FREENET` in the environment ·
+loopback bearer token or IPC-only Freenet calls (Phase 4) · mDNS LAN-hub advertising (`server.ts`
+starts it; the shell does not yet) · a desktop-aware Mist workshop card · menus, tray, window
+state · code signing · auto-updater (out of scope by workspace policy).

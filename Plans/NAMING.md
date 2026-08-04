@@ -50,7 +50,11 @@ Related plans (not duplicated here):
 | Desktop (Electron) `appId` | `farm.pufworks.am` | Desktop only — **do not** reuse the Android `com.sentinut.farm` |
 | Desktop `productName` | `PUF-AM` | Set in `package.json`. Drives `~/.config/PUF-AM` and `%APPDATA%\PUF-AM`; renaming strands operator data (Freenet identity + mist cache) |
 | Desktop Linux `executableName` | `puf-am` | Binary + `.desktop` entry name |
+| Desktop `desktopName` | `puf-am.desktop` | In `package.json`. Electron's Wayland/X11 `app_id`; must match the generated `.desktop` filename (`linux.syncDesktopName`) or the running window gets its own iconless shell entry |
+| Desktop rpm package name | `puf-am` | `rpm.packageName` — otherwise the package inherits npm's `walnut-farm-manager` |
+| electron-builder config | `electron-builder.yml` | Repo root. `productName`, `main`, `desktopName` stay in `package.json` because Electron reads them |
 | electron-builder output dir | `release/` | **Not** `dist/` — that is Vite's output |
+| electron-builder build resources | `desktop/resources/` (`icon.png`) | **Not** the default `build/` — gitignored here |
 | Bundled Freenet binaries (build input) | `vendor/freenet/<os>-<arch>/` | `<os>` is electron-builder `${os}` (`linux`/`win`/`mac`); gitignored |
 | Cloud Run service | `pufom-…a.run.app` | Phase B — DNS cutover planned |
 | Public URL | `https://am.pufworks.farm` | Canonical; `APP_URL` / `VITE_APP_URL` |

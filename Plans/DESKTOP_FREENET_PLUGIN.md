@@ -1,6 +1,6 @@
 # PUF-AM desktop installer + Freenet as an in-app plugin
 
-**Status:** Phase 2 done — Freenet binaries are pinned and bundled (~2026-08-04). Next: Phase 3 (installers). Not shipped.
+**Status:** Phase 3 done on Fedora — an AppImage installs and launches with Freenet reporting `source: bundled` (~2026-08-04). Windows config is complete and `win-unpacked/` builds here, but the NSIS/portable step needs a Windows host. Next: Phase 4 (retire the desktop sidecar path). Not shipped.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
 **Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
 
@@ -231,6 +231,8 @@ Binding an HTTP API to `127.0.0.1` means any local process can reach it. That is
       pack-contract.wasm            code hash 5Piu7V1PjjcPVnTvUbyMdDiyvwoBprBPZ4GFUHfabyzW
 ```
 
+Phase 3 confirmed this layout in both the Linux and Windows outputs. `app.asar` is 8.9 MB: the Vite bundle, the esbuild'd main/preload, and the ~80 npm packages the main process actually resolves (§8.2) — not `server/`, `units/`, or `shared/` sources, which are already inlined and which Electron could not execute anyway.
+
 `pack-contract.wasm` moves out of `app.asar` into `resources/contracts/` because `fdev --code` needs a **real filesystem path** — asar-packed files are not directly readable by a child process. Same reason the binaries live in `extraResources`. The bundled WASM's `fdev inspect` code hash is pinned in `units/mist-freenet/src/freenet02-pack.ts`; **bundled WASM and that constant must be verified together**, or every published URI silently changes.
 
 Phase 2 landed that verification as `npm run desktop:verify:pack` ([`scripts/verify-pack-contract.mjs`](../scripts/verify-pack-contract.mjs)), split by what each half needs:
@@ -260,39 +262,48 @@ With no `fdev` present the second check is skipped with a warning (`--require-fd
 
 ### 8.1 Targets
 
-| Platform | Targets | Notes |
-|----------|---------|-------|
-| Fedora | **`rpm`** (primary) + **`AppImage`** | `rpm` needs `rpm-build` on the build host; AppImage is the no-install fallback |
-| Windows | **`nsis`** installer + **`portable`** | Build NSIS **on Windows** — cross-building from Linux needs wine and is not worth it here |
-| Debian/Ubuntu | `deb` (optional) | Free from the same config; not a target platform |
+| Platform | Targets | Status / notes |
+|----------|---------|----------------|
+| Fedora | **`AppImage`** (primary in practice) + **`rpm`** | AppImage **built and launched** on Fedora 44. `rpm` needs two host packages this box lacks — see below |
+| Windows | **`nsis`** installer + **`portable`** | `win-unpacked/` builds fine on Fedora; the installer step needs wine, so run it **on Windows** |
+| Debian/Ubuntu | `deb` (optional) | Free from the same config; not configured, not a target platform |
 
-Cross-platform builds are **not** attempted from one host. Fedora artifacts build on Fedora, Windows artifacts on the `C:\Projects` Windows box.
+**AppImage ended up ahead of `rpm`**, inverting the original ordering. electron-builder builds `rpm` through a bundled `fpm`, whose Ruby links `libcrypt.so.1`; Fedora 44 ships `libcrypt.so.2` only. So the rpm leg needs:
 
-### 8.2 `electron-builder` sketch
-
-```jsonc
-{
-  "appId": "farm.pufworks.am",           // desktop only; Android com.sentinut.farm stays frozen
-  "productName": "PUF-AM",
-  "directories": { "output": "release" }, // NOT dist/ — that is Vite's output
-  "files": ["dist/**", "desktop/build/**", "server/**", "units/**", "shared/**", "package.json"],
-  "extraResources": [
-    { "from": "vendor/freenet/${os}-${arch}", "to": "freenet" },
-    { "from": "units/mist-freenet/assets/pack-contract.wasm", "to": "contracts/pack-contract.wasm" }
-  ],
-  "linux":  { "target": ["rpm", "AppImage"], "category": "Science", "executableName": "puf-am" },
-  "win":    { "target": ["nsis", "portable"] },
-  "nsis":   { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true },
-  "publish": null                         // workshop builds; no auto-updater (AGENTS.md rule 9)
-}
+```bash
+sudo dnf install rpm-build libxcrypt-compat   # rpmbuild + the legacy libcrypt fpm links against
+npm run desktop:dist:linux                    # AppImage + rpm
+npm run desktop:dist:linux:appimage           # AppImage only — no extra host packages
 ```
+
+That is also why `desktop:dist:linux:appimage` exists: without it, a machine missing those two packages fails the whole build *after* the AppImage has already been written, which reads like the AppImage failed too.
+
+Cross-platform builds are **not** attempted for the final artifacts. Fedora artifacts build on Fedora, Windows installers on the `C:\Projects` Windows box.
+
+### 8.2 `electron-builder` config
+
+Lives in [`electron-builder.yml`](../electron-builder.yml) (YAML so the non-obvious entries can carry their reasons). `productName`, `main`, and `desktopName` stay in `package.json` because Electron itself reads them. Identifiers are frozen in [`NAMING.md`](NAMING.md) §2.
+
+What is worth knowing beyond the obvious:
+
+| Setting | Why it is what it is |
+|---------|----------------------|
+| `directories.buildResources: desktop/resources` | The default is `build/`, which this repo gitignores — the icon would not survive a fresh clone |
+| `files` allowlists ~80 `node_modules` | electron-builder ships **every** production dependency. The main bundle keeps npm packages external (§8.3), so it needs its own runtime closure and nothing else; the renderer's React / icon / PDF packages are already inside `dist/`. This is the difference between a 164 MB AppImage and a ~500 MB one |
+| `npmRebuild: false` | Nothing native reaches the app now that `better-sqlite3` is gone (§8.3). Adding a native dependency means turning this back on |
+| `linux.syncDesktopName` + `desktopName` in `package.json` | Electron takes its Wayland/X11 `app_id` from `desktopName`; without the two agreeing, the running window shows up as a second iconless entry in the shell |
+| `rpm.packageName: puf-am` | Otherwise the package is named after npm's `walnut-farm-manager` — the clone folder, not the product |
+| `nsis.deleteAppDataOnUninstall: false` | `%APPDATA%\PUF-AM` holds the Freenet identity and mist cache; an uninstall must not take the operator's farm data with it |
+| `publish: null` | Workshop builds, no auto-updater (AGENTS.md rule 9) |
+
+The `node_modules` allowlist is the one part that can rot silently, so it is generated rather than curated: [`scripts/verify-desktop-deps.mjs`](../scripts/verify-desktop-deps.mjs) (`npm run desktop:verify:deps`) reads the *built* bundle's external `require()`/`import()` specifiers, walks their dependency closure, and fails the build if the config disagrees — `--print` emits the block to paste. It also fails if the bundle reaches for a `devDependency`, because electron-builder ships production dependencies only and that mistake surfaces as `MODULE_NOT_FOUND` on an operator's machine rather than at build time.
 
 ### 8.3 Native and heavy dependencies
 
 | Dependency | Action |
 |------------|--------|
-| `better-sqlite3` | **Drop or exclude.** Listed in `package.json` but unused (`Dockerfile` says so). Keeping it forces `@electron/rebuild` against Electron's ABI for nothing |
-| `firebase-admin` | Exclude from the desktop bundle — `/api/auth/*` is cloud-only (§6.2) |
+| `better-sqlite3` | **Dropped** in Phase 3 (`npm uninstall`). It was unused, and keeping it would force a native rebuild against Electron's ABI for nothing |
+| `firebase-admin` | Excluded — `/api/auth/*` is cloud-only (§6.2). It is a `devDependency`, so electron-builder never ships it; Phase 3 made [`server/firebaseAdmin.ts`](../server/firebaseAdmin.ts) load it **on first use** instead of importing it, because a static import made the packaged main process die at boot rather than degrade. `isAdminSdkReady()` already returns `false` for callers |
 | `bonjour-service` | Keep; pure JS, powers the LAN hub |
 | `@freenetorg/freenet-stdlib` | Keep; GET path |
 | `vite`, `tsx`, `firebase-tools` | Dev only — must not reach `files` |
@@ -450,20 +461,27 @@ The `source` reported in dev is **`vendor`**, not `bundled`: `bundled` means Ele
 
 **Still open before this phase is closed in the field:** `freenet.exe` has never been *launched* (Phase 3, on the Windows box), and a bundled-binary publish/pull still needs a warmed peer and operator credentials — same caveat Phase 1 carries.
 
-### Phase 3 — installers (next)
+### Phase 3 — installers (**done on Fedora**, ~2026-08-04; Windows installer step pending a Windows host)
 
-`electron-builder` config (§8.2) · Fedora `rpm` + `AppImage` on the Fedora box · Windows `nsis` + `portable` on the Windows box · `dnf install` / installer smoke on a clean-ish user account.
+Landed:
 
-Phase 2 leaves this set up rather than open-ended:
+- [`electron-builder.yml`](../electron-builder.yml) (§8.2) — Fedora `AppImage` + `rpm`, Windows `nsis` + `portable`, `extraResources` for the binaries and pack WASM, and the `node_modules` allowlist that keeps the AppImage at 164 MB instead of ~500 MB.
+- [`scripts/verify-desktop-deps.mjs`](../scripts/verify-desktop-deps.mjs) (`npm run desktop:verify:deps`) — derives the packaged runtime closure from the built bundle and fails the build when the allowlist drifts or the bundle reaches for a `devDependency`.
+- Gated scripts: **`desktop:dist`** (host platform), **`desktop:dist:linux`**, **`desktop:dist:linux:appimage`**, **`desktop:dist:win`**, plus `desktop:vendor:verify:linux` / `:win`. Every one runs `desktop:vendor:verify` for the *target* platform, `desktop:verify:pack --require-fdev`, a fresh `vite build` and main/preload bundle, then `desktop:verify:deps` — a stale `vendor/`, a drifted pack-contract hash, or a stale allowlist all stop the build before electron-builder starts.
+- `server/firebaseAdmin.ts` loads the Admin SDK lazily; `better-sqlite3` dropped (§8.3); app icon committed at `desktop/resources/icon.png`.
 
-- `extraResources` maps `vendor/freenet/${os}-${arch}` → `resources/freenet` and the pack WASM → `resources/contracts/`; both source paths now exist and are checksum-verified.
-- The build must run `desktop:vendor:verify` and `desktop:verify:pack --require-fdev` **before** packaging, so a stale or half-fetched `vendor/` cannot ship.
-- First launch of a packaged build is the first time `status().binary.source` should read `bundled` instead of `vendor` — that is the signal `extraResources` landed where the resolver looks.
-- Windows is where `freenet.exe` first actually runs (§8.4). Treat a `win-x64` launch as new information, not a formality, and flip its manifest `status` to `verified` once it spawns a node.
+**Verified on Fedora 44:** `npm run desktop:dist:linux:appimage` → `release/PUF-AM-0.1.0.AppImage` (164 MB). Launching it reports **`mode=managed source=bundled`** — the first time the resolver has picked `resources/freenet/` rather than `vendor/` — serves the UI and `/api/health` from `127.0.0.1:<ephemeral>`, runs `/tmp/.mount_*/resources/freenet/freenet` against `~/.config/PUF-AM/freenet/{config,data,logs}`, and on quit stops only its own node: the operator's workshop `freenet network` on `:7509` was still running afterwards. `resources/freenet/{freenet,fdev,LICENSE.md}` and `resources/contracts/pack-contract.wasm` are present in both the Linux and Windows outputs.
 
-**Done when:** a machine with **no Node, no npm, no Freenet** installs the artifact, launches PUF-AM, and completes a Freenet publish.
+**Windows:** `npm run desktop:dist:win` produces a complete `release/win-unpacked/` on Fedora — asar, `freenet.exe`, `fdev.exe`, and the pack WASM all land correctly — then fails at the NSIS step with `spawn wine ENOENT`. That is the documented boundary, not a config problem: run the same command on the `C:\Projects` Windows box (§8.1). `freenet.exe` has still **never been launched**, so `win-x64` stays `pinned` in the manifest until it spawns a node there.
 
-### Phase 4 — retire the desktop sidecar path
+**Still open before this phase is closed in the field:**
+
+- Windows `nsis` + `portable` artifacts, and the first `freenet.exe` launch.
+- The `rpm` leg needs `sudo dnf install rpm-build libxcrypt-compat` (§8.1) — untested on this box.
+- Install on a machine with **no Node, no npm, no Freenet**, and complete a Freenet publish there. That still needs operator credentials and a warmed peer, the same caveat Phases 1 and 2 carry.
+- A packaged build has no way to turn mist on: `MIST_FREENET` comes from the environment, and a packaged app deliberately ignores `.env`. The smoke above passed it on the command line. Wiring the existing mist opt-in through to the host is UI work that belongs with the Settings surface (§9), not with packaging.
+
+### Phase 4 — retire the desktop sidecar path (next)
 
 Desktop never resolves `am.pufworks.farm` for `/api/mist/freenet/*` · loopback guard (bearer token and/or IPC) · two-machine A→B join-ticket smoke using **installers only** · update [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) to mark the sidecar section *workshop/web only*.
 
@@ -479,8 +497,8 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 
 | Risk | Mitigation / status |
 |------|---------------------|
-| Windows `freenet.exe` availability at pinned version | **Closed** — `freenet-x86_64-pc-windows-msvc.zip` + `fdev` zip ship in `v0.2.119`; both pinned and staged (§8.4). Never *launched* on Windows, which is Phase 3 work |
-| Installer size ~250 MB with binaries | Accepted for workshop distribution; no auto-updater to amortize |
+| Windows `freenet.exe` availability at pinned version | **Closed** — `freenet-x86_64-pc-windows-msvc.zip` + `fdev` zip ship in `v0.2.119`; both pinned, staged, and packed into `win-unpacked/` (§8.4). Never *launched*: still open, now on the Windows box |
+| Installer size ~250 MB with binaries | **Better than feared** — 164 MB AppImage, because the `files` allowlist keeps the renderer's production dependencies out of the asar (§8.2). Would have been ~500 MB without it |
 | Fresh app-owned peer identity slows first publish | Documented warm-up; start host at launch; consider attach-to-existing as a workshop default |
 | Exit code 42 update loop | Host never auto-updates; surfaces `updateRequired` and stops (§5.4) |
 | Bundled WASM drifts from pinned code hash | **Closed** — `npm run desktop:verify:pack` plus a hermetic test on the pin (§7.1). Publishing with a mismatched hash silently changes every URI, so this fails the build rather than warning |

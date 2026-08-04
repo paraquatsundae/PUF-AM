@@ -1,0 +1,118 @@
+# PUF-AM desktop installers — Fedora (AppImage + rpm) and Windows (NSIS + portable).
+#
+# Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §8 (targets, bundle layout) and Phase 3.
+# Identifiers here are frozen in `Plans/NAMING.md` §2 — `appId`, `executableName`,
+# and the `release/` output dir in particular. `productName` and `main` stay in
+# package.json because Electron itself reads them.
+#
+# Never run electron-builder directly: `npm run desktop:dist:*` gates packaging on
+# the vendored Freenet binaries, the pack-contract code hash, and the node_modules
+# allowlist below. A stale `vendor/` would otherwise ship silently.
+
+appId: farm.pufworks.am
+copyright: PUFworks
+
+directories:
+  output: release
+  # Not `build/` — that is gitignored in this repo, so the icon would not survive
+  # a fresh clone.
+  buildResources: desktop/resources
+
+files:
+  # Vite's bundle, served over loopback by `desktop/localApi.ts`.
+  - dist/**
+  # esbuild output for the main and preload processes (`scripts/build-desktop.mjs`).
+  # The TypeScript in `server/`, `units/`, and `shared/` is already inlined there,
+  # so the sources themselves are not shipped — Electron could not load them anyway.
+  - desktop/build/**
+  - package.json
+  # npm packages stay external in the bundle (plan §8.3), so the asar carries the
+  # main process's runtime closure — and nothing else. electron-builder would
+  # otherwise ship every production dependency, including the ~400 MB of React,
+  # icon sets, and PDF libraries that Vite already inlined into `dist/`.
+  # Regenerate with `npm run desktop:verify:deps -- --print`; the gate in
+  # `desktop:dist:prep` fails the build if this drifts from the bundle.
+  - '!node_modules/**'
+  - node_modules/{@freenetorg/freenet-stdlib,@leichtgewicht/ip-codec,@noble/hashes,accepts}/**
+  - node_modules/{array-flatten,base-x,body-parser,bonjour-service,bs58,bytes}/**
+  - node_modules/{call-bind-apply-helpers,call-bound,content-disposition,content-type,cookie}/**
+  - node_modules/{cookie-signature,debug,depd,destroy,dns-packet,dotenv,dunder-proto}/**
+  - node_modules/{ee-first,encodeurl,es-define-property,es-errors,es-object-atoms}/**
+  - node_modules/{escape-html,etag,express,fast-deep-equal,finalhandler,flatbuffers}/**
+  - node_modules/{forwarded,fresh,function-bind,get-intrinsic,get-proto,gopd,has-symbols}/**
+  - node_modules/{hasown,http-errors,iconv-lite,inherits,ipaddr.js,math-intrinsics}/**
+  - node_modules/{media-typer,merge-descriptors,methods,mime,mime-db,mime-types,ms}/**
+  - node_modules/{multicast-dns,negotiator,object-inspect,on-finished,parseurl}/**
+  - node_modules/{path-to-regexp,proxy-addr,qs,range-parser,raw-body,safe-buffer}/**
+  - node_modules/{safer-buffer,send,serve-static,setprototypeof,side-channel}/**
+  - node_modules/{side-channel-list,side-channel-map,side-channel-weakmap,statuses,thunky}/**
+  - node_modules/{toidentifier,type-is,unpipe,utils-merge,vary,ws}/**
+
+# Outside the asar on purpose: `fdev --code` and the spawned `freenet` node need
+# real filesystem paths, which asar-packed files do not have (plan §7.1). The
+# resolver looks for `${process.resourcesPath}/freenet`, which is what makes a
+# packaged launch report `binary.source: bundled` instead of `vendor`.
+extraResources:
+  - from: vendor/freenet/${os}-${arch}
+    to: freenet
+  - from: units/mist-freenet/assets/pack-contract.wasm
+    to: contracts/pack-contract.wasm
+
+# No native modules reach the app (`better-sqlite3` was dropped as unused), so
+# there is nothing to rebuild against Electron's ABI. Adding a native dependency
+# means turning this back on.
+npmRebuild: false
+
+# Workshop builds only — no auto-updater, no public distribution pipeline.
+publish: null
+
+linux:
+  target:
+    # AppImage first: no install, no root, and the only artifact that runs on a
+    # non-RPM distro. `rpm` needs `rpm-build` on the build host.
+    - AppImage
+    - rpm
+  category: Science
+  executableName: puf-am
+  # Electron takes its Wayland/X11 app_id from `desktopName` in package.json, so the
+  # generated `.desktop` file has to be named to match or the running window shows
+  # up as a second, iconless entry in the shell.
+  syncDesktopName: true
+  # Unsigned workshop artifacts, but rpm metadata is mandatory — replace with a real
+  # address if these are ever handed out beyond the farm.
+  maintainer: PUFworks <noreply@pufworks.farm>
+  vendor: PUFworks
+  synopsis: Ag Manager — paddock mapping, diary, and crop packs
+  description: |
+    PUF-AM (Ag Manager) for mixed farms: paddock mapping, work diary, blight and
+    chill models, and team coordination. Bundles a Freenet node for the
+    experimental mist storage path; Firebase remains the default backend.
+
+rpm:
+  # Without this the package would be named after npm's `walnut-farm-manager`
+  # (the clone folder, per NAMING.md §1) rather than the product.
+  packageName: puf-am
+  # Fedora ships these already; the AppImage bundles nothing, so being explicit in
+  # the rpm is the only place it matters.
+  depends:
+    - libnotify
+    - libXtst
+    - libXScrnSaver
+
+win:
+  target:
+    - nsis
+    - portable
+
+nsis:
+  # Not a one-click installer: an operator choosing the install directory is worth
+  # more here than a fast install, because the bundled Freenet node is ~93 MB.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PUF-AM
+  # Freenet identity and the mist cache live in %APPDATA%\PUF-AM — an uninstall
+  # must not take the operator's farm data with it.
+  deleteAppDataOnUninstall: false

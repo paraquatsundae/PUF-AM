@@ -3,7 +3,7 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# ca-certificates + build tools (better-sqlite3 is listed but unused; keep tools for native deps)
+# ca-certificates + build tools (no native deps ship today; kept so adding one does not break the image)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates python3 make g++ \
     && rm -rf /var/lib/apt/lists/*

@@ -1,14 +1,49 @@
 /**
  * Firebase Admin for local Express auth (invite PIN mint / redeem).
  * Uses secrets/* service account when GOOGLE_APPLICATION_CREDENTIALS is unset.
+ *
+ * The SDK is loaded on first use rather than imported, because the packaged
+ * desktop build deliberately does not ship it — `/api/auth/*` and
+ * `/api/weather/*` are cloud-only there (`Plans/DESKTOP_FREENET_PLUGIN.md` §6.2),
+ * and a static import would make the Electron main process fail at boot instead.
+ * Callers already treat `isAdminSdkReady() === false` as "route unavailable".
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
-import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import type adminSdk from 'firebase-admin';
 
+type AdminModules = {
+  admin: typeof adminSdk;
+  auth: typeof import('firebase-admin/auth');
+  firestore: typeof import('firebase-admin/firestore');
+};
+
+const loadModule = createRequire(import.meta.url);
+
+/** `null` once we know the SDK is absent; `undefined` before the first attempt. */
+let modules: AdminModules | null | undefined;
 let initAttempted = false;
+
+function loadAdminModules(): AdminModules {
+  if (modules === null) {
+    throw new Error(
+      'firebase-admin is not available in this build — /api/auth/* and /api/weather/* are cloud-only on desktop',
+    );
+  }
+  if (modules) return modules;
+  try {
+    modules = {
+      admin: loadModule('firebase-admin') as typeof adminSdk,
+      auth: loadModule('firebase-admin/auth') as AdminModules['auth'],
+      firestore: loadModule('firebase-admin/firestore') as AdminModules['firestore'],
+    };
+  } catch {
+    modules = null;
+    return loadAdminModules();
+  }
+  return modules;
+}
 
 function resolveProjectConfig(): { projectId: string; firestoreDatabaseId?: string } | null {
   const configPath = resolve(process.cwd(), 'firebase-applet-config.json');
@@ -33,7 +68,8 @@ function resolveServiceAccountPath(): string | undefined {
   return match ? resolve(secretsDir, match) : undefined;
 }
 
-export function getAdminApp(): admin.app.App {
+export function getAdminApp(): adminSdk.app.App {
+  const { admin } = loadAdminModules();
   if (admin.apps.length) return admin.app();
   if (initAttempted && !admin.apps.length) {
     throw new Error('Firebase Admin failed to initialize earlier');
@@ -47,7 +83,7 @@ export function getAdminApp(): admin.app.App {
   // Optional: full service-account JSON in env (Cloud Run secret) — never commit.
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
   if (saJson) {
-    const cred = JSON.parse(saJson) as admin.ServiceAccount;
+    const cred = JSON.parse(saJson) as adminSdk.ServiceAccount;
     return admin.initializeApp({
       credential: admin.credential.cert(cred),
       projectId: projectId || (cred as { projectId?: string }).projectId,
@@ -68,11 +104,12 @@ export function getAdminApp(): admin.app.App {
 
 export function getAdminAuth() {
   getAdminApp();
-  return getAuth();
+  return loadAdminModules().auth.getAuth();
 }
 
 export function getAdminDb() {
   const app = getAdminApp();
+  const { getFirestore } = loadAdminModules().firestore;
   const config = resolveProjectConfig();
   const databaseId =
     process.env.FIRESTORE_DATABASE_ID || config?.firestoreDatabaseId || '(default)';
