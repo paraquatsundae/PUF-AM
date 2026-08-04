@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Cloud, Copy, Database, FlaskConical, Loader2, Radio } from 'lucide-react';
+import { Cloud, Copy, Database, FlaskConical, Loader2, Radio, Server } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { getDesktopBridge } from '../lib/desktopBridge.ts';
+import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
 import {
   getFarmStoreBackend,
   isMistExperimentalEnabled,
@@ -69,6 +71,16 @@ function freenetStatusLabel(status: FreenetPeerStatus | null): string {
   return `disconnected (${freenetDisconnectedHint(status)})`;
 }
 
+/** The app-owned node child process, not the client transport talking to it. */
+function freenetHostLabel(status: FreenetHostStatus | null): string {
+  if (!status) return 'unknown';
+  const bits: string[] = [status.mode];
+  bits.push(status.reachable ? `reachable @ ${status.wsHost}:${status.wsPort}` : 'not reachable');
+  if (status.binary?.source) bits.push(`binary=${status.binary.source}`);
+  if (status.pid) bits.push(`pid ${status.pid}`);
+  return bits.join(' · ');
+}
+
 export function MistWorkshopCard() {
   const { userData } = useAuth();
   const farmId = userData?.farmId;
@@ -81,6 +93,8 @@ export function MistWorkshopCard() {
   const [hotMirrorAvailable, setHotMirrorAvailable] = useState(() => isMistHotMirrorAvailable());
   const [freenetStatus, setFreenetStatus] = useState<FreenetPeerStatus | null>(null);
   const [freenetBusy, setFreenetBusy] = useState(false);
+  const [hostStatus, setHostStatus] = useState<FreenetHostStatus | null>(null);
+  const [hostBusy, setHostBusy] = useState(false);
   const [pasteUri, setPasteUri] = useState('');
   const [joinTicket, setJoinTicket] = useState('');
   const [uriCopied, setUriCopied] = useState(false);
@@ -98,15 +112,34 @@ export function MistWorkshopCard() {
     }
   }, []);
 
+  const refreshHostStatus = useCallback(async () => {
+    const bridge = getDesktopBridge();
+    if (!bridge) return;
+    try {
+      setHostStatus(await bridge.freenet.status());
+    } catch {
+      setHostStatus(null);
+    }
+  }, []);
+
   useEffect(() => {
     setHotMirrorAvailable(isMistHotMirrorAvailable());
     if (farmId) setHotStatus(getMistHotPublishStatus(farmId));
     void refreshFreenetStatus();
   }, [farmId, backend, refreshFreenetStatus]);
 
+  useEffect(() => {
+    const bridge = getDesktopBridge();
+    if (!bridge) return;
+    void refreshHostStatus();
+    return bridge.freenet.onState(setHostStatus);
+  }, [refreshHostStatus]);
+
   if (!isMistExperimentalEnabled() && backend !== 'mist') {
     return null;
   }
+
+  const desktop = getDesktopBridge();
 
   const freenetSidecar = usesLocalFreenetSidecar();
   const freenetApiBase = getMistFreenetApiBaseUrl();
@@ -189,6 +222,43 @@ export function MistWorkshopCard() {
       setSmokeResult(err instanceof Error ? err.message : 'Hot read failed');
     } finally {
       setSmokeBusy(false);
+    }
+  };
+
+  const startFreenetNode = async () => {
+    const bridge = getDesktopBridge();
+    if (!bridge) return;
+    setHostBusy(true);
+    setSmokeResult(null);
+    try {
+      const status = await bridge.freenet.start();
+      setHostStatus(status);
+      setSmokeResult(
+        status?.reachable
+          ? `Freenet node ${status.mode} on ${status.wsHost}:${status.wsPort} — now connect the peer`
+          : `Freenet node ${status?.mode ?? 'unavailable'}${status?.lastError ? ` — ${status.lastError}` : ''}`,
+      );
+      await refreshFreenetStatus();
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Freenet node start failed');
+    } finally {
+      setHostBusy(false);
+    }
+  };
+
+  const stopFreenetNode = async () => {
+    const bridge = getDesktopBridge();
+    if (!bridge) return;
+    setHostBusy(true);
+    try {
+      const status = await bridge.freenet.stop();
+      setHostStatus(status);
+      setSmokeResult('Freenet node stopped');
+      await refreshFreenetStatus();
+    } catch (err) {
+      setSmokeResult(err instanceof Error ? err.message : 'Freenet node stop failed');
+    } finally {
+      setHostBusy(false);
     }
   };
 
@@ -435,7 +505,8 @@ export function MistWorkshopCard() {
   };
 
   const freenetUp = freenetStatus?.running && freenetStatus.freenet === 'connected';
-  const workshopBusy = smokeBusy || freenetBusy;
+  const workshopBusy = smokeBusy || freenetBusy || hostBusy;
+  const hostRunning = hostStatus?.mode === 'managed' || hostStatus?.mode === 'attached';
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-violet-200 shadow-sm space-y-4">
@@ -477,6 +548,67 @@ export function MistWorkshopCard() {
           Mist IndexedDB
         </button>
       </div>
+
+      {desktop && (
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2">
+            <Server className="w-4 h-4 text-violet-600" />
+            <p className="text-xs font-semibold text-slate-700">Freenet node (app-owned)</p>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            This app owns the node process — no terminal, no separate{' '}
+            <code className="font-mono text-[10px]">freenet network</code>. Launching with{' '}
+            <code className="font-mono text-[10px]">MIST_FREENET=1</code> starts it automatically;
+            otherwise start it here for this session.
+          </p>
+          <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+            Node: <span className="font-mono">{freenetHostLabel(hostStatus)}</span>
+            {hostStatus?.updateRequired ? (
+              <span className="block text-amber-700 mt-1">
+                Node asked for an update (exit 42) — bundled binary left as-is.
+              </span>
+            ) : null}
+            {hostStatus?.lastError ? (
+              <span className="block text-amber-700 mt-1">{hostStatus.lastError}</span>
+            ) : null}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {!hostRunning ? (
+              <button
+                type="button"
+                disabled={workshopBusy}
+                onClick={() => void startFreenetNode()}
+                className="px-3 py-2 rounded-lg bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {hostBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Start Freenet node
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={workshopBusy || hostStatus?.mode === 'attached'}
+                title={
+                  hostStatus?.mode === 'attached'
+                    ? 'Node was already running — this app must not kill it'
+                    : undefined
+                }
+                onClick={() => void stopFreenetNode()}
+                className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Stop Freenet node
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={workshopBusy}
+              onClick={() => void refreshHostStatus()}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700"
+            >
+              Refresh node status
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2 pt-2 border-t border-slate-100">
         <div className="flex items-center gap-2">
