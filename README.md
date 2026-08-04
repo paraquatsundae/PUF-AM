@@ -107,7 +107,8 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 | [`Plans/OFFLINE_MAP_APK.md`](Plans/OFFLINE_MAP_APK.md) | Offline basemap + Capacitor APK |
 | [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md) | Invite PIN auth (production) |
 | [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md) | Experimental mist: Reticulum + Freenet-style storage (fork; does not replace Firebase auth). Laptop B recovery: `/login/mist-recover` with FarmCode — same `farmId`, local IndexedDB only until Freenet sync. |
-| [`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers with Freenet running as an in-app plugin (Electron frozen). Phase 1 done — `npm run desktop:dev` runs the shell; binaries and installers are Phase 2/3. |
+| [`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers with Freenet running as an in-app plugin (Electron frozen). Fedora AppImage ships a bundled Freenet node; `npm run desktop:dev` runs the shell. Windows installer still needs a Windows host. |
+| [`Plans/MIST_TWO_FEDORA_FREENET.md`](Plans/MIST_TWO_FEDORA_FREENET.md) | Two-laptop Freenet 0.2 Opennet join. **Passed on the AppImage ~2026-08-04** — blank laptop B recovered a farm from a paper FarmCode plus a join ticket, no terminal on either machine. |
 
 ### Tests
 

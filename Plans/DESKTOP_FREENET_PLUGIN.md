@@ -1,6 +1,6 @@
 # PUF-AM desktop installer + Freenet as an in-app plugin
 
-**Status:** Phase 3 done on Fedora — an AppImage installs and launches with Freenet reporting `source: bundled` (~2026-08-04). Windows config is complete and `win-unpacked/` builds here, but the NSIS/portable step needs a Windows host. Next: Phase 4 (retire the desktop sidecar path). Not shipped.
+**Status:** Phase 3 done on Fedora, and **field-validated**: on ~2026-08-04 two Fedora laptops completed a full A→B farm join over Freenet 0.2 Opennet running **only the AppImage** — bundled Freenet (`source: bundled`), no terminal, no `npm run dev`, no sidecar (§14 Phase 3). Windows config is complete and `win-unpacked/` builds here, but the NSIS/portable step needs a Windows host. Now in Phase 4 (polish + quick-join UX + retire the desktop sidecar path). Not shipped.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
 **Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
 
@@ -476,11 +476,13 @@ Landed:
 
 **Windows:** `npm run desktop:dist:win` produces a complete `release/win-unpacked/` on Fedora — asar, `freenet.exe`, `fdev.exe`, and the pack WASM all land correctly — then fails at the NSIS step with `spawn wine ENOENT`. That is the documented boundary, not a config problem: run the same command on the `C:\Projects` Windows box (§8.1). `freenet.exe` has still **never been launched**, so `win-x64` stays `pinned` in the manifest until it spawns a node there.
 
+**Field-validated ~2026-08-04 — two laptops, AppImage only.** Laptop A published Hot + bones and produced a join ticket; laptop B, a machine that had never held this farm, recovered the identity from the paper FarmCode, pasted the ticket, and pulled diary entries plus the full map geometry back over Opennet. Neither laptop had a repo clone, `npm`, an operator-installed Freenet, or a browser pointed at `am.pufworks.farm`. This is the first end-to-end PUF-AM desktop mist join, and it retires the "still open" item below about installing on a bare machine. Detail: [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) § AppImage A→B.
+
 **Still open before this phase is closed in the field:**
 
 - Windows `nsis` + `portable` artifacts, and the first `freenet.exe` launch.
 - The `rpm` leg needs `sudo dnf install rpm-build libxcrypt-compat` (§8.1) — untested on this box.
-- Install on a machine with **no Node, no npm, no Freenet**, and complete a Freenet publish there. That still needs operator credentials and a warmed peer, the same caveat Phases 1 and 2 carry.
+- ~~Install on a machine with **no Node, no npm, no Freenet**, and complete a Freenet publish there~~ **Done ~2026-08-04** — see the two-laptop pass above.
 - ~~A packaged build has no way to turn mist on~~ **Fixed ~2026-08-04.** Two separate bugs hid behind one symptom: `MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage` started a Freenet node but Settings showed no mist UI at all. The renderer gate is baked at build time (§8.3), so the packaged bundle had it compiled out — `desktop:build:web` now bakes `VITE_MIST_EXPERIMENTAL=true`. As a belt-and-braces runtime path, `isMistExperimentalEnabled()` also honours the preload bridge's `mistEnabled`, so the launch flag alone un-gates the UI even in a bundle built without the Vite flag. `MistWorkshopCard` gained **Start / Stop Freenet node** buttons over the existing `puf-freenet:*` IPC (§5.2), so an operator who launched without `MIST_FREENET=1` can still bring the app-owned node up from Settings for that session — no relaunch, no terminal.
 
 ### Phase 4 — retire the desktop sidecar path (next)

@@ -1,5 +1,7 @@
 # Mist two-Fedora Freenet 0.2 smoke (Opennet)
 
+**Status: PASSED on the packaged AppImage (~2026-08-04).** All six pass criteria met with **zero terminals** on either laptop — see [§ AppImage A→B](#appimage-ab-passed-2026-08-04). The `npm run dev` + sidecar route below is kept as the **workshop/web** path; it is no longer how the desktop app is meant to be run.
+
 **Target:** two Fedora laptops on **real Freenet 0.2 Opennet** — A sets up farm, B joins via FarmCode, B pulls **Hot (diary/issues) + bones (boundaries)** from Freenet.
 
 **Cross-device sync (v1):** **Option A — join ticket handoff.** Laptop A publishes Hot + farm-geometry bones → copy **join ticket** (`{ hotUri, bonesUri }`). Laptop B after FarmCode recovery has an **empty index**; B pastes the ticket and **Fetch farm from Freenet**.
@@ -114,6 +116,46 @@ npm run dev
 
 ---
 
+## AppImage A→B (passed ~2026-08-04)
+
+**The milestone run.** Both laptops ran only `release/PUF-AM-0.1.0.AppImage` — no repo clone, no `npm ci`, no `npm run dev`, no `freenet network`, no browser. The Freenet node is the one bundled inside the AppImage (`mode=managed source=bundled`), living under `~/.config/PUF-AM/freenet/`.
+
+| Pass criterion | AppImage result |
+|---|---|
+| 1 · both nodes up, ws02 peer connected | ✓ bundled node on each laptop |
+| 2 · A publishes, join ticket copied | ✓ Hot + bones URIs |
+| 3 · B FarmCode recover → same `farmId` | ✓ from a blank machine |
+| 4 · B fetch → diary/issues match A | ✓ |
+| 5 · B map shows A's blocks/pins/tracks/viewport | ✓ |
+| 6 · indexed pull alone fails before ticket paste | ✓ empty index, by design |
+
+### The flow that passed
+
+**Laptop A**
+
+1. Launch the AppImage with `MIST_FREENET=1` (or launch plain and use Settings → *Mist workshop* → **Start Freenet node**).
+2. Login → *Experimental: create offline mist farm* → **write the FarmCode down** → set device PIN.
+3. Settings → *Mist workshop* → backend **Mist IndexedDB**, unlock the device session.
+4. Draw boundaries on the Orchard map; add a diary entry.
+5. **Connect Freenet peer** → **Publish farm to Freenet (Hot + bones)** → **Copy join ticket**.
+6. Hand B three things: **FarmCode**, **device PIN**, **join ticket**.
+
+**Laptop B** (blank — never had this farm)
+
+1. Launch the same AppImage.
+2. Login → **Recover with FarmCode** → A's code + same PIN. Same `farmId`; diary and map are empty, which is correct.
+3. Settings → *Mist workshop* → **Connect Freenet peer**.
+4. Paste the join ticket → **Fetch farm from Freenet**.
+5. Diary entries and A's boundaries appear.
+
+### What this proves and what it does not
+
+**Proves:** a farm recovers onto a machine that has never seen it, from a paper code plus an encrypted blob on Opennet, with no account, no server, and no operator-installed Freenet. Everything on the wire was sealed before it left A.
+
+**Does not prove:** field conditions (this was a bench pass on two laptops), Windows (`freenet.exe` still unlaunched), or unattended sync — the join ticket is still a manual handoff because pack-contract URIs are immutable (Option B, below). Opennet bootstrap latency is still real: expect a wait between A's publish and B's first successful fetch.
+
+---
+
 ## Opennet gaps (expect in workshop)
 
 | Gap | Symptom | Mitigation |
@@ -150,7 +192,9 @@ Single-machine publish → wipe → recover still works via indexed URI. See [`M
 
 ---
 
-## Production UI + local Freenet sidecar (`am.pufworks.farm`)
+## Production UI + local Freenet sidecar (`am.pufworks.farm`) — **workshop / web only**
+
+> **Not the desktop path.** The AppImage carries its own Freenet node and its own Express on loopback, so it never calls `am.pufworks.farm` for `/api/mist/freenet/*` and never needs `npm run dev`. This section stays for browser-based workshop use and for anyone driving the Cloud Run UI from a laptop. See [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) §6.2.
 
 Cloud Run hosts the **Firebase + mist UI** at `https://am.pufworks.farm`. Freenet 0.2 still runs **on each laptop** (`freenet network` → `127.0.0.1:7509`). The container cannot reach your Fedora node.
 

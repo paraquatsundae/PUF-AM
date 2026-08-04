@@ -1,7 +1,9 @@
 # PUF-AM desktop shell (Electron)
 
 **Status:** Phase 3 (~2026-08-04) — the Fedora AppImage builds and launches with Freenet running from
-bundled binaries. Windows installers need a Windows host.
+bundled binaries, and has completed a **two-laptop A→B farm join over Freenet 0.2 Opennet with no
+terminal on either machine** ([`Plans/MIST_TWO_FEDORA_FREENET.md`](../Plans/MIST_TWO_FEDORA_FREENET.md)
+§ AppImage A→B). Windows installers need a Windows host.
 **Plan (authoritative):** [`Plans/DESKTOP_FREENET_PLUGIN.md`](../Plans/DESKTOP_FREENET_PLUGIN.md)
 
 ## Running it
