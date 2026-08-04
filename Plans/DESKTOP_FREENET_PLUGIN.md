@@ -1,6 +1,6 @@
 # PUF-AM desktop installer + Freenet as an in-app plugin
 
-**Status:** Phase 3 done on Fedora, and **field-validated**: on ~2026-08-04 two Fedora laptops completed a full A→B farm join over Freenet 0.2 Opennet running **only the AppImage** — bundled Freenet (`source: bundled`), no terminal, no `npm run dev`, no sidecar (§14 Phase 3). Windows config is complete and `win-unpacked/` builds here, but the NSIS/portable step needs a Windows host. Now in Phase 4 (polish + quick-join UX + retire the desktop sidecar path). Not shipped.
+**Status:** Phases 0–4 done on Fedora. **Field-validated** ~2026-08-04: two Fedora laptops completed a full A→B farm join over Freenet 0.2 Opennet running **only the AppImage** — bundled Freenet (`source: bundled`), no terminal, no `npm run dev`, no sidecar (§14 Phase 3). Phase 4 closed the loopback API behind a per-launch bearer (§6.3) and produced copyable **Windows portable + zip** artifacts from Fedora (§8.5); the NSIS `.exe` and the first `freenet.exe` launch still want a Windows machine. Not shipped.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
 **Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
 
@@ -208,9 +208,22 @@ The config rides on a command-line flag ([`desktop/desktopConfig.ts`](../desktop
 
 `server/firebaseAdmin.ts` resolves `secrets/` and `firebase-applet-config.json` from `process.cwd()`, which is meaningless in a packaged app — another reason `/api/auth/*` must not be served locally. Desktop builds must **not** bundle `secrets/`.
 
-### 6.3 Loopback exposure — honest note
+### 6.3 Loopback exposure — closed in Phase 4
 
-Binding an HTTP API to `127.0.0.1` means any local process can reach it. That is **not a regression**: today's `npm run dev` binds `0.0.0.0:3000` (LAN-reachable), so loopback-only plus an ephemeral port is strictly better. Phase 4 hardening: per-launch bearer token minted in main, injected via preload, required by a guard middleware — and/or move Freenet calls to `contextBridge` IPC and stop exposing HTTP entirely.
+Binding an HTTP API to `127.0.0.1` means any local process can reach it. That is **not a regression** relative to `npm run dev` (which binds `0.0.0.0:3000`), but an ephemeral port is obscurity, not a boundary — `ss -ltnp` finds it in one command, and `/api/mist/freenet/*` publishes farm ciphertext.
+
+**Phase 4 landed a per-launch bearer.** [`desktop/loopbackAuth.ts`](../desktop/loopbackAuth.ts) mints 256 bits from the CSPRNG at boot; [`desktop/localApi.ts`](../desktop/localApi.ts) wraps `createApiApp()` in a guard that 401s any `/api/*` request without it.
+
+| Decision | Why |
+|----------|-----|
+| **HTTP + token**, not IPC-only | Moving Freenet to `contextBridge` would fork ~40 `/api/*` call sites in `src/` into two transports and leave `/api/sync/*` on HTTP anyway. The token covers *every* local route in one middleware, including ones nobody has written yet |
+| Injected by `session.webRequest.onBeforeSendHeaders`, **not** via preload | The renderer never holds the secret. Header injection already authorises every renderer fetch — including code that cannot set headers — so putting it on `window.pufamDesktop` would only add a place to leak from |
+| Origin matched in JS, not by the `webRequest` URL filter | Chromium match patterns have no notion of a port, and this port changes every launch. The prefix test is what keeps the token off requests to `am.pufworks.farm` |
+| `x-puf-desktop-token`, not `Authorization` | `/api/sync/*` and `/api/auth/*` already carry farm and Firebase bearers; overwriting those would break the LAN hub. The guard accepts a bearer too, for a curl from the workshop |
+| `/api/health` stays open | Liveness only. Guarding it would break the smoke checks and gains nothing — the port is already known to anyone asking |
+| Static assets stay open | The built bundle is not a secret, and a browser that loads it still gets 401 on every API call it tries |
+
+Verified on the rebuilt AppImage: from the renderer, `/api/definitely-not-a-route` returns the API's own `404 API route not found`; the same URL from another process returns `401 PUF-AM desktop loopback token required`; `window.pufamDesktop` exposes no token-shaped key.
 
 ---
 
@@ -266,7 +279,8 @@ With no `fdev` present the second check is skipped with a warning (`--require-fd
 | Platform | Targets | Status / notes |
 |----------|---------|----------------|
 | Fedora | **`AppImage`** (primary in practice) + **`rpm`** | AppImage **built and launched** on Fedora 44. `rpm` needs two host packages this box lacks — see below |
-| Windows | **`nsis`** installer + **`portable`** | `win-unpacked/` builds fine on Fedora; the installer step needs wine, so run it **on Windows** |
+| Windows | **`portable`** + **`zip`** | **Built on Fedora** (`desktop:dist:win:portable`) — no wine needed. This is the artifact to copy to a Windows test machine |
+| Windows | **`nsis`** installer | Config complete; the build needs a Windows host or a working system wine — see §8.1.1 |
 | Debian/Ubuntu | `deb` (optional) | Free from the same config; not configured, not a target platform |
 
 **AppImage ended up ahead of `rpm`**, inverting the original ordering. electron-builder builds `rpm` through a bundled `fpm`, whose Ruby links `libcrypt.so.1`; Fedora 44 ships `libcrypt.so.2` only. So the rpm leg needs:
@@ -279,7 +293,23 @@ npm run desktop:dist:linux:appimage           # AppImage only — no extra host 
 
 That is also why `desktop:dist:linux:appimage` exists: without it, a machine missing those two packages fails the whole build *after* the AppImage has already been written, which reads like the AppImage failed too.
 
-Cross-platform builds are **not** attempted for the final artifacts. Fedora artifacts build on Fedora, Windows installers on the `C:\Projects` Windows box.
+#### 8.1.1 Windows from Fedora — what actually blocks, and what does not
+
+The earlier note ("Windows installers need a Windows box") was too broad. Only **one step** of one target is blocked.
+
+| Step | Needs Windows/wine? | Why |
+|------|---------------------|-----|
+| `win-unpacked/` — asar, `freenet.exe`, `fdev.exe`, pack WASM | no | Pure file copying |
+| `zip` target | no | Archive of the same tree |
+| `portable` target | no | `makensis` runs natively on Linux from electron-builder's own toolset |
+| Code signing | no (as configured) | With no certificate, `signIf` logs and returns — it never reaches wine. Signing is out of scope (§11) |
+| **`nsis` uninstaller** | **yes** | NSIS produces `Uninstall.exe` by *running* a stub executable. That is a Windows binary, and nothing on Linux can execute it without wine |
+
+So `npm run desktop:dist:win:portable` builds the whole Windows deliverable set that a test machine needs, on Fedora, with no root. `npm run desktop:dist:win` still needs the Windows box for the `.exe` installer.
+
+**The bundled-wine escape hatch does not work.** electron-builder 26 can download its own portable Wine (`toolsets.wine: '1.0.1'`) instead of a system one, which removes the `spawn wine ENOENT` failure — but the Linux bundle it fetches, `wine-11.0-linux-x86_64.tar.xz`, ships no `lib/wine/x86_64-windows/` and no `kernel32.dll`, so it cannot boot a prefix (`could not load kernel32.dll, status c0000135`). The config was tried and reverted; do not re-add it expecting the NSIS leg to pass. A **system** wine (`sudo dnf install wine`, then `USE_SYSTEM_WINE=true`) is the untested alternative — it needs root, which this box does not have.
+
+Fedora artifacts otherwise build on Fedora, and the NSIS installer on the `C:\Projects` Windows box.
 
 ### 8.2 `electron-builder` config
 
@@ -347,6 +377,29 @@ npm run desktop:vendor:verify   # no network; re-check what is on disk
 
 Every download is checksummed **twice** — archive, then extracted binary — and a mismatch aborts. Upstream tarballs store mode `0644`, so the script also marks the binaries executable; skipping that is how "bundled binary present but unusable" looks. For an air-gapped or CI build, `PUF_FREENET_ASSET_DIR` points at a directory of pre-downloaded archives and nothing is fetched, with the same checksum gates.
 
+### 8.5 Putting PUF-AM on a Windows test machine
+
+Built on Fedora by `npm run desktop:dist:win:portable`, into `release/` (gitignored — copy them off the build box by hand):
+
+| Artifact | Size | What it is |
+|----------|------|------------|
+| `release/PUF-AM 0.1.0.exe` | ~107 MB | **Portable.** One file. Copy it anywhere on the Windows PC and double-click — no install, no admin |
+| `release/PUF-AM-0.1.0-win.zip` | ~169 MB | The same app unzipped rather than self-extracting. Unzip, run `PUF-AM.exe`. Useful when a portable exe trips a policy or an AV scanner |
+| `release/win-unpacked/` | ~440 MB | The raw tree the other two are made from. Copyable too, but the zip is the same thing without 3000 files |
+
+Both carry `resources/freenet/{freenet.exe,fdev.exe}` and `resources/contracts/pack-contract.wasm`, so the target machine needs **no Node, no npm, and no Freenet install**.
+
+**Unsigned, by design** (§11). Windows SmartScreen will show *"Windows protected your PC"* on first launch: **More info → Run anyway**. Signing means an EV certificate, which is out of scope for workshop builds.
+
+On the test machine:
+
+1. Copy the portable `.exe` across (USB or share) and run it. Data lands in `%APPDATA%\PUF-AM\` and survives between runs.
+2. **Settings → Farm sync between laptops → Start Freenet when PUF-AM opens.** That persists to `%APPDATA%\PUF-AM\desktop-prefs.json` and starts the bundled node in the same session — no relaunch, no `MIST_FREENET=1`, no terminal.
+3. Watch the readiness line go *connecting* → *connected*. A brand-new Opennet peer takes the documented 5–15 min on run 1 (§7.2).
+4. **A → B join:** on the machine that already holds the farm, publish and copy the join ticket; on the new one, choose **Join a farm**, enter the FarmCode and device PIN, paste the ticket.
+
+This is the first Windows run of `freenet.exe`, so treat it as new information: if it spawns a node, flip `win-x64` from `pinned` to `verified` in `scripts/freenet-binaries.json`.
+
 ---
 
 ## 9. First run and operator experience
@@ -384,7 +437,7 @@ No second window, no tray icon, no separate installer entry.
 
 ## 11. Out of scope this phase
 
-Android APK changes · code signing / notarization (Windows EV cert, Linux GPG) · auto-updater (AGENTS.md rule 9: no public distribution pipeline) · WASM/library Freenet embed (§4.3) · mutable Freenet contracts / deterministic URIs (Option B in [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md)) · Reticulum unit · replacing loopback HTTP with pure IPC (Phase 4 hardening candidate).
+Android APK changes · code signing / notarization (Windows EV cert, Linux GPG — so SmartScreen warns on first Windows launch, §8.5) · auto-updater (AGENTS.md rule 9: no public distribution pipeline) · WASM/library Freenet embed (§4.3) · mutable Freenet contracts / deterministic URIs (Option B in [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md)) · Reticulum unit · replacing loopback HTTP with pure IPC — **dropped**, the Phase 4 token covers every local route rather than only the ones someone remembered to move (§6.3).
 
 **Future Android note:** the phone will not run a Freenet peer. It either syncs to a desktop PUF-AM acting as **LAN hub** (the `/api/sync/*` + mDNS path that already exists), or waits for a Freenet Android peer upstream. Not this phase.
 
@@ -493,7 +546,7 @@ Landed:
 - ~~Install on a machine with **no Node, no npm, no Freenet**, and complete a Freenet publish there~~ **Done ~2026-08-04** — see the two-laptop pass above.
 - ~~A packaged build has no way to turn mist on~~ **Fixed ~2026-08-04.** Two separate bugs hid behind one symptom: `MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage` started a Freenet node but Settings showed no mist UI at all. The renderer gate is baked at build time (§8.3), so the packaged bundle had it compiled out — `desktop:build:web` now bakes `VITE_MIST_EXPERIMENTAL=true`. As a belt-and-braces runtime path, `isMistExperimentalEnabled()` also honours the preload bridge's `mistEnabled`, so the launch flag alone un-gates the UI even in a bundle built without the Vite flag. `MistWorkshopCard` gained **Start / Stop Freenet node** buttons over the existing `puf-freenet:*` IPC (§5.2), so an operator who launched without `MIST_FREENET=1` can still bring the app-owned node up from Settings for that session — no relaunch, no terminal.
 
-### Phase 4 — polish, quick join, and retiring the sidecar (**in progress**, ~2026-08-04)
+### Phase 4 — polish, quick join, and retiring the sidecar (**done on Fedora**, ~2026-08-04; Windows installer + mDNS carried forward)
 
 The Phase 3 pass proved the flow exists. Phase 4 is about making it something a farmer can do without being told what a WebSocket is.
 
@@ -505,11 +558,13 @@ The Phase 3 pass proved the flow exists. Phase 4 is about making it something a 
 | 4 | **Mist opt-in from Settings** — no `MIST_FREENET=1` on the launch | **done** — persisted in `<userData>/desktop-prefs.json` ([`desktop/desktopPrefs.ts`](../desktop/desktopPrefs.ts)), read at boot by `main.ts`, toggled over `puf-desktop:*-mist-preference` IPC. Turning it on starts the node in the same session; `MIST_FREENET` survives as a workshop override that reports itself in the UI |
 | 5 | **One-card join UX** — publish/copy on A, paste/fetch on B | **done** — [`src/components/MistFarmSyncCard.tsx`](../src/components/MistFarmSyncCard.tsx) above the workshop card in Settings |
 | 6 | Plain-language status instead of peer/port jargon | **done** — one readiness line plus a single **Connect** button; the UDP-vs-WebSocket note folds away behind a disclosure in the diagnostics card |
-| 7 | Loopback guard — bearer token and/or IPC-only Freenet calls (§6.3) | **next** |
-| 8 | Windows: NSIS/portable artifacts + first `freenet.exe` launch | open, needs the Windows box |
-| 9 | mDNS LAN-hub advertising from the shell | open |
+| 7 | Loopback guard — bearer token and/or IPC-only Freenet calls (§6.3) | **done** — per-launch token in [`desktop/loopbackAuth.ts`](../desktop/loopbackAuth.ts), injected by the session so the renderer never holds it. 14 hermetic tests + a live AppImage check (§6.3) |
+| 8 | Windows: copyable artifact + first `freenet.exe` launch | **half done** — `portable` + `zip` now build on Fedora (§8.1.1, §8.5). The NSIS `.exe` and the first `freenet.exe` launch still need the Windows machine |
+| 9 | mDNS LAN-hub advertising from the shell | **deferred, on purpose** — see below |
 
-**Done when:** the two-Fedora pass criteria are met with zero terminals open **and** nothing in the operator path requires an environment variable. Items 1–6 clear the second half; item 7 is the remaining hardening.
+**Item 9 is deferred, not forgotten.** `startPufomMdns()` advertises a *LAN* base URL (`http://<lan-ip>:<port>`), and the desktop API binds `127.0.0.1` only. Advertising it today would publish an address nothing can reach, and item 7 now means a LAN client would be 401'd even if it could. Doing this properly needs a second, LAN-bound listener and a decision about what authorises a phone against it — the existing `/api/sync/*` farm bearer is the obvious candidate. That is a sync-path design question, not desktop polish, so it moves out of Phase 4.
+
+**Done when:** the two-Fedora pass criteria are met with zero terminals open **and** nothing in the operator path requires an environment variable. Items 1–7 clear that. What remains under Phase 4 is Windows-host work (item 8) and the deferred item 9.
 
 #### What the join feels like after items 4–6
 
@@ -525,13 +580,14 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 
 | Risk | Mitigation / status |
 |------|---------------------|
-| Windows `freenet.exe` availability at pinned version | **Closed** — `freenet-x86_64-pc-windows-msvc.zip` + `fdev` zip ship in `v0.2.119`; both pinned, staged, and packed into `win-unpacked/` (§8.4). Never *launched*: still open, now on the Windows box |
+| Windows `freenet.exe` availability at pinned version | **Closed** — `freenet-x86_64-pc-windows-msvc.zip` + `fdev` zip ship in `v0.2.119`; both pinned, staged, and packed into the portable exe and the zip (§8.4, §8.5). Never *launched*: still open, now waiting on a Windows machine rather than on a build step |
+| Windows installer needs a build host we do not have | **Downgraded** — only the NSIS uninstaller step needs wine, and `portable` + `zip` give a copyable, double-clickable app without it (§8.1.1). electron-builder's own portable wine bundle is missing `kernel32.dll` and does not rescue the NSIS leg |
 | Installer size ~250 MB with binaries | **Better than feared** — 164 MB AppImage, because the `files` allowlist keeps the renderer's production dependencies out of the asar (§8.2). Would have been ~500 MB without it |
 | Fresh app-owned peer identity slows first publish | Documented warm-up; start host at launch; consider attach-to-existing as a workshop default |
 | Exit code 42 update loop | Host never auto-updates; surfaces `updateRequired` and stops (§5.4) |
 | Bundled WASM drifts from pinned code hash | **Closed** — `npm run desktop:verify:pack` plus a hermetic test on the pin (§7.1). Publishing with a mismatched hash silently changes every URI, so this fails the build rather than warning |
 | Redistributing an AGPL binary | **Closed** — upstream `LICENSE.md` explicitly exempts bundling the unmodified binary alongside an app that talks to it over a network protocol; the text ships beside the binaries (§8.4) |
-| Loopback API reachable by local processes | Ephemeral port + loopback bind now; token/IPC in Phase 4 (§6.3) |
+| Loopback API reachable by local processes | **Closed** — per-launch bearer required on every `/api/*` except `/api/health`, injected into renderer requests by the session so the token never enters the renderer (§6.3) |
 | `process.cwd()` assumptions in `server/*` | Audited in Phase 1. `firebaseAdmin.ts` is the only other reader and `/api/auth/*` is cloud-only. `getMistFreenetRootDir()` fell back to `cwd()/tmp`, so `main.ts` now sets `MIST_FREENET_ROOT` unconditionally at boot |
 | Two PUF apps racing for `:7509` | Attach mode; only the spawner may stop the node |
 | Freenet upstream API churn (0.2.x is moving fast) | Version pinned in `scripts/freenet-binaries.json` and checksum-enforced; `fdev` removal tracked as PUF-FN work |

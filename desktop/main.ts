@@ -11,10 +11,11 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { BrowserWindow, app, ipcMain, shell } from 'electron';
+import { BrowserWindow, app, ipcMain, session, shell } from 'electron';
 
 import { createMistFreenetWire } from '../server/freenetHostWire.ts';
 import { encodeDesktopConfig, type DesktopConfig } from './desktopConfig.ts';
+import { LOOPBACK_TOKEN_HEADER, mintLoopbackToken } from './loopbackAuth.ts';
 import {
   DESKTOP_PREFS_DEFAULT,
   desktopPrefsPath,
@@ -251,6 +252,32 @@ function registerIpc(): void {
   );
 }
 
+/**
+ * Authorise the renderer against the loopback guard without the renderer ever
+ * holding the token (plan §6.3).
+ *
+ * Injecting at the session means all ~40 `/api/*` call sites in `src/` stay
+ * unchanged — including the ones that cannot set headers at all — while a local
+ * process that guessed the port still gets 401.
+ *
+ * The origin test is done in JS rather than through `webRequest`'s URL filter
+ * because those are Chromium match patterns, which have no notion of a port —
+ * and this API's port is different every launch. Matching the exact prefix is
+ * what keeps the token off requests to `am.pufworks.farm`.
+ */
+function authorizeRendererApiCalls(apiUrl: string, token: string): void {
+  const prefix = `${apiUrl}/api/`;
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    if (!details.url.startsWith(prefix)) {
+      callback({});
+      return;
+    }
+    callback({
+      requestHeaders: { ...details.requestHeaders, [LOOPBACK_TOKEN_HEADER]: token },
+    });
+  });
+}
+
 /** The built Vite bundle the loopback server hosts. */
 function resolveDistPath(): string {
   const distPath = path.join(app.getAppPath(), 'dist');
@@ -298,11 +325,13 @@ async function bootstrap(): Promise<void> {
   const distPath = resolveDistPath();
   if (mistEnabled) await startFreenet();
 
+  const loopbackToken = mintLoopbackToken();
   const { startLocalApi } = await import('./localApi.ts');
-  const localApi = await startLocalApi({ distPath });
+  const localApi = await startLocalApi({ distPath, authToken: loopbackToken });
   closeLocalApi = localApi.close;
-  console.log(`[desktop] local API + UI on ${localApi.url}`);
+  console.log(`[desktop] local API + UI on ${localApi.url} (token-guarded)`);
 
+  authorizeRendererApiCalls(localApi.url, loopbackToken);
   registerIpc();
 
   await createWindow(

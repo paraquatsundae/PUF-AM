@@ -6,9 +6,10 @@
  * `127.0.0.1` on an ephemeral port — never `0.0.0.0` (today's `npm run dev` does,
  * which is strictly worse).
  *
- * Phase 4 hardening: per-launch bearer token minted here and injected via
- * preload, or move Freenet calls to IPC and drop HTTP entirely.
- * See `Plans/DESKTOP_FREENET_PLUGIN.md` §6.
+ * Loopback is not the trust boundary; the per-launch token is
+ * (`loopbackAuth.ts`, plan §6.3). The guard wraps `createApiApp()` from outside
+ * rather than being added to it, so the web server and the tests keep the app
+ * they already have.
  */
 
 import type { AddressInfo } from 'node:net';
@@ -17,6 +18,7 @@ import path from 'node:path';
 import express from 'express';
 
 import { createApiApp } from '../server/createApiApp.ts';
+import { createLoopbackAuthGuard } from './loopbackAuth.ts';
 
 export type LocalApiHandle = {
   url: string;
@@ -28,11 +30,16 @@ export type LocalApiOptions = {
   /** Built Vite bundle to serve (packaged: inside app resources). */
   distPath: string;
   host?: string;
+  /** Required on `/api/*`; `main.ts` mints one per launch and injects it per request. */
+  authToken: string;
 };
 
 export function startLocalApi(options: LocalApiOptions): Promise<LocalApiHandle> {
   const host = options.host ?? '127.0.0.1';
-  const app = createApiApp();
+  const app = express();
+
+  app.use(createLoopbackAuthGuard(options.authToken));
+  app.use(createApiApp());
 
   // Static + SPA fallback must be registered after the API routes so `/api/*` is never shadowed.
   app.use(express.static(options.distPath));

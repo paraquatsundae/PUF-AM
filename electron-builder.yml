@@ -101,8 +101,22 @@ rpm:
 
 win:
   target:
+    # `nsis` is the artifact a farmer installs, but only a Windows host (or a
+    # working system wine) can finish it: NSIS produces the uninstaller by
+    # *running* a stub executable. `portable` and `zip` skip that step entirely,
+    # which is what makes `desktop:dist:win:portable` buildable on Fedora.
     - nsis
     - portable
+    - zip
+
+portable:
+  # A double-clicked portable exe unpacks to %TEMP% by default, so the Freenet
+  # node's config, data, and logs would be thrown away between runs. Pinning the
+  # unpack dir keeps one identity across launches — %APPDATA%\PUF-AM (the mist
+  # cache and Freenet dirs) is unaffected either way, but a fresh unpack per run
+  # also means a fresh ~200 MB copy.
+  unpackDirName: PUF-AM-portable
+  requestExecutionLevel: user
 
 nsis:
   # Not a one-click installer: an operator choosing the install directory is worth

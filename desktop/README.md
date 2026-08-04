@@ -1,9 +1,10 @@
 # PUF-AM desktop shell (Electron)
 
-**Status:** Phase 3 (~2026-08-04) — the Fedora AppImage builds and launches with Freenet running from
+**Status:** Phase 4 (~2026-08-04) — the Fedora AppImage builds and launches with Freenet running from
 bundled binaries, and has completed a **two-laptop A→B farm join over Freenet 0.2 Opennet with no
 terminal on either machine** ([`Plans/MIST_TWO_FEDORA_FREENET.md`](../Plans/MIST_TWO_FEDORA_FREENET.md)
-§ AppImage A→B). Windows installers need a Windows host.
+§ AppImage A→B). The loopback API is now behind a per-launch token, and copyable **Windows portable +
+zip** artifacts build here; only the NSIS `.exe` still wants a Windows host.
 **Plan (authoritative):** [`Plans/DESKTOP_FREENET_PLUGIN.md`](../Plans/DESKTOP_FREENET_PLUGIN.md)
 
 ## Running it
@@ -57,7 +58,8 @@ Config: [`electron-builder.yml`](../electron-builder.yml). Output: `release/` (g
 ```bash
 npm run desktop:dist:linux:appimage   # Fedora: AppImage only — nothing extra to install
 npm run desktop:dist:linux            # Fedora: AppImage + rpm (see prerequisites below)
-npm run desktop:dist:win              # Windows: NSIS installer + portable — run this on Windows
+npm run desktop:dist:win:portable     # Windows: portable exe + zip — builds fine from Fedora
+npm run desktop:dist:win              # Windows: + the NSIS installer — needs a Windows host
 npm run desktop:dist                  # host platform, whatever that is
 ```
 
@@ -94,15 +96,42 @@ sudo dnf install ./release/puf-am-0.1.0.x86_64.rpm
 
 ### Windows
 
-`npm run desktop:dist:win` on Fedora builds a complete `release/win-unpacked/` — asar, `freenet.exe`,
-`fdev.exe`, pack WASM — and then fails at the NSIS step with `spawn wine ENOENT`. Cross-building the
-installer is not supported here. On the Windows box:
+**From Fedora** — `npm run desktop:dist:win:portable` produces everything a test machine needs:
+
+| `release/` artifact | Size | Use |
+|---------------------|------|-----|
+| `PUF-AM 0.1.0.exe` | ~107 MB | Portable. Copy the one file to the Windows PC and double-click. No install, no admin |
+| `PUF-AM-0.1.0-win.zip` | ~169 MB | Same app, unzipped instead of self-extracting. Run `PUF-AM.exe` inside |
+| `win-unpacked/` | ~440 MB | The tree both are built from |
+
+`release/` is gitignored, so these are copied off the build box by hand (USB, share, `scp`).
+
+Only the **NSIS installer** still needs a Windows host, and only because NSIS builds its uninstaller
+by *running* a Windows stub executable. Everything else — the asar, `freenet.exe`, `fdev.exe`, the
+pack WASM, `makensis` itself, and the no-op signing step — works natively on Linux. Don't bother with
+electron-builder's `toolsets.wine: '1.0.1'` bundle: it downloads, but ships no `kernel32.dll` and
+cannot boot a prefix. On the Windows box:
 
 ```powershell
 npm ci
 npm run desktop:vendor:win     # once: fetch the pinned freenet.exe + fdev.exe
-npm run desktop:dist:win       # → release\PUF-AM Setup 0.1.0.exe + PUF-AM 0.1.0.exe (portable)
+npm run desktop:dist:win       # → release\PUF-AM Setup 0.1.0.exe (+ portable + zip)
 ```
+
+### Installing on a Windows test machine
+
+Artifacts are **unsigned** (code signing is out of scope), so SmartScreen shows *"Windows protected
+your PC"* on first launch — **More info → Run anyway**.
+
+1. Copy `PUF-AM 0.1.0.exe` across and run it. Operator data lands in `%APPDATA%\PUF-AM\` and persists
+   between runs.
+2. **Settings → Farm sync between laptops → Start Freenet when PUF-AM opens.** Saved to
+   `%APPDATA%\PUF-AM\desktop-prefs.json`; the node starts in the same session. No `MIST_FREENET=1`,
+   no terminal.
+3. Wait for the readiness line to reach *connected*. A brand-new Opennet peer needs the documented
+   5–15 min on run 1.
+4. **A→B join:** publish on the machine that holds the farm and copy the join ticket; on the new one
+   pick **Join a farm** and enter FarmCode, device PIN, ticket.
 
 `freenet.exe` has never been launched. Treat the first Windows run as new information, and flip
 `win-x64` to `verified` in `scripts/freenet-binaries.json` once it spawns a node.
@@ -121,6 +150,8 @@ Full comparison: plan §3.
 main process (Node)
   ├── FreenetHostPlugin ──spawn──► freenet (child, loopback WS :7509)
   ├── Express createApiApp() → 127.0.0.1:<ephemeral>, also serves dist/
+  │     └── loopback token guard on /api/* (except /api/health)
+  ├── session.webRequest → injects that token into renderer /api/* calls
   └── IPC: puf-freenet:status | start | stop
 renderer
   └── loads http://127.0.0.1:<ephemeral>  ← same-origin, no CORS
@@ -129,6 +160,19 @@ renderer
 The renderer being served from the same loopback origin as `/api/*` is what lets
 `getApiBaseUrl()` return `''` with **no client changes**, and is why desktop never needs the
 `am.pufworks.farm` → `localhost:3000` sidecar.
+
+### The loopback token
+
+An ephemeral port is obscurity, not a boundary — anything running as the operator can find it. So
+`main.ts` mints 256 random bits per launch and `localApi.ts` 401s any `/api/*` request without them.
+
+The renderer never sees the token: `session.webRequest.onBeforeSendHeaders` adds
+`x-puf-desktop-token` to requests whose URL starts with this launch's API origin, which authorises
+every existing `fetch` in `src/` without touching a single call site, and keeps the header off
+`am.pufworks.farm`. `/api/health` and the static bundle stay open.
+
+Hitting the API from a terminal therefore needs the token, which is deliberately not printed. Use
+`/api/health` for liveness; for anything else, use the app.
 
 ### Route split
 
@@ -147,6 +191,7 @@ The renderer being served from the same loopback origin as `/api/*` is what lets
 | `preload.ts` | `contextBridge` → `window.pufamDesktop` (config, mist preference, freenet status/start/stop) |
 | `desktopConfig.ts` | Encode/decode for the main→preload config flag (shared, so the ends cannot drift) |
 | `desktopPrefs.ts` | The mist opt-in on disk. Decided before a renderer exists, so it cannot be `localStorage` |
+| `loopbackAuth.ts` | Per-launch token + the `/api/*` guard middleware. No `electron` or `express` imports, so it tests in plain Node |
 | `localApi.ts` | Loopback Express + static `dist/` on an ephemeral port |
 | `tsconfig.json` | Typechecks this dir (`npm run lint:desktop`) |
 
@@ -185,7 +230,8 @@ and nothing from `desktop/` itself. `desktop/` stays excluded from the root lint
 
 ## Not yet done
 
-Windows `nsis`/`portable` artifacts and the first `freenet.exe` launch · a Fedora `rpm` (needs the
-two host packages above) · loopback bearer token or IPC-only Freenet calls (Phase 4 item 7) · mDNS
-LAN-hub advertising (`server.ts` starts it; the shell does not yet) · menus, tray, window state ·
-code signing · auto-updater (out of scope by workspace policy).
+Windows `nsis` installer and the first `freenet.exe` launch (both want a Windows machine) · a Fedora
+`rpm` (needs the two host packages above) · mDNS LAN-hub advertising — deferred rather than pending:
+the API binds loopback only, so advertising a LAN URL would publish an address nothing can reach, and
+a LAN client would now be 401'd anyway. It needs a second LAN-bound listener and its own auth story ·
+menus, tray, window state · code signing · auto-updater (out of scope by workspace policy).
