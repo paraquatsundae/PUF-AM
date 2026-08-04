@@ -73,8 +73,13 @@ MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage     # ...and start the bundled Fr
 ```
 
 No install step, no root, no Node on the machine. Mark it executable if git or a browser dropped the
-bit (`chmod +x`). A packaged app ignores `.env`, so mist is opt-in via the environment until the
-Settings surface carries it.
+bit (`chmod +x`).
+
+`MIST_FREENET=1` is now only a **workshop override**. The operator path is Settings → *Farm sync
+between laptops* → **Start Freenet when PUF-AM opens**, which persists to
+`<userData>/desktop-prefs.json` and is read by `main.ts` before any window exists. Turning it on
+also starts the node in the current session, so nothing needs a relaunch. When the env var is set,
+the checkbox says so and stays locked on for that launch.
 
 If a workshop `freenet network` already holds `:7509`, the packaged app **attaches** to it and
 reports `mode: attached` — correct behaviour, but it tells you nothing about the bundled binary. Add
@@ -139,8 +144,9 @@ The renderer being served from the same loopback origin as `/api/*` is what lets
 | File | Role |
 |------|------|
 | `main.ts` | App lifecycle, single-instance lock, Freenet host ownership, window, IPC |
-| `preload.ts` | `contextBridge` → `window.pufamDesktop` (config + freenet status/start/stop) |
+| `preload.ts` | `contextBridge` → `window.pufamDesktop` (config, mist preference, freenet status/start/stop) |
 | `desktopConfig.ts` | Encode/decode for the main→preload config flag (shared, so the ends cannot drift) |
+| `desktopPrefs.ts` | The mist opt-in on disk. Decided before a renderer exists, so it cannot be `localStorage` |
 | `localApi.ts` | Loopback Express + static `dist/` on an ephemeral port |
 | `tsconfig.json` | Typechecks this dir (`npm run lint:desktop`) |
 
@@ -152,8 +158,8 @@ no Freenet logic of its own — that is what keeps the PUF-FN fork cheap.
 
 ## Mist stays opt-in
 
-The Freenet host only starts when mist is enabled (`MIST_FREENET=1` today; a persisted setting
-later). A Firebase-only operator never spawns a Freenet node and sees no Freenet UI.
+The Freenet host only starts when mist is enabled — the saved preference, or `MIST_FREENET=1` as a
+workshop override. A Firebase-only operator never spawns a Freenet node and sees no Freenet UI.
 
 If a node is already listening on the WS port — a workshop `freenet network`, or another PUF unit
 — the host **attaches** to it and will not kill it on quit. Only a node we spawned gets stopped.
@@ -180,7 +186,6 @@ and nothing from `desktop/` itself. `desktop/` stays excluded from the root lint
 ## Not yet done
 
 Windows `nsis`/`portable` artifacts and the first `freenet.exe` launch · a Fedora `rpm` (needs the
-two host packages above) · mist opt-in from the UI rather than `MIST_FREENET` in the environment ·
-loopback bearer token or IPC-only Freenet calls (Phase 4) · mDNS LAN-hub advertising (`server.ts`
-starts it; the shell does not yet) · a desktop-aware Mist workshop card · menus, tray, window
-state · code signing · auto-updater (out of scope by workspace policy).
+two host packages above) · loopback bearer token or IPC-only Freenet calls (Phase 4 item 7) · mDNS
+LAN-hub advertising (`server.ts` starts it; the shell does not yet) · menus, tray, window state ·
+code signing · auto-updater (out of scope by workspace policy).

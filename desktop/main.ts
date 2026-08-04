@@ -4,8 +4,8 @@
  * One app, one icon, one process tree: the Freenet node is a child process this
  * main owns, so the operator never runs `freenet network` or `npm run dev`.
  *
- * Deliberately unpolished — window chrome, menus, tray, and the Settings surface
- * come later. Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §6 and Phase 1.
+ * Window chrome, menus, and tray still come later. Plan:
+ * `Plans/DESKTOP_FREENET_PLUGIN.md` §6 and Phase 1.
  */
 
 import { existsSync } from 'node:fs';
@@ -15,6 +15,13 @@ import { BrowserWindow, app, ipcMain, shell } from 'electron';
 
 import { createMistFreenetWire } from '../server/freenetHostWire.ts';
 import { encodeDesktopConfig, type DesktopConfig } from './desktopConfig.ts';
+import {
+  DESKTOP_PREFS_DEFAULT,
+  desktopPrefsPath,
+  readDesktopPrefs,
+  writeDesktopPrefs,
+  type DesktopPrefs,
+} from './desktopPrefs.ts';
 import {
   FDEV_BINARY,
   createFreenetHost,
@@ -30,6 +37,7 @@ const FREENET_WS_HOST = '127.0.0.1';
 let mainWindow: BrowserWindow | null = null;
 let freenetHost: FreenetHostPlugin | null = null;
 let closeLocalApi: (() => Promise<void>) | null = null;
+let desktopPrefs: DesktopPrefs = { ...DESKTOP_PREFS_DEFAULT };
 
 /** Cloud API for routes needing server-only secrets — see plan §6.2. */
 function cloudApiBase(): string {
@@ -40,9 +48,51 @@ function freenetWsPort(): number {
   return Number(process.env.FREENET_WS_PORT) || 7509;
 }
 
-/** Mist is opt-in; a Firebase-only operator never starts a Freenet node. */
-function isMistEnabled(): boolean {
+/** Workshop override: forces mist on for one launch, whatever the saved preference says. */
+function isMistForcedByEnv(): boolean {
   return process.env.MIST_FREENET === '1' || process.env.MIST_FREENET === 'true';
+}
+
+/**
+ * Mist is opt-in; a Firebase-only operator never starts a Freenet node.
+ *
+ * The saved preference is what an installed operator uses — asking a farmer to
+ * launch the AppImage from a terminal with an environment variable set was never
+ * a product. `MIST_FREENET` stays as the workshop override.
+ */
+function isMistEnabled(): boolean {
+  return isMistForcedByEnv() || desktopPrefs.mistEnabled;
+}
+
+function mistPreference(): { enabled: boolean; forcedByEnv: boolean } {
+  return { enabled: desktopPrefs.mistEnabled, forcedByEnv: isMistForcedByEnv() };
+}
+
+/**
+ * Apply the Settings toggle: persist it, then make this session match so the
+ * operator does not have to relaunch to see the difference.
+ */
+async function setMistPreference(enabled: boolean): Promise<
+  ReturnType<typeof mistPreference> & { host: FreenetHostStatus | null }
+> {
+  desktopPrefs = writeDesktopPrefs(desktopPrefsPath(app.getPath('userData')), {
+    ...desktopPrefs,
+    mistEnabled: enabled,
+  });
+
+  if (enabled) {
+    return { ...mistPreference(), host: await startFreenet() };
+  }
+
+  // With the env override in play the node has to stay up for this launch —
+  // turning it off underneath a workshop session would be a surprise.
+  if (isMistForcedByEnv()) {
+    return { ...mistPreference(), host: freenetHost ? await freenetHost.status() : null };
+  }
+
+  // The host only ever stops a node it spawned; an attached one is detached (plan §5.4).
+  const host = (await freenetHost?.stop().catch(() => null)) ?? null;
+  return { ...mistPreference(), host };
 }
 
 /**
@@ -195,6 +245,10 @@ function registerIpc(): void {
   ipcMain.handle('puf-freenet:status', async () => readFreenetStatus());
   ipcMain.handle('puf-freenet:start', async () => startFreenet());
   ipcMain.handle('puf-freenet:stop', async () => freenetHost?.stop() ?? null);
+  ipcMain.handle('puf-desktop:mist-preference', () => mistPreference());
+  ipcMain.handle('puf-desktop:set-mist-preference', async (_event, enabled: unknown) =>
+    setMistPreference(enabled === true),
+  );
 }
 
 /** The built Vite bundle the loopback server hosts. */
@@ -238,6 +292,7 @@ async function createWindow(config: DesktopConfig, appUrl: string): Promise<void
 async function bootstrap(): Promise<void> {
   await loadDevEnv();
   applyMistRootEnv();
+  desktopPrefs = readDesktopPrefs(desktopPrefsPath(app.getPath('userData')));
 
   const mistEnabled = isMistEnabled();
   const distPath = resolveDistPath();

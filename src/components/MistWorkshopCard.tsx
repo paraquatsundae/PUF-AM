@@ -87,19 +87,24 @@ function checkedAtLabel(): string {
 
 /**
  * Operators read the node's own "External address" line and expect that UDP port
- * here. It is a different socket for a different job, so spell both out rather
- * than leave a mismatch looking like a misconfiguration.
+ * here. It is a different socket for a different job, so the answer has to be
+ * available — but it is a question you ask once, so it stays folded away rather
+ * than sitting in the middle of the card looking like a warning.
  */
 function FreenetPortRoles() {
   return (
-    <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-      <span className="font-semibold text-slate-700">Two different ports — a mismatch is normal.</span>{' '}
-      <code className="font-mono text-[10px]">127.0.0.1:7509</code> is the node&apos;s local
-      WebSocket API: the only port PUF-AM talks to, and it never leaves this machine. The{' '}
-      <strong>External address</strong> UDP port your Freenet client shows (e.g.{' '}
-      <code className="font-mono text-[10px]">35712</code>) is the peer-to-peer Opennet socket other
-      peers reach you on. They are unrelated numbers and will not match.
-    </p>
+    <details className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+      <summary className="cursor-pointer font-semibold text-slate-700">
+        Why does my node show a different port?
+      </summary>
+      <p className="mt-1.5">
+        <code className="font-mono text-[10px]">127.0.0.1:7509</code> is the node&apos;s local
+        WebSocket API — the only port PUF-AM talks to, and it never leaves this machine. The{' '}
+        <strong>External address</strong> UDP port your Freenet client shows (e.g.{' '}
+        <code className="font-mono text-[10px]">35712</code>) is the peer-to-peer socket other peers
+        reach you on. Unrelated numbers; they will not match, and that is normal.
+      </p>
+    </details>
   );
 }
 
@@ -578,9 +583,11 @@ export function MistWorkshopCard() {
           <FlaskConical className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Mist workshop (experimental)</h2>
+          <h2 className="text-lg font-bold text-slate-900">Mist workshop — diagnostics</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Phase 9 — IndexedDB + in-process Freenet peer (server transport). Firebase remains default for production farms.
+            Every knob, hash, and status string for the mist/Freenet path. For the everyday job of
+            moving a farm between laptops, use <strong>Farm sync between laptops</strong> above.
+            Firebase remains the default for production farms.
           </p>
         </div>
       </div>
@@ -620,9 +627,9 @@ export function MistWorkshopCard() {
           </div>
           <p className="text-[11px] text-slate-500">
             This app owns the node process — no terminal, no separate{' '}
-            <code className="font-mono text-[10px]">freenet network</code>. Launching with{' '}
-            <code className="font-mono text-[10px]">MIST_FREENET=1</code> starts it automatically;
-            otherwise start it here for this session.
+            <code className="font-mono text-[10px]">freenet network</code>. Use{' '}
+            <strong>Start Freenet when PUF-AM opens</strong> above to have it running at launch;
+            these buttons drive it for this session only.
           </p>
           <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
             Node: <span className="font-mono">{freenetHostLabel(hostStatus)}</span>
@@ -754,11 +761,13 @@ export function MistWorkshopCard() {
 
       {hotMirrorAvailable && farmId && (
         <div className="space-y-2 pt-2 border-t border-emerald-100">
-          <p className="text-xs font-semibold text-emerald-900">Two-laptop Freenet sync (A → B)</p>
+          <p className="text-xs font-semibold text-emerald-900">
+            Two-laptop Freenet sync — raw controls
+          </p>
           <p className="text-[11px] text-slate-500">
-            Laptop A: draw boundaries + diary, then <strong>Publish farm to Freenet</strong> (Hot + bones).
-            Copy the join ticket. Laptop B: recover FarmCode → Connect peer → paste ticket →{' '}
-            <strong>Fetch farm from Freenet</strong>.
+            Same publish and fetch the <strong>Farm sync</strong> card runs, without the guardrails:
+            A publishes Hot + bones and copies the join ticket, B pastes it and fetches. Kept here
+            for the browser workshop path and for when you want to see the raw ticket.
           </p>
           {(joinTicket || (lastFreenetUri && lastBonesUri)) ? (
             <div className="text-[11px] bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 space-y-1.5">

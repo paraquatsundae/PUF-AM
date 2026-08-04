@@ -75,6 +75,21 @@ describe('with the desktop bridge', () => {
     expect(usesLocalFreenetSidecar()).toBe(false);
   });
 
+  it('refuses a non-loopback Freenet base rather than shipping ciphertext off the machine', () => {
+    // Cloud Run answers these routes with 503 anyway (MIST_FREENET_DISABLED=1),
+    // so same-origin is both safer and more useful than honouring the flag.
+    installBridge({ freenetApiBase: CLOUD });
+    expect(getMistFreenetApiBaseUrl()).toBe('');
+    expect(usesLocalFreenetSidecar()).toBe(false);
+  });
+
+  it('still allows an explicit loopback base for a workshop node on another port', () => {
+    installBridge({ freenetApiBase: 'http://127.0.0.1:3100/' });
+    expect(getMistFreenetApiBaseUrl()).toBe('http://127.0.0.1:3100');
+    // Desktop is never "the sidecar pattern" — the shell serves these routes itself.
+    expect(usesLocalFreenetSidecar()).toBe(false);
+  });
+
   it('normalises a path given without a leading slash', () => {
     expect(apiUrl('api/auth/pins')).toBe(`${CLOUD}/api/auth/pins`);
   });

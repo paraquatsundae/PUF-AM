@@ -32,6 +32,7 @@ import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { InvitePinManager } from '../components/InvitePinManager';
 import { OfflineSyncCard } from '../components/OfflineSyncCard';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
+import { MistFarmSyncCard } from '../components/MistFarmSyncCard';
 import { MistWorkshopCard } from '../components/MistWorkshopCard';
 import { useWalnutPack } from '../hooks/useWalnutPack';
 import {
@@ -480,6 +481,8 @@ export function Settings() {
             {isAdmin && <InvitePinManager />}
 
             <UnlockPinSettingsCard />
+
+            <MistFarmSyncCard />
 
             <MistWorkshopCard />
 

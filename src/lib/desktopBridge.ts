@@ -17,14 +17,31 @@ export type DesktopFreenetBridge = {
   onState(listener: (status: FreenetHostStatus) => void): () => void;
 };
 
+export type DesktopMistPreference = {
+  /** The saved opt-in — what the Settings toggle reflects across launches. */
+  enabled: boolean;
+  /** `MIST_FREENET` in the environment forces mist on for this launch only. */
+  forcedByEnv: boolean;
+};
+
+export type DesktopMistBridge = {
+  getPreference(): Promise<DesktopMistPreference>;
+  /** Persists the opt-in and brings the node up (or down) without a relaunch. */
+  setPreference(
+    enabled: boolean,
+  ): Promise<DesktopMistPreference & { host: FreenetHostStatus | null }>;
+};
+
 export type DesktopBridge = {
   isDesktop: true;
   /** Base for routes needing server-only secrets (`/api/auth/*`, `/api/weather/*`). */
   cloudApiBase: string;
   /** Base for `/api/mist/freenet/*`. Empty string = same-origin loopback. */
   freenetApiBase: string;
+  /** Whether mist was on at launch. Live state comes from `mist.getPreference()`. */
   mistEnabled: boolean;
   platform: string;
+  mist?: DesktopMistBridge;
   freenet: DesktopFreenetBridge;
 };
 

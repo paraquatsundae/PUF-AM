@@ -85,6 +85,28 @@ export function apiUrl(path: string): string {
 
 const LOCAL_FREENET_SIDECAR_DEFAULT = 'http://127.0.0.1:3000';
 
+function isLoopbackBase(base: string): boolean {
+  try {
+    const { hostname } = new URL(base);
+    return hostname === '127.0.0.1' || hostname === 'localhost';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The desktop shell hosts its own Freenet node, so the only legitimate answers
+ * are same-origin or loopback. Anything else — a stale config flag, a cloud base
+ * copied in by mistake — would push farm ciphertext at a machine whose Freenet
+ * routes are disabled anyway (`MIST_FREENET_DISABLED=1` on Cloud Run), so fall
+ * back to same-origin rather than off this machine. Plan §6.2, §14 Phase 4.
+ */
+function desktopFreenetBase(configured: string): string {
+  const base = configured.trim().replace(/\/$/, '');
+  if (!base) return '';
+  return isLoopbackBase(base) ? base : '';
+}
+
 /** Production HTTPS host — Freenet must not use Cloud Run's container loopback. */
 export function isProductionAppHost(): boolean {
   if (typeof window === 'undefined') return false;
@@ -104,7 +126,7 @@ export function getMistFreenetApiBaseUrl(): string {
   // Desktop runs the Freenet node in its own main process, so the sidecar branch
   // below must never fire — that is the whole point of the Electron shell.
   const desktop = getDesktopBridge();
-  if (desktop) return desktop.freenetApiBase;
+  if (desktop) return desktopFreenetBase(desktop.freenetApiBase);
 
   const fromEnv = String(import.meta.env.VITE_MIST_FREENET_API || '')
     .trim()
@@ -124,14 +146,13 @@ export function mistFreenetApiUrl(path: string): string {
   return base ? `${base}${p}` : p;
 }
 
-/** True when Freenet API calls target loopback (production + local sidecar pattern). */
+/**
+ * True when Freenet API calls leave this page for a separate local Express — the
+ * `am.pufworks.farm` + `npm run dev` workshop pattern. Never true on desktop: the
+ * shell serves those routes itself, so there is no second process to point at.
+ */
 export function usesLocalFreenetSidecar(): boolean {
+  if (isDesktopShell()) return false;
   const base = getMistFreenetApiBaseUrl();
-  if (!base) return false;
-  try {
-    const url = new URL(base);
-    return url.hostname === '127.0.0.1' || url.hostname === 'localhost';
-  } catch {
-    return false;
-  }
+  return base ? isLoopbackBase(base) : false;
 }

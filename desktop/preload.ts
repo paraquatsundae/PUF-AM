@@ -17,6 +17,11 @@ const config = decodeDesktopConfig(process.argv);
 contextBridge.exposeInMainWorld('pufamDesktop', {
   ...config,
   platform: process.platform,
+  mist: {
+    getPreference: () => ipcRenderer.invoke('puf-desktop:mist-preference'),
+    setPreference: (enabled: boolean) =>
+      ipcRenderer.invoke('puf-desktop:set-mist-preference', enabled),
+  },
   freenet: {
     status: () => ipcRenderer.invoke('puf-freenet:status'),
     start: () => ipcRenderer.invoke('puf-freenet:start'),

@@ -249,6 +249,7 @@ With no `fdev` present the second check is skipped with a warning (`--require-fd
 | Path | Fedora | Windows |
 |------|--------|---------|
 | Electron `userData` | `~/.config/PUF-AM/` | `%APPDATA%\PUF-AM\` |
+| Desktop preferences (mist opt-in) | `<userData>/desktop-prefs.json` | same shape |
 | Freenet config | `<userData>/freenet/config/` | same shape |
 | Freenet data (contracts, peer keys) | `<userData>/freenet/data/` | same |
 | Freenet logs | `<userData>/freenet/logs/` | same |
@@ -350,7 +351,7 @@ Every download is checksummed **twice** — archive, then extracted binary — a
 
 ## 9. First run and operator experience
 
-**No Freenet wizard.** Freenet uses Opennet with silent defaults; the only decision a farmer makes is the existing mist opt-in.
+**No Freenet wizard.** Freenet uses Opennet with silent defaults; the only decision a farmer makes is the existing mist opt-in — a checkbox in Settings (*Start Freenet when PUF-AM opens*), persisted to `<userData>/desktop-prefs.json` and read by `main.ts` before any window exists. It cannot live in `localStorage` for that reason: the host has to be started before the renderer is alive.
 
 | Launch | What the operator sees |
 |--------|------------------------|
@@ -359,7 +360,14 @@ Every download is checksummed **twice** — archive, then extracted binary — a
 | Mist enabled, run 2+ | Node reuses its data dir; connects in seconds |
 | Freenet binary missing/corrupt | Status shows `failed` with the resolved path. App fully usable on Firebase or local-only; no modal, no crash |
 
-The existing Settings → **Mist workshop** card becomes the single Freenet surface: mode (`managed`/`attached`), reachability, binary source + version, data dir, and publish/pull actions. No second window, no tray icon, no separate installer entry.
+Settings carries two Freenet surfaces, split by who is reading:
+
+| Card | Audience | Contents |
+|------|----------|----------|
+| **Farm sync between laptops** | the operator | Readiness in one sentence, one **Connect** button, the launch opt-in, and the send / join task itself |
+| **Mist workshop — diagnostics** | the workshop | Node mode (`managed`/`attached`), reachability, binary source + version, peer transport, raw publish/pull, hashes, loss-recovery smoke |
+
+No second window, no tray icon, no separate installer entry.
 
 ---
 
@@ -401,7 +409,7 @@ Regression check each phase: `npm run lint && npm test && npm run build`, plus `
 | Today | After Phase 4 |
 |-------|---------------|
 | `freenet network` in terminal 1 | Started by PUF-AM |
-| `MIST_FREENET=1 npm run dev` in terminal 2 | Gone — the app *is* the server |
+| `MIST_FREENET=1 npm run dev` in terminal 2 | Gone — the app *is* the server, and mist is a Settings checkbox |
 | Browse `https://am.pufworks.farm` | Launch PUF-AM |
 | Freenet calls cross-origin to `127.0.0.1:3000` | Same-origin loopback, ephemeral port |
 | `~/.local/share/freenet` (user's node) | `<userData>/freenet/data` (app-owned), or attach to the user's node |
@@ -485,11 +493,27 @@ Landed:
 - ~~Install on a machine with **no Node, no npm, no Freenet**, and complete a Freenet publish there~~ **Done ~2026-08-04** — see the two-laptop pass above.
 - ~~A packaged build has no way to turn mist on~~ **Fixed ~2026-08-04.** Two separate bugs hid behind one symptom: `MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage` started a Freenet node but Settings showed no mist UI at all. The renderer gate is baked at build time (§8.3), so the packaged bundle had it compiled out — `desktop:build:web` now bakes `VITE_MIST_EXPERIMENTAL=true`. As a belt-and-braces runtime path, `isMistExperimentalEnabled()` also honours the preload bridge's `mistEnabled`, so the launch flag alone un-gates the UI even in a bundle built without the Vite flag. `MistWorkshopCard` gained **Start / Stop Freenet node** buttons over the existing `puf-freenet:*` IPC (§5.2), so an operator who launched without `MIST_FREENET=1` can still bring the app-owned node up from Settings for that session — no relaunch, no terminal.
 
-### Phase 4 — retire the desktop sidecar path (next)
+### Phase 4 — polish, quick join, and retiring the sidecar (**in progress**, ~2026-08-04)
 
-Desktop never resolves `am.pufworks.farm` for `/api/mist/freenet/*` · loopback guard (bearer token and/or IPC) · two-machine A→B join-ticket smoke using **installers only** · update [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) to mark the sidecar section *workshop/web only*.
+The Phase 3 pass proved the flow exists. Phase 4 is about making it something a farmer can do without being told what a WebSocket is.
 
-**Done when:** the two-Fedora pass criteria are met with zero terminals open.
+| # | Item | Status |
+|---|------|--------|
+| 1 | Two-machine A→B join-ticket smoke using **installers only** | **done** ~2026-08-04 (Phase 3 note above) |
+| 2 | Mark the `am.pufworks.farm` sidecar section *workshop/web only* | **done** — [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) |
+| 3 | Desktop never resolves `am.pufworks.farm` for `/api/mist/freenet/*` | **done** — `getMistFreenetApiBaseUrl()` now *refuses* a non-loopback base on desktop instead of trusting the config flag, and `usesLocalFreenetSidecar()` is hard-false in the shell. Covered in `tests/apiBaseDesktop.test.ts` |
+| 4 | **Mist opt-in from Settings** — no `MIST_FREENET=1` on the launch | **done** — persisted in `<userData>/desktop-prefs.json` ([`desktop/desktopPrefs.ts`](../desktop/desktopPrefs.ts)), read at boot by `main.ts`, toggled over `puf-desktop:*-mist-preference` IPC. Turning it on starts the node in the same session; `MIST_FREENET` survives as a workshop override that reports itself in the UI |
+| 5 | **One-card join UX** — publish/copy on A, paste/fetch on B | **done** — [`src/components/MistFarmSyncCard.tsx`](../src/components/MistFarmSyncCard.tsx) above the workshop card in Settings |
+| 6 | Plain-language status instead of peer/port jargon | **done** — one readiness line plus a single **Connect** button; the UDP-vs-WebSocket note folds away behind a disclosure in the diagnostics card |
+| 7 | Loopback guard — bearer token and/or IPC-only Freenet calls (§6.3) | **next** |
+| 8 | Windows: NSIS/portable artifacts + first `freenet.exe` launch | open, needs the Windows box |
+| 9 | mDNS LAN-hub advertising from the shell | open |
+
+**Done when:** the two-Fedora pass criteria are met with zero terminals open **and** nothing in the operator path requires an environment variable. Items 1–6 clear the second half; item 7 is the remaining hardening.
+
+#### What the join feels like after items 4–6
+
+A card called **Farm sync between laptops** sits above the workshop diagnostics. It opens on **Join a farm** when this device has never published, and **Send this farm** when it has, so B lands on the right half without choosing. One status line says whether Freenet is reachable in a sentence, and a single **Connect** button does node-then-peer rather than making the operator find two buttons in the right order. On A, publishing drops the join ticket into a copy box with a three-item handoff list (FarmCode, device PIN, ticket) beside it. On B, the paste box validates as you type and the result comes back as *"12 diary entries and 4 blocks are now on this laptop"* rather than a hash. The raw controls all still exist one card down.
 
 ### Phase 5 — PUF-FN extraction (later, optional)
 
