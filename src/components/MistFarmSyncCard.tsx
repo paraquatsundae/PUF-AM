@@ -19,11 +19,19 @@ import {
   KeyRound,
   Loader2,
   Share2,
+  Wifi,
 } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { getDesktopBridge } from '../lib/desktopBridge.ts';
 import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
+import {
+  DEFAULT_JOIN_ROLE,
+  JOIN_ROLES,
+  JOIN_TICKET_PREFIX,
+  isJoinTicket,
+  type JoinRole,
+} from '../../shared/sync/joinTicket.ts';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import {
   fetchFreenetPeerStatus,
@@ -35,8 +43,11 @@ import {
   fetchAndRehydrateFarmFromFreenet,
   refreshFarmUiAfterRecovery,
 } from '../mist/mistDisasterRecovery.ts';
+import { joinFarmWithShortTicket } from '../mist/mistJoinWithTicket.ts';
 import { formatJoinTicket, parseJoinTicketInput } from '../mist/mistJoinTicket.ts';
 import { getMistHotPublishStatus, isMistHotMirrorAvailable } from '../mist/mistHotBridge.ts';
+import { getMistJoinState } from '../mist/mistDeviceSession.ts';
+import { fetchSyncSelf } from '../lib/mdnsPeers.ts';
 
 type Mode = 'send' | 'join';
 
@@ -72,8 +83,8 @@ function describeReadiness(
   return { ready: false, label: 'Freenet is running, but this farm is not connected to it.', tone: 'todo' };
 }
 
-/** The last ticket this device published, rebuilt from saved publish metadata. */
-function savedJoinTicket(farmId: string | undefined): string {
+/** The raw FN02 ticket this device published — diagnostics and offline-LAN fallback. */
+function savedFreenetTicket(farmId: string | undefined): string {
   const status = farmId ? getMistHotPublishStatus(farmId) : null;
   if (!status?.freenetUri || !status.bonesFreenetUri) return '';
   return formatJoinTicket({
@@ -84,6 +95,31 @@ function savedJoinTicket(farmId: string | undefined): string {
     bonesContentHash: status.bonesContentHash,
   });
 }
+
+type SentTicket = {
+  ticket: string;
+  role: JoinRole;
+  expires?: string;
+  /** Set when the ticket could not be registered for LAN lookup. */
+  error?: string;
+};
+
+function savedShortTicket(farmId: string | undefined): SentTicket | null {
+  const status = farmId ? getMistHotPublishStatus(farmId) : null;
+  if (!status?.joinTicket) return null;
+  return {
+    ticket: status.joinTicket,
+    role: status.joinTicketRole ?? DEFAULT_JOIN_ROLE,
+    expires: status.joinTicketExpires,
+  };
+}
+
+const ROLE_BLURB: Record<JoinRole, string> = {
+  owner: 'Full control, including farm setup — only for another of your own devices.',
+  admin: 'Everything except owning the farm: team, setup, all records.',
+  farmer: 'Day-to-day work — map, diary, spraying, harvest. The usual choice for crew.',
+  viewer: 'Read-only.',
+};
 
 const TONE_CLASS: Record<Readiness['tone'], string> = {
   ok: 'text-emerald-800 bg-emerald-50 border-emerald-200',
@@ -107,9 +143,17 @@ export function MistFarmSyncCard() {
   const [autoStart, setAutoStart] = useState<boolean | null>(null);
   const [autoStartForced, setAutoStartForced] = useState(false);
 
-  const [ticket, setTicket] = useState('');
+  const [sentTicket, setSentTicket] = useState<SentTicket | null>(null);
+  const [shareRole, setShareRole] = useState<JoinRole>(DEFAULT_JOIN_ROLE);
   const [ticketCopied, setTicketCopied] = useState(false);
+  const [freenetTicketShown, setFreenetTicketShown] = useState(false);
+  const [lanAddress, setLanAddress] = useState<string | null>(null);
+
+  const [joinTicket, setJoinTicket] = useState('');
+  const [ownerBase, setOwnerBase] = useState('');
+  const [ownerBaseShown, setOwnerBaseShown] = useState(false);
   const [paste, setPaste] = useState('');
+  const [pasteShown, setPasteShown] = useState(false);
   const [unlocked, setUnlocked] = useState(() => isMistHotMirrorAvailable());
 
   const refreshStatus = useCallback(async () => {
@@ -122,8 +166,19 @@ export function MistFarmSyncCard() {
 
   useEffect(() => {
     setUnlocked(isMistHotMirrorAvailable());
+    setSentTicket(savedShortTicket(farmId));
     void refreshStatus();
   }, [farmId, refreshStatus]);
+
+  /** The address a joiner types when their device cannot find this hub by itself. */
+  useEffect(() => {
+    void fetchSyncSelf()
+      .then(({ self, lanIpv4 }) => {
+        const ip = lanIpv4[0];
+        setLanAddress(self?.baseUrl?.replace(/^https?:\/\//, '') || (ip ? `${ip}:3000` : null));
+      })
+      .catch(() => setLanAddress(null));
+  }, []);
 
   useEffect(() => {
     const bridge = getDesktopBridge();
@@ -146,6 +201,10 @@ export function MistFarmSyncCard() {
    */
   useEffect(() => {
     if (modePinned || !farmId) return;
+    if (getMistJoinState()?.joinTicketDeferred) {
+      setMode('join');
+      return;
+    }
     setMode(getMistHotPublishStatus(farmId)?.freenetUri ? 'send' : 'join');
   }, [farmId, modePinned]);
 
@@ -153,7 +212,8 @@ export function MistFarmSyncCard() {
 
   const readiness = describeReadiness(peerStatus, hostStatus, Boolean(desktop));
   const parsedPaste = parseJoinTicketInput(paste);
-  const publishedTicket = ticket || savedJoinTicket(farmId);
+  const freenetTicket = savedFreenetTicket(farmId);
+  const joinTicketLooksRight = isJoinTicket(joinTicket);
 
   const pickMode = (next: Mode) => {
     setModePinned(true);
@@ -216,16 +276,25 @@ export function MistFarmSyncCard() {
   const publish = () =>
     run(async () => {
       if (!farmId) return;
-      const result = await publishFarmToFreenet(farmId);
-      setTicket(result.joinTicketText);
-      setMessage('Farm sent to Freenet. Copy the join ticket below and take it to the other laptop.');
+      const result = await publishFarmToFreenet(farmId, { role: shareRole });
+      setSentTicket({
+        ticket: result.shortTicket,
+        role: result.shortTicketRole,
+        expires: result.shortTicketExpires,
+        ...(result.shortTicketError ? { error: result.shortTicketError } : {}),
+      });
+      setMessage(
+        result.shortTicketError
+          ? 'Farm sent to Freenet, but the short ticket could not be registered on this device — use the Freenet ticket under Advanced instead.'
+          : 'Farm sent to Freenet. Read the join ticket below out to whoever is joining.',
+      );
       await refreshStatus();
     });
 
-  const copyTicket = () =>
+  const copyTicket = (text: string) =>
     run(async () => {
-      if (!publishedTicket) return;
-      await navigator.clipboard.writeText(publishedTicket);
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
       setTicketCopied(true);
       setTimeout(() => setTicketCopied(false), 2000);
     });
@@ -237,18 +306,36 @@ export function MistFarmSyncCard() {
       setPaste(text);
     });
 
-  const fetchFarm = () =>
+  const describeReceived = (diary: number, blocks: number) =>
+    `Farm received — ${diary} diary ${diary === 1 ? 'entry' : 'entries'} and ${blocks} ${
+      blocks === 1 ? 'block' : 'blocks'
+    } are now on this device. Open the Orchard map to check.`;
+
+  const joinWithTicket = () =>
+    run(async () => {
+      if (!farmId || !joinTicketLooksRight) return;
+      try {
+        const result = await joinFarmWithShortTicket({
+          farmId,
+          ticket: joinTicket,
+          ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
+        });
+        setMessage(
+          `${describeReceived(result.diary, result.blocks)} Joined as ${result.manifest.role}.`,
+        );
+      } catch (err) {
+        setOwnerBaseShown(true);
+        throw err;
+      }
+    });
+
+  /** Fallback for a joiner who is not on the owner's Wi‑Fi but has the raw URIs. */
+  const fetchFarmFromFreenetTicket = () =>
     run(async () => {
       if (!farmId || !parsedPaste) return;
       const result = await fetchAndRehydrateFarmFromFreenet(farmId, paste);
       await refreshFarmUiAfterRecovery(farmId);
-      const diary = result.hot.after.diary;
-      const blocks = result.geometry.after.blocks;
-      setMessage(
-        `Farm received — ${diary} diary ${diary === 1 ? 'entry' : 'entries'} and ${blocks} ${
-          blocks === 1 ? 'block' : 'blocks'
-        } are now on this laptop. Open the Orchard map to check.`,
-      );
+      setMessage(describeReceived(result.hot.after.diary, result.geometry.after.blocks));
     });
 
   return (
@@ -342,6 +429,26 @@ export function MistFarmSyncCard() {
 
           {mode === 'send' ? (
             <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label htmlFor="mist-share-role" className="text-xs font-semibold text-slate-700">
+                  What this ticket grants
+                </label>
+                <select
+                  id="mist-share-role"
+                  value={shareRole}
+                  disabled={busy}
+                  onChange={(e) => setShareRole(e.target.value as JoinRole)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm"
+                >
+                  {JOIN_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500">{ROLE_BLURB[shareRole]}</p>
+              </div>
+
               <button
                 type="button"
                 disabled={busy || !readiness.ready}
@@ -353,30 +460,44 @@ export function MistFarmSyncCard() {
                 Send this farm to Freenet
               </button>
 
-              {publishedTicket ? (
+              {sentTicket ? (
                 <div className="space-y-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-emerald-900">Join ticket</p>
+                    <p className="text-xs font-semibold text-emerald-900">
+                      Join ticket · {sentTicket.role}
+                    </p>
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => void copyTicket()}
+                      onClick={() => void copyTicket(sentTicket.ticket)}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-xs font-semibold"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       {ticketCopied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                  <pre className="font-mono text-[10px] text-emerald-900/80 whitespace-pre-wrap break-all max-h-28 overflow-auto">
-                    {publishedTicket}
-                  </pre>
+                  <p className="font-mono text-xl font-bold tracking-[0.15em] text-emerald-900 text-center py-1 select-all">
+                    {sentTicket.ticket}
+                  </p>
+                  <p className="text-[11px] text-emerald-800">
+                    Short enough to read out or write on a whiteboard — no clipboard needed on a
+                    phone.
+                    {sentTicket.expires
+                      ? ` Stops working ${new Date(sentTicket.expires).toLocaleDateString()}.`
+                      : null}
+                  </p>
+                  {sentTicket.error ? (
+                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                      {sentTicket.error} — use the Freenet ticket under <em>Advanced</em> below.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
               <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 space-y-1.5">
                 <p className="font-semibold text-slate-900 flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5" />
-                  The other laptop needs three things
+                  The joining device needs three things
                 </p>
                 <ol className="list-decimal ml-4 space-y-1 text-slate-600">
                   <li>
@@ -387,71 +508,189 @@ export function MistFarmSyncCard() {
                     <strong>The device PIN</strong> for that FarmCode.
                   </li>
                   <li>
-                    <strong>This join ticket</strong> — copy it above. A new one is issued every
-                    time you send, so use the latest.
+                    <strong>This join ticket</strong>. A new one is issued every time you send, so
+                    use the latest.
                   </li>
                 </ol>
+                <p className="text-[11px] text-slate-500 flex items-start gap-1.5">
+                  <Wifi className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Keep this computer on and on the same Wi‑Fi while they join — the ticket is
+                    looked up here.
+                    {lanAddress ? (
+                      <>
+                        {' '}
+                        If their device cannot find it, give them this address:{' '}
+                        <code className="font-mono">{lanAddress}</code>.
+                      </>
+                    ) : null}
+                  </span>
+                </p>
                 <p className="text-[11px] text-slate-500">
                   Freenet can take several minutes to make a fresh publish reachable from another
-                  machine. If the other laptop says it cannot find the farm, wait and try again.
+                  machine. If the other device says it cannot find the farm, wait and try again.
                 </p>
               </div>
+
+              {freenetTicket ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setFreenetTicketShown((v) => !v)}
+                    className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+                  >
+                    {freenetTicketShown ? 'Hide' : 'Advanced —'} raw Freenet ticket (FN02)
+                  </button>
+                  {freenetTicketShown ? (
+                    <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] text-slate-600">
+                          Works without Wi‑Fi to this computer, but has to be copied whole.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void copyTicket(freenetTicket)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 text-xs font-semibold shrink-0"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          Copy
+                        </button>
+                      </div>
+                      <pre className="font-mono text-[10px] text-slate-600 whitespace-pre-wrap break-all max-h-28 overflow-auto">
+                        {freenetTicket}
+                      </pre>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-xs font-semibold text-slate-700" htmlFor="mist-join-ticket">
-                    Paste the join ticket from the other laptop
-                  </label>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void pasteFromClipboard()}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-semibold disabled:opacity-50"
-                  >
-                    <ClipboardPaste className="w-3.5 h-3.5" />
-                    Paste
-                  </button>
-                </div>
-                <textarea
-                  id="mist-join-ticket"
-                  rows={4}
-                  value={paste}
-                  onChange={(e) => setPaste(e.target.value)}
-                  placeholder='{ "v": 1, "hotUri": "FN02@…", "bonesUri": "FN02@…" }'
-                  className="w-full text-[11px] font-mono px-2.5 py-2 rounded-lg border border-slate-200"
+                <label className="text-xs font-semibold text-slate-700" htmlFor="mist-short-ticket">
+                  Join ticket from the farm owner
+                </label>
+                <input
+                  id="mist-short-ticket"
+                  value={joinTicket}
+                  onChange={(e) => setJoinTicket(e.target.value.toUpperCase())}
+                  placeholder={`${JOIN_TICKET_PREFIX}-K7M2-9Q4X`}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  className="w-full px-3 py-3 rounded-xl border border-slate-200 font-mono tracking-[0.2em] text-center uppercase"
                 />
-                {paste.trim() ? (
-                  <p className={`text-[11px] ${parsedPaste ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {parsedPaste
-                      ? 'Ticket looks good — both addresses found.'
-                      : 'That does not look like a join ticket yet. Paste the whole thing, braces included.'}
+                {joinTicket.trim() && !joinTicketLooksRight ? (
+                  <p className="text-[11px] text-amber-700">
+                    A join ticket is eight characters after the prefix, like{' '}
+                    <code className="font-mono">{JOIN_TICKET_PREFIX}-K7M2-9Q4X</code>.
                   </p>
                 ) : null}
               </div>
 
+              {ownerBaseShown ? (
+                <div className="space-y-1.5">
+                  <label htmlFor="mist-owner-base" className="text-xs font-semibold text-slate-700">
+                    Owner&apos;s address on this Wi‑Fi
+                  </label>
+                  <input
+                    id="mist-owner-base"
+                    value={ownerBase}
+                    onChange={(e) => setOwnerBase(e.target.value)}
+                    placeholder="192.168.1.20:3000"
+                    spellCheck={false}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-mono text-sm"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Only needed when this device cannot find the owner&apos;s computer by itself.
+                  </p>
+                </div>
+              ) : null}
+
               <button
                 type="button"
-                disabled={busy || !parsedPaste || !peerStatus?.running}
+                disabled={busy || !joinTicketLooksRight || !peerStatus?.running}
                 title={
-                  !parsedPaste
-                    ? 'Paste the join ticket first'
+                  !joinTicketLooksRight
+                    ? 'Enter the join ticket first'
                     : peerStatus?.running
                       ? undefined
                       : 'Connect to Freenet first'
                 }
-                onClick={() => void fetchFarm()}
+                onClick={() => void joinWithTicket()}
                 className="w-full px-3 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Fetch the farm
+                Join this farm
               </button>
 
               <p className="text-[11px] text-slate-500">
-                This pulls the diary, issues, and map boundaries onto this laptop and decrypts them
-                with the FarmCode you recovered with. Nothing is sent back.
+                Be on the <strong>same Wi‑Fi as the farm owner</strong> — that is how the ticket is
+                looked up. The farm itself comes over Freenet, encrypted, and is decrypted here with
+                the FarmCode you recovered with. Nothing is sent back.
               </p>
+
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPasteShown((v) => !v)}
+                  className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+                >
+                  {pasteShown ? 'Hide' : 'Advanced —'} paste a raw Freenet ticket (FN02) instead
+                </button>
+
+                {pasteShown ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          className="text-[11px] font-semibold text-slate-600"
+                          htmlFor="mist-join-ticket"
+                        >
+                          Freenet ticket JSON
+                        </label>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void pasteFromClipboard()}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-semibold disabled:opacity-50"
+                        >
+                          <ClipboardPaste className="w-3.5 h-3.5" />
+                          Paste
+                        </button>
+                      </div>
+                      <textarea
+                        id="mist-join-ticket"
+                        rows={4}
+                        value={paste}
+                        onChange={(e) => setPaste(e.target.value)}
+                        placeholder='{ "v": 1, "hotUri": "FN02@…", "bonesUri": "FN02@…" }'
+                        className="w-full text-[11px] font-mono px-2.5 py-2 rounded-lg border border-slate-200"
+                      />
+                      {paste.trim() ? (
+                        <p
+                          className={`text-[11px] ${parsedPaste ? 'text-emerald-700' : 'text-amber-700'}`}
+                        >
+                          {parsedPaste
+                            ? 'Ticket looks good — both addresses found.'
+                            : 'That does not look like a Freenet ticket yet. Paste the whole thing, braces included.'}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={busy || !parsedPaste || !peerStatus?.running}
+                      onClick={() => void fetchFarmFromFreenetTicket()}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                    >
+                      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      Fetch the farm from Freenet URIs
+                    </button>
+                  </>
+                ) : null}
+              </div>
             </div>
           )}
         </>

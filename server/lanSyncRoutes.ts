@@ -25,6 +25,7 @@ import {
   upsertLanHighlight,
   type LanHighlightEntry,
 } from './lanHighlightStore.ts';
+import { registerJoinTicketRoutes } from './joinTicketRoutes.ts';
 
 type ShelfEntry = {
   farmId: string;
@@ -113,6 +114,9 @@ async function verifyFarmMember(req: Request, farmId: string): Promise<{ uid: st
 }
 
 export function registerLanSyncRoutes(app: Express): void {
+  // Short join tickets resolve over the same LAN shelf idea; see joinTicketRoutes.ts.
+  registerJoinTicketRoutes(app);
+
   /** This hub's mDNS identity + LAN IPs (no auth — used before / after sign-in). */
   app.get('/api/sync/self', (_req: Request, res: Response) => {
     const self = getSelfPeer();

@@ -8,25 +8,48 @@
 
 import { bytesToHex, hexToBytes } from '../../units/mist-freenet/src/index.ts';
 import { getSubtleCrypto } from '../../units/mist-freenet/src/subtle-crypto.ts';
+import { DEFAULT_JOIN_ROLE, coerceJoinRole, type JoinRole } from '../../shared/sync/joinTicket.ts';
+
+/**
+ * Authority label, not a crypto boundary. Anyone holding the FarmCode can
+ * decrypt this farm — the role decides what the app puts in front of them (the
+ * owner's geometry wizard, the crew's diary) and is the hook the v2 join
+ * manifest's `permissions` bag will grow into.
+ */
+export type MistSessionRole = JoinRole;
 
 export type MistDeviceSession = {
   uid: string;
   farmId: string;
   farmName: string;
   displayName: string;
-  role: 'admin';
+  role: MistSessionRole;
   createdAt: string;
   /** Hex-encoded 32-byte FarmSeed — only in memory after decrypt; encrypted on disk. */
   farmSeedHex: string;
   hasDevicePin: boolean;
+  /** True when this device came in on a join ticket rather than minting the farm. */
+  joinedViaTicket?: boolean;
 };
 
-/** Non-secret metadata for unlock UI (no FarmSeed). */
+/**
+ * Non-secret metadata for the unlock and join gates (no FarmSeed).
+ *
+ * The join flags live here rather than in the encrypted blob because they change
+ * *after* unlock, when no device PIN is in hand to re-seal it. Nothing here is
+ * sensitive: a role name and whether this device is still waiting for a ticket.
+ */
 export type MistSessionMeta = {
   farmId: string;
   farmName: string;
   displayName: string;
   hasDevicePin: boolean;
+  role?: MistSessionRole;
+  joinedViaTicket?: boolean;
+  /** Blocks the app on "Enter join ticket" until the farm data actually arrives. */
+  joinTicketPending?: boolean;
+  /** Operator chose to look around before joining — gate steps aside, sync card still nags. */
+  joinTicketDeferred?: boolean;
 };
 
 const SESSION_BLOB_KEY = 'pufam.mist.session.v1';
@@ -135,6 +158,7 @@ async function decryptSession(blob: EncryptedBlob, pin?: string): Promise<MistDe
 export async function saveMistDeviceSession(
   session: MistDeviceSession,
   devicePin?: string,
+  joinState?: { joinTicketPending?: boolean },
 ): Promise<void> {
   const blob = await encryptSession(session, devicePin);
   ls()?.setItem(SESSION_BLOB_KEY, JSON.stringify(blob));
@@ -143,6 +167,9 @@ export async function saveMistDeviceSession(
     farmName: session.farmName,
     displayName: session.displayName,
     hasDevicePin: session.hasDevicePin,
+    role: session.role,
+    joinedViaTicket: session.joinedViaTicket,
+    joinTicketPending: joinState?.joinTicketPending,
   });
 }
 
@@ -200,15 +227,61 @@ export function createMistSessionRecord(input: {
   displayName: string;
   farmSeed: Uint8Array;
   devicePin?: string;
+  role?: MistSessionRole;
+  joinedViaTicket?: boolean;
 }): MistDeviceSession {
   return {
     uid: `mist_${input.farmId.slice(0, 16)}`,
     farmId: input.farmId,
     farmName: input.farmName,
     displayName: input.displayName,
-    role: 'admin',
+    role: input.role ? coerceJoinRole(input.role) : DEFAULT_JOIN_ROLE,
     createdAt: new Date().toISOString(),
     farmSeedHex: bytesToHex(input.farmSeed),
     hasDevicePin: Boolean(input.devicePin && input.devicePin.replace(/\D/g, '').length >= 4),
+    ...(input.joinedViaTicket ? { joinedViaTicket: true } : {}),
   };
+}
+
+export type MistJoinState = {
+  role: MistSessionRole;
+  joinedViaTicket: boolean;
+  joinTicketPending: boolean;
+  joinTicketDeferred: boolean;
+};
+
+/**
+ * Sessions written before join tickets existed carry `role: 'admin'` and no join
+ * flags — those devices minted or recovered their own farm, so nothing is
+ * pending for them.
+ */
+export function getMistJoinState(): MistJoinState | null {
+  const meta = getMistSessionMeta();
+  if (!meta) return null;
+  return {
+    role: coerceJoinRole(meta.role ?? 'admin'),
+    joinedViaTicket: Boolean(meta.joinedViaTicket),
+    joinTicketPending: Boolean(meta.joinTicketPending),
+    joinTicketDeferred: Boolean(meta.joinTicketDeferred),
+  };
+}
+
+/** Ticket resolved and the farm landed — clear the gate and record the granted role. */
+export function markMistJoinTicketAccepted(role: MistSessionRole): void {
+  const meta = getMistSessionMeta();
+  if (!meta) return;
+  saveMistSessionMeta({
+    ...meta,
+    role: coerceJoinRole(role),
+    joinedViaTicket: true,
+    joinTicketPending: false,
+    joinTicketDeferred: false,
+  });
+}
+
+/** Operator wants in without the farm data yet (offline basemap, look around). */
+export function deferMistJoinTicket(): void {
+  const meta = getMistSessionMeta();
+  if (!meta) return;
+  saveMistSessionMeta({ ...meta, joinTicketPending: false, joinTicketDeferred: true });
 }

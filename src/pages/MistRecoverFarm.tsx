@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import { FarmCodeError, parseFarmCode, type ParsedFarmCode } from '../../units/mist-freenet/src/index.ts';
+import { DEFAULT_JOIN_ROLE, JOIN_TICKET_PREFIX } from '../../shared/sync/joinTicket.ts';
 import { APP_NAME } from '../brand';
 import { finishMistFarmSetup } from '../mist/finishMistFarmSetup.ts';
 
@@ -51,6 +52,11 @@ export function MistRecoverFarm() {
         farmSeed: parsed.farmSeed,
         skipPin,
         devicePin: skipPin ? undefined : devicePin,
+        // Recovery proves identity, not membership: the manifest a join ticket
+        // resolves to is what grants the real role, so start at the default and
+        // hold the app on the ticket prompt until it arrives.
+        role: DEFAULT_JOIN_ROLE,
+        joinTicketPending: true,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save mist session');
@@ -66,9 +72,10 @@ export function MistRecoverFarm() {
             <p className="font-semibold text-emerald-950">Farm recovered</p>
             <p className="text-emerald-800 mt-1 font-mono text-xs break-all">farmId: {parsed.farmId}</p>
             <p className="text-emerald-700 text-xs mt-2">
-              Same cryptographic identity as the device that minted this FarmCode. On laptop B, paste the
-              join ticket from laptop A in Settings → Mist workshop → <strong>Fetch farm from Freenet</strong>{' '}
-              (after Connect Freenet peer).
+              Same cryptographic identity as the device that minted this FarmCode. Next you will be
+              asked for the farm owner&apos;s <strong>join ticket</strong> (
+              <code className="font-mono">{JOIN_TICKET_PREFIX}-K7M2-9Q4X</code>) — that is what brings
+              the diary, issues, and boundaries across.
             </p>
           </div>
 
@@ -120,7 +127,7 @@ export function MistRecoverFarm() {
             className="w-full py-3 rounded-xl bg-slate-900 text-white font-semibold disabled:opacity-50 inline-flex justify-center items-center gap-2"
           >
             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-            Enter farm setup
+            Continue to join ticket
           </button>
 
           <button
@@ -156,8 +163,9 @@ export function MistRecoverFarm() {
           <div className="text-sm space-y-1">
             <p className="font-semibold">Recovery root — not day-to-day login</p>
             <p>
-              FarmCode re-derives your farm&apos;s cryptographic identity on this laptop. Diary, issues, and
-              boundaries arrive via Freenet join ticket after you recover (Settings → Mist workshop).
+              FarmCode re-derives your farm&apos;s cryptographic identity on this device. Diary,
+              issues, and boundaries arrive next, over Freenet, once you enter the owner&apos;s short{' '}
+              <strong>join ticket</strong>.
             </p>
           </div>
         </div>

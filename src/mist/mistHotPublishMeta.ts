@@ -2,6 +2,8 @@
  * Last mist Hot publish status (local-only metadata for workshop UI).
  */
 
+import type { JoinRole } from '../../shared/sync/joinTicket.ts';
+
 export type MistHotPublishStatus = {
   farmId: string;
   publishedAt: string;
@@ -21,6 +23,11 @@ export type MistHotPublishStatus = {
   bonesFreenetPublishedAt?: string;
   bonesFreenetPending?: boolean;
   bonesContentHash?: string;
+  /** Last short join ticket minted for this farm (`PUF-XXXX-XXXX`). */
+  joinTicket?: string;
+  joinTicketRole?: JoinRole;
+  joinTicketExpires?: string;
+  joinTicketMintedAt?: string;
 };
 
 export type MistBonesPublishStatus = {
@@ -83,6 +90,7 @@ export function saveFreenetHotUri(
 ): void {
   const existing = getMistHotPublishStatus(farmId);
   const next: MistHotPublishStatus = {
+    ...existing,
     farmId,
     publishedAt: existing?.publishedAt ?? new Date().toISOString(),
     contentHash: patch.contentHash,
@@ -95,12 +103,24 @@ export function saveFreenetHotUri(
     freenetUri: patch.freenetUri,
     freenetPublishedAt: new Date().toISOString(),
     freenetPending: patch.freenetPending,
-    bonesFreenetUri: existing?.bonesFreenetUri,
-    bonesFreenetPublishedAt: existing?.bonesFreenetPublishedAt,
-    bonesFreenetPending: existing?.bonesFreenetPending,
-    bonesContentHash: existing?.bonesContentHash,
   };
   saveMistHotPublishStatus(next);
+}
+
+/** Remember the short ticket so the send card can show it again after a reload. */
+export function saveJoinTicketForFarm(
+  farmId: string,
+  patch: { ticket: string; role: JoinRole; expires?: string },
+): void {
+  const existing = getMistHotPublishStatus(farmId);
+  if (!existing) return;
+  saveMistHotPublishStatus({
+    ...existing,
+    joinTicket: patch.ticket,
+    joinTicketRole: patch.role,
+    joinTicketExpires: patch.expires,
+    joinTicketMintedAt: new Date().toISOString(),
+  });
 }
 
 function bonesMetaKey(farmId: string): string {

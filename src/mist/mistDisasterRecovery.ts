@@ -199,9 +199,36 @@ export async function recoverLocalGeometryFromMistBones(
   return { before: result.before, after: result.after };
 }
 
+export type FarmFreenetAddresses = {
+  hotUri: string;
+  bonesUri: string;
+  hotContentHash?: string;
+  bonesContentHash?: string;
+};
+
 /**
- * Pull Hot + bones from Freenet using join ticket → decrypt → rehydrate diary/issues + geometry.
+ * Pull Hot + bones from Freenet by contract URI → decrypt → rehydrate diary/issues + geometry.
+ *
+ * The URIs come either from a pasted FN02 ticket or from a join manifest a short
+ * ticket resolved to; from here down it is the same Freenet pull either way.
  */
+export async function fetchAndRehydrateFarmFromAddresses(
+  farmId: string,
+  addresses: FarmFreenetAddresses,
+  devicePin?: string,
+): Promise<FetchFarmFromFreenetResult> {
+  await fetchFarmFromFreenetByJoinTicket(farmId, addresses);
+
+  const hot = await recoverLocalFarmFromMistHot(farmId, devicePin);
+  const geometry = await recoverLocalGeometryFromMistBones(farmId, devicePin);
+
+  return {
+    hot: { ...hot, source: 'freenet-hot' as const },
+    geometry,
+  };
+}
+
+/** Pull Hot + bones using a pasted raw FN02 join ticket (diagnostics / fallback path). */
 export async function fetchAndRehydrateFarmFromFreenet(
   farmId: string,
   joinTicketInput: string,
@@ -211,16 +238,7 @@ export async function fetchAndRehydrateFarmFromFreenet(
   if (!ticket) {
     throw new Error('Invalid join ticket — paste JSON { hotUri, bonesUri } or two URI lines');
   }
-
-  await fetchFarmFromFreenetByJoinTicket(farmId, ticket);
-
-  const hot = await recoverLocalFarmFromMistHot(farmId, devicePin);
-  const geometry = await recoverLocalGeometryFromMistBones(farmId, devicePin);
-
-  return {
-    hot: { ...hot, source: 'freenet-hot' as const },
-    geometry,
-  };
+  return fetchAndRehydrateFarmFromAddresses(farmId, ticket, devicePin);
 }
 
 /** Refresh in-memory zustand stores after rehydrate (best-effort). */

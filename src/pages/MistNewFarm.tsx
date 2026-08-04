@@ -59,6 +59,7 @@ export function MistNewFarm() {
         farmSeed: parsed.farmSeed,
         skipPin,
         devicePin: skipPin ? undefined : devicePin,
+        role: 'owner',
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save mist session');

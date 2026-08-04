@@ -3,12 +3,26 @@
  */
 
 import type { UserData } from '../contexts/AuthContext';
-import { allFarmModules } from '../../shared/auth/farmModules';
+import { allFarmModules, type FarmRole } from '../../shared/auth/farmModules';
 import { getFarmStoreBackend, isMistFarmStoreActive } from './farmStoreBackend.ts';
-import { hasMistDeviceSession, loadMistDeviceSession, type MistDeviceSession } from './mistDeviceSession.ts';
+import {
+  hasMistDeviceSession,
+  loadMistDeviceSession,
+  type MistDeviceSession,
+  type MistSessionRole,
+} from './mistDeviceSession.ts';
 
 export function isMistFarmSessionActive(): boolean {
   return isMistFarmStoreActive() && hasMistDeviceSession();
+}
+
+/**
+ * `owner` is a mist-only rung above the Firebase role vocab — the module system
+ * only understands `admin | farmer | viewer`, and an owner has at least an
+ * admin's reach.
+ */
+export function farmRoleForMistRole(role: MistSessionRole): FarmRole {
+  return role === 'owner' ? 'admin' : role;
 }
 
 export function mistSessionToUserData(session: MistDeviceSession): UserData {
@@ -16,7 +30,7 @@ export function mistSessionToUserData(session: MistDeviceSession): UserData {
     uid: session.uid,
     email: 'mist@local.pufam',
     displayName: session.displayName,
-    role: session.role,
+    role: farmRoleForMistRole(session.role),
     farmId: session.farmId,
     modules: allFarmModules(),
     authEpoch: 1,

@@ -147,6 +147,16 @@ export function mistFreenetApiUrl(path: string): string {
 }
 
 /**
+ * Same Express as the Freenet routes, used for the other job that must run on a
+ * host with a view of the local network: resolving a short join ticket against
+ * the owner's hub. A browser on `https://am.pufworks.farm` cannot fetch
+ * `http://192.168.x.x` itself (mixed content), so the LAN hop happens in Node.
+ */
+export function mistLocalApiUrl(path: string): string {
+  return mistFreenetApiUrl(path);
+}
+
+/**
  * True when Freenet API calls leave this page for a separate local Express — the
  * `am.pufworks.farm` + `npm run dev` workshop pattern. Never true on desktop: the
  * shell serves those routes itself, so there is no second process to point at.

@@ -181,6 +181,15 @@ Two layers — do not confuse:
 - **FarmCode ≠ invite PIN** — production PINs use Firebase `access_pins`; mist uses InviteToken + JoinEnvelope.
 - **FarmCode ≠ device unlock PIN** — 4–8 digit local lock only (`unlockPin.ts` / mist device PIN).
 
+**Join ticket (short — points at a farm, does not open it):**
+
+- Printable form: **`PUF-XXXX-XXXX`** — prefix `PUF`, then 8 Crockford Base32 symbols (`shared/sync/joinTicket.ts`).
+- Resolves to a **join manifest v2** `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket }`.
+- Roles use the mist vocabulary **`owner | admin | farmer | viewer`** — never `worker`. Default for a shared ticket: `farmer`.
+- **Join ticket ≠ FarmCode.** The ticket says *where* the farm is on Freenet; the FarmCode is what decrypts it. A ticket alone grants nothing.
+- **Short join ticket ≠ raw Freenet ticket** — the v1 `{ hotUri, bonesUri }` JSON is the *Advanced* fallback, not the thing operators are taught.
+- LAN shelf: `tmp/lan-sync/join-manifests.json`; routes under `/api/sync/join-ticket`.
+
 **IndexedDB for mist:** `pufam-mist-v1` (not `sentinut_*` or `pufom_*`).
 
 ---

@@ -18,6 +18,7 @@ import { TermsOfService } from './pages/TermsOfService';
 import { PrivacyGate } from './components/PrivacyGate';
 import { AppUnlockGate } from './components/AppUnlockGate';
 import { MistUnlockGate } from './components/MistUnlockGate';
+import { MistJoinTicketGate } from './components/MistJoinTicketGate';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { WorkshopModeBanner } from './components/WorkshopModeBanner';
 import { isWorkshopMode } from './lib/workshopMode';
@@ -99,7 +100,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   return (
     <AppUnlockGate>
-      <PrivacyGate>{children}</PrivacyGate>
+      <PrivacyGate>
+        <MistJoinTicketGate>{children}</MistJoinTicketGate>
+      </PrivacyGate>
     </AppUnlockGate>
   );
 }

@@ -3,11 +3,22 @@
  */
 
 import { bonesKey, hotKey, type FreenetPeerStatus } from '../../units/mist-freenet/src/index.ts';
+import {
+  DEFAULT_JOIN_ROLE,
+  defaultJoinTicketExpiry,
+  mintJoinTicket,
+  type JoinRole,
+} from '../../shared/sync/joinTicket.ts';
 import { mistFreenetApiUrl } from '../lib/apiBase.ts';
 import { publishLocalGeometryToMistBones, readLocalBonesCiphertext } from './mistBonesBridge.ts';
 import { getMistStoreForHotBridge, publishLocalFarmToMistHot } from './mistHotBridge.ts';
 import { buildJoinTicketV1, formatJoinTicket, type MistJoinTicketV1 } from './mistJoinTicket.ts';
-import { saveFreenetBonesUri, saveFreenetHotUri } from './mistHotPublishMeta.ts';
+import { registerJoinTicketOnLan } from './joinTicketResolver.ts';
+import {
+  saveFreenetBonesUri,
+  saveFreenetHotUri,
+  saveJoinTicketForFarm,
+} from './mistHotPublishMeta.ts';
 
 async function mistFreenetFetch<T>(
   path: string,
@@ -344,10 +355,29 @@ export type PublishFarmToFreenetResult = {
   bones: FreenetBonesPublishResult;
   joinTicket: MistJoinTicketV1;
   joinTicketText: string;
+  /** `PUF-K7M2-9Q4X` — what the operator actually reads out to the joiner. */
+  shortTicket: string;
+  shortTicketRole: JoinRole;
+  shortTicketExpires?: string;
+  /**
+   * Set when the short ticket could not be registered for LAN lookup. The raw
+   * FN02 ticket above still works, so this is a downgrade rather than a failure.
+   */
+  shortTicketError?: string;
 };
 
-/** Publish Hot + bones to Freenet and return copyable join ticket (laptop A). */
-export async function publishFarmToFreenet(farmId: string): Promise<PublishFarmToFreenetResult> {
+/**
+ * Publish Hot + bones to Freenet, then mint a short ticket and register the
+ * manifest for LAN lookup (laptop A).
+ *
+ * Freenet still carries the farm; the ticket only carries the *addresses*. If
+ * registering it fails the publish stands and the raw FN02 ticket remains the
+ * fallback handoff.
+ */
+export async function publishFarmToFreenet(
+  farmId: string,
+  options?: { role?: JoinRole; permissions?: Record<string, boolean | number | string>; expires?: string },
+): Promise<PublishFarmToFreenetResult> {
   const hot = await publishHotToFreenet(farmId);
   const bones = await publishBonesToFreenet(farmId);
 
@@ -362,11 +392,37 @@ export async function publishFarmToFreenet(farmId: string): Promise<PublishFarmT
     bonesContentHash: bones.contentHash,
   });
 
+  const shortTicket = mintJoinTicket();
+  const role = options?.role ?? DEFAULT_JOIN_ROLE;
+  const expires = options?.expires ?? defaultJoinTicketExpiry();
+
+  let shortTicketError: string | undefined;
+  try {
+    await registerJoinTicketOnLan({
+      ticket: shortTicket,
+      farmId,
+      hotUri: hot.freenetUri,
+      bonesUri: bones.freenetUri,
+      role,
+      ...(options?.permissions ? { permissions: options.permissions } : {}),
+      expires,
+      hotContentHash: hot.contentHash,
+      bonesContentHash: bones.contentHash,
+    });
+    saveJoinTicketForFarm(farmId, { ticket: shortTicket, role, expires });
+  } catch (error) {
+    shortTicketError = error instanceof Error ? error.message : 'Could not register the join ticket';
+  }
+
   return {
     hot,
     bones,
     joinTicket,
     joinTicketText: formatJoinTicket(joinTicket),
+    shortTicket,
+    shortTicketRole: role,
+    shortTicketExpires: expires,
+    ...(shortTicketError ? { shortTicketError } : {}),
   };
 }
 
