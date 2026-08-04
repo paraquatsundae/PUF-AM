@@ -16,6 +16,7 @@ import { ArrowDownToLine, Loader2, Ticket, Wifi } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
+import { isMistFarmSessionActive } from '../mist/mistFarmSession.ts';
 import {
   deferMistJoinTicket,
   getMistJoinState,
@@ -52,7 +53,10 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
   const meta = getMistSessionMeta();
   const ticketLooksRight = useMemo(() => isJoinTicket(ticket), [ticket]);
 
-  if (!pending || !isMistExperimentalEnabled() || !farmId) return <>{children}</>;
+  // A Firebase sign-in on a device that once held a mist farm must never see this.
+  if (!pending || !isMistExperimentalEnabled() || !isMistFarmSessionActive() || !farmId) {
+    return <>{children}</>;
+  }
 
   const connect = async () => {
     setBusy(true);
