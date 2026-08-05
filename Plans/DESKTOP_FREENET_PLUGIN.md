@@ -439,11 +439,13 @@ No second window, no tray icon, no separate installer entry.
 
 Android APK changes · code signing / notarization (Windows EV cert, Linux GPG — so SmartScreen warns on first Windows launch, §8.5) · auto-updater (AGENTS.md rule 9: no public distribution pipeline) · WASM/library Freenet embed (§4.3) · mutable Freenet contracts / deterministic URIs (Option B in [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md)) · Reticulum unit · replacing loopback HTTP with pure IPC — **dropped**, the Phase 4 token covers every local route rather than only the ones someone remembered to move (§6.3).
 
-**Future Android note:** the phone will not run a Freenet peer. It either syncs to a desktop PUF-AM acting as **LAN hub** (the `/api/sync/*` + mDNS path that already exists), or waits for a Freenet Android peer upstream. Not this phase.
+**Future Android note:** the phone will not run a Freenet peer. It either syncs to a desktop PUF-AM acting as **LAN hub** (the `/api/sync/*` + mDNS path that already exists), or waits for a Freenet Android peer upstream. Not this phase. That analysis now has its own plan — [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) — covering the four blockers, the hub option recommended for Phase 1, and how the same `FreenetHostPlugin` interface would serve a mobile implementation. **No Freenet host on Android is implemented.**
 
 ---
 
 ## 12. Not breaking Android
+
+The APK later gained the mist storage chooser and an honest "no Freenet here" gate ([`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §6–7). That changed the Capacitor build scripts but none of the guards below — `units/puf-freenet-host/` is still Node-only and still unreachable from the renderer.
 
 | Guard | Why it holds |
 |-------|--------------|

@@ -13,6 +13,9 @@ Related plans (not duplicated here):
 | [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) | Mist crypto, FarmCode, Hot/Archive, pre-Freenet workshop decisions (experimental) |
 | [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md) | Pre-Freenet two-laptop smoke — recovery pass done ~2026-08-03 |
 | [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers; Freenet as an in-app plugin (Electron frozen) |
+| [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) | Android/Capacitor: why no Freenet host on tablets, hub options, APK build wiring |
+| [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) | Contribute vs communicate, what is published, what is sealed, what is not on Freenet |
+| [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Operational inventory of every local store — contents, authority, how it is cleared |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Human-readable `farm-export.json` sketch |
 | [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) | Architecture audit, roadmap checklist, mist phase log |
 
@@ -75,7 +78,10 @@ Related plans (not duplicated here):
 | `VITE_CAPACITOR` | Build script | Set by `build:android` — not usually in `.env` |
 | `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in** |
 | `VITE_REQUIRE_AUTH` | Client | Forces login even if workshop enabled |
-| `VITE_MIST_EXPERIMENTAL` | Client | Shows mist farm create/recover on login |
+| `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Shows the mist storage chooser on login. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Defaulted to `true` by `scripts/build-desktop-web.mjs` and `scripts/build-android-web.mjs` |
+| `VITE_MIST_FREENET_API` | Client (build-time) | Origin for `/api/mist/freenet/*` when it is not same-origin. On Capacitor this is what makes the runtime `android-hub` instead of `android-no-host` — see [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §7 |
+| `CAP_PACKAGED` | Build script | `1` drops `server.url` from the Capacitor config so the WebView loads its own assets. Set by `apk:debug`; without it the APK points at the emulator address `http://10.0.2.2:3000` |
+| `CAP_SERVER_URL` | Build script | Live-reload origin for a workshop APK (`npx cap sync`) |
 | `MIST_FREENET` | Server / desktop main | `1` enables the in-process Freenet peer (and, on desktop, starts the bundled node) |
 | `PUF_FREENET_BIN` | Desktop / server | Workshop override for the `freenet` binary — outranks bundled and `PATH` |
 | `PUF_FDEV_BIN` | Desktop / server | Same for `fdev` (still required for PUT on 0.2.118) |
@@ -87,6 +93,8 @@ Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys
 ---
 
 ## 4. Browser storage — IndexedDB databases
+
+Names and rename policy live here; **contents, authority, and how each store is cleared** are in [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md).
 
 | DB name | Module | Legacy? | Notes |
 |---------|--------|---------|-------|
@@ -138,7 +146,8 @@ Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys
 | `pufam.mist.session.v1` | `mistDeviceSession.ts` |
 | `pufam.mist.sessionMeta.v1` | `mistDeviceSession.ts` |
 | `pufam.mist.deviceKey` | `mistDeviceSession.ts` |
-| `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts |
+| `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts, FN02 URIs, minted join ticket |
+| `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
 
 ### CSS / DOM (non-storage)
 

@@ -26,6 +26,7 @@ import { APP_LOGO_SRC, APP_NAME, APP_TAGLINE } from '../brand';
 import { getFarmStoreBackend, isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import { isDesktopShell } from '../lib/desktopBridge.ts';
 import { freenetOptionState, initialLoginStep, type LoginStep } from '../lib/loginStorageChoice.ts';
+import { canReachFreenetNode, detectFreenetRuntime } from '../lib/freenetRuntime.ts';
 
 type Mode = 'join' | 'create';
 
@@ -75,6 +76,9 @@ export function Login() {
     mistEnabled: isMistExperimentalEnabled(),
     desktop: isDesktopShell(),
   });
+  // The tablet can hold a mist farm; it cannot yet move one over Freenet. Say so
+  // on the card that offers the choice — see `Plans/APK_FREENET_PLUGIN.md`.
+  const freenetShareable = canReachFreenetNode(detectFreenetRuntime());
   const [step, setStep] = useState<LoginStep>(() =>
     initialLoginStep({
       freenet: freenetOptionState({
@@ -304,6 +308,12 @@ export function Login() {
                     over Freenet. You write a <strong>FarmCode</strong> on paper — that is what gets
                     the farm back if the device is lost.
                   </p>
+                  {!freenetShareable && (
+                    <p className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
+                      On this tablet the farm stays here — Freenet itself only runs on a PUF-AM
+                      laptop, so sharing means publishing there and joining with a FarmCode.
+                    </p>
+                  )}
                   <p className="text-[11px] text-slate-400 mt-2">Stored on this device (mist)</p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-violet-700 shrink-0 mt-2" />

@@ -34,6 +34,13 @@ import {
 } from '../../shared/sync/joinTicket.ts';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import {
+  FREENET_NO_HOST_DETAIL,
+  FREENET_NO_HOST_LABEL,
+  canReachFreenetNode,
+  detectFreenetRuntime,
+  type FreenetRuntime,
+} from '../lib/freenetRuntime.ts';
+import {
   fetchFreenetPeerStatus,
   publishFarmToFreenet,
   startFreenetPeer,
@@ -66,7 +73,13 @@ function describeReadiness(
   peer: FreenetPeerStatus | null,
   host: FreenetHostStatus | null,
   onDesktop: boolean,
+  runtime: FreenetRuntime,
 ): Readiness {
+  // Checked before the peer status because on Android there is no node to have a
+  // status: offering Connect here would be a button that can only ever fail.
+  if (!canReachFreenetNode(runtime)) {
+    return { ready: false, label: FREENET_NO_HOST_LABEL, tone: 'todo' };
+  }
   if (peer?.freenet === 'connected') {
     return { ready: true, label: 'Connected to Freenet — ready to send or join.', tone: 'ok' };
   }
@@ -131,6 +144,8 @@ export function MistFarmSyncCard() {
   const { userData } = useAuth();
   const farmId = userData?.farmId;
   const desktop = getDesktopBridge();
+  const runtime = detectFreenetRuntime();
+  const hasNode = canReachFreenetNode(runtime);
 
   const [mode, setMode] = useState<Mode>('send');
   const [modePinned, setModePinned] = useState(false);
@@ -157,12 +172,15 @@ export function MistFarmSyncCard() {
   const [unlocked, setUnlocked] = useState(() => isMistHotMirrorAvailable());
 
   const refreshStatus = useCallback(async () => {
+    // There is no Freenet API to poll on an APK with no hub, and a failed fetch
+    // would only overwrite the honest label with a generic disconnected one.
+    if (!hasNode) return;
     try {
       setPeerStatus(await fetchFreenetPeerStatus());
     } catch {
       setPeerStatus(null);
     }
-  }, []);
+  }, [hasNode]);
 
   useEffect(() => {
     setUnlocked(isMistHotMirrorAvailable());
@@ -210,7 +228,8 @@ export function MistFarmSyncCard() {
 
   if (!isMistExperimentalEnabled()) return null;
 
-  const readiness = describeReadiness(peerStatus, hostStatus, Boolean(desktop));
+  const readiness = describeReadiness(peerStatus, hostStatus, Boolean(desktop), runtime);
+  const blockedTitle = hasNode ? 'Connect to Freenet first' : FREENET_NO_HOST_LABEL;
   const parsedPaste = parseJoinTicketInput(paste);
   const freenetTicket = savedFreenetTicket(farmId);
   const joinTicketLooksRight = isJoinTicket(joinTicket);
@@ -361,7 +380,7 @@ export function MistFarmSyncCard() {
           <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
         ) : null}
         <span className="flex-1">{readiness.label}</span>
-        {!readiness.ready && (
+        {!readiness.ready && hasNode && (
           <button
             type="button"
             disabled={busy}
@@ -372,6 +391,12 @@ export function MistFarmSyncCard() {
           </button>
         )}
       </div>
+
+      {!hasNode && (
+        <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+          {FREENET_NO_HOST_DETAIL}
+        </p>
+      )}
 
       {desktop && autoStart !== null && (
         <label className="flex items-start gap-2.5 text-xs text-slate-700 px-1">
@@ -452,7 +477,7 @@ export function MistFarmSyncCard() {
               <button
                 type="button"
                 disabled={busy || !readiness.ready}
-                title={readiness.ready ? undefined : 'Connect to Freenet first'}
+                title={readiness.ready ? undefined : blockedTitle}
                 onClick={() => void publish()}
                 className="w-full px-3 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
@@ -616,7 +641,7 @@ export function MistFarmSyncCard() {
                     ? 'Enter the join ticket first'
                     : peerStatus?.running
                       ? undefined
-                      : 'Connect to Freenet first'
+                      : blockedTitle
                 }
                 onClick={() => void joinWithTicket()}
                 className="w-full px-3 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"

@@ -33,6 +33,11 @@ import {
 import { formatJoinTicket } from '../mist/mistJoinTicket.ts';
 import { getMistFreenetApiBaseUrl, usesLocalFreenetSidecar } from '../lib/apiBase.ts';
 import {
+  FREENET_NO_HOST_DETAIL,
+  canReachFreenetNode,
+  detectFreenetRuntime,
+} from '../lib/freenetRuntime.ts';
+import {
   getMistHotPublishStatus,
   isMistHotMirrorAvailable,
   publishLocalFarmToMistHot,
@@ -167,6 +172,7 @@ export function MistWorkshopCard() {
   }
 
   const desktop = getDesktopBridge();
+  const hasFreenetNode = canReachFreenetNode(detectFreenetRuntime());
 
   const freenetSidecar = usesLocalFreenetSidecar();
   const freenetApiBase = getMistFreenetApiBaseUrl();
@@ -693,6 +699,11 @@ export function MistWorkshopCard() {
           at <code className="font-mono text-[10px]">127.0.0.1:9481</code> when{' '}
           <code className="font-mono text-[10px]">FREENET_TRANSPORT=fcp</code>.
         </p>
+        {!hasFreenetNode ? (
+          <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {FREENET_NO_HOST_DETAIL}
+          </p>
+        ) : null}
         {freenetSidecar ? (
           <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             Production UI — Freenet API calls go to local sidecar{' '}
@@ -730,7 +741,8 @@ export function MistWorkshopCard() {
           {!freenetStatus?.running ? (
             <button
               type="button"
-              disabled={workshopBusy}
+              disabled={workshopBusy || !hasFreenetNode}
+              title={hasFreenetNode ? undefined : 'No Freenet node is reachable from this device'}
               onClick={() => void connectFreenet()}
               className="px-3 py-2 rounded-lg bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
             >

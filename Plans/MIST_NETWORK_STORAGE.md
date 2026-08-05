@@ -829,6 +829,9 @@ Pointers: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop 
 
 ## Related docs
 
+- [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) — what this design actually publishes today, what `contribute_storage` does in code, and what is not on Freenet.
+- [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) — full local store inventory across browser, APK, desktop, and LAN hub.
+- [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) — why § Mobile peer policy's "lightweight phone peer" is not buildable today, and what tablets do instead.
 - [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md) — production PIN auth (do not break).  
 - [`OFFLINE_MAP_APK.md`](OFFLINE_MAP_APK.md) — local basemap packs / device transfer.  
 - [`CREW_PRESENCE.md`](CREW_PRESENCE.md) — live presence (maps to Reticulum telemetry later).  
