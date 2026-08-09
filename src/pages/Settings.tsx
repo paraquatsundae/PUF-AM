@@ -30,10 +30,13 @@ import { useAuth, OperationType, handleFirestoreError } from '../contexts/AuthCo
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { InvitePinManager } from '../components/InvitePinManager';
-import { OfflineSyncCard } from '../components/OfflineSyncCard';
+import { FarmSyncCards } from '../components/sync/FarmSyncCards';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
-import { MistFarmSyncCard } from '../components/MistFarmSyncCard';
+import { MistDeviceCard } from '../components/MistDeviceCard';
+import { TabletHubCard } from '../components/TabletHubCard';
 import { MistWorkshopCard } from '../components/MistWorkshopCard';
+import { activeFarmPipe } from '../lib/farmPipes';
+import { isWorkshopDiagnosticsEnabled } from '../lib/workshopMode';
 import { useWalnutPack } from '../hooks/useWalnutPack';
 import {
   ensureShareCrewLocationDefault,
@@ -341,7 +344,8 @@ export function Settings() {
   const navigate = useNavigate();
   const { userData, user, isAdmin } = useAuth();
   const hasWalnutPack = useWalnutPack();
-  const [activeTab, setActiveTab] = useState<'general' | 'advanced'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'advanced'>('general');
+  const farmPipe = activeFarmPipe();
   const [params, setParams] = useState<ModelParameters>(DEFAULT_PARAMS);
   const [isLocked, setIsLocked] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -428,32 +432,67 @@ export function Settings() {
 
       {/* Tabs */}
       <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('general')}
-          className={`px-6 py-3 text-sm font-medium transition-colors relative ${
-            activeTab === 'general' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          General
-          {activeTab === 'general' && (
-            <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('advanced')}
-          className={`px-6 py-3 text-sm font-medium transition-colors relative ${
-            activeTab === 'advanced' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Advanced
-          {activeTab === 'advanced' && (
-            <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600" />
-          )}
-        </button>
+        {(
+          [
+            { id: 'general', label: 'General' },
+            { id: 'sync', label: 'Sync' },
+            { id: 'advanced', label: 'Advanced' },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+              activeTab === tab.id ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+            {activeTab === tab.id && (
+              <motion.div
+                layoutId="tab-underline"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600"
+              />
+            )}
+          </button>
+        ))}
       </div>
 
       <div className="py-4">
-        {activeTab === 'general' ? (
+        {activeTab === 'sync' ? (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <h2 className="text-lg font-bold text-slate-900">How this farm moves around</h2>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {farmPipe === 'freenet' ? (
+                  <>
+                    This farm lives on its devices, not in a cloud account. It travels two ways:
+                    over <strong>Wi‑Fi</strong> between devices on the same network, and over{' '}
+                    <strong>Freenet</strong> to a device anywhere else. That was chosen when the
+                    farm was created and is not switched here.
+                  </>
+                ) : (
+                  <>
+                    This farm is kept in the <strong>cloud</strong>, so every device with an invite
+                    sees the same thing. It also travels over <strong>Wi‑Fi</strong> between devices
+                    on the same network when there is no internet. That was chosen when the farm was
+                    created and is not switched here.
+                  </>
+                )}
+              </p>
+            </div>
+
+            <TabletHubCard />
+
+            <FarmSyncCards />
+
+            {/*
+              Every knob and hash for the Freenet / local-store path. A farmer
+              never needs it and it is the loudest thing on the page, so it is
+              bench-only rather than shipped with the app.
+            */}
+            {isWorkshopDiagnosticsEnabled() && <MistWorkshopCard />}
+          </div>
+        ) : activeTab === 'general' ? (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-lg font-bold text-slate-900">Farm Profile</h2>
@@ -478,15 +517,40 @@ export function Settings() {
               </div>
             </div>
 
-            {isAdmin && <InvitePinManager />}
+            {/*
+              Invite PINs are a Firebase mechanism — the code is minted and
+              redeemed against the cloud farm doc. On a Freenet farm the way
+              somebody joins is a join ticket, under Sync, so offering a PIN
+              here would be a button with nothing behind it.
+            */}
+            {isAdmin && farmPipe === 'cloud' && <InvitePinManager />}
+
+            {farmPipe === 'freenet' && (
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                <h2 className="text-lg font-bold text-slate-900">Crew</h2>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  This farm has no cloud account, so there are no invite PINs. Somebody joins by
+                  being read a join ticket from{' '}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('sync')}
+                    className="font-semibold text-emerald-700 hover:underline"
+                  >
+                    Sync
+                  </button>
+                  , together with the FarmCode and its device PIN. Everyone who has been handed one
+                  is listed under{' '}
+                  <Link to="/farm-setup" className="font-semibold text-emerald-700 hover:underline">
+                    Farm setup → People
+                  </Link>
+                  .
+                </p>
+              </div>
+            )}
+
+            <MistDeviceCard />
 
             <UnlockPinSettingsCard />
-
-            <MistFarmSyncCard />
-
-            <MistWorkshopCard />
-
-            <OfflineSyncCard />
 
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-lg font-bold text-slate-900">Privacy</h2>
@@ -519,30 +583,6 @@ export function Settings() {
                     )}
                   />
                 </button>
-              </div>
-            </div>
-
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <h2 className="text-lg font-bold text-slate-900">User Preferences</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl opacity-50">
-                  <div>
-                    <p className="font-medium text-slate-900">Email Notifications (Coming Soon)</p>
-                    <p className="text-xs text-slate-500">Receive daily risk summaries and critical alerts.</p>
-                  </div>
-                  <div className="w-12 h-6 bg-slate-300 rounded-full relative cursor-not-allowed">
-                    <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl opacity-50">
-                  <div>
-                    <p className="font-medium text-slate-900">SMS Alerts (Premium)</p>
-                    <p className="text-xs text-slate-500">Get instant SMS notifications for high-risk events.</p>
-                  </div>
-                  <div className="w-12 h-6 bg-slate-300 rounded-full relative cursor-not-allowed">
-                    <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full" />
-                  </div>
-                </div>
               </div>
             </div>
 

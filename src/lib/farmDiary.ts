@@ -73,6 +73,13 @@ export interface FarmSettings {
   /** Enterprises + livestock overlay — see shared/farm/farmTypes.ts */
   farmProfile?: FarmProfile;
   /**
+   * Preferred DPIRD station for chill / weather (e.g. MA002).
+   * Empty / unset → nearest regional anchor to the map viewport.
+   */
+  dpirdStationCode?: string;
+  /** Display name for the preferred DPIRD station (optional). */
+  dpirdStationName?: string;
+  /**
    * Default timed “check this” highlight duration for viewers (and as farm default).
    * Admin/farmer can override per-send; viewers always use this fixed value.
    */

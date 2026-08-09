@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Copy, Loader2, ShieldAlert, Sprout } from 'lucide-react';
-import { mintFarmCode, parseFarmCode } from '../../units/mist-freenet/src/index.ts';
+import {
+  FARM_CODE_BODY_LEN,
+  FARM_CODE_VERSION,
+  mintFarmCode,
+  parseFarmCode,
+} from '../../units/mist-freenet/src/index.ts';
 import { APP_NAME } from '../brand';
 import { finishMistFarmSetup } from '../mist/finishMistFarmSetup.ts';
 
@@ -68,6 +73,10 @@ export function MistNewFarm() {
   };
 
   if (step === 'show-code' && farmCode) {
+    // Minted line is `<version>  <grouped body>`; show them apart so the body
+    // reads big on a tablet and nobody transcribes the format name.
+    const [farmCodeVersionLabel, farmCodeBody] = farmCode.split(/\s{2,}/);
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4">
         <div className="max-w-lg w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-amber-200">
@@ -82,12 +91,21 @@ export function MistNewFarm() {
             </div>
           </div>
 
-          <code
-            className="block font-mono text-sm sm:text-base leading-relaxed tracking-wide text-slate-900 bg-slate-50 border border-slate-200 rounded-xl p-4 whitespace-pre overflow-x-auto select-all"
-            title={farmCode}
-          >
-            {farmCode}
-          </code>
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1">
+            <p className="font-mono text-[11px] text-slate-500">{farmCodeVersionLabel}</p>
+            <code
+              className="block font-mono text-lg sm:text-2xl font-semibold leading-relaxed tracking-[0.1em] text-slate-900 whitespace-pre-wrap break-words select-all"
+              title={farmCode}
+            >
+              {farmCodeBody}
+            </code>
+          </div>
+
+          <p className="text-xs text-slate-500">
+            {FARM_CODE_BODY_LEN} letters and numbers, in groups of five. The{' '}
+            <code className="font-mono">{FARM_CODE_VERSION}</code> label is the format name, not part
+            of the secret — you will not have to type it back in.
+          </p>
 
           <button
             type="button"

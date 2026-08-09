@@ -202,6 +202,8 @@ export async function listInvitePins(): Promise<
     createdAt: string;
     codeHint: string | null;
     modules: FarmModuleId[];
+    lastRedeemedAt: string | null;
+    lastRedeemedDisplayName: string | null;
   }>
 > {
   const res = await fetch(apiUrl('/api/auth/pins'), { headers: await authHeaders() });

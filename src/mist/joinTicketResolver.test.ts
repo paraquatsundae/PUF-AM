@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  FreenetSlotJoinTicketResolver,
   JoinTicketMismatchError,
   JoinTicketUnavailableError,
   LAN_JOIN_UNAVAILABLE_MESSAGE,
   LanJoinTicketResolver,
+  NO_JOIN_ROUTE_MESSAGE,
+  defaultJoinTicketResolvers,
   registerJoinTicketOnLan,
   resolveJoinTicket,
   type JoinManifestV2,
@@ -94,12 +97,16 @@ describe('LanJoinTicketResolver', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('explains the same-Wi-Fi requirement when no hub answers', async () => {
+  it('says the hub has no such ticket when it answers with nothing', async () => {
     stubHub(() => jsonResponse(404, { error: undefined }));
 
     await expect(new LanJoinTicketResolver().resolve(TICKET, FARM_ID)).rejects.toThrow(
       LAN_JOIN_UNAVAILABLE_MESSAGE,
     );
+  });
+
+  it('no longer promises Freenet tickets "later" — that route shipped', () => {
+    expect(LAN_JOIN_UNAVAILABLE_MESSAGE).not.toMatch(/coming later/i);
   });
 
   it('reports the same-Wi-Fi message when the hub itself is unreachable', async () => {
@@ -145,7 +152,6 @@ describe('resolveJoinTicket seam', () => {
     vi.unstubAllGlobals();
   });
 
-  /** Stands in for the deferred FreenetSlotJoinTicketResolver. */
   const failing: JoinTicketResolver = {
     id: 'stub-unavailable',
     label: 'Stub',
@@ -187,10 +193,74 @@ describe('resolveJoinTicket seam', () => {
     expect(second).not.toHaveBeenCalled();
   });
 
-  it('reports the last failure when every resolver comes up empty', async () => {
+  it('reports the one failure verbatim when there was only one route', async () => {
     await expect(
-      resolveJoinTicket(TICKET, FARM_ID, { resolvers: [failing, failing] }),
+      resolveJoinTicket(TICKET, FARM_ID, { resolvers: [failing] }),
     ).rejects.toThrow('stub has nothing');
+  });
+
+  it('names every route when they all decline', async () => {
+    // With two routes, the last failure alone reads as the whole story and sends an
+    // operator to the wrong place.
+    const lanish: JoinTicketResolver = {
+      id: 'lan-ish',
+      label: 'Same Wi‑Fi as the farm owner',
+      resolve: async () => {
+        throw new JoinTicketUnavailableError('hub had no such ticket');
+      },
+    };
+    const freenetish: JoinTicketResolver = {
+      id: 'freenet-ish',
+      label: 'Freenet, from anywhere',
+      resolve: async () => {
+        throw new JoinTicketUnavailableError('no node on this device');
+      },
+    };
+
+    const error = await resolveJoinTicket(TICKET, FARM_ID, {
+      resolvers: [lanish, freenetish],
+    }).then(
+      () => {
+        throw new Error('resolveJoinTicket should not resolve when every route declines');
+      },
+      (err: unknown) => err as Error,
+    );
+
+    expect(error.message).toContain(NO_JOIN_ROUTE_MESSAGE);
+    expect(error.message).toContain('hub had no such ticket');
+    expect(error.message).toContain('no node on this device');
+  });
+
+  it('passes the device PIN through, which only the Freenet resolver needs', async () => {
+    const resolve = vi.fn<JoinTicketResolver['resolve']>(async () => ({
+      manifest: manifest(),
+      resolvedBy: 'stub',
+    }));
+
+    await resolveJoinTicket(TICKET, FARM_ID, {
+      devicePin: '1234',
+      resolvers: [{ id: 'x', label: 'x', resolve }],
+    });
+
+    expect(resolve.mock.calls[0]?.[2]).toMatchObject({ devicePin: '1234' });
+  });
+});
+
+describe('defaultJoinTicketResolvers', () => {
+  it('tries the LAN hub first and Freenet second', () => {
+    // Order is the design, not a detail: a hub on the same Wi‑Fi answers in
+    // milliseconds and needs no internet, while Opennet is a round trip through
+    // strangers. Freenet is the fallback that removes the same-Wi‑Fi requirement.
+    expect(defaultJoinTicketResolvers().map((resolver) => resolver.id)).toEqual([
+      'lan',
+      'freenet-slot',
+    ]);
+  });
+
+  it('exposes both routes as real resolvers, not a comment', () => {
+    const [lan, freenet] = defaultJoinTicketResolvers();
+    expect(lan).toBeInstanceOf(LanJoinTicketResolver);
+    expect(freenet).toBeInstanceOf(FreenetSlotJoinTicketResolver);
   });
 });
 

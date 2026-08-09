@@ -38,7 +38,8 @@ Clients never call DPIRD directly — they hit `/api/weather/*` and Firestore `w
 | `http://192.168.0.0/16` is **not** valid — add your PC LAN host explicitly, e.g. `http://192.168.1.168:3000/*` | Live-reload over Wi‑Fi |
 | `https://localhost/*` | Packaged Capacitor WebView (`androidScheme: https`) |
 | `capacitor://localhost/*` | Some Capacitor builds |
-| `https://pufom-quby5ye5pa-ts.a.run.app/*` (and any new Cloud Run URL) | Production |
+| `https://am.pufworks.farm/*` | Production (canonical) |
+| `https://pufom-quby5ye5pa-ts.a.run.app/*` (keep until cutover proven) | Cloud Run fallback |
 
 5. Save. Wait a few minutes for propagation.
 6. Smoke-test: desktop satellite layer + tablet map with USB reverse.

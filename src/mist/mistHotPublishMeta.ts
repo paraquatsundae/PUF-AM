@@ -3,6 +3,7 @@
  */
 
 import type { JoinRole } from '../../shared/sync/joinTicket.ts';
+import type { JoinPresetId } from '../../shared/sync/joinGrant.ts';
 
 export type MistHotPublishStatus = {
   farmId: string;
@@ -26,6 +27,8 @@ export type MistHotPublishStatus = {
   /** Last short join ticket minted for this farm (`PUF-XXXX-XXXX`). */
   joinTicket?: string;
   joinTicketRole?: JoinRole;
+  /** Preset that ticket was minted against, so the card can name it after a reload. */
+  joinTicketPreset?: JoinPresetId;
   joinTicketExpires?: string;
   joinTicketMintedAt?: string;
 };
@@ -110,7 +113,7 @@ export function saveFreenetHotUri(
 /** Remember the short ticket so the send card can show it again after a reload. */
 export function saveJoinTicketForFarm(
   farmId: string,
-  patch: { ticket: string; role: JoinRole; expires?: string },
+  patch: { ticket: string; role: JoinRole; preset?: JoinPresetId; expires?: string },
 ): void {
   const existing = getMistHotPublishStatus(farmId);
   if (!existing) return;
@@ -118,6 +121,7 @@ export function saveJoinTicketForFarm(
     ...existing,
     joinTicket: patch.ticket,
     joinTicketRole: patch.role,
+    ...(patch.preset ? { joinTicketPreset: patch.preset } : {}),
     joinTicketExpires: patch.expires,
     joinTicketMintedAt: new Date().toISOString(),
   });

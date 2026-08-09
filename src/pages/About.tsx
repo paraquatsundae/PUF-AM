@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Info, Book, Microscope, Map, Activity, Snowflake, Droplets, ChevronDown, ChevronUp, AlertTriangle, BookOpen, Tractor, Warehouse, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getAppUrl, getShareUrl, hasPublishedAppUrl } from '../lib/appUrl';
-import { APP_BLURB, APP_FULL_NAME, APP_NAME, APP_WORKSHOP } from '../brand';
+import { getAppUrl, hasPublishedAppUrl } from '../lib/appUrl';
+import { APP_BLURB, APP_FULL_NAME, APP_LOGO_SRC, APP_NAME, APP_WORKSHOP } from '../brand';
 import { useWalnutPack } from '../hooks/useWalnutPack';
 
 function AssumptionsAndLimitsBox() {
@@ -142,7 +142,7 @@ export function About() {
         className="text-center space-y-4 flex flex-col items-center"
       >
         <div className="w-24 h-24 rounded-3xl overflow-hidden shadow-md mb-2">
-          <img src="/logo.png" alt={APP_NAME} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+          <img src={APP_LOGO_SRC} alt={APP_NAME} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         </div>
         <h1 className="text-4xl font-bold text-slate-900 tracking-tight">About & Methodology</h1>
         <p className="text-lg text-slate-600 max-w-2xl mx-auto">
@@ -208,6 +208,12 @@ export function About() {
         </section>
       )}
 
+      {/*
+        Parked: everything under this walnut-pack gate (scientific foundation,
+        model limits, assumptions box) belongs with the blight engine, not on
+        About. It moves to the blight plugin's own section when plugin sections
+        land; About keeps only what is true of the app itself.
+      */}
       {hasWalnutPack && (
       <>
       {/* Core Models */}
@@ -483,21 +489,11 @@ export function About() {
               Published app
             </a>
           )}
-          <a
-            href={getShareUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" />
-            AI Studio share link
-          </a>
         </div>
         {!hasPublishedAppUrl() && (
           <p className="text-xs text-slate-400">
             Not published yet — run locally at{' '}
-            <a href="http://localhost:3000" className="text-emerald-600 hover:underline">localhost:3000</a>
-            {' '}or publish in AI Studio to get a Cloud Run URL.
+            <a href="http://localhost:3000" className="text-emerald-600 hover:underline">localhost:3000</a>.
           </p>
         )}
         <p className="text-xs text-slate-400">

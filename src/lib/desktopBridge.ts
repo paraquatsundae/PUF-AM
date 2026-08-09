@@ -32,6 +32,37 @@ export type DesktopMistBridge = {
   ): Promise<DesktopMistPreference & { host: FreenetHostStatus | null }>;
 };
 
+/** A paired tablet, as the desktop Settings card lists it. No token material. */
+export type DesktopLanHubDevice = {
+  id: string;
+  name: string;
+  pairedAt: string;
+  lastSeenAt?: string;
+};
+
+export type DesktopLanHubState = {
+  enabled: boolean;
+  /** `PUF_LAN_HUB=1` forced it on for this launch. */
+  forcedByEnv: boolean;
+  running: boolean;
+  port: number;
+  /** Every address a tablet could type, best first. Empty until the listener is up. */
+  baseUrls: string[];
+  /** `XXXX-XXXX` — read out to the tablet once. Empty before the first enable. */
+  pairingCode: string;
+  advertising: boolean;
+  lastError: string | null;
+  devices: DesktopLanHubDevice[];
+};
+
+export type DesktopLanHubBridge = {
+  state(): Promise<DesktopLanHubState>;
+  setEnabled(enabled: boolean): Promise<DesktopLanHubState>;
+  rotatePairingCode(): Promise<DesktopLanHubState>;
+  forgetDevice(deviceId: string): Promise<DesktopLanHubState>;
+  onState(listener: (state: DesktopLanHubState) => void): () => void;
+};
+
 export type DesktopBridge = {
   isDesktop: true;
   /** Base for routes needing server-only secrets (`/api/auth/*`, `/api/weather/*`). */
@@ -42,6 +73,8 @@ export type DesktopBridge = {
   mistEnabled: boolean;
   platform: string;
   mist?: DesktopMistBridge;
+  /** Absent on a shell built before the LAN hub landed — callers must check. */
+  lanHub?: DesktopLanHubBridge;
   freenet: DesktopFreenetBridge;
 };
 

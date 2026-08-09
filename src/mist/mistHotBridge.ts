@@ -17,7 +17,16 @@ import { hasSubtleCrypto } from '../../units/mist-freenet/src/subtle-crypto.ts';
 import { buildFarmExportJson } from '../lib/farmExport';
 import { buildHotStateFromFarmExport } from './hotAdapter.ts';
 import { ensureBrowserMistStore } from './createFarmStore.ts';
-import { hasMistDeviceSession, loadMistDeviceSession } from './mistDeviceSession.ts';
+import {
+  hasMistDeviceSession,
+  loadMistDeviceSession,
+  mistSessionNeedsPin,
+} from './mistDeviceSession.ts';
+import {
+  forgetUnlockedFarmSeed,
+  isMistFarmSeedUnlocked,
+  unlockedFarmSeed,
+} from './mistFarmSeedCache.ts';
 import {
   getMistHotPublishStatus,
   saveMistHotPublishStatus,
@@ -50,7 +59,6 @@ export type ReadMistHotResult = {
   encrypted: boolean;
 };
 
-let cachedFarmSeed: Uint8Array | null = null;
 const autoPublishTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const AUTO_PUBLISH_DEBOUNCE_MS = 2500;
 
@@ -59,23 +67,55 @@ export function isMistHotMirrorAvailable(): boolean {
   return hasMistDeviceSession();
 }
 
+/**
+ * True when a publish from this device would fail for want of a device PIN, so
+ * the caller should ask for one rather than let the operator press Send into an
+ * error.
+ *
+ * A PIN-less session is sealed under a device key sitting beside it, so it
+ * unlocks itself on demand and never needs asking — only a PIN session that has
+ * not been opened in this tab does.
+ */
+export function mistPublishNeedsDevicePin(): boolean {
+  if (!hasMistDeviceSession()) return false;
+  return !isMistFarmSeedUnlocked() && mistSessionNeedsPin();
+}
+
 /** Open IndexedDB mist store when a device session exists (independent of FarmStore backend). */
 export async function getMistStoreForHotBridge(): Promise<MistStore | null> {
   if (!hasMistDeviceSession()) return null;
   return ensureBrowserMistStore();
 }
 
-async function resolveFarmSeed(devicePin?: string): Promise<Uint8Array | null> {
-  if (cachedFarmSeed) return cachedFarmSeed;
+/**
+ * The FarmSeed for a publish or a decrypt, or `null` when this device is still
+ * sealed. Shared with `mistBonesBridge` so one unlock covers both halves of a
+ * send — they used to hold separate caches, and the bones half had none at all.
+ */
+export async function resolveMistFarmSeed(devicePin?: string): Promise<Uint8Array | null> {
+  const cached = unlockedFarmSeed();
+  if (cached) return cached;
   const session = await loadMistDeviceSession(devicePin);
   if (!session) return null;
-  cachedFarmSeed = hexToBytes(session.farmSeedHex);
-  return cachedFarmSeed;
+  return hexToBytes(session.farmSeedHex);
+}
+
+/**
+ * What to say when the seed will not come out. A wrong PIN and a PIN never
+ * asked for are different problems, and the second one is the operator's cue to
+ * type it rather than to go hunting.
+ */
+export function farmSeedLockedError(action: string, devicePin?: string): Error {
+  return new Error(
+    devicePin
+      ? `That device PIN did not unlock this farm — check it and try again to ${action}.`
+      : `Mist device session locked — unlock to ${action}`,
+  );
 }
 
 /** Clear in-memory FarmSeed (sign-out). */
 export function clearCachedFarmSeedForHot(): void {
-  cachedFarmSeed = null;
+  forgetUnlockedFarmSeed();
 }
 
 function parseHotState(bytes: Uint8Array): HotState {
@@ -107,10 +147,10 @@ export async function publishLocalFarmToMistHot(
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveFarmSeed(opts?.devicePin);
+  const farmSeed = await resolveMistFarmSeed(opts?.devicePin);
   if (!farmSeed) {
     if (opts?.auto) return null;
-    throw new Error('Mist device session locked — unlock to publish Hot');
+    throw farmSeedLockedError('publish Hot', opts?.devicePin);
   }
 
   const exportBundle = await buildFarmExportJson(farmId, {
@@ -172,9 +212,9 @@ export async function readMistHotCurrent(
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveFarmSeed(devicePin);
+  const farmSeed = await resolveMistFarmSeed(devicePin);
   if (!farmSeed) {
-    throw new Error('Mist device session locked — unlock to read Hot');
+    throw farmSeedLockedError('read Hot', devicePin);
   }
 
   const storageKey = hotKey(farmId, 'current');

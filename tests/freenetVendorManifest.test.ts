@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -23,6 +23,7 @@ import {
   resolveFreenetBinary,
 } from '../units/puf-freenet-host/src/resolve-binary.ts';
 import { PACK_CONTRACT_CODE_HASH_B58 } from '../units/mist-freenet/src/freenet02-pack.ts';
+import { SLOT_CONTRACT_CODE_HASH_B58 } from '../units/mist-freenet/src/freenet02-slot.ts';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -43,9 +44,12 @@ type Manifest = {
   vendorDirTemplate: string;
   toolVersions: Record<string, string>;
   license: { spdx: string; fileName: string; url: string; sha256: string };
-  packContract: { path: string; sha256: string; codeHashB58: string };
+  packContract: PinnedContract;
+  slotContract: PinnedContract & { sourceDir: string; builtWith: Record<string, string> };
   platforms: Record<string, { status: string; binaries: PinnedBinary[] }>;
 };
+
+type PinnedContract = { path: string; sha256: string; codeHashB58: string };
 
 const manifest = JSON.parse(
   readFileSync(path.join(REPO_ROOT, 'scripts', 'freenet-binaries.json'), 'utf8'),
@@ -149,5 +153,37 @@ describe('pack contract pin', () => {
     const wasm = readFileSync(path.join(REPO_ROOT, manifest.packContract.path));
     const sha256 = createHash('sha256').update(wasm).digest('hex');
     expect(sha256).toBe(manifest.packContract.sha256);
+  });
+});
+
+/**
+ * Same discipline as the pack pin, one artifact further: a slot address is
+ * `BLAKE3(code_hash || slot_id || farm_key)`, so a code hash that drifts from the
+ * shipped WASM moves every slot and quietly breaks tickets already in the field.
+ * Unlike pack, this contract is ours — `npm run mist:build:slot` rebuilds it from
+ * `units/mist-freenet/contracts/slot-contract`.
+ */
+describe('slot contract pin', () => {
+  it('agrees with SLOT_CONTRACT_CODE_HASH_B58', () => {
+    expect(manifest.slotContract.codeHashB58).toBe(SLOT_CONTRACT_CODE_HASH_B58);
+  });
+
+  it('matches the WASM committed in units/mist-freenet/assets', () => {
+    const wasm = readFileSync(path.join(REPO_ROOT, manifest.slotContract.path));
+    const sha256 = createHash('sha256').update(wasm).digest('hex');
+    expect(sha256).toBe(manifest.slotContract.sha256);
+  });
+
+  it('is a different contract from pack, or the slot address is content-addressed again', () => {
+    expect(manifest.slotContract.codeHashB58).not.toBe(manifest.packContract.codeHashB58);
+    expect(manifest.slotContract.path).not.toBe(manifest.packContract.path);
+  });
+
+  it('records where to rebuild it and what built the pinned copy', () => {
+    expect(existsSync(path.join(REPO_ROOT, manifest.slotContract.sourceDir, 'Cargo.toml'))).toBe(
+      true,
+    );
+    expect(manifest.slotContract.builtWith.rustc).toMatch(/^\d+\.\d+/);
+    expect(manifest.slotContract.builtWith.freenetStdlib).toMatch(/^\d+\.\d+/);
   });
 });

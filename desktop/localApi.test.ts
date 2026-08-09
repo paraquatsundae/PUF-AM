@@ -61,4 +61,32 @@ describe('desktop loopback API', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'ok' });
   });
+
+  /**
+   * The port is the renderer's storage origin (`localApiPort.ts`), so the two
+   * behaviours that keep an operator's farm reachable are: bind the saved port
+   * when it is free, and *walk* — not fall back to an ephemeral port — when it
+   * is not, reporting what was actually bound so `main.ts` can save it.
+   */
+  it('binds the saved port when it is free', async () => {
+    const second = await startLocalApi({ distPath, authToken: TOKEN, port: api.port + 100 });
+    try {
+      expect(second.port).toBe(api.port + 100);
+      expect(second.url).toBe(`http://127.0.0.1:${api.port + 100}`);
+    } finally {
+      await second.close();
+    }
+  });
+
+  it('walks upward off a taken port rather than jumping to an ephemeral one', async () => {
+    // `api` already holds its port, so asking for the same one must resolve to
+    // a nearby port — a new empty storage bucket at random is the old bug.
+    const second = await startLocalApi({ distPath, authToken: TOKEN, port: api.port });
+    try {
+      expect(second.port).toBeGreaterThan(api.port);
+      expect(second.port).toBeLessThanOrEqual(api.port + 20);
+    } finally {
+      await second.close();
+    }
+  });
 });

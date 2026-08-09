@@ -357,6 +357,16 @@ export function isTreeCropKind(cropKind?: FarmEnterpriseId | string | null): boo
   return Boolean(cropKind && (TREE_MAP_ENTERPRISES as readonly string[]).includes(cropKind));
 }
 
+/** Chill portions UI for orchard / fruit / vineyard farms (not walnut-only). */
+export function farmShowsChillPortions(opts: {
+  profile?: { enterprises?: FarmEnterpriseId[] } | null;
+  blocks?: Array<{ cropKind?: FarmEnterpriseId | string | null }>;
+}): boolean {
+  if (opts.profile?.enterprises?.some((id) => isTreeCropKind(id))) return true;
+  if (opts.blocks?.some((b) => isTreeCropKind(b.cropKind))) return true;
+  return false;
+}
+
 export function isPaddockLandKind(cropKind?: FarmEnterpriseId | string | null): boolean {
   return Boolean(cropKind && (PADDOCK_MAP_ENTERPRISES as readonly string[]).includes(cropKind));
 }

@@ -7,8 +7,10 @@ import {
   coerceJoinRole,
   defaultJoinTicketExpiry,
   formatJoinTicketCode,
+  formatJoinTicketInput,
   isJoinManifestExpired,
   isJoinTicket,
+  joinRoleLabel,
   mintJoinTicket,
   normalizeJoinTicket,
   parseJoinManifestV2,
@@ -69,6 +71,50 @@ describe('short join ticket format', () => {
   });
 });
 
+describe('join ticket input formatting', () => {
+  it('lays in the prefix and hyphens as the eight symbols are typed', () => {
+    let shown = '';
+    for (const key of 'K7M29Q4X') shown = formatJoinTicketInput(shown + key);
+    expect(shown).toBe('PUF-K7M2-9Q4X');
+  });
+
+  it('takes a hand-typed prefix as the prefix instead of doubling it', () => {
+    let shown = '';
+    for (const key of 'PUFK7M29Q4X') shown = formatJoinTicketInput(shown + key);
+    expect(shown).toBe('PUF-K7M2-9Q4X');
+    expect(formatJoinTicketInput('P')).toBe('P');
+    expect(formatJoinTicketInput('PU')).toBe('PU');
+    expect(formatJoinTicketInput('PUF')).toBe('PUF');
+  });
+
+  it('never trails a hyphen, so backspace always eats a symbol', () => {
+    let shown = 'PUF-K7M2-9';
+    for (const expected of ['PUF-K7M2', 'PUF-K7M', 'PUF-K7', 'PUF-K', 'PUF', 'PU', 'P', '']) {
+      shown = formatJoinTicketInput(shown.slice(0, -1));
+      expect(shown).toBe(expected);
+    }
+  });
+
+  it('canonicalizes a pasted ticket however it was written down', () => {
+    for (const pasted of ['PUF-K7M2-9Q4X', 'puf k7m2 9q4x', 'PUFK7M29Q4X', 'k7m29q4x']) {
+      expect(formatJoinTicketInput(pasted)).toBe('PUF-K7M2-9Q4X');
+    }
+  });
+
+  it('stops at eight symbols and leaves Crockford folding to submit', () => {
+    expect(formatJoinTicketInput('PUF-K7M2-9Q4X5678')).toBe('PUF-K7M2-9Q4X');
+    // O/I stay on screen as typed; normalizeJoinTicket folds them on the way out.
+    expect(formatJoinTicketInput('OI2L9Q4X')).toBe('PUF-OI2L-9Q4X');
+    expect(normalizeJoinTicket(formatJoinTicketInput('OI2L9Q4X'))).toBe('PUF-0121-9Q4X');
+  });
+
+  it('produces a value the joiner can submit unchanged', () => {
+    const shown = formatJoinTicketInput('k7m29q4x');
+    expect(isJoinTicket(shown)).toBe(true);
+    expect(normalizeJoinTicket(shown)).toBe(shown);
+  });
+});
+
 describe('join roles', () => {
   it('uses the mist vocabulary, not worker', () => {
     expect(JOIN_ROLES).toEqual(['owner', 'admin', 'farmer', 'viewer']);
@@ -81,6 +127,15 @@ describe('join roles', () => {
     expect(coerceJoinRole('worker')).toBe('farmer');
     expect(coerceJoinRole('owner')).toBe('owner');
     expect(coerceJoinRole('viewer')).toBe('viewer');
+  });
+
+  it('gives every role operator words, never the bare enum', () => {
+    for (const role of JOIN_ROLES) {
+      const label = joinRoleLabel(role);
+      expect(label).toBeTruthy();
+      expect(label).not.toBe(role);
+    }
+    expect(joinRoleLabel('farmer')).toBe('Full farmer');
   });
 });
 

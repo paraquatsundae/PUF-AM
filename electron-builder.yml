@@ -33,16 +33,16 @@ files:
   # Regenerate with `npm run desktop:verify:deps -- --print`; the gate in
   # `desktop:dist:prep` fails the build if this drifts from the bundle.
   - '!node_modules/**'
-  - node_modules/{@freenetorg/freenet-stdlib,@leichtgewicht/ip-codec,@noble/hashes,accepts}/**
-  - node_modules/{array-flatten,base-x,body-parser,bonjour-service,bs58,bytes}/**
-  - node_modules/{call-bind-apply-helpers,call-bound,content-disposition,content-type,cookie}/**
-  - node_modules/{cookie-signature,debug,depd,destroy,dns-packet,dotenv,dunder-proto}/**
-  - node_modules/{ee-first,encodeurl,es-define-property,es-errors,es-object-atoms}/**
-  - node_modules/{escape-html,etag,express,fast-deep-equal,finalhandler,flatbuffers}/**
-  - node_modules/{forwarded,fresh,function-bind,get-intrinsic,get-proto,gopd,has-symbols}/**
-  - node_modules/{hasown,http-errors,iconv-lite,inherits,ipaddr.js,math-intrinsics}/**
-  - node_modules/{media-typer,merge-descriptors,methods,mime,mime-db,mime-types,ms}/**
-  - node_modules/{multicast-dns,negotiator,object-inspect,on-finished,parseurl}/**
+  - node_modules/{@freenetorg/freenet-stdlib,@leichtgewicht/ip-codec,@noble/curves}/**
+  - node_modules/{@noble/hashes,accepts,array-flatten,base-x,body-parser,bonjour-service}/**
+  - node_modules/{bs58,bytes,call-bind-apply-helpers,call-bound,content-disposition}/**
+  - node_modules/{content-type,cookie,cookie-signature,debug,depd,destroy,dns-packet,dotenv}/**
+  - node_modules/{dunder-proto,ee-first,encodeurl,es-define-property,es-errors}/**
+  - node_modules/{es-object-atoms,escape-html,etag,express,fast-deep-equal,finalhandler}/**
+  - node_modules/{flatbuffers,forwarded,fresh,function-bind,get-intrinsic,get-proto,gopd}/**
+  - node_modules/{has-symbols,hasown,http-errors,iconv-lite,inherits,ipaddr.js}/**
+  - node_modules/{math-intrinsics,media-typer,merge-descriptors,methods,mime,mime-db}/**
+  - node_modules/{mime-types,ms,multicast-dns,negotiator,object-inspect,on-finished,parseurl}/**
   - node_modules/{path-to-regexp,proxy-addr,qs,range-parser,raw-body,safe-buffer}/**
   - node_modules/{safer-buffer,send,serve-static,setprototypeof,side-channel}/**
   - node_modules/{side-channel-list,side-channel-map,side-channel-weakmap,statuses,thunky}/**
@@ -57,6 +57,11 @@ extraResources:
     to: freenet
   - from: units/mist-freenet/assets/pack-contract.wasm
     to: contracts/pack-contract.wasm
+  # The join-slot contract, for the same reason: publishing a short ticket to a
+  # slot is an `fdev put --code <wasm>`, and without a real path on disk a
+  # packaged build can mint tickets that only ever resolve on its own Wi-Fi.
+  - from: units/mist-freenet/assets/slot-contract.wasm
+    to: contracts/slot-contract.wasm
 
 # No native modules reach the app (`better-sqlite3` was dropped as unused), so
 # there is nothing to rebuild against Electron's ABI. Adding a native dependency

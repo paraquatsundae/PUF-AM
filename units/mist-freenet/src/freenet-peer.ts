@@ -53,6 +53,15 @@ export type FreenetPeer = {
   stop(): Promise<FreenetPeerStatus>;
   status(): Promise<FreenetPeerStatus>;
   getStore(): FreenetMistStore;
+  /**
+   * The wire transport behind the store, for contracts that are not mist keys.
+   *
+   * The join slot is the case this exists for: it is addressed by a derived slot
+   * id rather than a `mist/v1/farm/…` key, so the store's index and disk cache
+   * have nothing to say about it. Sharing the store's transport rather than
+   * opening a second one keeps one connection and one health reading.
+   */
+  getTransport(): FreenetTransport;
   setContribute(enabled: boolean): void;
   flushOutbox(): Promise<number>;
 };
@@ -149,6 +158,10 @@ export function createFreenetPeer(options: FreenetPeerOptions): FreenetPeer {
 
     getStore() {
       return store;
+    },
+
+    getTransport() {
+      return transport;
     },
 
     setContribute(enabled: boolean) {

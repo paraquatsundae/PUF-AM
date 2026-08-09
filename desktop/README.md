@@ -151,11 +151,17 @@ main process (Node)
   ├── FreenetHostPlugin ──spawn──► freenet (child, loopback WS :7509)
   ├── Express createApiApp() → 127.0.0.1:<ephemeral>, also serves dist/
   │     └── loopback token guard on /api/* (except /api/health)
-  ├── session.webRequest → injects that token into renderer /api/* calls
-  └── IPC: puf-freenet:status | start | stop
+  ├── Express createApiApp() → 0.0.0.0:<stable>   ← tablet hub, off by default
+  │     └── paired-device guard, allowlisted prefixes, no dist/
+  ├── session.webRequest → injects the loopback token into renderer /api/* calls
+  └── IPC: puf-freenet:status | start | stop · puf-desktop:lan-hub
 renderer
   └── loads http://127.0.0.1:<ephemeral>  ← same-origin, no CORS
 ```
+
+`createApiApp()` is instantiated twice, but the state behind it — the join-ticket shelf, the mDNS
+registry, the Freenet peer host — is module-level and therefore shared. That is what lets a ticket
+registered by the desktop UI over loopback resolve for a tablet over the LAN.
 
 The renderer being served from the same loopback origin as `/api/*` is what lets
 `getApiBaseUrl()` return `''` with **no client changes**, and is why desktop never needs the
@@ -183,6 +189,80 @@ Hitting the API from a terminal therefore needs the token, which is deliberately
 
 `secrets/` and `firebase-applet-config.json` must **not** be bundled.
 
+## Tablet hub — using this app as the shed's LAN hub
+
+A tablet in the shed usually has no signal. This app can be the thing it syncs against, over the
+Wi-Fi, with no cloud and no terminal. That means a **second** listener on `0.0.0.0` — the loopback
+one above stays exactly as it is, because the token it uses is per-launch and never leaves the
+process, and publishing that on the Wi-Fi would have been the same secret with a much larger blast
+radius.
+
+Off until the operator turns it on: binding an address other machines can reach is a decision, not
+something an install should do to somebody.
+
+### What the operator does
+
+On the **laptop**:
+
+1. **Settings → Offline & sync → Tablet hub**, and turn it on.
+2. Read off the two things it shows: the **LAN address** (`http://192.168.1.205:3001`) and the
+   **pairing code** (`K7M2-9Q4X`). The code is eight characters from an alphabet with no `O`, `I`,
+   `L` or `U`, so it survives being read across a shed or over a phone.
+
+On the **tablet**, in the same screen:
+
+3. Pick the hub if it was found by itself — the laptop advertises over mDNS
+   (`_pufom-sync._tcp`), so it normally appears without typing. If the Wi-Fi blocks multicast, type
+   the LAN address from step 2 instead.
+4. Enter the pairing code once. The tablet swaps it for its own 256-bit device token and stores that;
+   from then on the code is not what authorises it, so the code can be rotated without re-pairing.
+
+The laptop's Tablet hub card then lists the tablet by name, with when it was last seen. **Forget**
+revokes one tablet without touching the others; **Rotate code** changes what new devices must
+present and leaves already-paired ones working.
+
+### What it will and will not serve
+
+| Reachable over the LAN | Why |
+|---|---|
+| `/api/health`, `/api/hub/info`, `/api/hub/pair` | **No credential** — discovery has to work before pairing can. A guarded health check would leave an unpaired tablet unable to tell a live hub from a wrong address |
+| `/api/sync/*`, `/api/presence/*`, `/api/highlights/*`, `/api/mist/freenet/*` | Paired device token in `x-puf-hub-token` (a `Bearer` also works, for a `curl` from the workshop) |
+| `/api/auth/*`, `/api/weather/*` | **404, on purpose.** A packaged desktop has no Firebase service account or `DPIRD_API_KEY` to answer them with. `/api/hub/info` names them so the tablet re-points them at the cloud instead of collecting 401s |
+| `GET /`, the built UI | **404.** The LAN listener is an API. The tablet has its own bundle, and serving this one would put an unauthenticated copy of the farm UI on the shed Wi-Fi for nothing |
+
+Bounded, not eliminated: LAN traffic is plain HTTP, so anyone already on that Wi-Fi can read a paired
+tablet's sync traffic. TLS needs a certificate story a farmer can actually complete, which is its own
+piece of work.
+
+### Workshop overrides
+
+Same family as `MIST_FREENET` — for a smoke test, never for an operator:
+
+| Variable | Effect |
+|---|---|
+| `PUF_LAN_HUB=1` | Forces the hub on for one launch, whatever the saved preference says |
+| `PUF_LAN_HUB_PORT=3001` | Preferred port. The listener walks upwards if it is taken, and reports the one it got |
+| `PUF_LAN_HUB_CODE=K7M2-9Q4X` | Pins the pairing code for one launch so a script can pair without reading the operator's saved code. **Not persisted** — the saved code is untouched and returns at the next launch |
+
+```bash
+PUF_LAN_HUB=1 PUF_LAN_HUB_PORT=3001 PUF_LAN_HUB_CODE=K7M2-9Q4X ./release/PUF-AM-0.1.0.AppImage
+```
+
+Then, from another machine on the same Wi-Fi:
+
+```bash
+HUB=http://192.168.1.205:3001
+curl -sS $HUB/api/health                      # {"status":"ok"} — no credential
+curl -sS $HUB/api/hub/info                    # kind, pairingRequired, which prefixes are cloud
+TOKEN=$(curl -sS -X POST -H 'Content-Type: application/json' \
+  -d '{"code":"K7M2-9Q4X","deviceName":"Shed tablet"}' \
+  $HUB/api/hub/pair | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+curl -sS -H "x-puf-hub-token: $TOKEN" $HUB/api/sync/self
+```
+
+`avahi-browse -rtp _pufom-sync._tcp` is the check for the advertisement itself; it should show
+`ip=`, `kind=desktop-lan` and `pair=1`.
+
 ## Files
 
 | File | Role |
@@ -190,9 +270,11 @@ Hitting the API from a terminal therefore needs the token, which is deliberately
 | `main.ts` | App lifecycle, single-instance lock, Freenet host ownership, window, IPC |
 | `preload.ts` | `contextBridge` → `window.pufamDesktop` (config, mist preference, freenet status/start/stop) |
 | `desktopConfig.ts` | Encode/decode for the main→preload config flag (shared, so the ends cannot drift) |
-| `desktopPrefs.ts` | The mist opt-in on disk. Decided before a renderer exists, so it cannot be `localStorage` |
+| `desktopPrefs.ts` | The mist opt-in, the tablet-hub toggle, the pairing code and the paired devices, on disk. All decided before a renderer exists, so none of it can be `localStorage` |
 | `loopbackAuth.ts` | Per-launch token + the `/api/*` guard middleware. No `electron` or `express` imports, so it tests in plain Node |
 | `localApi.ts` | Loopback Express + static `dist/` on an ephemeral port |
+| `lanHubAuth.ts` | Pairing codes, per-device tokens, the LAN route allowlist, and the pairing throttle. Same no-`electron`/no-`express` rule as `loopbackAuth.ts` |
+| `lanApi.ts` | The LAN Express app on `0.0.0.0` — `/api/hub/*` plus the allowlisted prefixes, and no static bundle |
 | `tsconfig.json` | Typechecks this dir (`npm run lint:desktop`) |
 
 Renderer-side counterpart: [`src/lib/desktopBridge.ts`](../src/lib/desktopBridge.ts).
@@ -231,7 +313,10 @@ and nothing from `desktop/` itself. `desktop/` stays excluded from the root lint
 ## Not yet done
 
 Windows `nsis` installer and the first `freenet.exe` launch (both want a Windows machine) · a Fedora
-`rpm` (needs the two host packages above) · mDNS LAN-hub advertising — deferred rather than pending:
-the API binds loopback only, so advertising a LAN URL would publish an address nothing can reach, and
-a LAN client would now be 401'd anyway. It needs a second LAN-bound listener and its own auth story ·
-menus, tray, window state · code signing · auto-updater (out of scope by workspace policy).
+`rpm` (needs the two host packages above) · **TLS on the LAN listener** — the tablet hub above is
+plain HTTP, which is the one thing about it that is not yet where it should be · menus, tray, window
+state · code signing · auto-updater (out of scope by workspace policy).
+
+mDNS LAN-hub advertising is **done**, and was the item that had been deferred here: it needed a
+listener that a LAN address could actually reach, plus an answer to what authorises a tablet against
+it. Both landed with the tablet hub above.

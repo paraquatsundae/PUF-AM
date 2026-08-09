@@ -7,6 +7,8 @@
 
 import type { Express, Request, Response } from 'express';
 import { bonesKey, hotKey } from '../units/mist-freenet/src/index.ts';
+import { putJoinSlotViaFdev } from '../units/mist-freenet/src/freenet02-fdev-slot.ts';
+import { encodeFreenet02Uri } from '../units/mist-freenet/src/freenet02-uri.ts';
 import {
   InvalidFreenetUriError,
   normalizeMistFreenetUri,
@@ -371,6 +373,77 @@ export function registerMistFreenetRoutes(app: Express): void {
       });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'bones pull-by-uri failed' });
+    }
+  });
+
+  /**
+   * Join slot — the ticket lookup that does not need the owner's Wi‑Fi.
+   *
+   * Both routes are deliberately dumb byte movers. The slot id, the signature and
+   * the AEAD seal are all produced in the browser from the FarmSeed, so this hub
+   * publishes and fetches a blob it cannot read and could not forge — the same
+   * encrypt-before-upload split the Hot and bones routes have, extended to the
+   * pointer as well as the payload.
+   *
+   * `/api/mist/freenet/` is in `LAN_SCOPE_PREFIXES`, so a paired tablet reaches
+   * these under the hub pairing token and an unpaired device on the same Wi‑Fi
+   * does not.
+   */
+  app.post('/api/mist/freenet/slot/publish', async (req, res) => {
+    if (mistApiUnavailable(req, res)) return;
+    try {
+      const parametersBase64 = String(req.body?.parametersBase64 || '').trim();
+      const stateBase64 = String(req.body?.stateBase64 || '').trim();
+      const instanceIdBase58 = String(req.body?.instanceIdBase58 || '').trim();
+
+      if (!parametersBase64 || !stateBase64 || !instanceIdBase58) {
+        return res.status(400).json({
+          error: 'parametersBase64, stateBase64 and instanceIdBase58 are required',
+        });
+      }
+
+      // Started so the node is up and the publish has somewhere to go; `fdev`
+      // talks to the same node on its own socket.
+      await ensureFreenetPeer({ start: true });
+
+      const result = await putJoinSlotViaFdev({
+        parameters: base64ToBytes(parametersBase64),
+        state: base64ToBytes(stateBase64),
+        instanceIdBase58,
+      });
+
+      res.json({ ...result, publishedAt: new Date().toISOString() });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'slot publish failed';
+      // A malformed slot state is the caller's bug, not the node's.
+      const status = /must be|PUFSLOT1|refusing to publish/.test(message) ? 400 : 500;
+      res.status(status).json({ error: message });
+    }
+  });
+
+  app.get('/api/mist/freenet/slot/:instanceId', async (req, res) => {
+    if (mistApiUnavailable(req, res)) return;
+    try {
+      const instanceId = String(req.params.instanceId || '').trim();
+      if (!/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(instanceId)) {
+        return res.status(400).json({ error: 'instanceId must be a base58 contract instance id' });
+      }
+
+      const peer = await ensureFreenetPeer({ start: true });
+      // The store indexes mist keys; a slot has none, so this goes straight to the
+      // wire and nothing is cached under a made-up key.
+      const state = await peer.getTransport().getBlob(encodeFreenet02Uri(instanceId));
+
+      if (!state?.length) {
+        return res.status(404).json({
+          error: 'No join slot at that address yet (Opennet propagation may still be in progress)',
+          instanceId,
+        });
+      }
+
+      res.json({ instanceId, stateBase64: bytesToBase64(state) });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'slot fetch failed' });
     }
   });
 

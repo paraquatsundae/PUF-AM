@@ -58,29 +58,45 @@ if (!existsSync(join(androidDir, 'local.properties'))) {
 }
 
 /**
+ * The JDK Gradle will actually use — `$JAVA_HOME/bin/java` when that is set,
+ * because that is what Gradle itself honours and what the error below tells the
+ * operator to set. Probing the bare `java` on PATH instead meant following that
+ * instruction changed nothing: Fedora's JDK 25 kept answering the probe and the
+ * build refused to start with JAVA_HOME already pointing at a good JDK 21.
+ */
+function javaBin() {
+  const home = process.env.JAVA_HOME?.trim();
+  if (!home) return 'java';
+  const candidate = join(home, 'bin', windows ? 'java.exe' : 'java');
+  return existsSync(candidate) ? candidate : 'java';
+}
+
+/**
  * Gradle reports a too-new JDK as `Unsupported class file major version NN`,
  * several screens into a Kotlin stack trace, which reads like a broken build
  * rather than a wrong toolchain. Fedora ships JDK 25; AGP wants 17 or 21.
  */
-function javaMajor() {
-  const probe = spawnSync('java', ['-version'], { encoding: 'utf8', shell: windows });
+function javaMajor(bin) {
+  const probe = spawnSync(bin, ['-version'], { encoding: 'utf8', shell: windows });
   const match = /version "(\d+)/.exec(`${probe.stderr ?? ''}${probe.stdout ?? ''}`);
   return match ? Number(match[1]) : null;
 }
 
-const major = javaMajor();
+const java = javaBin();
+const major = javaMajor(java);
 if (major === null) {
-  console.error('[apk] no `java` on PATH. Android Gradle needs a JDK 17 or 21.');
+  console.error(`[apk] no usable JDK at \`${java}\`. Android Gradle needs a JDK 17 or 21.`);
   process.exit(1);
 }
 if (major > 21) {
   console.error(
-    `[apk] JDK ${major} is too new for the Android Gradle Plugin — it needs 17 or 21.\n` +
+    `[apk] JDK ${major} (${java}) is too new for the Android Gradle Plugin — it needs 17 or 21.\n` +
       '[apk] Point JAVA_HOME at one and re-run, e.g.\n' +
       '[apk]   JAVA_HOME=/path/to/jdk-21 npm run apk:debug',
   );
   process.exit(1);
 }
+console.log(`[apk] JDK ${major} (${java})`);
 
 run(process.execPath, ['scripts/build-android-web.mjs', ...(noMist ? ['--no-mist'] : [])]);
 run(windows ? 'npx.cmd' : 'npx', ['cap', 'sync', 'android'], {

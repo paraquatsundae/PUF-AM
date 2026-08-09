@@ -161,7 +161,17 @@ TelemetryDest       = HKDF(FarmSeed, info = "reticulum-telemetry")
 JoinAssistDest      = HKDF(FarmSeed, info = "reticulum-join")
 
 InviteMaster = HKDF(FarmSeed, info = "invite-master")
+
+# Join slot — a short join ticket that resolves without the owner's Wi-Fi.
+# Added ~2026-08-09; see MIST_TWO_FEDORA_FREENET.md § Freenet slot contract.
+JoinSlotId(T)     = HKDF(FarmSeed, info = "freenet-join-slot:" || T)            // 32 B, per ticket T
+JoinSlotSignSeed  = HKDF(FarmSeed, info = "freenet-join-slot-key")              // ed25519 seed, per farm
+JoinSlotKey(T)    = HKDF(FarmSeed, info = "freenet-join-slot-manifest:" || T)   // AEAD for the manifest
 ```
+
+`JoinSlotId(T)` and the ed25519 **public** key form the contract's `parameters`, so the slot's Freenet address is `BLAKE3(code_hash ‖ slot_id ‖ pubkey)` — computable by the owner and the joiner, by nobody else. The signing seed is per **farm** rather than per ticket because the joiner has to derive the same verifying key; the per-ticket binding comes from `slot_id` being inside the signed message, which is what stops a state signed for one ticket being replayed into another's slot.
+
+Note the FarmSeed is in all three: a ticket overheard on its own points nowhere.
 
 See **§ Reticulum destination naming** for traffic rules.
 
@@ -213,22 +223,42 @@ Prefer globally unique IDs so Hot merge is append-by-id + tombstone union (see F
 
 ## FarmCode encoding (mist-v1)
 
-Frozen printable form for the **farm root secret** written to the admin paper wallet at farm creation. This section defines how a `FarmCode` string becomes `FarmCode_bytes` for the HKDF chain in **§ Invitation**; it does **not** change any HKDF `info` or `salt` strings already frozen there.
+Printable form for the **farm root secret** written to the admin paper wallet at farm creation. This section defines how a `FarmCode` string becomes `FarmCode_bytes` for the HKDF chain in **§ Invitation**; it does **not** change any HKDF `info` or `salt` strings already frozen there.
 
-### Entropy target
+### Versions
+
+The version prefix is the extension point this section always reserved. Two generations exist and **both decode forever** — the recovery path is what was frozen ~2026-08-03, not one particular length.
+
+| Version | Status | Raw secret | Body (payload + check) | Printable line |
+|---------|--------|------------|------------------------|----------------|
+| **`mist-fc-2`** | **Minted today** | **80 bits** (10 bytes) | **16 + 1 = 17** symbols | `mist-fc-2  XXXXX-XXXXX-XXXXX-XX` |
+| `mist-fc-1` | **Legacy — decode-only, never minted** | 128 bits (16 bytes) | 26 + 1 = 27 symbols | `mist-fc-1  XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XX` |
+
+Because HKDF runs over `FarmCode_bytes`, a `mist-fc-1` wallet re-derives the **same `FarmSeed` and `FarmId` it always did**. Unknown prefixes (`mist-fc-3`, …) must still be rejected.
+
+### Entropy target (`mist-fc-2`)
 
 | Parameter | Value |
 |-----------|--------|
-| Raw secret | **128 bits** (16 bytes), CSPRNG at farm creation |
-| Encoding | Crockford Base32 → **26 payload characters** + **1 check character** |
+| Raw secret | **80 bits** (10 bytes), CSPRNG at farm creation |
+| Encoding | Crockford Base32 → **16 payload characters** + **1 check character** |
+| Effective entropy | **~79.8 bits** — see *typable check symbol* below |
 
-**Why 128 bits (not 160):**
+**Why 80 bits (down from 128):**
+
+- **Typing is the actual failure mode.** Recovery happens on a tablet in a shed, one-handed, reading paper. 27 symbols is where operators give up or mistype; 17 is one glance and four short groups. A recovery key that is too long to enter is a recovery key that does not work.
+- **10 bytes is the exact 5-bit boundary.** 80 bits = 16 Crockford symbols with **zero slack**, so every body maps 1:1 to a secret. The 128-bit form wasted 2 bits (26 symbols hold 130), which allowed non-canonical encodings.
+- **The attack is offline but gated.** Hot/bones blobs are AEAD-sealed and live at Freenet URIs derived from `FarmSeed`, so an attacker cannot even fetch the ciphertext to grind against without first holding a **join ticket** or the manifest. The realistic adversary is a crew member who was given a ticket and later goes rogue.
+- **2^80 is out of reach for that adversary.** Derivation is HKDF-SHA-256 (~4 compressions per guess), so a 1,000-GPU farm at ~10^12 guesses/s needs on the order of **10^4 years**. This is **2^40 ≈ 10^12 times stronger than a join ticket** (40 bits), which is the right ratio: the ticket says *where* the farm is, the FarmCode *opens* it.
+- **Known ceiling, not an oversight.** 80 bits gives up the AES-128 / BIP39 parity the 128-bit form claimed, and Grover-style quantum search would halve the exponent. Freenet ciphertext is durable, so if the threat model ever includes a well-funded harvest-now-decrypt-later adversary, mint **`mist-fc-3`** at 128 or 160 bits — the version prefix exists for exactly that, and no `mist-fc-2` wallet is invalidated by it.
+
+**Typable check symbol:** Crockford's check alphabet has 37 symbols, five of which (`*`, `~`, `$`, `=`, `U`) are unreachable on a tablet's letter/number keyboard or ambiguous when handwritten. Minting **resamples** the payload until the check symbol falls in the 32-symbol encoding alphabet, so every issued code is typable. Discarding 5 of 37 checksums costs ~0.2 bits. Decode still accepts **all 37** so legacy wallets keep working.
+
+**Legacy rationale (`mist-fc-1`, retained for the record) — why 128 bits (not 160):**
 
 - **Recovery strength:** 2^128 search space matches AES-128 and the low end of BIP39-style seed entropy — sufficient for a per-farm offline root where the threat model is opportunistic loss/theft, not nation-state key recovery against a single farm.
 - **Paper practicality:** 27 printable characters fit two short rows on a wallet card; 160 bits would add five more payload characters with marginal benefit for manual transcription.
 - **QR practicality:** An optional recovery QR of the same string stays dense and scannable; join bootstrap still uses **JoinEnvelope** (§ Join bootstrap), not a FarmCode QR.
-
-160-bit roots remain a possible **`mist-fc-2`** upgrade if a future threat model demands it; mist-v1 implementations must reject unknown version prefixes.
 
 ### Printable alphabet (Crockford Base32)
 
@@ -245,39 +275,60 @@ Invite tokens (§ Invitation) may share the same alphabet for typability; FarmCo
 ### On-paper layout
 
 ```
-mist-fc-1  XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XX
-           └─5 groups of 5 payload─┘ └payload+check┘
+mist-fc-2  XXXXX-XXXXX-XXXXX-XX
+           └─3 groups of 5─┘ └payload+check┘
 ```
 
 | Field | Detail |
 |-------|--------|
-| Version prefix | **`mist-fc-1`** — ASCII, hyphen-separated from the body; future encodings use `mist-fc-2`, … |
-| Payload | 26 Crockford characters → 128-bit raw secret |
-| Check character | **1** trailing Crockford symbol — [Crockford optional check](https://www.crockford.com/base32.html) over the 26 payload symbols (detects single-char transcription errors) |
+| Version prefix | **`mist-fc-2`** — ASCII, two spaces before the body; unknown prefixes are rejected |
+| Payload | 16 Crockford characters → 80-bit raw secret |
+| Check character | **1** trailing Crockford symbol — [Crockford optional check](https://www.crockford.com/base32.html) over the payload symbols (detects single-char transcription errors) |
 | Grouping | **Groups of 5**, hyphen-separated — aids reading aloud and manual copy |
 | Final group | **2 characters:** last payload symbol + check symbol |
+
+Grouping is unchanged from `mist-fc-1`: both bodies are `≡ 2 (mod 5)`, so both end in the same 2-character group and one grouping routine serves both.
 
 **Example (illustrative only — not a real secret):**
 
 ```
-mist-fc-1  7K9M-NPQR-STVW-XY2Z-4GHJ-KMNP-C
+mist-fc-2  7K9MN-PQRST-VWXY2-Z4
 ```
 
-Paper wallet should print the full line including prefix. Optional recovery QR may encode the same string (UTF-8) or a compact binary CBOR of `{ "v": "mist-fc-1", "payload": "<26>", "check": "<1>" }` — both decode to the same `FarmCode_bytes`.
+Paper wallet should print the full line including prefix. Optional recovery QR may encode the same string (UTF-8) or a compact binary CBOR of `{ "v": "mist-fc-2", "payload": "<16>", "check": "<1>" }` — both decode to the same `FarmCode_bytes`.
+
+**Legacy layout (`mist-fc-1`, still accepted on entry):**
+
+```
+mist-fc-1  XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XX
+           └───5 groups of 5 payload───┘ └payload+check┘
+```
 
 ### Decode path (string → keys)
 
 Implementers must follow this order; HKDF `info` strings used from step 7 onward are **unchanged** from § Invitation.
 
-1. **Parse version** — leading token must be `mist-fc-1` (reject unknown versions).
-2. **Normalize body** — remove hyphens / whitespace; fold ASCII letters to uppercase.
-3. **Split** — first 26 symbols = payload; symbol 27 = check.
-4. **Verify check** — Crockford checksum over payload; reject on mismatch.
-5. **Decode payload** — Crockford Base32 → **16 bytes** `FarmCode_bytes`.
+1. **Parse version** — leading token must be `mist-fc-2` or `mist-fc-1` (reject anything else). **If the prefix is absent, recover it from the body length:** 17 symbols → `mist-fc-2`, 27 → `mist-fc-1`. Body lengths must stay distinct across versions so this stays unambiguous.
+2. **Normalize body** — remove hyphens / whitespace; fold ASCII letters to uppercase. Fold Crockford's ambiguous characters (`O`→`0`, `I`/`L`→`1`, `U`→`V`) across the **payload only** — the check symbol may legitimately *be* `U`.
+3. **Split** — per version: first 16 (or 26) symbols = payload; final symbol = check.
+4. **Verify check** — Crockford checksum over payload; compare the check symbol as written first, then folded; reject on mismatch.
+5. **Decode payload** — Crockford Base32 → **10 bytes** (`mist-fc-2`) or **16 bytes** (`mist-fc-1`) `FarmCode_bytes`.
 6. **Derive** — `FarmSeed = HKDF(ikm = FarmCode_bytes, salt = "pufam-mist-v1", info = "farm-seed")`.
 7. **Continue** — all downstream material (`FarmId`, `ManifestKey`, `HotKey`, Reticulum destinations, `InviteMaster`, …) uses the existing HKDF `info` strings in § Invitation — **do not rename or reorder them**.
 
-Encoding (farm creation) is the inverse: CSPRNG 16 bytes → Crockford payload → append check → insert hyphens → prefix `mist-fc-1`.
+Encoding (farm creation) is the inverse: CSPRNG 10 bytes → Crockford payload → append check (resample if the check is not typable) → insert hyphens → prefix `mist-fc-2`.
+
+### Entry UX (tablet-first)
+
+The field an operator types into holds the **body only** — same pattern as the short join ticket's `formatJoinTicketInput` (§ Short join ticket in [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md)).
+
+| Rule | Detail |
+|------|--------|
+| Prefix is not typed | `mist-fc-2` renders as static UI beside the field; step 1 above recovers it from the length on submit |
+| Dashes are not typed | `formatFarmCodeInput` regroups on every keystroke; **no trailing hyphen** is ever appended, so backspace always removes a symbol |
+| Paste still works | A pasted full line, a `FarmCode:` label, or a 27-symbol legacy body is accepted and reformatted |
+| Folding is deferred | Ambiguous characters are folded on **submit**, not mid-keystroke — swapping a symbol out from under a typist is worse than a late hint |
+| Progress is visible | Show `typed / expected` symbols; enable submit only at a complete body length |
 
 ### Security notes
 
@@ -297,7 +348,7 @@ Frozen UX for the **owner’s first device** creating a new farm. Crew join via 
 ### New farm flow
 
 1. User selects **New farm** → enters **farm display name** → **Continue**.
-2. App **mints `FarmCode`** (`mist-fc-1` per **§ FarmCode encoding**) and derives `FarmSeed` / keys locally.
+2. App **mints `FarmCode`** (`mist-fc-2` per **§ FarmCode encoding**) and derives `FarmSeed` / keys locally.
 3. **Show once screen:** display full `FarmCode` with clear copy — this is the owner’s **recovery / ownership root** (paper wallet). Instruct the user to write it down and store it safely offline. Require explicit confirmation (“I have written this down” or equivalent) before proceeding.
 4. Progress into farm setup (map, modules, first invite, etc.).
 
@@ -824,6 +875,7 @@ Pointers: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop 
 - [ ] **Farm bones mist contract** — publish/version/`content_hash` on `BonesKey` (§ Invitation), pull-on-join path.
 - [ ] **Lightweight Freenet host/client** in-process plug-in — **Phase 9 build started** (~2026-08-03): `FreenetPeer`, server FCP routes, workshop Hot sync; bones/manifest Freenet path deferred (see **§ Pre-Freenet workshop decisions**, **§ Freenet peer implementation**).
 - [x] **First-run UI prototype** — show-once FarmCode, confirm written down, optional device PIN copy (phase 4 — `/login/mist-new-farm`).
+- [x] **Ticket-addressed join slot on Freenet** — short join ticket resolves without the owner's Wi‑Fi, via a Rust/WASM contract whose `parameters` are a derived slot id (~2026-08-09). See [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) § Freenet slot contract and § Recommended derivation above for the new HKDF labels.
 
 ---
 

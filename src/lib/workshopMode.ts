@@ -15,6 +15,19 @@ export function isLocalOnlyFarmSession(): boolean {
   return isWorkshopMode();
 }
 
+/**
+ * True where raw diagnostics surfaces (every knob, hash and status string) are
+ * worth their clutter: an explicit workshop build, or a `npm run dev` bench.
+ *
+ * A packaged AppImage or APK is somebody's farm, so those surfaces stay off
+ * there even when the Freenet paths themselves are enabled — the operator gets
+ * the task-shaped cards instead. Kept separate from `isWorkshopMode()` because
+ * that one also swaps in a fake signed-in user, which a bench run must not do.
+ */
+export function isWorkshopDiagnosticsEnabled(): boolean {
+  return isWorkshopMode() || import.meta.env.DEV === true;
+}
+
 export const WORKSHOP_USER_DATA: {
   uid: string;
   email: string;

@@ -4,6 +4,8 @@ import type { Server } from 'node:http';
 
 import { registerJoinTicketRoutes } from '../../server/joinTicketRoutes.ts';
 import { resetJoinManifestsForTest } from '../../server/joinManifestStore.ts';
+import { buildJoinPermissions, findJoinPreset } from '../../shared/sync/joinGrant.ts';
+import type { JoinTicketLedger } from '../../shared/sync/joinLedger.ts';
 
 const TICKET = 'PUF-K7M2-9Q4X';
 const FARM_ID = 'farm-abc';
@@ -129,10 +131,42 @@ describe('LAN join ticket routes', () => {
     }
   });
 
-  it('tells a joiner to get on the owner Wi-Fi when nothing can answer', async () => {
+  /**
+   * The old message asserted the joiner was on the wrong Wi‑Fi, which was the
+   * least likely cause and unactionable when wrong — a ticket sitting on another
+   * process's shelf looks identical from the tablet. Name the hub, say what it
+   * tried, and point at the one button that fixes it.
+   */
+  it('names the hub it asked when nothing can answer', async () => {
     const res = await fetch(`${baseUrl}/api/sync/join-ticket/${TICKET}/resolve`);
     expect(res.status).toBe(404);
-    expect((await res.json()).error).toContain('same Wi‑Fi as the farm owner');
+
+    const body = (await res.json()) as {
+      error: string;
+      hub: string;
+      shelf: string;
+      askedHubs: string[];
+      unreachableHubs: string[];
+    };
+    expect(body.error).toContain(TICKET);
+    expect(body.error).toContain(body.hub);
+    expect(body.error).toContain('Send this farm');
+    expect(body.shelf).toBeTruthy();
+    expect(body.askedHubs).toEqual([]);
+    expect(body.unreachableHubs).toEqual([]);
+  });
+
+  it('reports a hub it was pointed at but could not reach', async () => {
+    // 192.168.0.2:9 passes the LAN guard and refuses fast — an owner address
+    // typed a digit wrong is a different problem from an empty shelf.
+    const res = await fetch(
+      `${baseUrl}/api/sync/join-ticket/${TICKET}/resolve?base=${encodeURIComponent('192.168.0.2:9')}`,
+    );
+    expect(res.status).toBe(404);
+
+    const body = (await res.json()) as { error: string; unreachableHubs: string[] };
+    expect(body.unreachableHubs).toContain('http://192.168.0.2:9');
+    expect(body.error).toContain('could not reach');
   });
 
   it('revokes a ticket so a re-send invalidates the old one', async () => {
@@ -141,5 +175,107 @@ describe('LAN join ticket routes', () => {
     const deleted = await fetch(`${baseUrl}/api/sync/join-ticket/${TICKET}`, { method: 'DELETE' });
     expect((await deleted.json()).revoked).toBe(true);
     expect((await fetch(`${baseUrl}/api/sync/join-ticket/${TICKET}`)).status).toBe(404);
+  });
+
+  // ---------------------------------------------------------------------------
+  // The People ledger (plan §4a) — the same shelf read back for the owner, with
+  // the tickets taken out.
+  // ---------------------------------------------------------------------------
+
+  const listLedger = async (farmId = FARM_ID): Promise<JoinTicketLedger> => {
+    const res = await fetch(`${baseUrl}/api/sync/join-tickets?farmId=${encodeURIComponent(farmId)}`);
+    expect(res.status).toBe(200);
+    return (await res.json()) as JoinTicketLedger;
+  };
+
+  it('lists a minted ticket as a People row — label, preset and modules included', async () => {
+    const preset = findJoinPreset('field_only');
+    expect(preset).not.toBeNull();
+    await register(
+      manifestBody({
+        label: 'Dave — spray ute',
+        permissions: buildJoinPermissions(preset!),
+      }),
+    );
+
+    const ledger = await listLedger();
+    expect(ledger.rows).toHaveLength(1);
+    expect(ledger.shelf).toBeTruthy();
+
+    const [row] = ledger.rows;
+    expect(row.label).toBe('Dave — spray ute');
+    expect(row.role).toBe('farmer');
+    expect(row.preset).toBe('field_only');
+    // The join floor (dashboard + settings) rides on top of the preset's list.
+    expect(row.modules).toEqual(expect.arrayContaining(['dashboard', 'settings', 'map']));
+    expect(row.uses).toBe(0);
+    expect(row.lastUsedAt).toBeUndefined();
+  });
+
+  it('never lets the ticket itself into the ledger response', async () => {
+    // A ticket is a bearer capability; a row is addressed by a random id
+    // precisely so listing rows hands over nothing redeemable.
+    await register(manifestBody({ label: 'Dave' }));
+
+    const res = await fetch(`${baseUrl}/api/sync/join-tickets?farmId=${FARM_ID}`);
+    const raw = await res.text();
+    expect(raw).not.toContain(TICKET);
+
+    const { rows } = JSON.parse(raw) as JoinTicketLedger;
+    expect(rows[0].id).toBeTruthy();
+    expect(rows[0].id).not.toContain(TICKET);
+  });
+
+  it('stamps a row when the ticket is looked up, so People can say "last used"', async () => {
+    await register(manifestBody());
+
+    await fetch(`${baseUrl}/api/sync/join-ticket/${TICKET}`);
+    await fetch(`${baseUrl}/api/sync/join-ticket/${TICKET}`);
+
+    const [row] = (await listLedger()).rows;
+    expect(row.uses).toBe(2);
+    expect(Date.parse(row.lastUsedAt ?? '')).not.toBeNaN();
+  });
+
+  it('scopes the ledger to one farm', async () => {
+    await register(manifestBody());
+    await register(manifestBody({ farmId: 'someone-elses-farm', ticket: 'PUF-2222-3333' }));
+
+    const rows = (await listLedger()).rows;
+    expect(rows).toHaveLength(1);
+
+    expect((await listLedger('someone-elses-farm')).rows).toHaveLength(1);
+  });
+
+  it('requires a farmId rather than listing the whole shelf', async () => {
+    const res = await fetch(`${baseUrl}/api/sync/join-tickets`);
+    expect(res.status).toBe(400);
+  });
+
+  it('revokes a row by its id, which kills the ticket underneath', async () => {
+    await register(manifestBody());
+    const [row] = (await listLedger()).rows;
+
+    const res = await fetch(`${baseUrl}/api/sync/join-tickets/${row.id}`, { method: 'DELETE' });
+    expect((await res.json()).revoked).toBe(true);
+
+    expect((await listLedger()).rows).toHaveLength(0);
+    expect((await fetch(`${baseUrl}/api/sync/join-ticket/${TICKET}`)).status).toBe(404);
+  });
+
+  it('answers revoked:false for an id it has never seen', async () => {
+    const res = await fetch(`${baseUrl}/api/sync/join-tickets/not-a-row`, { method: 'DELETE' });
+    expect((await res.json()).revoked).toBe(false);
+  });
+
+  it('gives a ticket minted before presets existed a readable row', async () => {
+    // No permissions bag at all — the pre-§3b wire shape. The row must still
+    // name a role and a sensible module list rather than coming back empty.
+    await register(manifestBody());
+
+    const [row] = (await listLedger()).rows;
+    expect(row.preset).toBeUndefined();
+    expect(row.role).toBe('farmer');
+    expect(row.modules.length).toBeGreaterThan(0);
   });
 });

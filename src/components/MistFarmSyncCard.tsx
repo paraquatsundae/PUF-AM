@@ -1,15 +1,21 @@
 /**
- * Farm sync between two laptops — the operator-facing half of the mist workshop.
+ * Settings → Sync → the Freenet half, on farms that have one.
  *
  * `MistWorkshopCard` is the diagnostics surface: every knob, every hash, every
- * status string. This card is the *task*: send a farm from this laptop, or join
- * one from another. The two-laptop bench pass showed the flow works and the
- * scavenger hunt between cards is what makes it feel fragile, so everything one
- * job needs — readiness, the button, the ticket, the result — lives here in the
- * order it is done. Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §14 Phase 4.
+ * status string, and bench-only since the Settings split. This card is the
+ * *task*: send a farm from this device, or join one from another. The
+ * two-laptop bench pass showed the flow works and the scavenger hunt between
+ * cards is what makes it feel fragile, so everything one job needs —
+ * readiness, the button, the ticket, the result — lives here in the order it is
+ * done.
+ *
+ * Rendered only for Freenet farms — see `src/lib/farmPipes.ts`.
+ *
+ * Plans: `Plans/DESKTOP_FREENET_PLUGIN.md` §14 Phase 4 ·
+ * `Plans/SETTINGS_SYNC_AND_CREW.md` §1.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -23,23 +29,43 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../contexts/AuthContext';
-import { getDesktopBridge } from '../lib/desktopBridge.ts';
+import { APP_NAME } from '../brand';
+import { getDesktopBridge, isDesktopShell } from '../lib/desktopBridge.ts';
 import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
 import {
   DEFAULT_JOIN_ROLE,
-  JOIN_ROLES,
   JOIN_TICKET_PREFIX,
+  formatJoinTicketInput,
   isJoinTicket,
+  joinRoleLabel,
   type JoinRole,
 } from '../../shared/sync/joinTicket.ts';
+import {
+  findJoinPreset,
+  joinPresetsForFarm,
+  type JoinPreset,
+  type JoinPresetId,
+} from '../../shared/sync/joinGrant.ts';
+import {
+  MODULE_LABELS,
+  WALNUT_PACK_MODULES,
+  type FarmModuleId,
+} from '../../shared/auth/farmModules.ts';
+import { useWalnutPack } from '../hooks/useWalnutPack';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import {
   FREENET_NO_HOST_DETAIL,
   FREENET_NO_HOST_LABEL,
   canReachFreenetNode,
+  detectFreenetReadOnly,
   detectFreenetRuntime,
+  refreshFreenetRuntime,
   type FreenetRuntime,
 } from '../lib/freenetRuntime.ts';
+import {
+  FREENET_LOCAL_NODE_DETAIL,
+  FREENET_LOCAL_NODE_LABEL,
+} from '../mist/freenetLocalNode.ts';
 import {
   fetchFreenetPeerStatus,
   publishFarmToFreenet,
@@ -51,10 +77,16 @@ import {
   refreshFarmUiAfterRecovery,
 } from '../mist/mistDisasterRecovery.ts';
 import { joinFarmWithShortTicket } from '../mist/mistJoinWithTicket.ts';
+import { resolveJoinTicket } from '../mist/joinTicketResolver.ts';
 import { formatJoinTicket, parseJoinTicketInput } from '../mist/mistJoinTicket.ts';
-import { getMistHotPublishStatus, isMistHotMirrorAvailable } from '../mist/mistHotBridge.ts';
-import { getMistJoinState } from '../mist/mistDeviceSession.ts';
+import {
+  getMistHotPublishStatus,
+  isMistHotMirrorAvailable,
+  mistPublishNeedsDevicePin,
+} from '../mist/mistHotBridge.ts';
+import { getMistJoinState, mistSessionNeedsPin } from '../mist/mistDeviceSession.ts';
 import { fetchSyncSelf } from '../lib/mdnsPeers.ts';
+import { ensureSyncHub } from '../lib/syncHub.ts';
 
 type Mode = 'send' | 'join';
 
@@ -74,14 +106,27 @@ function describeReadiness(
   host: FreenetHostStatus | null,
   onDesktop: boolean,
   runtime: FreenetRuntime,
+  lookingForHub: boolean,
 ): Readiness {
   // Checked before the peer status because on Android there is no node to have a
   // status: offering Connect here would be a button that can only ever fail.
   if (!canReachFreenetNode(runtime)) {
+    if (lookingForHub) {
+      return {
+        ready: false,
+        label: 'Looking for a PUF-AM laptop on this Wi‑Fi…',
+        tone: 'wait',
+      };
+    }
     return { ready: false, label: FREENET_NO_HOST_LABEL, tone: 'todo' };
   }
   if (peer?.freenet === 'connected') {
     return { ready: true, label: 'Connected to Freenet — ready to send or join.', tone: 'ok' };
+  }
+  // A node app on this device is already up or it would not have answered the
+  // probe, so there is nothing here to connect and no peer status to wait for.
+  if (runtime === 'android-local-node') {
+    return { ready: true, label: FREENET_LOCAL_NODE_LABEL, tone: 'ok' };
   }
   if (peer?.freenet === 'connecting') {
     return { ready: false, label: 'Connecting to Freenet…', tone: 'wait' };
@@ -109,13 +154,24 @@ function savedFreenetTicket(farmId: string | undefined): string {
   });
 }
 
+/**
+ * A ticket this card is willing to put on screen. Only ever built from one the
+ * hub has answered for — see `shortTicket` on `PublishFarmToFreenetResult`.
+ */
 type SentTicket = {
   ticket: string;
   role: JoinRole;
+  preset?: JoinPresetId;
   expires?: string;
-  /** Set when the ticket could not be registered for LAN lookup. */
-  error?: string;
 };
+
+/**
+ * What to call a ticket on screen. The preset is the word the owner actually
+ * chose ("Field only"); the role is all a ticket minted before presets can say.
+ */
+function ticketGrantLabel(sent: SentTicket): string {
+  return findJoinPreset(sent.preset)?.label ?? joinRoleLabel(sent.role);
+}
 
 function savedShortTicket(farmId: string | undefined): SentTicket | null {
   const status = farmId ? getMistHotPublishStatus(farmId) : null;
@@ -123,16 +179,19 @@ function savedShortTicket(farmId: string | undefined): SentTicket | null {
   return {
     ticket: status.joinTicket,
     role: status.joinTicketRole ?? DEFAULT_JOIN_ROLE,
+    ...(status.joinTicketPreset ? { preset: status.joinTicketPreset } : {}),
     expires: status.joinTicketExpires,
   };
 }
 
-const ROLE_BLURB: Record<JoinRole, string> = {
-  owner: 'Full control, including farm setup — only for another of your own devices.',
-  admin: 'Everything except owning the farm: team, setup, all records.',
-  farmer: 'Day-to-day work — map, diary, spraying, harvest. The usual choice for crew.',
-  viewer: 'Read-only.',
-};
+/** The nav entries a preset hands over, in the operator's words. */
+function describePresetModules(preset: JoinPreset): string {
+  const named = preset.modules
+    .filter((m: FarmModuleId) => m !== 'dashboard')
+    .map((m: FarmModuleId) => MODULE_LABELS[m]);
+  if (!named.length) return 'Dashboard only';
+  return named.join(' · ');
+}
 
 const TONE_CLASS: Record<Readiness['tone'], string> = {
   ok: 'text-emerald-800 bg-emerald-50 border-emerald-200',
@@ -141,11 +200,46 @@ const TONE_CLASS: Record<Readiness['tone'], string> = {
 };
 
 export function MistFarmSyncCard() {
-  const { userData } = useAuth();
+  const { userData, farmEnabledModules } = useAuth();
   const farmId = userData?.farmId;
   const desktop = getDesktopBridge();
-  const runtime = detectFreenetRuntime();
+  const hasWalnutPack = useWalnutPack();
+
+  /**
+   * Same filter the invite-PIN screen uses, so a farm with no walnut pack is
+   * never offered a Crop scout ticket whose whole point is blight.
+   */
+  const presets = useMemo(
+    () =>
+      joinPresetsForFarm(farmEnabledModules, {
+        excludeModules: hasWalnutPack ? [] : WALNUT_PACK_MODULES,
+      }),
+    [farmEnabledModules, hasWalnutPack],
+  );
+
+  /**
+   * On a tablet the answer to "is there a node" is not known at first paint: it
+   * depends on whether a LAN hub turns up. Re-read the runtime once the lookup
+   * settles instead of leaving the card on its no-host label for the session.
+   */
+  const [lookingForHub, setLookingForHub] = useState(() => !isDesktopShell());
+  const [runtime, setRuntime] = useState<FreenetRuntime>(detectFreenetRuntime);
+  useEffect(() => {
+    // Both lookups answer the same question — where is the node — and both are
+    // async, so the card starts on whatever is already known and settles.
+    void Promise.allSettled([ensureSyncHub(), refreshFreenetRuntime()]).then(() => {
+      setRuntime(detectFreenetRuntime());
+      setLookingForHub(false);
+    });
+  }, []);
   const hasNode = canReachFreenetNode(runtime);
+
+  /**
+   * A Freenet node on this tablet can fetch a farm but not publish one: PUT still
+   * goes through `fdev`, which is a laptop-only binary. Sending stays available
+   * when a hub is also paired, because that laptop can still do it.
+   */
+  const readOnly = detectFreenetReadOnly(runtime);
 
   const [mode, setMode] = useState<Mode>('send');
   const [modePinned, setModePinned] = useState(false);
@@ -159,7 +253,12 @@ export function MistFarmSyncCard() {
   const [autoStartForced, setAutoStartForced] = useState(false);
 
   const [sentTicket, setSentTicket] = useState<SentTicket | null>(null);
-  const [shareRole, setShareRole] = useState<JoinRole>(DEFAULT_JOIN_ROLE);
+  /** A remembered ticket the hub no longer answers for — shown as a warning, not a ticket. */
+  const [staleTicket, setStaleTicket] = useState<string | null>(null);
+  const [sharePresetId, setSharePresetId] = useState<JoinPresetId>('full_farmer');
+  /** Who this ticket is for — the only thing that turns the People list into names. */
+  const [shareLabel, setShareLabel] = useState('');
+  const selectedPreset = presets.find((p) => p.id === sharePresetId) ?? presets[0] ?? null;
   const [ticketCopied, setTicketCopied] = useState(false);
   const [freenetTicketShown, setFreenetTicketShown] = useState(false);
   const [lanAddress, setLanAddress] = useState<string | null>(null);
@@ -167,25 +266,56 @@ export function MistFarmSyncCard() {
   const [joinTicket, setJoinTicket] = useState('');
   const [ownerBase, setOwnerBase] = useState('');
   const [ownerBaseShown, setOwnerBaseShown] = useState(false);
+  const [devicePin, setDevicePin] = useState('');
+  const [needsPin] = useState(() => mistSessionNeedsPin());
+  /**
+   * Narrower than `needsPin`: the farm is sealed *and* nothing has opened it in
+   * this tab. Normally false, because unlocking on the way in keeps the seed in
+   * hand — this only fires on a device that reached Settings without one.
+   */
+  const [sendNeedsPin, setSendNeedsPin] = useState(() => mistPublishNeedsDevicePin());
   const [paste, setPaste] = useState('');
   const [pasteShown, setPasteShown] = useState(false);
   const [unlocked, setUnlocked] = useState(() => isMistHotMirrorAvailable());
 
   const refreshStatus = useCallback(async () => {
     // There is no Freenet API to poll on an APK with no hub, and a failed fetch
-    // would only overwrite the honest label with a generic disconnected one.
-    if (!hasNode) return;
+    // would only overwrite the honest label with a generic disconnected one. The
+    // same goes for a tablet reading off its own node: peer status is a hub's
+    // notion, and this device is not asking a hub for anything.
+    if (!hasNode || readOnly) return;
     try {
       setPeerStatus(await fetchFreenetPeerStatus());
     } catch {
       setPeerStatus(null);
     }
-  }, [hasNode]);
+  }, [hasNode, readOnly]);
 
   useEffect(() => {
     setUnlocked(isMistHotMirrorAvailable());
-    setSentTicket(savedShortTicket(farmId));
+    setSendNeedsPin(mistPublishNeedsDevicePin());
     void refreshStatus();
+
+    // A remembered ticket only proves this device minted one once. The hub's
+    // shelf is a separate file that a restart, a prune or an expiry can empty,
+    // and re-showing a ticket it has forgotten sends the operator to read out a
+    // dead code. Prove it still resolves before it goes back on screen.
+    const saved = savedShortTicket(farmId);
+    setSentTicket(null);
+    setStaleTicket(null);
+    if (!saved || !farmId) return;
+
+    let cancelled = false;
+    void resolveJoinTicket(saved.ticket, farmId)
+      .then(() => {
+        if (!cancelled) setSentTicket(saved);
+      })
+      .catch(() => {
+        if (!cancelled) setStaleTicket(saved.ticket);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [farmId, refreshStatus]);
 
   /** The address a joiner types when their device cannot find this hub by itself. */
@@ -228,8 +358,18 @@ export function MistFarmSyncCard() {
 
   if (!isMistExperimentalEnabled()) return null;
 
-  const readiness = describeReadiness(peerStatus, hostStatus, Boolean(desktop), runtime);
-  const blockedTitle = hasNode ? 'Connect to Freenet first' : FREENET_NO_HOST_LABEL;
+  const readiness = describeReadiness(
+    peerStatus,
+    hostStatus,
+    Boolean(desktop),
+    runtime,
+    lookingForHub,
+  );
+  const blockedTitle = !hasNode
+    ? FREENET_NO_HOST_LABEL
+    : readOnly
+      ? 'Sending a farm needs a PUF-AM laptop — this tablet can only fetch one'
+      : 'Connect to Freenet first';
   const parsedPaste = parseJoinTicketInput(paste);
   const freenetTicket = savedFreenetTicket(farmId);
   const joinTicketLooksRight = isJoinTicket(joinTicket);
@@ -263,7 +403,7 @@ export function MistFarmSyncCard() {
         setHostStatus(started);
         if (!started?.reachable) {
           throw new Error(
-            started?.lastError ?? 'Freenet did not start — check Mist workshop below for details',
+            started?.lastError ?? 'Freenet did not start on this computer.',
           );
         }
       }
@@ -295,18 +435,44 @@ export function MistFarmSyncCard() {
   const publish = () =>
     run(async () => {
       if (!farmId) return;
-      const result = await publishFarmToFreenet(farmId, { role: shareRole });
+      // A farm that dropped this preset from its catalog since it was picked
+      // would otherwise publish a ticket granting nothing.
+      const preset = presets.find((p) => p.id === sharePresetId) ?? presets[0];
+      if (!preset) throw new Error('This farm has no crew role to share yet.');
+      const pin = devicePin.trim();
+      if (sendNeedsPin && pin.length < 4) {
+        throw new Error('Enter this device\u2019s PIN to unlock the farm before sending it.');
+      }
+      const result = await publishFarmToFreenet(farmId, {
+        preset,
+        ...(pin ? { devicePin: pin } : {}),
+        ...(shareLabel.trim() ? { label: shareLabel.trim() } : {}),
+      });
+      // The seed is in hand for the rest of this tab's life, so the PIN field
+      // has done its job and should stop being asked for.
+      setSendNeedsPin(mistPublishNeedsDevicePin());
+      if (!result.shortTicket) {
+        // The farm is on Freenet either way, but a short ticket the hub cannot
+        // answer for is worse than none: the operator reads it out, the joiner
+        // gets "No hub on this WIFI knows that join ticket", and the ticket looks
+        // like the innocent party. Fail loudly and point at the working handoff.
+        setSentTicket(null);
+        setStaleTicket(null);
+        await refreshStatus();
+        throw new Error(
+          `Farm is on Freenet, but this device could not put a join ticket on its hub, so there is no short ticket to read out — ${
+            result.shortTicketError ?? 'the hub did not accept it'
+          }. Use the Freenet ticket under Advanced below to hand this farm over.`,
+        );
+      }
+      setStaleTicket(null);
       setSentTicket({
         ticket: result.shortTicket,
         role: result.shortTicketRole,
+        ...(result.shortTicketPreset ? { preset: result.shortTicketPreset } : {}),
         expires: result.shortTicketExpires,
-        ...(result.shortTicketError ? { error: result.shortTicketError } : {}),
       });
-      setMessage(
-        result.shortTicketError
-          ? 'Farm sent to Freenet, but the short ticket could not be registered on this device — use the Freenet ticket under Advanced instead.'
-          : 'Farm sent to Freenet. Read the join ticket below out to whoever is joining.',
-      );
+      setMessage('Farm sent to Freenet. Read the join ticket below out to whoever is joining.');
       await refreshStatus();
     });
 
@@ -338,10 +504,11 @@ export function MistFarmSyncCard() {
           farmId,
           ticket: joinTicket,
           ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
+          ...(devicePin.trim() ? { devicePin: devicePin.trim() } : {}),
         });
-        setMessage(
-          `${describeReceived(result.diary, result.blocks)} Joined as ${result.manifest.role}.`,
-        );
+        const joinedAs =
+          findJoinPreset(result.grant.preset)?.label ?? joinRoleLabel(result.grant.role);
+        setMessage(`${describeReceived(result.diary, result.blocks)} Joined as ${joinedAs}.`);
       } catch (err) {
         setOwnerBaseShown(true);
         throw err;
@@ -364,11 +531,10 @@ export function MistFarmSyncCard() {
           <Share2 className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Farm sync between laptops</h2>
+          <h2 className="text-lg font-bold text-slate-900">Send or join a farm over Freenet</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Move a whole farm — diary, issues, boundaries — to another computer over Freenet.
-            Everything is encrypted on this laptop before it leaves. Experimental; Firebase farms
-            are unaffected.
+            Move a whole farm — diary, issues, boundaries — to a device that is not on this Wi‑Fi.
+            Everything is encrypted here before it leaves. Experimental.
           </p>
         </div>
       </div>
@@ -380,7 +546,7 @@ export function MistFarmSyncCard() {
           <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
         ) : null}
         <span className="flex-1">{readiness.label}</span>
-        {!readiness.ready && hasNode && (
+        {!readiness.ready && hasNode && !readOnly && (
           <button
             type="button"
             disabled={busy}
@@ -395,6 +561,12 @@ export function MistFarmSyncCard() {
       {!hasNode && (
         <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
           {FREENET_NO_HOST_DETAIL}
+        </p>
+      )}
+
+      {readOnly && (
+        <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+          {FREENET_LOCAL_NODE_DETAIL}
         </p>
       )}
 
@@ -420,7 +592,7 @@ export function MistFarmSyncCard() {
 
       {!farmId || !unlocked ? (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-          Sign in to a mist farm and unlock it on this device before sending or joining. On a new
+          Sign in to this farm and unlock it on this device before sending or joining. On a new
           laptop, use <strong>Recover with FarmCode</strong> on the login screen first.
         </p>
       ) : (
@@ -455,29 +627,90 @@ export function MistFarmSyncCard() {
           {mode === 'send' ? (
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label htmlFor="mist-share-role" className="text-xs font-semibold text-slate-700">
+                <label htmlFor="mist-share-label" className="text-xs font-semibold text-slate-700">
+                  Who is this for?
+                </label>
+                <input
+                  id="mist-share-label"
+                  value={shareLabel}
+                  disabled={busy}
+                  maxLength={60}
+                  onChange={(e) => setShareLabel(e.target.value)}
+                  placeholder="Dave — spray ute"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm"
+                />
+                <p className="text-[11px] text-slate-500">
+                  Only for your own list under <strong>Farm setup → People</strong> — it stays on
+                  this computer and is not sent with the farm.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="mist-share-preset" className="text-xs font-semibold text-slate-700">
                   What this ticket grants
                 </label>
                 <select
-                  id="mist-share-role"
-                  value={shareRole}
+                  id="mist-share-preset"
+                  value={sharePresetId}
                   disabled={busy}
-                  onChange={(e) => setShareRole(e.target.value as JoinRole)}
+                  onChange={(e) => setSharePresetId(e.target.value as JoinPresetId)}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm"
                 >
-                  {JOIN_ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
+                  {presets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.label}
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-500">{ROLE_BLURB[shareRole]}</p>
+                {selectedPreset ? (
+                  <p className="text-[11px] text-slate-500">
+                    {describePresetModules(selectedPreset)}. They also get Settings on their own
+                    device, so they can re-join or sync over Wi‑Fi without you.
+                  </p>
+                ) : null}
               </div>
+
+              {sendNeedsPin ? (
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="mist-send-device-pin"
+                    className="text-xs font-semibold text-slate-700"
+                  >
+                    Device PIN
+                  </label>
+                  <input
+                    id="mist-send-device-pin"
+                    value={devicePin}
+                    onChange={(e) => setDevicePin(e.target.value.replace(/\D/g, ''))}
+                    inputMode="numeric"
+                    type="password"
+                    autoComplete="off"
+                    placeholder="••••"
+                    className="w-full px-3 py-2.5 rounded-xl border border-amber-300 bg-amber-50 font-mono text-center tracking-[0.3em]"
+                  />
+                  <p className="text-[11px] text-amber-800">
+                    This farm is still sealed on this device. The PIN unlocks it so the farm can be
+                    encrypted for Freenet — it is the same one you use to open {APP_NAME}, not the
+                    FarmCode.
+                  </p>
+                </div>
+              ) : null}
 
               <button
                 type="button"
-                disabled={busy || !readiness.ready}
-                title={readiness.ready ? undefined : blockedTitle}
+                disabled={
+                  busy ||
+                  !readiness.ready ||
+                  readOnly ||
+                  (sendNeedsPin && devicePin.trim().length < 4)
+                }
+                title={
+                  readiness.ready && !readOnly
+                    ? sendNeedsPin && devicePin.trim().length < 4
+                      ? 'Enter this device’s PIN first'
+                      : undefined
+                    : blockedTitle
+                }
                 onClick={() => void publish()}
                 className="w-full px-3 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
@@ -489,7 +722,7 @@ export function MistFarmSyncCard() {
                 <div className="space-y-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-emerald-900">
-                      Join ticket · {sentTicket.role}
+                      Join ticket · {ticketGrantLabel(sentTicket)}
                     </p>
                     <button
                       type="button"
@@ -511,12 +744,14 @@ export function MistFarmSyncCard() {
                       ? ` Stops working ${new Date(sentTicket.expires).toLocaleDateString()}.`
                       : null}
                   </p>
-                  {sentTicket.error ? (
-                    <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-                      {sentTicket.error} — use the Freenet ticket under <em>Advanced</em> below.
-                    </p>
-                  ) : null}
                 </div>
+              ) : null}
+
+              {staleTicket ? (
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                  The join ticket this device handed out last time is no longer on its hub, so it
+                  will not work for anyone. Send the farm again to get a fresh one.
+                </p>
               ) : null}
 
               <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 space-y-1.5">
@@ -599,7 +834,7 @@ export function MistFarmSyncCard() {
                 <input
                   id="mist-short-ticket"
                   value={joinTicket}
-                  onChange={(e) => setJoinTicket(e.target.value.toUpperCase())}
+                  onChange={(e) => setJoinTicket(formatJoinTicketInput(e.target.value))}
                   placeholder={`${JOIN_TICKET_PREFIX}-K7M2-9Q4X`}
                   autoComplete="off"
                   autoCapitalize="characters"
@@ -613,6 +848,28 @@ export function MistFarmSyncCard() {
                   </p>
                 ) : null}
               </div>
+
+              {needsPin ? (
+                <div className="space-y-1.5">
+                  <label htmlFor="mist-join-device-pin" className="text-xs font-semibold text-slate-700">
+                    Device PIN
+                  </label>
+                  <input
+                    id="mist-join-device-pin"
+                    value={devicePin}
+                    onChange={(e) => setDevicePin(e.target.value.replace(/\D/g, ''))}
+                    inputMode="numeric"
+                    type="password"
+                    autoComplete="off"
+                    placeholder="••••"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-mono text-center tracking-[0.3em]"
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Needed to look a ticket up over Freenet — the slot it sits in is addressed off
+                    the FarmCode this PIN unlocks.
+                  </p>
+                </div>
+              ) : null}
 
               {ownerBaseShown ? (
                 <div className="space-y-1.5">

@@ -1,11 +1,18 @@
 # Freenet on the PUF-AM tablet APK
 
-**Status:** Plan only. **Nothing in this document is implemented.** The APK in this pass gained the mist storage chooser and an honest "no Freenet here" gate; it did **not** gain a Freenet host.
+**Status:** §8 Phase 4's *reader* half is **built and running on a tablet** (§3b). Everything else here — a Freenet host in the APK, publishing from Android — remains plan only.
 **Date:** 2026-08-05
+**Update ~2026-08-07:** the *desktop* side of Option A landed — a packaged AppImage can now be the tablet's LAN hub, behind a pairing code, with `/api/mist/freenet/*` in the LAN allowlist (§4, §8a; design in desktop plan §6.4). Nothing in the APK changed: there is still no Freenet host on Android, and `detectFreenetRuntime()` does not yet count a *paired* hub as `android-hub` (§8 phase 2).
+**Update ~2026-08-09:** the join-slot contract (§7a) makes a short ticket resolve **off the owner's Wi-Fi** — on a device with a Freenet node. That is still not a tablet. §7a records what a tablet can and cannot do with it, and the two tablet-side bugs found while establishing that.
+**Update ~2026-08-09 (b):** §3 option B said "nobody else ships one". **That is now false** — an unofficial third-party Android node exists and is sideloadable (§3a). It changes which blocker is binding, not what is implemented here: still no Freenet on this tablet.
+**Update ~2026-08-09 (c):** option B is **taken, and reads work on hardware.** A browser-side GET client speaks the 0.2 WS API straight at the sideloaded node on `127.0.0.1:7509`, so the SM-T545 resolves a join slot and pulls a farm with no hub, no pairing and no shed Wi‑Fi. §2 blocker 2 — "the whole Freenet client path is server-side" — is **lifted for GET**. Publishing is unchanged and still wants a laptop. Details and the device evidence in §3b.
+**Update ~2026-08-09 (d):** the node app has a **power policy and a boot receiver**, so "open the Freenet app first" (§8b step 1) is a tablet setup step, not a permanent requirement. §8c records what its manifest does and does not let PUF-AM drive, and ranks the ways to remove that step.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Android / Capacitor (`com.sentinut.farm`)
 **Experimental:** mist/Freenet stays experimental everywhere. **Firebase Auth + invite PIN remains the shipping path** on tablets and is unaffected by anything below.
 
-Related: [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) (the desktop plugin this one is measured against) · [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) (what we publish and where it is kept) · [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) (every local store, including the Android ones) · [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy · [`NAMING.md`](NAMING.md) §2–3.
+Related: [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) (the desktop plugin this one is measured against) · [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) (which pipes Settings shows, Freenet invite roles, crew roster, position pings) · [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) (what we publish and where it is kept) · [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) (every local store, including the Android ones) · [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy · [`NAMING.md`](NAMING.md) §2–3.
+
+**Settings pointer moved:** the tablet-side hub steps below say *Settings → Offline & sync*. That card is now **Settings → Sync → Wi‑Fi (LAN)** ([`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §2); the flow is unchanged.
 
 ---
 
@@ -14,7 +21,7 @@ Related: [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) (the desktop p
 | | |
 |--|--|
 | **Did** | The Capacitor build bakes `VITE_MIST_EXPERIMENTAL=true`, so the mist start-screen storage chooser is in the APK (§6). Freenet surfaces on Android are gated with an honest message instead of a Connect button that can only time out (§7). One command builds a tablet APK (§6.3). |
-| **Did not** | Implement `FreenetHostPlugin` on Android. There is **no Freenet node in the APK, no companion node, and no hub relay**. A tablet cannot publish to or pull from Freenet by any path today. |
+| **Did not** | Implement `FreenetHostPlugin` on Android. There is **no Freenet node in the APK and no companion node**. A tablet still cannot *be* a Freenet peer by any path. (The hub relay it would borrow one through is no longer missing — see the 2026-08-07 update above — but wiring the APK's runtime detection to it is Phase 2 work that has not been done.) |
 
 Everything in §3–§5 is analysis and options. §8 is the phased order if and when the work is picked up.
 
@@ -41,8 +48,8 @@ Size is worth stating even though it is not the blocker: `freenet` + `fdev` are 
 
 | Option | What it means | Available today? | Cost | Verdict |
 |--------|---------------|------------------|------|---------|
-| **A. Shed / LAN hub** | A PUF-AM desktop (or Pi/NUC) on the farm LAN runs the node and the Express routes. The tablet is an HTTP client of that machine — it never touches Freenet itself | **Partly.** The hub half exists and is field-proven; the LAN half does not (see §4) | Low — one LAN-bound listener + an auth decision | **Recommended for Phase 1** |
-| **B. Companion Freenet app** | A separate Android app hosts the node; PUF-AM attaches to it, the way the desktop host attaches to a workshop node | **No.** Freenet 0.2 publishes no Android build, and nobody else ships one | Would mean writing and maintaining option C's hard part, then also shipping a second app | Rejected |
+| **A. Shed / LAN hub** | A PUF-AM desktop (or Pi/NUC) on the farm LAN runs the node and the Express routes. The tablet is an HTTP client of that machine — it never touches Freenet itself | **Yes.** Both halves exist: the hub is field-proven, and the packaged app now serves the LAN behind a pairing code (§4) | Landed — LAN-bound listener + per-device tokens | **Recommended for Phase 1** |
+| **B. Companion Freenet app** | A separate Android app hosts the node; PUF-AM attaches to it, the way the desktop host attaches to a workshop node | **Partly — see §3a.** Upstream still publishes no Android build, but a third party now sideloads one that binds the standard WS API on `127.0.0.1:7509` | We write no Rust; the cost moves to a browser-side client and to depending on someone else's alpha | Re-open as the POC route |
 | **C. Freenet Android peer inside the APK** | Cross-compile `freenet-core` for `aarch64-linux-android`, ship as `libfreenet.so`, drive it from a Capacitor native plugin | **No** | We would own a Rust Android toolchain, an unsupported target, `fdev`'s replacement, Doze/background-execution work, and battery behaviour | Not before upstream ships an Android target |
 | **D. WASM peer in the WebView** | The peer compiles to WASM and runs in the page | **No** | Freenet transport is UDP; browsers have no UDP. Not on the upstream 0.2 roadmap | Watch only |
 
@@ -56,18 +63,114 @@ So Phase 1 is: **tablet holds the farm locally, syncs to the shed laptop over th
 
 ---
 
+## 3a. A third-party Android node exists (checked 2026-08-09)
+
+[`manikmakki/freenet-android-node`](https://github.com/manikmakki/freenet-android-node) — unofficial, AGPL-3.0, alpha, two stars, one author — sideloads a signed ~100 MB APK that runs **real freenet-core 0.2.123** on a phone or tablet. It tracks upstream release-for-release (v0.2.120 through v0.2.123 all shipped in the three days to 2026-08-08). It embeds core as a **JNI `cdylib`**, not an exec'd binary, so §2 blocker 3 — the one this plan called decisive — does not apply to it at all. Its device proofs are on ARM64/API 33: a real network peer, a 30-minute continuous-peer gate, 20 clean start/stop cycles, a Wasmtime contract PUT/GET/UPDATE surviving a node restart, ~196 MB peak RSS.
+
+What it gives us that matters: `run_network_node` with `ws_api.address` forced to `127.0.0.1` and the port defaulting to **7509** — byte-for-byte the endpoint `Freenet02WsTransport` already speaks (`ws://127.0.0.1:7509/v1/contract/command`). Android loopback is device-wide, so another app on the same tablet can reach it, and [`android/app/src/main/res/xml/network_security_config.xml`](../android/app/src/main/res/xml/network_security_config.xml) already permits cleartext to `127.0.0.1`.
+
+**Which blockers this actually moves:**
+
+| §2 blocker | Status after this app |
+|---|---|
+| 1 · no Node runtime in the APK | **Unchanged** |
+| 2 · the whole Freenet client path is server-side Express | **Unchanged, and now the binding one.** A node on the tablet is useless until the *page* can speak to it |
+| 3 · Android will not exec a bundled binary | **Sidestepped** — someone else linked core into a `cdylib` and shipped the foreground service |
+| 4 · PUT still needs `fdev` | **Unchanged.** `fdev` is not in that APK and could not be exec'd anyway |
+
+The consequence is asymmetric and worth naming: GET is the working flatbuffers path, so a tablet could become a Freenet **reader** — slot resolve, Hot + bones pull, i.e. the join in §7a — long before it could publish. Publishing needs native-protocol PUT in TypeScript, which is the same item as desktop's "drop `fdev`" (desktop plan §4.3).
+
+**Why this does not become option C.** Doing the same JNI embed inside `com.sentinut.farm` is technically open to us and licensing-wise the worst move available: the AGPL carve-out cleared in desktop plan §8.4 covers *bundling an unmodified binary alongside* an app that talks to it over a network protocol, and linking core into our own process is the linkage that carve-out does not describe. Two apps over a loopback WebSocket keeps PUF-AM's licensing where it is, keeps the 100 MB out of a sideloaded APK, and is exactly what `FreenetHostMode = 'attached'` (§5) was frozen to model.
+
+**What has not changed:** it is one person's alpha, self-described as draining battery; identity keys sit in files with Keystore wrapping listed as debt; the WS port has no auth, so any app on the tablet can drive our node; and it runs core 0.2.123 against our 0.2.119 pin, so the pack- and slot-contract code hashes need re-verifying before a cross-version join is trusted. The tablet is also an outbound-only NAT leaf with no inbound reachability claimed — which is another argument for the frozen `contribute_storage = false` mobile policy, not against it.
+
+## 3b. The tablet reads Freenet for itself (built 2026-08-09)
+
+§3a said GET was the asymmetry worth exploiting and that blocker 2 had become the binding one. This is that blocker removed. The page now speaks the 0.2 WS API directly, so the *client* half of Freenet no longer needs a Node runtime anywhere.
+
+### What was built
+
+| File | Job |
+|------|-----|
+| [`units/mist-freenet/src/freenet02-browser-get.ts`](../units/mist-freenet/src/freenet02-browser-get.ts) | `BrowserFreenetGetClient` — connect, `getBlob(FN02@…)`, disconnect. Flatbuffers via `@freenetorg/freenet-stdlib`, no Node imports |
+| [`units/mist-freenet/src/freenet02-browser-get-url.ts`](../units/mist-freenet/src/freenet02-browser-get-url.ts) | `DEFAULT_LOCAL_FREENET_WS_URL` on its own, so the URL is importable without pulling the SDK into the first paint |
+| [`src/mist/freenetLocalNode.ts`](../src/mist/freenetLocalNode.ts) | Is there a node here? Probe, cache, lazy client, `readLocalFreenetBlob()` |
+| [`src/lib/freenetRuntime.ts`](../src/lib/freenetRuntime.ts) | New runtime `android-local-node`; `freenetReadsLocally()`, `detectFreenetReadOnly()`, `refreshFreenetRuntime()` |
+| [`src/mist/joinSlotFreenet.ts`](../src/mist/joinSlotFreenet.ts) | `readJoinSlotState()` asks this device's node before any hub |
+| [`src/mist/mistFreenetClient.ts`](../src/mist/mistFreenetClient.ts) | `readFarmBlobFromLocalNode()` in front of both `pull-by-uri` routes |
+
+`Freenet02WsTransport` is untouched. The desktop keeps its own Node transport with `fdev` behind it; the browser client is a second, smaller reader, not a port of the first.
+
+### Two limits, both deliberate
+
+**Read-only, and there is no `putBlob` to reach for.** PUT still goes through `fdev` (§2 blocker 4). Rather than let that fail at the last step, `freenetIsReadOnlyHere()` disables *sending* on a tablet whose only node is the local one — and lifts as soon as a hub is paired, because that laptop still has `fdev`.
+
+**Reads only, over loopback, to a separate app.** PUF-AM links nothing of Freenet's into its own process. That is the same arrangement the AGPL carve-out in desktop plan §8.4 describes, and it is why §3a's rejection of option C stands: the licensing objection was to *linkage*, and a WebSocket to another package is not linkage.
+
+### Where a read goes, in order
+
+Both the slot resolve and the Hot/bones pull walk the same ladder:
+
+| Order | Route | Why here |
+|-------|-------|----------|
+| 1 | Node on this device (`127.0.0.1:7509`) | No pairing, no Wi‑Fi, no second machine that has to be awake |
+| 2 | Hub (`/api/mist/freenet/*`) | Two nodes see different parts of the network. "My node has not found it yet" is ordinary in the minutes after a publish, and is no reason to ignore a laptop that has |
+| 3 | An error naming what was actually tried | A tablet with a node and no hub must not be told to go and find a laptop |
+
+Only the *last* step is fatal, which is the point: a local node that has not spread yet degrades to the hub instead of replacing it. When there is no hub at all, `apiHubMissing()` short-circuits before the fetch, so nothing spends a TCP timeout on a remembered address — and the message says the ticket has not spread yet rather than blaming a missing laptop.
+
+`peer/start` and `peer/status` are skipped outright in the local-node case. They are questions for a hub, and a paired-but-absent laptop must not be able to hold up a join that never involved it. `shouldPollHubPeerStatus()` also waits for the probe to settle: at first paint the only thing the tablet knows is whether it *remembers* a hub, and acting on that reading cost a real request to a stale address before the local node was found.
+
+### Cost of carrying it
+
+The flatbuffers SDK is `import()`ed inside the client factory, so it lands as its own ~214 KB chunk (≈28 KB gzipped) that only a device with a node ever downloads. `probeLocalFreenetNode()` is a bare socket open, not a contract GET, for the same reason — asking the real question would drag the SDK into the first paint of every tablet, most of which have no node.
+
+### Verified on the device
+
+SM-T545, Android 11, `org.freenet.androidnode` v0.2.123 listening on `127.0.0.1:7509`, PUF-AM debug APK:
+
+| Check | Result |
+|-------|--------|
+| `ws://127.0.0.1:7509` from the WebView's `https://localhost` origin | Opens in 44 ms — loopback is potentially-trustworthy, so no mixed-content block |
+| App's own bundled chunk, `connect()` + `getBlob()` in the page | Connected in 35 ms; the GET went out and the node worked it |
+| Same client from the build box against the tablet's node (`adb forward`) | Same behaviour — stdlib 0.3.0 talks to core **0.2.123** as well as to the desktop's 0.2.119 |
+| Join gate on the tablet | Shows *"Reading Freenet from the node on this tablet — no laptop needed to join."* |
+
+The pass condition is that the node accepts our flatbuffers `GetRequest` and works it, which is the cross-version compatibility question §3a flagged.
+
+**A miss has two shapes, and measuring which one you get matters.** This was written expecting only the second:
+
+| Shape | What the client returns | Measured |
+|---|---|---|
+| The node answers `ContractNotFound` | `null` — an ordinary answer the caller falls through on | **The common case.** ~8s on the desktop 0.2.119 and on the tablet's 0.2.123, for an address nothing was ever published to |
+| The node never answers, and the search budget expires | Throws *"searched for Ns and did not find it"* | The case a cold or poorly-connected node hits, and why the budget is the caller's decision (`localFreenetSearchBudgetMs()`) rather than a constant |
+
+The first shape is what makes the §3b ladder cheap: trying this device's node before the hub costs seconds, not a whole budget. Both are pinned by [`units/mist-freenet/freenet02-browser-get-live.test.ts`](../units/mist-freenet/freenet02-browser-get-live.test.ts), which is opt-in — it needs a real node, so it skips unless `FREENET_LIVE_WS=1`:
+
+```bash
+adb forward tcp:17509 tcp:7509    # only if the node under test is the tablet's
+FREENET_LIVE_WS=1 FREENET_WS_URL=ws://127.0.0.1:17509/v1/contract/command \
+  npm test -- units/mist-freenet/freenet02-browser-get-live.test.ts
+```
+
+**Not yet done on hardware:** a real end-to-end join — owner publishes, tablet resolves the short ticket and pulls the farm. That needs a farm published from a laptop and a few minutes for Opennet to spread it (§8b).
+
+---
+
 ## 4. What the hub option actually needs
 
-The hub is a PUF-AM desktop that already runs a bundled node. Two things stand between that and a tablet using it, and both are already recorded as deferred work in [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) §14 item 9:
+The hub is a PUF-AM desktop that already runs a bundled node. Two things used to stand between that and a tablet using it, both recorded as deferred work in [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) §14 item 9. **Both are now closed** — see desktop plan §6.4 for the design and the live verification.
 
-| Blocker | Detail |
+| Former blocker | How it was closed |
 |---------|--------|
-| **The desktop API is loopback-only** | `localApi.ts` binds `127.0.0.1` on an ephemeral port. Nothing on the LAN can reach it. `startPufomMdns()` would advertise a LAN URL that answers nothing |
-| **The loopback token would 401 a tablet** | Phase 4 put a per-launch bearer on every `/api/*`, injected by the Electron session so only the renderer has it. A tablet has no way to get it, and should not — it is a same-process secret |
+| **The desktop API is loopback-only** | A *second* listener ([`desktop/lanApi.ts`](../desktop/lanApi.ts)) binds `0.0.0.0:3000` when the operator enables the tablet hub in Settings. `localApi.ts` still binds `127.0.0.1` on its ephemeral port and still serves the desktop UI — the two listeners are separate apps with separate trust levels |
+| **The loopback token would 401 a tablet** | The tablet never sees that token, and should not. It gets its own: an 8-character pairing code shown on the laptop is exchanged once at `POST /api/hub/pair` for a per-device token sent as `x-puf-hub-token`. Revocable per device, rotatable without unpairing anyone |
 
-Doing this properly means a **second, LAN-bound listener** with its own authorisation, and the obvious candidate is the farm bearer that `/api/sync/*` already uses. That is a sync-path design question, which is exactly why the desktop plan pushed it out of Phase 4 rather than bolting it on.
+The authorisation question this section originally left open — "the obvious candidate is the farm bearer that `/api/sync/*` already uses" — was answered the other way. A farm bearer identifies a *farm*, so it cannot be revoked for one lost tablet, and it says nothing about whether the operator meant this laptop to serve the network at all. A per-device token issued from a code the operator can read out across a shed does both.
 
-Until that lands, the workshop escape hatch is the unchanged one: an APK built with `VITE_MIST_FREENET_API` pointing at a machine running `MIST_FREENET=1 npm run dev`. The runtime detector reports `android-hub` for that build and lets the buttons through (§7). It is a workshop path, not a product.
+The LAN listener serves an allowlist — `/api/sync/*`, `/api/presence/*`, `/api/highlights/*`, `/api/mist/freenet/*` — and answers `/api/auth/*` and `/api/weather/*` with a 404 that says those come from the cloud, so a tablet routes them correctly instead of treating the hub as broken. It does not serve the UI bundle at all.
+
+The workshop escape hatch still works unchanged: an APK built with `VITE_MIST_FREENET_API` pointing at `MIST_FREENET=1 npm run dev`. That server answers `/api/hub/info` with `kind: 'workshop-dev'` and `pairingRequired: false`, so the tablet skips pairing against it exactly as before.
 
 ---
 
@@ -159,14 +262,44 @@ grep -rl "Offline Freenet network" dist/assets   # the chooser's own copy
 |---------|------|------------|
 | `desktop-host` | Electron shell | Full — the app owns a bundled node |
 | `browser-sidecar` | Any browser | Full — same-origin Express or the workshop sidecar |
-| `android-hub` | Capacitor **and** `VITE_MIST_FREENET_API` baked in | Allowed — the operator named a machine, so let them try it |
+| `android-local-node` | Capacitor **and** a Freenet node answering on this device's `127.0.0.1:7509` | Joining and pulling, off this device's own node. **Sending disabled** unless a hub is also paired — see §3b |
+| `android-hub` | Capacitor **and** a hub — `VITE_MIST_FREENET_API` baked in, or one found at runtime | Allowed — there is a machine on the other end, so let them try it |
 | `android-no-host` | Capacitor, no hub | **Blocked with an explanation** |
 
-Blocking is deliberate rather than cosmetic. A `Connect` button on a tablet with no node does not fail loudly — it fetches `http://10.0.2.2:3000` (the emulator loopback `apiBase.ts` falls back to), waits, and reports a generic disconnect. An operator in a paddock reads that as bad signal and goes looking for a hill. So the gate is checked *before* peer status, the status poll is skipped entirely, and the readiness line says the true thing:
+A node on this device outranks a hub, and outranks it even when both are present: it needs no pairing, no shed Wi‑Fi, and nothing left running on someone else's laptop. The hub stays in the picture for the two things loopback cannot do — publishing, and answering for a blob this device's node has not found yet.
+
+A hub found at runtime counts the same as one baked in. Requiring `VITE_MIST_FREENET_API` meant re-building the APK for every shed the tablet visited; NSD discovery and the address field in *Offline & sync* reach the same routes on the same machine, so `detectFreenetRuntime()` treats them alike and the card re-reads the answer once the lookup settles.
+
+Blocking is deliberate rather than cosmetic. A `Connect` button on a tablet with no node does not fail loudly — it used to fetch `http://10.0.2.2:3000`, the Android **emulator's** alias for the dev machine's loopback, which on real hardware is an unroutable address that hangs until the TCP connect gives up and then surfaces as a bare `TypeError: Failed to fetch`. An operator in a paddock reads that as bad signal and goes looking for a hill. That fallback is gone: `getApiBaseUrl()` answers `''` on a packaged APK until a hub is actually found, `apiFetch()` names the address it could not reach, and the emulator alias is used only when a probe confirms something is listening. The gate is still checked *before* peer status, the status poll is still skipped, and the readiness line says the true thing:
 
 > Freenet does not run on this tablet — the farm is held here, but sending and joining need a PUF-AM laptop.
 
 `android-hub` exists so the workshop can still point an APK at a real node without the app pretending. Covered by [`tests/freenetRuntime.test.ts`](../tests/freenetRuntime.test.ts).
+
+---
+
+## 7a. The join slot does not put a tablet on Freenet — *superseded by §3b*
+
+> **Superseded 2026-08-09.** This section's conclusion held for a tablet with nothing on it but PUF-AM, which was every tablet when it was written. It is wrong for a tablet with the sideloaded node app: the "impossible" rows below are now the ordinary path, run by the page against `127.0.0.1:7509`. Kept because the reasoning is still exactly right about *why* — a join needs **a** Freenet node, and the only thing that changed is that a tablet can now have one. Everything below remains true of a tablet without the node app.
+
+The slot contract ([`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) § Freenet slot contract) lifts one requirement and one only: a joiner no longer needs to be on the **owner's** Wi-Fi. It still needs a Freenet node, and §2 blocker 3 says a tablet cannot have one. Worth stating flatly, because "join from anywhere" invites the opposite reading:
+
+| Step of a join | Where it runs | Tablet, no hub, no node app | Tablet with the node app (§3b) |
+|---|---|---|---|
+| Ticket → manifest, LAN shelf | Owner's Express | Impossible | Impossible — and not needed |
+| Ticket → manifest, Freenet slot | `GET /api/mist/freenet/slot/:id` on **a** node | Impossible | **Works** — the page GETs the slot off `127.0.0.1:7509` |
+| Manifest → Hot + bones ciphertext | `/api/mist/freenet/hot|bones/pull-by-uri` on **a** node | Impossible | **Works** — same client, by FN02 URI |
+| Ciphertext → farm | The page, in the WebView | Fine | Fine |
+
+Only the last row was client-side. There is **no lightweight or WASM Freenet client in the web bundle** and there is nothing to write one against (§3 option D: Freenet's transport is UDP) — that part has not changed, and a peer in the page is still out. What §3b adds is not a peer but a *client*: the page drives someone else's peer over loopback. So the useful distinction is no longer "can this tablet reach a PUF-AM hub over IP at all"; it is **is there a Freenet node this tablet can reach, here or across the shed**. A laptop reachable across a VPN or a hotspot serves a tablet exactly as a shed laptop does; a tablet alone in a paddock now joins if — and only if — the node app is on it.
+
+For an off-Wi-Fi POC on a tablet *without* the node app the honest shape is therefore: **the laptop joins over Freenet, the tablet joins from the laptop.** Laptop B recovers its FarmCode and resolves the ticket through its own bundled node with no sight of laptop A; the tablet then gets that farm from laptop B over the LAN, or over the same `.pufom` export by hand.
+
+### Two bugs this turned up
+
+**`peer/start` ran before every resolver.** [`MistJoinTicketGate`](../src/components/MistJoinTicketGate.tsx) `await`ed `POST /api/mist/freenet/peer/start` at the top of `join()` and let it throw. A tablet holding a remembered hub it could no longer reach therefore failed the join on the peer *warm-up*, and never called a single resolver — including the LAN one, which needs no Freenet at all. The start is now a best-effort courtesy inside `try`/`catch`, skipped entirely when `detectFreenetRuntime()` says there is no node to start, and the gate shows §7's no-host sentence instead of a `Connect Freenet` button.
+
+**A remembered hub was never re-validated.** `pufom_last_sync_hub` survives `adb install -r`, so a hub saved by an older APK — before the address field probed anything — outlived the build that wrote it. `getApiBaseUrl()` handed it straight to `fetch()`, and an address that is not a URL (`192.168.1.1205:3000`, a fourth octet typed one digit long) rejects with the same bare `TypeError` as an unplugged laptop, so the tablet reported "could not reach" an address it could never have reached. Reads and writes of that value now go through `normalizeHubBase()` ([`tests/apiBaseHubBase.test.ts`](../tests/apiBaseHubBase.test.ts)).
 
 ---
 
@@ -175,16 +308,101 @@ Blocking is deliberate rather than cosmetic. A `Connect` button on a tablet with
 | Phase | Work | Blocked on |
 |-------|------|------------|
 | **0 (done)** | Mist chooser in the APK; honest gate; build scripts | — |
-| **1** | Tablet gets farms over the **existing LAN path** — NSD hub discovery, `.pufom` sync, join-ticket LAN resolve. No Freenet | Nothing. Needs a field pass, not code |
-| **2** | Desktop LAN listener for `/api/mist/freenet/*` with farm-bearer auth; tablet points at it; runtime becomes `android-hub` for real | Desktop plan §14 item 9 — a second listener and an auth decision |
+| **1 (done)** | Tablet gets farms over the **existing LAN path** — NSD hub discovery, `.pufom` sync, join-ticket LAN resolve. No Freenet | — |
+| **2** | Desktop LAN listener for `/api/mist/freenet/*`; tablet points at it; runtime becomes `android-hub` for real | **Listener done** (desktop plan §6.4) — per-device tokens rather than the farm bearer this row first assumed. `/api/mist/freenet/*` is in the LAN allowlist, so the remaining work is tablet-side: make `detectFreenetRuntime()` report `android-hub` off a *paired* hub |
 | **3** | `RemoteFreenetHost` implementing `FreenetHostPlugin` against a hub, so the tablet reports `attached` through the same interface | Phase 2 |
-| **4** | On-device peer (Option C) | Upstream `freenet-core` Android target; `fdev` removal; Doze/battery work. **Not planned** |
+| **4a (done)** | **Reader beside a sideloaded node** — browser-side GET client, `android-local-node` runtime, slot resolve and Hot/bones pull off `127.0.0.1:7509`. Join with no hub | — · built and device-verified, §3b |
+| **4b** | **Publishing from a tablet** | `fdev` removal — native-protocol PUT in TypeScript, the same item as desktop plan §4.3. Until then a tablet reads and a laptop sends |
+| **4c** | On-device peer inside our APK (option C) | **Still rejected**, now on AGPL linkage as much as toolchain cost. §3b's two-app shape is what made it unnecessary |
+
+---
+
+## 8b. Joining on a tablet that has the node app
+
+No hub, no pairing, no laptop on the Wi-Fi. What the operator does:
+
+1. **On the tablet**, install and open the Freenet Android node app (§3a). Leave it until it says it is connected — it is a foreground service, so it keeps running behind PUF-AM. Peers take a minute or two on a cold start.
+2. **On the laptop**, send the farm as usual and read out the short ticket (`PUF-K7M2-9Q4X`).
+3. **On the tablet**, open PUF-AM and recover the farm with its FarmCode. The join screen should say *"Reading Freenet from the node on this tablet — no laptop needed to join."* If it does not, the node app is not answering yet — open it, wait, and come back; the probe re-asks rather than needing an app restart.
+4. Type the ticket and **Join this farm**.
+
+Two things worth telling an operator up front, because both look like faults and neither is:
+
+- **A ticket takes a few minutes to become findable.** The owner's publish has to spread across Opennet before this tablet's node can find it. "The Freenet node on this device has not found that ticket yet" means *wait*, not *wrong ticket*.
+- **Sending is off on this tablet.** Publishing goes through `fdev`, which is a laptop binary (§2 blocker 4, phase 4b). The tablet reads farms; a laptop sends them. Pair a hub and sending comes back, because that laptop has `fdev`.
+
+**Not yet proven on hardware.** Every layer below the join has been exercised on the SM-T545 (§3b), but a full owner-publishes-then-tablet-joins run has not been done: it needs a farm published from a laptop and the Opennet wait above. That is the one remaining test before this is worth putting in front of a farmer.
+
+---
+
+## 8c. Freenet on a tablet without the operator ever opening the node app
+
+§8b step 1 tells the operator to "install and open the Freenet Android node app". That is the step worth deleting: an operator who has to open a second app to make the first one work will decide the first one is broken. Read of [`manikmakki/freenet-android-node`](https://github.com/manikmakki/freenet-android-node) at `main` (2026-08-09) says most of the deletion needs no code from us.
+
+**What the node app already exposes.**
+
+| Surface | Manifest | Consequence for PUF-AM |
+|---|---|---|
+| `MainActivity` | `exported="true"`, LAUNCHER | We can bring it to the foreground with a launch intent. That is the only cross-app lever we have |
+| `NodeService` | **`exported="false"`**, `foregroundServiceType="specialUse"`, `stopWithTask="false"` | Its `START_NETWORK` / `RECONCILE_POLICY` actions exist (`org.freenet.androidnode.action.*`) but **another app cannot send them**. No bound service, `onBind` returns `null` |
+| `NodePolicyReceiver` | `exported="false"`, `BOOT_COMPLETED` + `MY_PACKAGE_REPLACED` | Restores the node after a reboot or an app update, unattended |
+| `NodePolicyRepository` | Persisted `power` = `Manual` / `Charging` / `Always (best effort)`, plus `UnmeteredOnly` / `AnyValidated` | The boot restore only fires when `power != Manual` and the alpha disclaimer has been accepted |
+
+**So the zero-code answer is a setting on the tablet, not a feature in PUF-AM.** Accept the disclaimer once, set power policy to *Always (best effort)* (or *Charging* for a cradled cab tablet), and the node runs as a foreground service from boot forever after. `stopWithTask="false"` means swiping the node app away does not stop it. PUF-AM's existing `probeLocalFreenetNode()` finds it exactly as it does today. Nothing in this repo changes; the operator sets up the tablet once and then only ever opens PUF-AM.
+
+**The residual gap is recovery, and it is small.** If the node is not running — policy left on Manual, the operator force-stopped it, Doze killed it — PUF-AM can do nothing but say so. The honest fix is a launch intent: a ~20-line Capacitor plugin calling `packageManager.getLaunchIntentForPackage("org.freenet.androidnode")`, wired to a **Start Freenet** button that appears only when the probe fails and the package is installed. It bounces the operator to the node app for a second rather than sending them to find it. `canOpenUrl`-style package detection also lets the copy distinguish *not installed* from *installed but asleep*, which today reads as the same sentence.
+
+**Ranked, with what each buys:**
+
+| | Option | Cost | Verdict |
+|---|---|---|---|
+| 1 | **Node-app power policy + boot receiver** (above) | A paragraph of setup doc, one copy change in `freenetLocalNode.ts` | **Do this.** It removes the "open the node app" step outright, this week, with no code |
+| 2 | **Launch-intent fallback in PUF-AM** | Small Capacitor plugin + a conditional button | Do after 1, once the field pass shows how often the node is actually down |
+| 3 | **Fork the node app so the service is startable** — export `NodeService` behind a signature/custom permission, ship as our own APK | Owning a fork of a one-author alpha that ships releases weekly | Defer. AGPL is *not* the objection here (separate process, we would publish the fork); the maintenance is |
+| 4 | **JNI embed in `com.sentinut.farm`** (§3 option C) | AGPL linkage, ~100 MB, Doze and battery work | **Still rejected**, unchanged. §3a's linkage argument stands; the third-party app only proves the embed is *possible*, which is an argument for option 3 over this one, not for this one |
+| 5 | **Stay hub-dependent** (§8a) | None | Keep as the fallback it already is. Publishing still needs it — `fdev` is a laptop binary (§8 phase 4b) |
+
+Options 1 and 2 leave the two-app shape, the loopback WebSocket, and the licensing position exactly as §3b froze them.
+
+---
+
+## 8a. Putting a tablet on a hub
+
+The tablet holds its farm locally either way; this is what it needs before push, pull or join will work. **The AppImage now does this** — no repo, no terminal, no `npm run dev`.
+
+**On the laptop.** Run the AppImage, then:
+
+1. *Settings → **Tablet hub*** → turn on **Serve tablets on this Wi‑Fi**.
+2. The card shows the **pairing code** (`ABCD-2345`) and the LAN address it is serving on (`http://192.168.1.20:3000`). Both are worth reading out loud; the address is the fallback if the tablet cannot discover it.
+3. Leave the app running. That is the hub.
+
+The toggle is off until you set it, because binding an address the whole shed can reach should be a decision rather than a side effect of opening the app. Turning it on starts a second listener on `0.0.0.0:3000` (next free port if something holds it) and advertises `_pufom-sync._tcp`. The desktop UI keeps using its own loopback port exactly as before.
+
+**On the tablet.** Same Wi‑Fi, open PUF-AM:
+
+1. *Settings → **Offline & sync***. It looks for a hub on open and at launch.
+2. If discovery is blocked — some phone hotspots and guest networks drop multicast — type the laptop's address into the field (`192.168.1.20:3000`) and press **Use**. It is probed before it is accepted, so a wrong address says so immediately.
+3. A packaged hub answers "found it, now pair". Enter the code from the laptop and press **Pair**. Case and the dash do not matter: `abcd2345` works.
+4. It confirms *"Paired with PUF-AM (name) as 'device'. Push, pull and join now work through it."* The card then shows **Paired with …** on every later visit — this is once per tablet, not once per session.
+
+Once paired, push, pull, join-ticket resolve and the Freenet routes all go through the laptop. *Farm sync between laptops* stops showing the no-node label and **Connect** borrows the laptop's Freenet node over the LAN.
+
+**If a tablet is lost or a code gets overheard**: *Tablet hub* lists every paired device with a **Forget** button, and **Rotate code** issues a new pairing code without disturbing tablets that already paired.
+
+A `npm run dev` server still works as a hub and still needs no pairing — it reports itself as a workshop hub, and the tablet skips straight past step 3.
+
+Two things that bite on a laptop with more than one interface up:
+
+- **mDNS host naming.** `bonjour-service` defaults the SRV target to a bare `os.hostname()` with no `.local`. Android's NSD reports `SERVICE_RESOLVED` and then hangs in `getaddrinfo` on a name it will not query over multicast, so the tablet's scan returns nothing having just seen the hub. `mdnsHub.ts` therefore publishes as `pufom-<hostname>.local` — prefixed because `avahi-daemon` already owns `<hostname>.local`, and a second A record for it is a conflict that costs the name entirely.
+- **Which address gets advertised.** With USB tethering up, the A record can carry the tethering address rather than the Wi‑Fi one. `listLanIpv4()` now *ranks* interfaces so Wi‑Fi and wired addresses beat tethering, `docker`/`virbr` bridges and link-local, and the winner is what goes in TXT (`ip=`). The NSD plugin passes TXT through, and `nsdPeers.ts` prefers it and probes each candidate before settling. The desktop hub also re-checks its address periodically and republishes when it changes, which a laptop carried between house and shed does constantly.
 
 ---
 
 ## 9. Out of scope
 
-Freenet host on Android · bundling `freenet` / `fdev` in the APK · `contribute_storage` on mobile (frozen off — [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy) · Play Store distribution or signing · renaming `com.sentinut.farm` · Reticulum on Android · changing the `FreenetHostPlugin` interface.
+Freenet host on Android · bundling `freenet` / `fdev` in the APK · linking `freenet-core` into `com.sentinut.farm` (§3a, §8 phase 4c) · **publishing from a tablet** (§8 phase 4b) · shipping or endorsing the third-party node app, which the operator sideloads themselves · `contribute_storage` on mobile (frozen off — [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy) · Play Store distribution or signing · renaming `com.sentinut.farm` · Reticulum on Android · changing the `FreenetHostPlugin` interface.
+
+§3b deliberately does **not** implement `FreenetHostPlugin`. The browser GET client is a reader, not a host: it cannot `start`, `stop` or `putCiphertext`, and pretending otherwise would put a `managed`-shaped object in front of a node PUF-AM does not own. Phase 3's `RemoteFreenetHost` is still the place that interface gets an Android implementation.
 
 ---
 
@@ -196,4 +414,8 @@ Freenet host on Android · bundling `freenet` / `fdev` in the APK · `contribute
 | Operator reads "Offline Freenet network" as working Freenet | The chooser copy on a tablet says the farm stays on the device. Wording is the mitigation; watch it in the first field pass |
 | A mist farm created on a tablet becomes stranded | The FarmCode is minted and shown once as on any device, so the farm is recoverable — but there is no publish target until §8 Phase 1/2. Treat a tablet-created mist farm as workshop-only for now |
 | `VITE_MIST_EXPERIMENTAL` silently missing from a build | `grep` check in §6.3; the flag is defaulted in the script rather than passed by hand |
-| Hub relay leaks the desktop loopback token to the LAN | §4 — the LAN listener must have its own auth, not a shared token |
+| Hub relay leaks the desktop loopback token to the LAN | **Closed** — the LAN listener is a separate app with its own credential (`x-puf-hub-token`, per device) and never sees `x-puf-desktop-token`. Desktop plan §6.4 |
+| Anyone on the shed Wi‑Fi can read a paired tablet's traffic | **Open, by design for now** — the hub speaks plain HTTP. Pairing controls *who may call it*, not who may listen. TLS needs a certificate story a farmer can complete; until then treat the farm LAN as the trust boundary |
+| Any app on the tablet can drive the node on `127.0.0.1:7509` | **Open, and not ours to close** — the node app's WS port has no auth (§3a). It bounds what the arrangement is worth, not whether it works: everything PUF-AM puts through it is ciphertext, the manifest is AEAD-sealed and the slot signature is checked in the page, so a hostile local app can waste our GETs but cannot read a farm or forge one |
+| We depend on one person's alpha, and on its release cadence | **Open** — the node app tracks upstream closely and is self-described as battery-hungry. Mitigated by the shape rather than by trust: it is a separate package the operator installs, the feature degrades to the hub when it is absent, and `freenetLocalNode.ts` is the only file that would need to change for a different node app |
+| Node runs 0.2.123 against our 0.2.119 pin | **Checked, narrowly** — the GET path handshakes and answers correctly across both (§3b). Contract *code hashes* are still unverified across the version gap, so a cross-version join is not yet trusted end to end; that is the §8b test |

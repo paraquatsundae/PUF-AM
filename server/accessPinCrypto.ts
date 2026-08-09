@@ -8,6 +8,7 @@ export type AccessPinRole = 'admin' | 'farmer' | 'viewer';
 export interface AccessPinRecord {
   farmId: string;
   role: AccessPinRole;
+  /** Admin-facing name for this invite (set at mint / preset pinLabel). */
   label: string;
   active: boolean;
   maxUses: number | null;
@@ -19,6 +20,10 @@ export interface AccessPinRecord {
   modules?: FarmModuleId[];
   /** Present for audit only — never store plaintext code */
   codeHint?: string;
+  lastRedeemedAt?: string | null;
+  lastRedeemedBy?: string | null;
+  /** Display name entered on last redeem (helps admins pick which PIN to revoke). */
+  lastRedeemedDisplayName?: string | null;
 }
 
 export function newFarmId(): string {

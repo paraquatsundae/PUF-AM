@@ -7,6 +7,7 @@
 
 import {
   ContractKey,
+  DisconnectRequest,
   FreenetWsApi,
   GetRequest,
   type ResponseHandler,
@@ -95,7 +96,7 @@ export class Freenet02WsTransport implements FreenetTransport {
   async disconnect(): Promise<void> {
     if (this.api) {
       try {
-        await this.api.disconnect({ cause: `${this.clientName} disconnect` });
+        await this.api.disconnect(new DisconnectRequest(`${this.clientName} disconnect`));
       } catch {
         /* ignore */
       }

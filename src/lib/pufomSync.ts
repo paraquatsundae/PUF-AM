@@ -24,6 +24,7 @@ import {
 } from './localFarmRepo';
 import { decodePufomBlob, encodePufomBundle } from './pufomCodec';
 import { auth } from '../firebase';
+import { hubAuthHeaders } from './apiBase';
 import { syncApiUrl } from './mdnsPeers';
 import { pendingPhotoCount } from './photoOutbox';
 
@@ -163,22 +164,26 @@ export function downloadBytes(bytes: Uint8Array, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-async function authHeaders(): Promise<HeadersInit> {
+async function authHeaders(url: string): Promise<HeadersInit> {
   const user = auth.currentUser;
   if (!user) throw new Error('Sign in to use LAN sync.');
   const token = await user.getIdToken();
   return {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/octet-stream',
+    // A packaged desktop LAN hub wants the paired-device token as well as the
+    // farm bearer; a `npm run dev` hub returns nothing here and is unaffected.
+    ...hubAuthHeaders(url),
   };
 }
 
 /** Push current local farm state to the selected LAN hub shelf. */
 export async function pushLanBundle(farmId: string, farmName?: string): Promise<{ bytes: number }> {
   const { bytes } = await exportPufomFile(farmId, { farmName });
-  const res = await fetch(syncApiUrl(`/api/sync/lan/${encodeURIComponent(farmId)}`), {
+  const url = syncApiUrl(`/api/sync/lan/${encodeURIComponent(farmId)}`);
+  const res = await fetch(url, {
     method: 'POST',
-    headers: await authHeaders(),
+    headers: await authHeaders(url),
     body: bytes,
   });
   const text = await res.text();
@@ -197,8 +202,9 @@ export async function pullLanBundle(farmId: string): Promise<ApplyPufomResult | 
   const user = auth.currentUser;
   if (!user) throw new Error('Sign in to use LAN sync.');
   const token = await user.getIdToken();
-  const res = await fetch(syncApiUrl(`/api/sync/lan/${encodeURIComponent(farmId)}`), {
-    headers: { Authorization: `Bearer ${token}` },
+  const url = syncApiUrl(`/api/sync/lan/${encodeURIComponent(farmId)}`);
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, ...hubAuthHeaders(url) },
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -217,8 +223,9 @@ export async function lanBundleMeta(
   const user = auth.currentUser;
   if (!user) return null;
   const token = await user.getIdToken();
-  const res = await fetch(syncApiUrl(`/api/sync/lan/${encodeURIComponent(farmId)}/meta`), {
-    headers: { Authorization: `Bearer ${token}` },
+  const url = syncApiUrl(`/api/sync/lan/${encodeURIComponent(farmId)}/meta`);
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, ...hubAuthHeaders(url) },
   });
   if (res.status === 404) return null;
   if (!res.ok) return null;

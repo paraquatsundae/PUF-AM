@@ -82,6 +82,19 @@ Mappable farm assets beyond paddocks/tracks. Catalog: `shared/farm/infraTypes.ts
 
 **Rules / API:** `firestore.rules` `isValidInfrastructurePin` allowlists new types + `geojson` / `trackerId` / `notes`. Deploy rules if production has not picked them up yet. `mapApi.savePin` stringifies `geojson`.
 
+### Internal boundaries from block edit
+
+You can add pads / hazard zones without leaving the Blocks workflow:
+
+1. Farm Map → **Edit** → **Blocks**.
+2. Select a paddock (sidebar card or map) → open details, **or** start **Edit boundary**.
+3. Choose **Add pad** (passable) or **Add hazard** (impassable).
+4. Draw the polygon on the map (DrawingActionBar: Undo / Finish / Cancel).
+5. On Finish, an `InfrastructurePin` (`internal_passable` / `internal_impassable`) is created; metadata opens briefly; paddock `areaHa` recalculates (impassable subtracts).
+6. Existing internals that intersect the paddock are listed in the block details panel (name + type). Tap a row to edit that pin.
+
+If the drawn shape is mostly outside the selected paddock, a confirm warns but still allows save (v1 — no auto-clip). Same assets remain editable under the Infrastructure tab chips.
+
 ### Paddock exclusions & area (D-05b)
 
 Helpers: `infraSubtractsFromPaddock`, `infraFillPattern` in `shared/farm/infraTypes.ts`; area math in `src/lib/paddockExclusions.ts`; SVG patterns in `src/lib/infraMapStyles.ts`.

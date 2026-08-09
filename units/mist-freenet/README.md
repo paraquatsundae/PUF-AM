@@ -15,6 +15,7 @@ Experimental **Mist unit** for PUF-AM: encrypted durable storage over a Freenet-
 | **6 — FarmCode recovery** | `/login/mist-recover` — laptop B joins with paper FarmCode; same `farmId`, local-only blobs | **Done** |
 | **7 — Two-laptop smoke** | Pre-Freenet A→B recovery on localhost; bones/Hot per-device (expected) | **Done** (~2026-08-03) |
 | **8+** | Reticulum unit, invite join QR, in-process Freenet plug-in, cross-device bone sync | **Phase 9 in-process plug-in — build started** (~2026-08-03); see Phase 9 below |
+| **Join slot** | Rust/WASM slot contract + ticket-derived addressing, so a short join ticket resolves **off the owner's Wi‑Fi** | **Done** (~2026-08-09) — see § Join slot contract |
 
 Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node binary.
 
@@ -46,13 +47,17 @@ Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node b
 | `src/mock-freenet-transport.ts` | `MockFreenetTransport` — in-memory CHK simulation for tests |
 | `src/fcp-protocol.ts` | FCP message encode / stream parse |
 | `src/freenet-keys.ts` | Mist key → CHK URI index + outbox paths |
-| `src/farm-code.ts` | FarmCode mint/parse (`mist-fc-1`) + FarmSeed HKDF |
+| `src/farm-code.ts` | FarmCode mint/parse (`mist-fc-2`, 80-bit; decodes legacy `mist-fc-1`) + FarmSeed HKDF |
 | `src/farm-seed.ts` | HKDF-SHA-256 helpers (Web Crypto) |
 | `src/crockford.ts` | Crockford Base32 + check symbol |
 | `src/seal-hot.ts` | `sealHotPeriod()` — hot/current → archive + manifest + hot trim |
 | `src/index.ts` | Browser-safe public exports (memory, keys, seal helper) |
 | `src/node.ts` | Node entry — disk + Freenet backends |
 | `src/freenet.ts` | Freenet/FCP exports (re-exported by `node.ts`) |
+| `src/freenet02-slot.ts` | **Join slot** addressing — slot id / signing key derivation, signed state codec (browser-safe) |
+| `src/join-slot-crypto.ts` | AEAD seal for the join manifest inside a slot |
+| `src/freenet02-fdev-slot.ts` | `fdev` PUT / update for a slot (**Node only**) |
+| `contracts/slot-contract/` | The Rust/WASM slot contract itself — see § Join slot contract |
 
 Key naming follows [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_STORAGE.md) (farm-scoped mist keys, not Firestore paths). HKDF contract labels (`freenet-hot`, `freenet-bones`, etc.) are documented in the plan; this unit uses **storage key strings** only.
 
@@ -299,6 +304,39 @@ FREENET_FCP_HOST=127.0.0.1 npm test -- units/mist-freenet/freenet-mist-store.tes
 ```
 
 The `FcpFreenetTransport (live node)` describe is skipped unless `FREENET_FCP_HOST` is set.
+
+**Optional live join-slot test** (requires a Freenet 0.2 node on `ws://127.0.0.1:7509` and `fdev` on PATH):
+
+```bash
+FREENET_LIVE_WS=1 npm test -- units/mist-freenet/freenet02-slot-live.test.ts
+```
+
+## Join slot contract
+
+`contracts/slot-contract/` is a **Rust/WASM Freenet 0.2 contract** — the only compiled artifact this unit owns. It exists because the bundled pack contract sets `parameters = blake3(state)`, which makes an address a function of its content: a joiner holding only `PUF-K7M2-9Q4X` cannot compute where to look, because the address would depend on the bytes it is trying to fetch. The slot contract puts a **derived slot id** in `parameters` instead, so both sides land on the same address from the FarmSeed and the ticket alone.
+
+```text
+slot id     = HKDF(FarmSeed, "freenet-join-slot:" + ticket)   32 bytes
+parameters  = slot id ‖ farm ed25519 public key               64 bytes
+instance id = BLAKE3(code hash ‖ parameters)
+```
+
+Its state is a signed, sequence-numbered envelope around an AEAD-sealed manifest the contract never reads. Format, ordering rules, and rationale: [`contracts/slot-contract/src/lib.rs`](contracts/slot-contract/src/lib.rs).
+
+```bash
+# Rust tests. --features contract is required: the #[contract] macro expands into
+# freenet-stdlib export shims that are feature-gated, so a bare `cargo test` fails.
+cargo test --manifest-path units/mist-freenet/contracts/slot-contract/Cargo.toml --features contract
+
+# Rebuild the WASM and check it still matches the pin (needs cargo,
+# wasm32-unknown-unknown, fdev). Refuses to re-pin without --accept-new-hash.
+npm run mist:build:slot
+
+# Both pinned hashes vs the shipped artifact.
+npm run desktop:verify:pack
+```
+
+**The vendored `assets/slot-contract.wasm` is the authority, not the source.** Every slot address is `BLAKE3(code hash ‖ parameters)`, so re-pinning the code hash moves every slot and any ticket already in the field stops resolving over Freenet. The hash is pinned twice — `SLOT_CONTRACT_CODE_HASH_B58` in `src/freenet02-slot.ts` and `slotContract.codeHashB58` in `scripts/freenet-binaries.json` — and both are checked against the artifact by `desktop:verify:pack` and `tests/freenetVendorManifest.test.ts`.
 
 ## References
 

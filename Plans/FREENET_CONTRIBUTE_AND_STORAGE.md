@@ -120,7 +120,7 @@ sequenceDiagram
   participant Net as Freenet Opennet
   participant IDB as pufom_farm_local + sentinut_farm_geometry
 
-  B->>Seed: enter FarmCode (mist-fc-1 …) + device PIN
+  B->>Seed: enter FarmCode (mist-fc-2 …) + device PIN
   Seed-->>B: FarmSeed, FarmId, HotKey, BonesKey
   Note over B: B's freenet-index.json is empty — hence pullByUri
   B->>Store: getByUri(hotUri), getByUri(bonesUri)

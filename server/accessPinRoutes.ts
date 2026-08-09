@@ -396,6 +396,7 @@ export function registerAccessPinRoutes(app: Express) {
           useCount: (record.useCount || 0) + 1,
           lastRedeemedAt: now,
           lastRedeemedBy: uid,
+          lastRedeemedDisplayName: displayName,
         },
         { merge: true }
       );
@@ -521,9 +522,12 @@ export function registerAccessPinRoutes(app: Express) {
       const snap = await getAdminDb().collection(PINS).where('farmId', '==', farmId).get();
       const pins = snap.docs.map((d) => {
         const data = d.data() as AccessPinRecord;
+        const label =
+          (typeof data.label === 'string' && data.label.trim()) ||
+          `${data.role || 'invite'} PIN`;
         return {
           pinId: d.id,
-          label: data.label,
+          label,
           role: data.role,
           active: data.active,
           maxUses: data.maxUses,
@@ -532,6 +536,8 @@ export function registerAccessPinRoutes(app: Express) {
           createdAt: data.createdAt,
           codeHint: data.codeHint || null,
           modules: data.modules || [],
+          lastRedeemedAt: data.lastRedeemedAt || null,
+          lastRedeemedDisplayName: data.lastRedeemedDisplayName || null,
         };
       });
 

@@ -181,7 +181,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await ensureBrowserMistStore();
     setUser(null);
     setUserData(loaded.userData);
-    setIsAdmin(true);
+    // Was hardcoded true, which handed a join-ticket viewer the Admin nav and
+    // the model-parameter engine. The session's own role is the answer: an
+    // owner or admin still resolves to `admin`, and a device with no recorded
+    // role predates join tickets, so it minted this farm and is one.
+    setIsAdmin(loaded.userData.role === 'admin');
     setPendingInvite(null);
     setError(null);
     setFarmEnabledModules(allFarmModules());

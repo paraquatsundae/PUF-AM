@@ -26,6 +26,22 @@
     "codeHashB58": "5Piu7V1PjjcPVnTvUbyMdDiyvwoBprBPZ4GFUHfabyzW",
     "contractApiVersion": "0.0.1"
   },
+  "slotContract": {
+    "//": "Join-slot contract, built from units/mist-freenet/contracts/slot-contract (ours, not upstream). codeHashB58 must equal SLOT_CONTRACT_CODE_HASH_B58 in units/mist-freenet/src/freenet02-slot.ts.",
+    "//address": "Every slot address is BLAKE3(codeHash || slotId || farmVerifyingKey). Re-pinning this hash moves every slot, so a ticket minted before the bump stops resolving over Freenet. Bump it only with a plan for the tickets in the field.",
+    "//rebuild": "npm run mist:build:slot — needs cargo + wasm32-unknown-unknown + fdev. Reproducible on one machine with one toolchain; a different rustc will land a different hash, which is why the artifact is committed rather than built during packaging.",
+    "path": "units/mist-freenet/assets/slot-contract.wasm",
+    "sha256": "b17c1c82120c792d8282d5c9159466b2d6b926a40c780fa4257b00aab5a9c39f",
+    "codeHashB58": "CVjp8X31NURDpzD5CtbgN7hUKCvNXMaHHtGastgjeieq",
+    "contractApiVersion": "0.0.1",
+    "sourceDir": "units/mist-freenet/contracts/slot-contract",
+    "builtWith": {
+      "//": "Recorded so a hash mismatch can be told apart from a toolchain drift.",
+      "rustc": "1.97.1",
+      "freenetStdlib": "0.8.5",
+      "fdev": "0.3.282"
+    }
+  },
   "vendorDirTemplate": "vendor/freenet/{platformTag}",
   "platforms": {
     "linux-x64": {

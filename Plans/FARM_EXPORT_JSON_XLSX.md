@@ -21,7 +21,7 @@
 ### Non-goals (v1)
 
 - **Geometry** (blocks, pins, tracks in `sentinut_farm_geometry`) — optional **phase 2**; GeoJSON-in-JSON does not flatten cleanly to one sheet; keep in `.pufom` or a separate `geometry-export.json` later.
-- **Replacing `.pufom`** — gzip sync bundle (`PUFOM1`, LWW merge, LAN shelf) stays the device-to-device path (`OfflineSyncCard`, `pufomSync.ts`).
+- **Replacing `.pufom`** — gzip sync bundle (`PUFOM1`, LWW merge, LAN shelf) stays the device-to-device path (`src/components/sync/`, `pufomSync.ts`).
 - **Photo binaries in JSON/xlsx** — no base64 or hi-res in the main package; optional compressed **`photos/` sidecar zip** (§2.4). Hi-res on-device / **Reticulum** transfer is out of scope for farm-export.
 - **Full-farm admin export** — Farm Management “Export Data” placeholder is out of scope until diary/issues path is proven.
 - **Import / round-trip** — v1 is export-only; import remains `.pufom` or future dedicated importer.
@@ -285,7 +285,7 @@ flowchart LR
 
 | Entry point | Behaviour |
 |-------------|-----------|
-| **Settings → Offline / Data** (`OfflineSyncCard` area) | “Export farm data (JSON)” + secondary “Download Excel workbook” — sits beside existing Export `.pufom` / Import `.pufom`. |
+| **Settings → Sync → Files & backup** (`sync/FilesBackupCard.tsx`) | “Export farm data (JSON)” + secondary “Download Excel workbook” — sits beside existing Export `.pufom` / Import `.pufom`. |
 | **Diary → export menu** | “Export JSON (full diary)” exports **all local diary rows**; optional checkbox “Include field issues”. |
 | **Not here** | Farm Management “Data Governance” stub — wire after v1 proven. |
 

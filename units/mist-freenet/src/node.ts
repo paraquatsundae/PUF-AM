@@ -17,7 +17,9 @@ export {
   describeFreenetTransportKind,
   encodeFreenet02Uri,
   mockChkUriFromContent,
+  putJoinSlotViaFdev,
   resolveFreenetTransportKind,
+  resolveSlotContractWasmPath,
 } from './freenet.ts';
 export type {
   DiskMistStoreOptions,
@@ -37,4 +39,5 @@ export type {
   FreenetTransport,
   FreenetTransportHealth,
   MockFreenetTransportOptions,
+  SlotPutResult,
 } from './freenet.ts';

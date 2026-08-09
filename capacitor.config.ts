@@ -18,7 +18,7 @@ const liveServerUrl =
 // "https" + server.url http://192.168.x.x leaves a blank WebView (Chrome still works).
 const config: CapacitorConfig = {
   appId: 'com.sentinut.farm',
-  appName: 'PUF-AM',
+  appName: 'PUF-Ag Manager',
   webDir: 'dist',
   server: {
     androidScheme: liveServerUrl ? 'http' : 'https',

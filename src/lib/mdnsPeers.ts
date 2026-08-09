@@ -3,7 +3,15 @@
  * Browsers ask the Express hub; Capacitor Android uses native NSD first.
  */
 import type { PufomSyncPeer } from '../../shared/sync/mdnsConstants';
-import { apiUrl, getApiBaseUrl, setRuntimeApiBaseUrl } from './apiBase';
+import {
+  apiFetch,
+  apiHubMissing,
+  apiUrl,
+  getApiBaseUrl,
+  NO_API_HUB_MESSAGE,
+  normalizeHubBase,
+  setRuntimeApiBaseUrl,
+} from './apiBase';
 import { discoverNsdPeers, nsdBrowseAvailable } from './nsdPeers';
 
 const PEER_BASE_KEY = 'pufom_sync_peer_base';
@@ -18,34 +26,41 @@ export type DiscoverPeersResult = {
 
 export function getSelectedSyncPeerBase(): string {
   if (typeof sessionStorage === 'undefined') return getApiBaseUrl();
-  const stored = sessionStorage.getItem(PEER_BASE_KEY)?.trim().replace(/\/$/, '') || '';
+  const stored = normalizeHubBase(sessionStorage.getItem(PEER_BASE_KEY) || '');
   if (stored) return stored;
   if (typeof localStorage !== 'undefined') {
-    const last = localStorage.getItem(LAST_HUB_KEY)?.trim().replace(/\/$/, '') || '';
+    const last = normalizeHubBase(localStorage.getItem(LAST_HUB_KEY) || '');
     if (last) return last;
   }
   return getApiBaseUrl();
 }
 
+/**
+ * Remember a hub for this session and the next cold start.
+ *
+ * Normalised before it is written, so an address that is not a URL never reaches
+ * storage — once there it survives reinstalls and every later `fetch()` fails
+ * with a bare `TypeError` that reads as "no signal" rather than "bad address".
+ */
 export function setSelectedSyncPeerBase(baseUrl: string | null): void {
+  const base = baseUrl ? normalizeHubBase(baseUrl) : '';
+
   if (typeof sessionStorage !== 'undefined') {
-    if (!baseUrl) {
+    if (!base) {
       sessionStorage.removeItem(PEER_BASE_KEY);
     } else {
-      sessionStorage.setItem(PEER_BASE_KEY, baseUrl.replace(/\/$/, ''));
+      sessionStorage.setItem(PEER_BASE_KEY, base);
     }
   }
-  if (baseUrl && typeof localStorage !== 'undefined') {
+  if (base && typeof localStorage !== 'undefined') {
     try {
-      localStorage.setItem(LAST_HUB_KEY, baseUrl.replace(/\/$/, ''));
+      localStorage.setItem(LAST_HUB_KEY, base);
     } catch {
       /* ignore */
     }
   }
   // Packaged APK: also steer /api/* at the discovered hub for the session.
-  if (baseUrl) {
-    setRuntimeApiBaseUrl(baseUrl);
-  }
+  setRuntimeApiBaseUrl(base || null);
 }
 
 /** Build an absolute API URL against the selected sync peer (or default API base). */
@@ -62,7 +77,7 @@ export async function fetchSyncSelf(): Promise<{
   mdnsEnabled: boolean;
 }> {
   try {
-    const res = await fetch(apiUrl('/api/sync/self'));
+    const res = await apiFetch(apiUrl('/api/sync/self'), { timeoutMs: 4000 });
     if (!res.ok) {
       return { self: null, lanIpv4: [], mdnsEnabled: false };
     }
@@ -82,8 +97,13 @@ export async function fetchSyncSelf(): Promise<{
 }
 
 async function discoverViaHub(waitMs: number): Promise<PufomSyncPeer[]> {
+  // A packaged APK with no hub would fetch `https://localhost/api/sync/peers`,
+  // which the WebView answers from the bundled assets — a 200 full of HTML that
+  // parses to nothing and looks like "no peers found" instead of "not connected".
+  if (apiHubMissing()) throw new Error(NO_API_HUB_MESSAGE);
+
   const qs = new URLSearchParams({ waitMs: String(waitMs) });
-  const res = await fetch(apiUrl(`/api/sync/peers?${qs}`));
+  const res = await apiFetch(apiUrl(`/api/sync/peers?${qs}`), { timeoutMs: waitMs + 5000 });
   const data = (await res.json().catch(() => ({}))) as {
     peers?: PufomSyncPeer[];
     error?: string;

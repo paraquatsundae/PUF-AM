@@ -60,16 +60,25 @@ export { MistStorageFullError } from './errors.ts';
 
 export { sha256Hex } from './hash.ts';
 
-export type { ParsedFarmCode } from './farm-code.ts';
+export type { FarmCodeSpec, ParsedFarmCode } from './farm-code.ts';
 export {
   FarmCodeError,
+  FARM_CODE_BODY_LEN,
+  FARM_CODE_ENTROPY_BITS,
+  FARM_CODE_LEGACY_BODY_LEN,
+  FARM_CODE_LEGACY_VERSION,
+  FARM_CODE_PAYLOAD_LEN,
   FARM_CODE_RAW_BYTES,
+  FARM_CODE_SPECS,
   FARM_CODE_VERSION,
   decodeFarmCodeBytes,
   deriveFarmId,
   deriveFarmSeed,
   encodeFarmCodeFromBytes,
+  farmCodeSymbolCount,
+  farmCodeVersionForBody,
   formatFarmCode,
+  formatFarmCodeInput,
   isValidFarmCode,
   mintFarmCode,
   normalizeFarmCodeInput,
@@ -94,6 +103,42 @@ export {
   encryptBonesBlob,
   type BonesCiphertextEnvelope,
 } from './bones-crypto.ts';
+
+export {
+  JOIN_SLOT_HEADER_BYTES,
+  JOIN_SLOT_ID_BYTES,
+  JOIN_SLOT_ID_HKDF_INFO_PREFIX,
+  JOIN_SLOT_MAGIC,
+  JOIN_SLOT_MAX_PAYLOAD_BYTES,
+  JOIN_SLOT_PARAMETERS_BYTES,
+  JOIN_SLOT_SIGNING_KEY_HKDF_INFO,
+  JOIN_SLOT_VERIFYING_KEY_BYTES,
+  JoinSlotStateError,
+  SLOT_CONTRACT_CODE_HASH_B58,
+  decodeJoinSlotState,
+  deriveJoinSlotAddress,
+  deriveJoinSlotId,
+  deriveJoinSlotSigningSeed,
+  deriveJoinSlotVerifyingKey,
+  encodeJoinSlotState,
+  joinSlotInstanceId,
+  joinSlotParameters,
+  joinSlotSequence,
+  slotContractCodeHashBytes,
+} from './freenet02-slot.ts';
+export type {
+  DecodedJoinSlotState,
+  EncodeJoinSlotStateInput,
+  JoinSlotAddress,
+} from './freenet02-slot.ts';
+
+export {
+  JOIN_SLOT_MANIFEST_HKDF_INFO_PREFIX,
+  decryptJoinSlotManifest,
+  deriveJoinSlotManifestKey,
+  encryptJoinSlotManifest,
+} from './join-slot-crypto.ts';
+export type { JoinSlotCiphertextEnvelope } from './join-slot-crypto.ts';
 
 export type { FreenetPeerStatus } from './freenet-peer.ts';
 

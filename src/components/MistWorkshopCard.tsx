@@ -35,8 +35,15 @@ import { getMistFreenetApiBaseUrl, usesLocalFreenetSidecar } from '../lib/apiBas
 import {
   FREENET_NO_HOST_DETAIL,
   canReachFreenetNode,
+  detectFreenetReadOnly,
   detectFreenetRuntime,
 } from '../lib/freenetRuntime.ts';
+import {
+  FREENET_LOCAL_NODE_DETAIL,
+  localFreenetNodeEligible,
+  localFreenetWsUrl,
+  probeLocalFreenetNode,
+} from '../mist/freenetLocalNode.ts';
 import {
   getMistHotPublishStatus,
   isMistHotMirrorAvailable,
@@ -131,6 +138,19 @@ export function MistWorkshopCard() {
   const [joinTicket, setJoinTicket] = useState('');
   const [uriCopied, setUriCopied] = useState(false);
   const [ticketCopied, setTicketCopied] = useState(false);
+  /**
+   * The one question a tablet operator cannot answer by looking at the app: is
+   * the Freenet node app next door actually reachable from inside this WebView?
+   */
+  const [localNodeProbe, setLocalNodeProbe] = useState<{ found: boolean; wsUrl: string } | null>(
+    null,
+  );
+
+  const checkLocalNode = useCallback(async () => {
+    if (!localFreenetNodeEligible()) return;
+    const found = await probeLocalFreenetNode({ force: true }).catch(() => false);
+    setLocalNodeProbe({ found, wsUrl: localFreenetWsUrl() });
+  }, []);
 
   const lastFreenetUri = hotStatus?.freenetUri;
   const lastBonesUri = hotStatus?.bonesFreenetUri;
@@ -158,7 +178,8 @@ export function MistWorkshopCard() {
     setHotMirrorAvailable(isMistHotMirrorAvailable());
     if (farmId) setHotStatus(getMistHotPublishStatus(farmId));
     void refreshFreenetStatus();
-  }, [farmId, backend, refreshFreenetStatus]);
+    void checkLocalNode();
+  }, [farmId, backend, refreshFreenetStatus, checkLocalNode]);
 
   useEffect(() => {
     const bridge = getDesktopBridge();
@@ -172,7 +193,11 @@ export function MistWorkshopCard() {
   }
 
   const desktop = getDesktopBridge();
-  const hasFreenetNode = canReachFreenetNode(detectFreenetRuntime());
+  const freenetRuntime = detectFreenetRuntime();
+  const hasFreenetNode = canReachFreenetNode(freenetRuntime);
+  // A node app on this tablet answers GETs, but every button on this card drives
+  // a *hub's* peer, and there is no hub to drive.
+  const freenetReadOnly = detectFreenetReadOnly(freenetRuntime);
 
   const freenetSidecar = usesLocalFreenetSidecar();
   const freenetApiBase = getMistFreenetApiBaseUrl();
@@ -589,11 +614,11 @@ export function MistWorkshopCard() {
           <FlaskConical className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Mist workshop — diagnostics</h2>
+          <h2 className="text-lg font-bold text-slate-900">Workshop diagnostics</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Every knob, hash, and status string for the mist/Freenet path. For the everyday job of
-            moving a farm between laptops, use <strong>Farm sync between laptops</strong> above.
-            Firebase remains the default for production farms.
+            Every knob, hash, and status string for the local-store / Freenet path. Bench builds
+            only — the everyday job of moving a farm lives in the cards above. Firebase remains the
+            default for production farms.
           </p>
         </div>
       </div>
@@ -704,6 +729,29 @@ export function MistWorkshopCard() {
             {FREENET_NO_HOST_DETAIL}
           </p>
         ) : null}
+        {freenetReadOnly ? (
+          <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {FREENET_LOCAL_NODE_DETAIL}
+          </p>
+        ) : null}
+        {localNodeProbe ? (
+          <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+            Node on this device:{' '}
+            <span className="font-mono">{localNodeProbe.found ? 'found' : 'not found'}</span> at{' '}
+            <code className="font-mono text-[10px]">{localNodeProbe.wsUrl}</code>
+            <button
+              type="button"
+              onClick={() => void checkLocalNode()}
+              className="ml-2 font-semibold text-violet-700 hover:underline"
+            >
+              Look again
+            </button>
+            <span className="block mt-1 text-slate-500">
+              A separate Freenet node app on this device. Found means join tickets and farm
+              downloads come straight off it, with no hub.
+            </span>
+          </p>
+        ) : null}
         {freenetSidecar ? (
           <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             Production UI — Freenet API calls go to local sidecar{' '}
@@ -741,8 +789,14 @@ export function MistWorkshopCard() {
           {!freenetStatus?.running ? (
             <button
               type="button"
-              disabled={workshopBusy || !hasFreenetNode}
-              title={hasFreenetNode ? undefined : 'No Freenet node is reachable from this device'}
+              disabled={workshopBusy || !hasFreenetNode || freenetReadOnly}
+              title={
+                !hasFreenetNode
+                  ? 'No Freenet node is reachable from this device'
+                  : freenetReadOnly
+                    ? 'The node on this tablet is already running — this button starts a hub peer, and there is no hub'
+                    : undefined
+              }
               onClick={() => void connectFreenet()}
               className="px-3 py-2 rounded-lg bg-violet-700 text-white text-xs font-semibold disabled:opacity-50 inline-flex items-center gap-1.5"
             >

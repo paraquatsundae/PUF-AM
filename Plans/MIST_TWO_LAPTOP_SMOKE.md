@@ -10,7 +10,7 @@ Validate **FarmCode identity**, **IndexedDB mist store**, and **local → Hot br
 |------|----------|----------|
 | Repo | `git pull` on `master` | Clone or `git pull` same commit |
 | Dev server | `localhost:3000` only | `localhost:3000` only — **not** LAN URL to A |
-| Create farm | Login → *Experimental: create offline mist farm* → copy **FarmCode** (`mist-fc-1`) | — |
+| Create farm | Login → *Experimental: create offline mist farm* → copy **FarmCode** (`mist-fc-2`) | — |
 | Recover farm | — | Login → *Recover with FarmCode* → same paper code + device PIN if A used one |
 | Same `farmId` | Settings → note farm id / FarmCode decodes to same id on B | After recover, farm id matches A |
 | Device PIN | Optional 4-digit PIN; unlock gate after reload | Same PIN as A (derived from same FarmSeed) |
@@ -69,7 +69,7 @@ nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
 
    - Login → *Experimental: create offline mist farm*
    - Farm name: e.g. `Two-Laptop Smoke`
-   - **Write down FarmCode** (`mist-fc-1…`) on paper — this is the only handoff to B
+   - **Write down FarmCode** (`mist-fc-2` — 17 symbols) on paper — this is the only handoff to B
    - Set a **4-digit device PIN** (recommended; do not skip for this test)
    - Complete farm setup
 
@@ -113,7 +113,7 @@ nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
 2. **Recover with FarmCode**
 
    - Login → *Recover with FarmCode*
-   - Enter A’s paper **FarmCode** (`mist-fc-1…`)
+   - Type A’s paper **FarmCode** — 17 symbols, no prefix and no dashes (`mist-fc-2`); a legacy 27-symbol `mist-fc-1` code is still accepted
    - Device PIN: same 4 digits as A
    - Complete setup if prompted
 

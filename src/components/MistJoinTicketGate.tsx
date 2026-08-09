@@ -21,14 +21,32 @@ import {
   deferMistJoinTicket,
   getMistJoinState,
   getMistSessionMeta,
+  mistSessionNeedsPin,
 } from '../mist/mistDeviceSession.ts';
 import { joinFarmWithShortTicket } from '../mist/mistJoinWithTicket.ts';
-import { JOIN_TICKET_PREFIX, isJoinTicket } from '../../shared/sync/joinTicket.ts';
+import {
+  JOIN_TICKET_PREFIX,
+  formatJoinTicketInput,
+  isJoinTicket,
+  joinRoleLabel,
+} from '../../shared/sync/joinTicket.ts';
+import { findJoinPreset } from '../../shared/sync/joinGrant.ts';
 import {
   fetchFreenetPeerStatus,
   startFreenetPeer,
   type FreenetPeerStatus,
 } from '../mist/mistFreenetClient.ts';
+import {
+  canReachFreenetNode,
+  detectFreenetRuntime,
+  freenetReadsLocally,
+  refreshFreenetRuntime,
+  shouldPollHubPeerStatus,
+  FREENET_NO_HOST_DETAIL,
+  FREENET_NO_HOST_LABEL,
+  type FreenetRuntime,
+} from '../lib/freenetRuntime.ts';
+import { FREENET_LOCAL_NODE_LABEL } from '../mist/freenetLocalNode.ts';
 
 export function MistJoinTicketGate({ children }: { children: React.ReactNode }) {
   const { userData, logout } = useAuth();
@@ -38,17 +56,47 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
   const [ticket, setTicket] = useState('');
   const [ownerBase, setOwnerBase] = useState('');
   const [showOwnerBase, setShowOwnerBase] = useState(false);
+  const [devicePin, setDevicePin] = useState('');
+  const [needsPin] = useState(() => mistSessionNeedsPin());
   const [peer, setPeer] = useState<FreenetPeerStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  // Where the node this device would talk to lives. A tablet with no hub has
+  // none, so asking it for peer status is a fetch at an address nothing answers.
+  // A tablet beside a Freenet node app has one *here*, which is better than a
+  // hub for joining and needs no warm-up at all.
+  const [runtime, setRuntime] = useState<FreenetRuntime>(detectFreenetRuntime);
+  const [runtimeSettled, setRuntimeSettled] = useState(false);
+  const freenetReachable = canReachFreenetNode(runtime);
+  const localNode = freenetReadsLocally(runtime);
+
   useEffect(() => {
     if (!pending) return;
+    let cancelled = false;
+    void refreshFreenetRuntime()
+      .then((next) => {
+        if (!cancelled) setRuntime(next);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRuntimeSettled(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pending]);
+
+  useEffect(() => {
+    // `peer/status` is a question for a hub. There is no hub in the local-node
+    // case and nothing on this device answers that route — and until the probe
+    // has settled we cannot yet tell which case this is.
+    if (!pending || !shouldPollHubPeerStatus({ runtime, settled: runtimeSettled })) return;
     void fetchFreenetPeerStatus()
       .then(setPeer)
       .catch(() => setPeer(null));
-  }, [pending]);
+  }, [pending, runtime, runtimeSettled]);
 
   const meta = getMistSessionMeta();
   const ticketLooksRight = useMemo(() => isJoinTicket(ticket), [ticket]);
@@ -75,16 +123,31 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
     setError(null);
     setMessage(null);
     try {
-      if (peer?.freenet !== 'connected') {
-        setPeer(await startFreenetPeer({ contribute: false }));
+      // Warming the node up first is a courtesy, not a precondition. It used to
+      // be `await`ed bare, so a tablet with a remembered hub it can no longer
+      // reach failed the whole join on `POST /api/mist/freenet/peer/start` and
+      // never tried a single resolver — including the LAN one, which needs no
+      // Freenet at all. Whatever the resolvers cannot do, they say so themselves.
+      // Skipped outright when the node is on this device: `peer/start` would go
+      // to a hub this join does not need, and a paired-but-absent laptop must not
+      // be able to hold up a join that never involved it.
+      if (freenetReachable && !localNode && peer?.freenet !== 'connected') {
+        try {
+          setPeer(await startFreenetPeer({ contribute: false }));
+        } catch {
+          /* Reported by whichever resolver actually needed a node. */
+        }
       }
       const result = await joinFarmWithShortTicket({
         farmId,
         ticket,
         ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
+        ...(devicePin.trim() ? { devicePin: devicePin.trim() } : {}),
       });
+      const joinedAs =
+        findJoinPreset(result.grant.preset)?.label ?? joinRoleLabel(result.grant.role);
       setMessage(
-        `Joined as ${result.manifest.role} — ${result.diary} diary ${
+        `Joined as ${joinedAs} — ${result.diary} diary ${
           result.diary === 1 ? 'entry' : 'entries'
         } and ${result.blocks} ${result.blocks === 1 ? 'block' : 'blocks'} are on this device.`,
       );
@@ -142,7 +205,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
         >
           <input
             value={ticket}
-            onChange={(e) => setTicket(e.target.value.toUpperCase())}
+            onChange={(e) => setTicket(formatJoinTicketInput(e.target.value))}
             placeholder={`${JOIN_TICKET_PREFIX}-K7M2-9Q4X`}
             autoComplete="off"
             autoCapitalize="characters"
@@ -151,6 +214,30 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
             className="w-full px-3 py-3 border border-slate-200 rounded-xl font-mono tracking-[0.2em] text-center text-lg uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500"
             autoFocus
           />
+
+          {needsPin && (
+            <div className="space-y-1.5">
+              <label htmlFor="mist-join-pin" className="text-xs font-semibold text-slate-700">
+                Device PIN
+              </label>
+              <input
+                id="mist-join-pin"
+                value={devicePin}
+                onChange={(e) => setDevicePin(e.target.value.replace(/\D/g, ''))}
+                inputMode="numeric"
+                autoComplete="off"
+                type="password"
+                placeholder="••••"
+                aria-label="Device PIN"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-mono text-center tracking-[0.3em]"
+              />
+              <p className="text-[11px] text-slate-500">
+                The PIN you set when you recovered this farm. A ticket looked up over Freenet is
+                found at an address derived from the FarmCode, so this device has to be unlocked to
+                work out where to look.
+              </p>
+            </div>
+          )}
 
           {showOwnerBase && (
             <div className="space-y-1.5">
@@ -186,9 +273,25 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
         <div className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
           <Wifi className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>
-            Be on the <strong>same Wi‑Fi as the farm owner</strong> — that is how a short ticket is
-            looked up for now. The farm itself still travels over Freenet, encrypted.
-            {peer && peer.freenet !== 'connected' ? (
+            {localNode ? (
+              <>
+                <strong>{FREENET_LOCAL_NODE_LABEL}</strong> A ticket is looked up on the{' '}
+                <strong>farm owner&apos;s laptop</strong> if this device can see it, and otherwise on{' '}
+                <strong>Freenet</strong> through the node app on this tablet. The farm itself always
+                travels over Freenet, encrypted.
+              </>
+            ) : freenetReachable ? (
+              <>
+                A ticket is looked up on the <strong>farm owner&apos;s laptop</strong> first, and on{' '}
+                <strong>Freenet</strong> if this device cannot see it. The farm itself always travels
+                over Freenet, encrypted.
+              </>
+            ) : (
+              <>
+                <strong>{FREENET_NO_HOST_LABEL}</strong> {FREENET_NO_HOST_DETAIL}
+              </>
+            )}
+            {freenetReachable && !localNode && peer && peer.freenet !== 'connected' ? (
               <button
                 type="button"
                 disabled={busy}

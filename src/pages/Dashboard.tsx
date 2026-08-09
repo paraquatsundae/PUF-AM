@@ -10,6 +10,7 @@ import {
   Loader2,
   Map,
   MapPin,
+  Snowflake,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
@@ -19,6 +20,8 @@ import { isOpenIssue } from '../lib/blockIssueCounts';
 import { getBlightAggregate, isAggregateFresh, type BlightAggregate, type BlightRiskBand } from '../services/aggregateService';
 import { bandFromRisk, RISK_BAND_LABEL } from '../lib/jiBlightBands';
 import { useWalnutPack } from '../hooks/useWalnutPack';
+import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
+import { farmShowsChillPortions } from '../../shared/farm/farmTypes';
 import { cn } from '../lib/utils';
 
 /**
@@ -42,12 +45,23 @@ function riskMeta(agg: BlightAggregate | null) {
 export function Dashboard() {
   const { userData, hasModule } = useAuth();
   const farmId = userData?.farmId;
-  const { blocks } = useMapStore();
+  const { blocks, viewport } = useMapStore();
   const fieldIssues = useFieldStore((s) => s.issues);
   const loadFieldData = useFieldStore((s) => s.loadData);
-  const { events } = useFarmDiary(getDefaultDiaryStartDate(90));
+  const { events, settings } = useFarmDiary(getDefaultDiaryStartDate(90));
   const hasWalnutPack = useWalnutPack();
   const showBlight = hasWalnutPack && hasModule('blight');
+  const showChill = farmShowsChillPortions({
+    profile: settings.farmProfile,
+    blocks,
+  });
+  const chill = useFarmChillPortions(
+    viewport.lat,
+    viewport.lng,
+    showChill,
+    settings.dpirdStationCode,
+    settings.dpirdStationName
+  );
 
   const [blightAggregate, setBlightAggregate] = useState<BlightAggregate | null>(null);
   const [blightLoading, setBlightLoading] = useState(true);
@@ -190,41 +204,79 @@ export function Dashboard() {
         </Link>
       </section>
 
-      {showBlight && (
-        <Link
-          to="/blight"
-          className={cn(
-            'flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-colors',
-            risk.bg,
-            risk.border,
-            'hover:opacity-95'
-          )}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <Bug className={cn('w-5 h-5 shrink-0', risk.color)} />
-            <div className="min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Blight risk
-              </div>
-              {blightLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-slate-400 mt-1" />
-              ) : blightAggregate ? (
-                <div className={cn('text-sm font-bold', risk.color)}>
-                  {risk.label}
-                  <span className="font-mono font-medium text-slate-600 ml-2">
-                    {threat < 0.001 ? threat.toExponential(1) : threat.toFixed(3)}
-                  </span>
-                  {!blightFresh && (
-                    <span className="ml-2 text-[10px] font-medium text-amber-700">stale</span>
+      {(showBlight || showChill) && (
+        <section className="space-y-3">
+          {showBlight && (
+            <Link
+              to="/blight"
+              className={cn(
+                'flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-colors',
+                risk.bg,
+                risk.border,
+                'hover:opacity-95'
+              )}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Bug className={cn('w-5 h-5 shrink-0', risk.color)} />
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Blight risk
+                  </div>
+                  {blightLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-400 mt-1" />
+                  ) : blightAggregate ? (
+                    <div className={cn('text-sm font-bold', risk.color)}>
+                      {risk.label}
+                      <span className="font-mono font-medium text-slate-600 ml-2">
+                        {threat < 0.001 ? threat.toExponential(1) : threat.toFixed(3)}
+                      </span>
+                      {!blightFresh && (
+                        <span className="ml-2 text-[10px] font-medium text-amber-700">stale</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500">Open blight page for detail</div>
                   )}
                 </div>
-              ) : (
-                <div className="text-sm text-slate-500">Open blight page for detail</div>
-              )}
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-        </Link>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            </Link>
+          )}
+
+          {showChill && (
+            <Link
+              to="/weather-events"
+              className="flex items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3 transition-colors hover:opacity-95"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Snowflake className="w-5 h-5 shrink-0 text-sky-600" />
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Chill portions
+                  </div>
+                  {chill.loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-400 mt-1" />
+                  ) : chill.error ? (
+                    <div className="text-sm text-rose-600">Unavailable</div>
+                  ) : (
+                    <div className="text-sm font-bold text-slate-900">
+                      <span className="font-mono tabular-nums">
+                        {chill.data?.totalPortions ?? '—'} CP
+                      </span>
+                      <span className="ml-2 text-xs font-medium text-slate-500">
+                        season to date
+                        {chill.data?.portionsLast24h != null && (
+                          <> · {chill.data.portionsLast24h} last 24h</>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            </Link>
+          )}
+        </section>
       )}
 
       {/* Open issues queue */}

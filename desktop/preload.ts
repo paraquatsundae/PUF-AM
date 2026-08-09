@@ -22,6 +22,22 @@ contextBridge.exposeInMainWorld('pufamDesktop', {
     setPreference: (enabled: boolean) =>
       ipcRenderer.invoke('puf-desktop:set-mist-preference', enabled),
   },
+  // The pairing code and the paired-device list cross by IPC, not through the
+  // LAN listener's own routes: the desktop UI is on loopback, and giving it a
+  // way to read the code over HTTP would mean a route that hands out the hub's
+  // credential to whoever asks.
+  lanHub: {
+    state: () => ipcRenderer.invoke('puf-desktop:lan-hub'),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke('puf-desktop:set-lan-hub', enabled),
+    rotatePairingCode: () => ipcRenderer.invoke('puf-desktop:rotate-lan-pairing-code'),
+    forgetDevice: (deviceId: string) =>
+      ipcRenderer.invoke('puf-desktop:forget-lan-device', deviceId),
+    onState: (listener: (state: unknown) => void) => {
+      const handler = (_event: unknown, state: unknown) => listener(state);
+      ipcRenderer.on('puf-desktop:lan-hub-state', handler);
+      return () => ipcRenderer.removeListener('puf-desktop:lan-hub-state', handler);
+    },
+  },
   freenet: {
     status: () => ipcRenderer.invoke('puf-freenet:status'),
     start: () => ipcRenderer.invoke('puf-freenet:start'),

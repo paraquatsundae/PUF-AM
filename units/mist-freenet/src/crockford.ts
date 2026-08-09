@@ -64,7 +64,7 @@ export function decodeCrockfordBase32(encoded: string): Uint8Array {
   return new Uint8Array(bytes);
 }
 
-/** Compute Crockford check symbol over payload symbols (26 chars for FarmCode). */
+/** Compute Crockford check symbol over payload symbols (16 for `mist-fc-2`, 26 for `mist-fc-1`). */
 export function crockfordCheckSymbol(payload: string): string {
   let chk = 0;
   for (const ch of payload) {
@@ -73,13 +73,18 @@ export function crockfordCheckSymbol(payload: string): string {
   return CROCKFORD_CHECK_ALPHABET[(37 - chk) % 37]!;
 }
 
-/** Verify check symbol matches payload. */
+/**
+ * Verify check symbol matches payload.
+ *
+ * The raw symbol is compared before folding: `U` is a legitimate check symbol,
+ * and folding it to `V` first made 1 in 37 codes impossible to re-enter. Folding
+ * is still tried as a fallback so an operator who writes `O` for `0` is forgiven.
+ */
 export function verifyCrockfordCheck(payload: string, check: string): boolean {
+  const raw = check.trim().toUpperCase();
+  if (raw.length !== 1) return false;
   const expected = crockfordCheckSymbol(payload);
-  const normalizedCheck = normalizeCrockfordChar(check);
-  const idx = CROCKFORD_CHECK_ALPHABET.indexOf(normalizedCheck);
-  if (idx === -1) return false;
-  return CROCKFORD_CHECK_ALPHABET[idx] === expected;
+  return raw === expected || normalizeCrockfordChar(raw) === expected;
 }
 
 /** Insert hyphens every 5 symbols; last group may be shorter (FarmCode: …-XX). */

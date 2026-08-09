@@ -186,7 +186,8 @@ Two layers — do not confuse:
 
 **FarmCode (recovery root — not day-to-day login):**
 
-- Printable prefix: **`mist-fc-1`** + Crockford Base32 body (see MIST doc § FarmCode encoding).
+- Printable form: **`mist-fc-2  XXXXX-XXXXX-XXXXX-XX`** — 17 Crockford Base32 symbols (16 payload = 80 bits, + 1 check). Legacy **`mist-fc-1`** (27 symbols, 128-bit) is still accepted on entry but never minted. See MIST doc § FarmCode encoding.
+- On entry the operator types **symbols only** — the `mist-fc-N` prefix and the dashes are filled in by the app, same as the join ticket.
 - **FarmCode ≠ invite PIN** — production PINs use Firebase `access_pins`; mist uses InviteToken + JoinEnvelope.
 - **FarmCode ≠ device unlock PIN** — 4–8 digit local lock only (`unlockPin.ts` / mist device PIN).
 

@@ -42,20 +42,50 @@ function lanRank(addr: string): number {
   return 9;
 }
 
+/**
+ * Which *interface* a candidate address is on, which decides more than its class
+ * does.
+ *
+ * The trap this exists for: with USB tethering up, the tethered interface hands
+ * out `192.168.42.x` — a textbook private LAN address that outranked the real
+ * Wi‑Fi one under address-class ordering alone. The hub then advertised, and
+ * printed, an address reachable only from the phone plugged into it. Docker,
+ * libvirt and WSL bridges have the same shape.
+ *
+ * Address class still breaks ties, so a laptop with one Wi‑Fi interface behaves
+ * exactly as before.
+ */
+export function interfaceRank(name: string): number {
+  const n = name.toLowerCase();
+  // Linux `wlan0` / `wlp3s0`, macOS `en0` is ambiguous so it lands in "wired".
+  if (/^(wl|wifi|wi-fi|wlan)/.test(n)) return 0;
+  if (/^(eth|en|eno|ens|enp|em\d)/.test(n) && !/u\d/.test(n)) return 1;
+  // Virtual bridges: docker0, br-*, virbr0, vmnet1, veth*, tun0, tap0, wg0, zt*.
+  if (/^(docker|br-|bridge|virbr|vmnet|vboxnet|veth|tun|tap|wg|zt|utun|tailscale)/.test(n)) {
+    return 7;
+  }
+  // USB tether / RNDIS / CDC-NCM, plus the `enp0s20u2` shape a USB NIC gets.
+  if (/^(usb|rndis|ncm)/.test(n) || /u\d/.test(n)) return 8;
+  return 5;
+}
+
 export function listLanIpv4(): string[] {
-  const out: string[] = [];
+  const out: { addr: string; iface: number }[] = [];
   const ifaces = networkInterfaces();
-  for (const list of Object.values(ifaces)) {
+  for (const [name, list] of Object.entries(ifaces)) {
     for (const info of list || []) {
       const family = String(info.family);
       if (family !== 'IPv4' && family !== '4') continue;
       if (info.internal) continue;
       const addr = info.address;
-      if (lanRank(addr) < 9) out.push(addr);
+      if (lanRank(addr) < 9) out.push({ addr, iface: interfaceRank(name) });
     }
   }
-  out.sort((a, b) => lanRank(a) - lanRank(b) || a.localeCompare(b));
-  return out;
+  out.sort(
+    (a, b) =>
+      a.iface - b.iface || lanRank(a.addr) - lanRank(b.addr) || a.addr.localeCompare(b.addr),
+  );
+  return out.map((entry) => entry.addr);
 }
 
 function pickIpv4(addresses: string[] | undefined): string | undefined {
@@ -138,8 +168,8 @@ export function refreshPufomMdnsBrowse(ms = 2500): Promise<PufomSyncPeer[]> {
       return;
     }
     try {
-      const b = bonjour.find({ type: PUFOM_MDNS_TYPE, protocol: 'tcp' }, (svc: MdnsService) => {
-        const peer = serviceToPeer(svc);
+      const b = bonjour.find({ type: PUFOM_MDNS_TYPE, protocol: 'tcp' }, (svc) => {
+        const peer = serviceToPeer(svc as unknown as MdnsService);
         if (peer) upsertPeer(peer);
       });
       setTimeout(() => {
@@ -156,7 +186,20 @@ export function refreshPufomMdnsBrowse(ms = 2500): Promise<PufomSyncPeer[]> {
   });
 }
 
-export function startPufomMdns(port: number): void {
+export type PufomMdnsOptions = {
+  /** Service instance name. Defaults to `PUFOM Sync (<host>)`. */
+  name?: string;
+  /** Merged into the advertised TXT record — `kind`, `pair`, and friends. */
+  txt?: Record<string, string>;
+};
+
+/**
+ * @param port The port the *advertised* API is listening on. For the Electron
+ *   shell that is the LAN listener's port, never the loopback one — advertising
+ *   an ephemeral loopback port publishes an address nothing on the LAN can reach,
+ *   which is exactly why this stayed deferred until there was a LAN listener.
+ */
+export function startPufomMdns(port: number, options?: PufomMdnsOptions): void {
   if (started) return;
   if (process.env.PUFOM_MDNS === '0') {
     console.log('[mdns] disabled (PUFOM_MDNS=0)');
@@ -166,7 +209,8 @@ export function startPufomMdns(port: number): void {
   const lanIps = listLanIpv4();
   const primary = lanIps[0];
   const hostLabel = osHostname().split('.')[0] || 'workshop';
-  const displayName = `PUFOM Sync (${hostLabel})`;
+  const displayName = options?.name ?? `PUFOM Sync (${hostLabel})`;
+  const extraTxt = options?.txt ?? {};
 
   selfPeer = {
     id: `self:${primary || 'local'}:${port}`,
@@ -175,7 +219,7 @@ export function startPufomMdns(port: number): void {
     port,
     addresses: lanIps.length ? lanIps : ['127.0.0.1'],
     baseUrl: `http://${primary || '127.0.0.1'}:${port}`,
-    txt: { ...PUFOM_MDNS_TXT },
+    txt: { ...PUFOM_MDNS_TXT, ...extraTxt },
     self: true,
     source: 'self',
     seenAt: new Date().toISOString(),
@@ -197,15 +241,30 @@ export function startPufomMdns(port: number): void {
       type: PUFOM_MDNS_TYPE,
       port,
       protocol: 'tcp',
-      txt: { ...PUFOM_MDNS_TXT },
+      // `bonjour-service` otherwise targets the SRV at a bare `os.hostname()` —
+      // `cdgeo`, a single label with no `.local`. Desktop resolvers cope; Android
+      // does not. Its NSD reports SERVICE_RESOLVED and then hangs in getaddrinfo
+      // on a name it will never ask about over multicast, so the tablet's scan
+      // comes back empty having just seen the hub.
+      //
+      // The prefix matters as much as the suffix: on a Linux box avahi-daemon
+      // already owns `<hostname>.local`, and publishing a second A record for it
+      // from this process is a conflict that costs us the name altogether. This
+      // one is ours. Plan: `Plans/APK_FREENET_PLUGIN.md`.
+      host: `pufom-${hostLabel}.local`,
+      // The address, in the payload that survives a failed host lookup — a
+      // client that cannot resolve the name can still reach the hub.
+      txt: { ...PUFOM_MDNS_TXT, ...extraTxt, ...(primary ? { ip: primary } : {}) },
       disableIPv6: true,
-    }) as MdnsService;
+    }) as unknown as MdnsService;
     published.on?.('up', () => {
       console.log(
         `[mdns] advertising "${displayName}" type=_${PUFOM_MDNS_TYPE}._tcp port=${port}` +
           (primary ? ` iface=${primary}` : '')
       );
-      console.log(`[mdns] LAN URL: ${selfPeer?.baseUrl}  (.local: http://${hostLabel}.local:${port})`);
+      console.log(
+        `[mdns] LAN URL: ${selfPeer?.baseUrl}  (.local: http://pufom-${hostLabel}.local:${port})`,
+      );
     });
     published.on?.('error', (...args: unknown[]) => {
       const err = args[0] as Error | undefined;

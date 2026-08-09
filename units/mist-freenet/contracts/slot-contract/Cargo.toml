@@ -1,0 +1,32 @@
+[package]
+name = "pufam-slot-contract"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "PUF-AM mist join-slot contract: a ticket-addressed, owner-signed pointer to Freenet pack-contract URIs."
+license = "AGPL-3.0-only"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+freenet-stdlib = "0.8.5"
+
+# Verification only in the WASM; `SigningKey` is used by the tests below.
+# `default-features = false` keeps `rand_core`/`getrandom` out of the wasm32 build,
+# which has no entropy source and would fail to link.
+ed25519-dalek = { version = "2", default-features = false }
+
+[features]
+contract = ["freenet-stdlib/contract"]
+default = ["freenet-main-contract"]
+freenet-main-contract = []
+trace = ["freenet-stdlib/trace"]
+
+# `fdev build` compiles release; a slot state is under 2 KiB so size beats speed.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

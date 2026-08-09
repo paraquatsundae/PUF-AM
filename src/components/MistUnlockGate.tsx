@@ -1,8 +1,16 @@
 /**
- * Mist device PIN gate — required after reload when a 4-digit device PIN was set at first-run.
- * Device PIN ≠ FarmCode (recovery key).
+ * Mist device PIN gate — the *only* thing a returning device should ever be
+ * asked for.
+ *
+ * The farm is already here: sealed in `localStorage`, with its diary and blocks
+ * in IndexedDB. Opening it again is a decrypt, not a sign-in, so there is no
+ * FarmCode to type and no join ticket to fetch. Those two belong to a device
+ * that does not have the farm yet — and the way out of a forgotten PIN is
+ * exactly that, which is why the FarmCode is a link at the bottom rather than a
+ * field at the top.
  */
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { KeyRound, Loader2, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getMistSessionMeta } from '../mist/mistDeviceSession.ts';
@@ -27,7 +35,7 @@ export function MistUnlockGate({ children }: { children: React.ReactNode }) {
           <div className="mx-auto w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center">
             <Lock className="w-7 h-7 text-violet-700" />
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Unlock mist farm</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">Unlock this farm</h1>
           <p className="text-sm text-slate-600">
             Welcome back, <strong>{name.split(' ')[0] || name}</strong>
             {farmName ? (
@@ -92,13 +100,25 @@ export function MistUnlockGate({ children }: { children: React.ReactNode }) {
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => void logout()}
-          className="w-full text-xs text-slate-500 hover:text-slate-800"
-        >
-          Sign out — clears this device&apos;s mist session and local mist data
-        </button>
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <p className="text-[11px] text-slate-500 text-center">
+            Forgotten it? The farm is encrypted with this PIN, so it cannot be reset from here —{' '}
+            <Link
+              to="/login/mist-recover"
+              className="font-semibold text-violet-700 hover:underline"
+            >
+              recover the farm with your FarmCode
+            </Link>{' '}
+            instead.
+          </p>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="w-full text-xs text-slate-400 hover:text-slate-700"
+          >
+            Sign out — clears this device&apos;s session and the farm held on it
+          </button>
+        </div>
       </div>
     </div>
   );

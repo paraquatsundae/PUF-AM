@@ -4,11 +4,11 @@
 
 **Target:** two Fedora laptops on **real Freenet 0.2 Opennet** — A sets up farm, B joins via FarmCode, B pulls **Hot (diary/issues) + bones (boundaries)** from Freenet.
 
-**Cross-device sync (v2 — current):** **short join ticket resolved over LAN.** Laptop A publishes Hot + farm-geometry bones to Freenet as before, then mints a ticket like `PUF-K7M2-9Q4X` and registers a **join manifest** on its own LAN hub. Laptop B recovers with the FarmCode, is **immediately** asked for the ticket, resolves it over the LAN to get the FN02 URIs, and pulls the farm from Freenet. Freenet still carries all farm data; the LAN only carries the *addresses*.
+**Cross-device sync (v2 — current):** **short join ticket, resolved over LAN or Freenet.** Laptop A publishes Hot + farm-geometry bones to Freenet as before, then mints a ticket like `PUF-K7M2-9Q4X`, registers a **join manifest** on its own LAN hub, **and** writes the same manifest to a Freenet **slot** the ticket addresses. Laptop B recovers with the FarmCode, is **immediately** asked for the ticket, and resolves it — LAN first, Freenet second — to get the FN02 URIs, then pulls the farm from Freenet. Freenet carries all farm data; a resolver only supplies the *addresses*.
 
-The raw FN02 ticket (v1, below) survives under **Advanced** on both sides — it needs no Wi‑Fi to the owner, at the cost of being a JSON blob nobody can read off a whiteboard.
+The raw FN02 ticket (v1, below) survives under **Advanced** on both sides. It is no longer the only off-Wi‑Fi route, but it remains the one that needs no node on the joiner's side beyond the fetch itself.
 
-**Deferred — Freenet slot contract:** resolving a ticket without being on the owner's Wi‑Fi needs a **mutable** Freenet 0.2 contract. The current **pack-contract** is **immutable**, so every publish gets a new URI and there is nowhere to put a manifest a joiner can look up remotely. Seam is in place: [`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts) `TODO(mist-freenet-slot)`. See [`units/mist-freenet/src/freenet-keys.ts`](../units/mist-freenet/src/freenet-keys.ts).
+**Shipped ~2026-08-09 — Freenet slot contract.** A ticket now resolves **without the owner's Wi‑Fi**. A purpose-built Rust/WASM contract takes a derived **slot id** as its `parameters`, so the owner and the joiner compute the same address from the FarmSeed and the ticket alone. LAN stays the first resolver and Freenet is the fallback: [`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts). See [§ Freenet slot contract](#freenet-slot-contract-shipped-2026-08-09).
 
 Related: [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md) (pre-Freenet identity), [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Mist network.
 
@@ -37,7 +37,7 @@ What a ticket resolves to:
   "hotUri": "FN02@…",
   "bonesUri": "FN02@…",
   "role": "farmer",
-  "permissions": { "…": true },
+  "permissions": { "preset": "field_only", "modules": "dashboard,map,diary" },
   "expires": "2026-08-11T00:00:00.000Z",
   "ticket": "PUF-K7M2-9Q4X",
   "hotContentHash": "optional sha256 hex",
@@ -47,8 +47,8 @@ What a ticket resolves to:
 
 | Field | Notes |
 |-------|-------|
-| `role` | `owner \| admin \| farmer \| viewer` — the mist vocabulary. Default for a shared ticket is **`farmer`**. |
-| `permissions` | Reserved. The four role names will not survive contact with real crews; a v2 manifest that already carries a grants bag means the next step is not a v3 wire format. |
+| `role` | `owner \| admin \| farmer \| viewer` — the mist vocabulary, and the write ceiling. Default for a shared ticket is **`farmer`**. |
+| `permissions` | The crew preset and the nav modules it grants. Four presets share the `farmer` role, so this is what separates "Field only" from "Crop scout". Values are `boolean \| number \| string` only, hence the comma-joined module list. Absent on tickets minted before ~2026-08-09; those land on the role's defaults. See [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §3b. |
 | `expires` | Defaults to **7 days**. A hub refuses to serve an expired manifest and prunes it. |
 
 `role` is an **authority label, not a crypto boundary** — anyone with the FarmCode can decrypt the farm. It decides what the app puts in front of them (the owner's setup wizard vs. the crew's diary).
@@ -64,7 +64,18 @@ What a ticket resolves to:
 
 The joiner's browser never fetches the owner's hub directly: `am.pufworks.farm` is HTTPS and cannot fetch `http://192.168.x.x` without being blocked as mixed content. The LAN hop happens in Node, which also keeps CORS out of it. Shelf: [`server/joinManifestStore.ts`](../server/joinManifestStore.ts); routes: [`server/joinTicketRoutes.ts`](../server/joinTicketRoutes.ts).
 
-**Known gap — the Electron shell binds loopback only** (`desktop/localApi.ts`, plan §6.3) and does not advertise on mDNS, so one AppImage cannot yet discover another. Between two AppImages, use the owner-address field (the owner reads their address off *Settings → Farm sync*) or fall back to the raw FN02 ticket. Deciding whether the desktop shell should offer an opt-in LAN bind is queued with the Freenet-slot work.
+**Closed ~2026-08-07 — the AppImage can now be the hub.** This used to read as a known gap: the Electron shell bound loopback only and never advertised on mDNS, so one AppImage could not discover another. It now offers an opt-in LAN bind — *Settings → Tablet hub → Serve tablets on this Wi‑Fi* starts a second listener on `0.0.0.0:3000`, advertises `_pufom-sync._tcp`, and asks a joining device for a one-time pairing code (desktop plan §6.4). The owner-address field and the raw FN02 ticket both still work as fallbacks when multicast is blocked.
+
+### Freenet resolution (fallback)
+
+When no hub answers, the same ticket is looked up on Freenet at an address derived from the ticket and the FarmSeed — no owner's laptop in the loop. The resolvers run in order (LAN, then Freenet) in [`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts), and the join flow never learns which one answered.
+
+| Route | Who calls it |
+|-------|--------------|
+| `POST /api/mist/freenet/slot/publish` | Owner's own hub, on send. Takes already-signed, already-sealed bytes. |
+| `GET /api/mist/freenet/slot/:instanceId` | The **joiner's own** hub, straight to the wire — a slot has no mist key to cache under. |
+
+Both sit behind the paired-device token like the rest of `/api/mist/freenet/*`. Details: [§ Freenet slot contract](#freenet-slot-contract-shipped-2026-08-09).
 
 ### Raw Freenet ticket (v1 — still supported)
 
@@ -138,9 +149,9 @@ npm run dev
 3. Draw **boundaries** on Orchard map (blocks/pins/tracks).
 4. Add **diary** + **field issue**.
 5. Settings → **Farm sync between laptops** → **Connect** (node, then peer) — status `connected (ws02 @ …)`.
-6. Pick **what this ticket grants** (default `farmer`) → **Send this farm to Freenet**.
+6. Pick **what this ticket grants** — a crew preset (Full farmer, Field only, Crop scout, Records, Viewer, Admin, or Owner for your own second device), not a bare role → **Send this farm to Freenet**.
 7. Read the short ticket out to B: **FarmCode**, **device PIN**, **`PUF-XXXX-XXXX`**.
-8. **Stay on and on the same Wi‑Fi** while B joins — this hub answers the ticket lookup.
+8. Staying on, on the same Wi‑Fi, is still the **fast** path — this hub answers the ticket lookup instantly. It is no longer required: the send also writes the manifest to a Freenet slot, so B can resolve the same ticket from anywhere once Opennet has propagated it.
 
 ---
 
@@ -154,7 +165,8 @@ npm run dev
    - No geometry wizard: a joiner’s blocks arrive with the farm.
    - If the hub cannot be found, an **owner’s address** field appears — A reads theirs off *Settings → Farm sync*.
 6. **Join this farm** → ticket resolves over the LAN → Hot + bones pull from Freenet → diary/issues + map boundaries appear.
-7. Verify: Dashboard diary count, Orchard map blocks, optional **Local counts**. Session role is whatever the manifest granted.
+   - **Off the owner's Wi‑Fi?** The LAN lookup fails and the **Freenet slot** answers instead, provided this device's own node is running and the device session is unlocked. Give Opennet a few minutes after A's send.
+7. Verify: Dashboard diary count, Orchard map blocks, optional **Local counts**. The confirmation names the preset ("Joined as Field only"), and the nav holds that preset's modules and nothing else.
 
 Offline satellite basemap packs stay available to a joiner — *Look around first* defers the gate for an operator who is out of range of the owner’s Wi‑Fi.
 
@@ -169,9 +181,10 @@ Offline satellite basemap packs stay available to a joiner — *Look around firs
 | 3 | B: FarmCode recover → **same `farmId`**, and B lands on **Enter join ticket** without hunting in Settings |
 | 4 | B: short ticket resolves over LAN → diary/issues match A |
 | 5 | B: map shows A’s **blocks/pins/tracks/viewport** |
-| 6 | B: never sees `/farm-setup`; session role is the manifest’s role (`farmer` by default) |
+| 6 | B: never sees `/farm-setup`; the session takes the manifest’s role, and the nav matches the preset — a `field_only` ticket gives Map and Diary and **not** Financials or Farm Management |
 | 7 | B: indexed pull alone **fails** before the ticket (empty index) |
-| 8 | B off the owner’s Wi‑Fi: clear *“Join on the same Wi‑Fi as the farm owner for now”* error, not a stack trace |
+| 8 | B **off** the owner’s Wi‑Fi, own Freenet node running: the same ticket resolves via the Freenet slot (§ Freenet slot contract). Allow a few minutes after A’s send for Opennet to propagate |
+| 9 | B off the owner’s Wi‑Fi with **no** node of its own: a clear message naming both routes, not a stack trace |
 
 ---
 
@@ -213,7 +226,7 @@ Offline satellite basemap packs stay available to a joiner — *Look around firs
 
 **Proves:** a farm recovers onto a machine that has never seen it, from a paper code plus an encrypted blob on Opennet, with no account, no server, and no operator-installed Freenet. Everything on the wire was sealed before it left A.
 
-**Does not prove:** field conditions (this was a bench pass on two laptops), Windows (`freenet.exe` still unlaunched), or unattended sync — the join ticket is still a manual handoff because pack-contract URIs are immutable (see *Next — Freenet slot contract*). Opennet bootstrap latency is still real: expect a wait between A's publish and B's first successful fetch.
+**Does not prove:** field conditions (this was a bench pass on two laptops), Windows (`freenet.exe` still unlaunched), or unattended sync — the join ticket is still a manual handoff, though since ~2026-08-09 it no longer has to be handed over on the owner's Wi‑Fi (see [§ Freenet slot contract](#freenet-slot-contract-shipped-2026-08-09)). Opennet bootstrap latency is still real: expect a wait between A's publish and B's first successful fetch.
 
 ---
 
@@ -223,8 +236,10 @@ Offline satellite basemap packs stay available to a joiner — *Look around firs
 |-----|---------|------------|
 | **Bootstrap time** | GET 404 for minutes after A’s PUT | Wait 5–15 min; retry Fetch |
 | **Peer count / NAT** | Slow GET behind CGNAT | Both on Opennet; avoid VPN |
-| **No deterministic URI** | Each re-publish = **new** FN02 ids | Use the **latest** join ticket; a re-send mints a new one |
-| **Ticket needs owner's Wi‑Fi** | B off-network cannot resolve `PUF-…` | Same Wi‑Fi, or owner-address field, or raw FN02 ticket under *Advanced* |
+| **No deterministic URI** (Hot/bones) | Each re-publish = **new** FN02 ids for the *pack* blobs | Use the **latest** join ticket; a re-send mints a new one. The **slot** address is stable — it is the pack URIs behind it that move |
+| **Slot not yet propagated** | B off the owner's Wi‑Fi gets *"No join slot at that address yet"* | Opennet needs a few minutes after A's send. Retry, or join on A's Wi‑Fi where the LAN resolver answers instantly |
+| **Joiner has no node** | Freenet resolver cannot run at all | The slot lifts the need for the *owner's* Wi‑Fi, not the need for a network. Start the node (Settings → Mist workshop) or use A's Wi‑Fi |
+| **Joiner device locked** | *"Unlock this device (device PIN)"* before a Freenet ticket works | The slot address derives from the FarmSeed, so the PIN must be entered first. LAN resolution does not need it |
 | **Two AppImages, no mDNS** | Loopback-only desktop hubs cannot see each other | Owner-address field, or raw FN02 ticket |
 | **fdev missing on A** | PUT fails / pending | Install Freenet 0.2 dev tools; `FDEV_BIN` |
 | **Split index** | B has empty `freenet-index.json` | By design — use join ticket |
@@ -242,13 +257,34 @@ npm test -- src/mist/bonesGeometry.test.ts \
   tests/joinTicket.test.ts \
   tests/api/joinTicketRoutes.test.ts \
   units/mist-freenet/freenet02-transport.test.ts \
-  src/mist/mistDisasterRecovery.test.ts
+  src/mist/mistDisasterRecovery.test.ts \
+  units/mist-freenet/freenet02-slot.test.ts \
+  src/mist/joinSlotFreenet.test.ts \
+  tests/freenetVendorManifest.test.ts
+```
+
+The slot contract's own tests are Rust, and need `--features contract` — the `#[contract]` macro expands into freenet-stdlib export shims that are feature-gated, so a bare `cargo test` fails to compile:
+
+```bash
+cargo test --manifest-path units/mist-freenet/contracts/slot-contract/Cargo.toml --features contract
+```
+
+Confirm the vendored WASM is what that source produces, and that both pinned hashes still match it:
+
+```bash
+npm run mist:build:slot        # rebuild; refuses to re-pin without --accept-new-hash
+npm run desktop:verify:pack    # checks pack-contract AND slot-contract
 ```
 
 Live node (optional):
 
 ```bash
 FREENET_LIVE=1 npm test -- units/mist-freenet/freenet02-live.test.ts
+
+# Real put → get of a join slot, at an address derived from a ticket alone.
+# The only test where our derivation, the vendored code hash, and a node's idea
+# of where a contract lives all have to agree.
+FREENET_LIVE_WS=1 npm test -- units/mist-freenet/freenet02-slot-live.test.ts
 ```
 
 ---
@@ -301,13 +337,74 @@ Cloud Run sets `MIST_FREENET_DISABLED=1` so production container Freenet routes 
 
 ---
 
-## Next — Freenet slot contract (deferred)
+## Freenet slot contract (shipped ~2026-08-09)
 
-Short tickets work today but only inside the owner's Wi‑Fi. Lifting that needs a **mutable** Freenet 0.2 contract:
+A short ticket now resolves **off the owner's Wi‑Fi**. The joiner still needs a Freenet node of its own — the bundled one in the AppImage, or `freenet network` beside `npm run dev` — but it no longer needs the *owner's* laptop awake, reachable, or on the same network.
 
-- Owner writes the join manifest to a slot addressed by `HKDF(farmSeed, "freenet-join-slot" | ticket)`.
-- Joiner GETs that slot instead of asking a LAN hub — a ticket then works from a phone anywhere.
-- Drop-in point: add `FreenetSlotJoinTicketResolver` beside `LanJoinTicketResolver` in `defaultJoinTicketResolvers()` ([`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts)). Nothing else in the join flow should need to change.
-- Same blocker as the immutable FN02 URIs: pack-contract cannot be updated in place.
+### Why it was blocked — it was our contract, not Freenet (checked 2026-08-07)
 
-Also queued with it: whether the Electron shell should offer an **opt-in LAN bind** so two AppImages can resolve tickets without the owner-address field, and whether the manifest's `permissions` bag becomes named grants or bitflags.
+An earlier note here said "needs a **mutable** Freenet 0.2 contract", which pointed at the wrong thing. Freenet already does what this design needs:
+
+| Freenet 0.2 fact | Consequence |
+|---|---|
+| An instance is addressed `id = blake3(code_hash ‖ parameters)` | The address can be **anything we can derive**, provided it goes in `parameters` |
+| `parameters` is an arbitrary byte blob — conventionally the owner's public key | A 32-byte `HKDF(farmSeed, …)` slot id is a normal thing to put there |
+| `ContractInterface` has `update_state` / `get_state_delta` | Mutability is a property of the **WASM**, not a capability the network withholds |
+
+The blocker was the **bundled pack contract's own convention**: it sets `parameters = blake3(state)` ([`units/mist-freenet/src/freenet02-pack.ts`](../units/mist-freenet/src/freenet02-pack.ts), `packContractInstanceId()`). That makes its address a function of its content, which is exactly right for immutable blobs and fatally wrong for a slot: **a joiner holding only `PUF-XXXX-XXXX` cannot compute where to look, because the address depends on the manifest bytes they are trying to fetch.** It is circular, so no key-derivation scheme on our side rescues it — and note this is a *different* problem from "cannot update in place", which is what the old wording implied.
+
+### How the slot breaks the circle
+
+The slot contract puts a **derived slot id** in `parameters` instead of a hash of the state. Both machines compute it from things they already hold — the owner after publishing, the joiner after FarmCode recovery:
+
+```text
+slot id     = HKDF(FarmSeed, "freenet-join-slot:PUF-K7M2-9Q4X")   32 bytes
+signing key = HKDF(FarmSeed, "freenet-join-slot-key")             32-byte ed25519 seed
+parameters  = slot id ‖ ed25519 public key                        64 bytes
+instance id = BLAKE3(code hash ‖ parameters)                      32 bytes
+URI         = FN02@<base58 instance id>
+```
+
+Three properties this buys, each of which is a decision rather than a side effect:
+
+| Property | Why it holds |
+|---|---|
+| **The address is stable across re-publishes** | It depends on the ticket and the farm, not on the manifest bytes. Re-sending a farm refreshes the slot in place instead of minting a new URI. |
+| **A ticket overheard on its own is useless** | The FarmSeed is in the derivation, so `PUF-K7M2-9Q4X` alone points nowhere and the network never sees a value derived from the ticket in the clear. |
+| **Only a FarmCode holder can write the slot** | The verifying key is in `parameters`, so it is part of the address. A peer that learns the address by watching a PUT cannot serve its own manifest at it. |
+
+The verifying key has to be in `parameters` rather than in the state — if it lived in the state, anyone could put their own key at the same address. And because the two slots of one farm share a verifying key, the **slot id is inside the signed message**, or a state signed for one ticket would verify in another ticket's slot.
+
+State layout, sequence-number rules, and the byte-for-byte conformance test with the TypeScript encoder are documented in [`units/mist-freenet/contracts/slot-contract/src/lib.rs`](../units/mist-freenet/contracts/slot-contract/src/lib.rs).
+
+### What shipped
+
+| Piece | Where |
+|---|---|
+| Rust/WASM slot contract (17 unit tests) | [`units/mist-freenet/contracts/slot-contract`](../units/mist-freenet/contracts/slot-contract) |
+| Vendored artifact + pinned sha256 / code hash | `units/mist-freenet/assets/slot-contract.wasm`, `scripts/freenet-binaries.json` → `slotContract` |
+| Rebuild + re-pin script | `npm run mist:build:slot` ([`scripts/build-slot-contract.mjs`](../scripts/build-slot-contract.mjs)) |
+| Slot id / signing / state codec (browser-safe) | [`units/mist-freenet/src/freenet02-slot.ts`](../units/mist-freenet/src/freenet02-slot.ts) |
+| AEAD seal for the manifest payload | [`units/mist-freenet/src/join-slot-crypto.ts`](../units/mist-freenet/src/join-slot-crypto.ts) |
+| `fdev` PUT/update path (Node only) | [`units/mist-freenet/src/freenet02-fdev-slot.ts`](../units/mist-freenet/src/freenet02-fdev-slot.ts) |
+| Hub routes (dumb byte movers) | `POST /api/mist/freenet/slot/publish`, `GET /api/mist/freenet/slot/:instanceId` |
+| Publish on send, resolve on join | [`src/mist/joinSlotFreenet.ts`](../src/mist/joinSlotFreenet.ts) |
+| `FreenetSlotJoinTicketResolver`, second in the walk | [`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts) |
+
+**Two pinned hashes, one artifact.** Every slot address is `BLAKE3(code hash ‖ parameters)`, so `SLOT_CONTRACT_CODE_HASH_B58` in `freenet02-slot.ts` and `slotContract.codeHashB58` in `scripts/freenet-binaries.json` must agree with the shipped WASM. If they drift, publishes still succeed and land where nothing looks. Both are checked by `npm run desktop:verify:pack` and by the hermetic [`tests/freenetVendorManifest.test.ts`](../tests/freenetVendorManifest.test.ts). Re-pinning **moves every slot**, so a ticket already read out to a joiner stops resolving over Freenet — `mist:build:slot` refuses to overwrite the pin without `--accept-new-hash` for that reason.
+
+**Rebuilding** needs `cargo`, `rustup target add wasm32-unknown-unknown`, and `fdev`; the build is reproducible on one toolchain, which is why the artifact is committed rather than built during packaging. Verified bit-for-bit against the pin on rustc 1.97.1 / freenet-stdlib 0.8.5 / fdev 0.3.285.
+
+### What was not traded away
+
+- **Hub auth is unchanged.** `/api/mist/freenet/` is already in `LAN_SCOPE_PREFIXES`, so the two slot routes sit behind the same paired-device token as the rest of the Freenet API (desktop plan §6.4). An unauthenticated publish path bound to `0.0.0.0` would let any device on the shed Wi‑Fi write farm state to the network — worse than the same-Wi‑Fi restriction this work removes.
+- **LAN is still first.** `defaultJoinTicketResolvers()` returns LAN then Freenet, so a hub on the same Wi‑Fi still answers in milliseconds and still works with no internet at all.
+- **The hub cannot read what it publishes.** The slot id, the signature, and the AEAD seal are all produced in the page from the FarmSeed, so Express moves bytes it can neither read nor forge — the same encrypt-before-upload split Hot and bones already have, extended to the pointer.
+
+### Still open
+
+- The manifest's `permissions` bag: named grants or bitflags. Unchanged by this work.
+- **No revocation over Freenet.** A hub prunes an expired manifest off its shelf; nothing prunes a slot. The joiner enforces `expires` after decrypting, so an expired ticket is refused — but the sealed bytes stay at the address until the owner overwrites them with a higher sequence number.
+- Sequence numbers are wall-clock milliseconds. Two devices publishing the same ticket within the same millisecond is a tie the contract breaks by keeping what it has.
+
+**No longer queued with it:** whether the Electron shell should offer an **opt-in LAN bind**. It shipped ~2026-08-07 as the **tablet hub** — a second listener on `0.0.0.0`, off until the operator enables it, behind a pairing code that mints per-device tokens (desktop plan §6.4). Two AppImages can now resolve tickets between them over the LAN without the owner-address field, and a tablet can use one as its hub. That removes the "Known gap" noted in § Short join ticket above; the off-network problem it did **not** touch is what the slot contract above closes.

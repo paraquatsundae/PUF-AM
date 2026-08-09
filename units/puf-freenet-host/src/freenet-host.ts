@@ -475,7 +475,13 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
  */
 export function freenetHostEnv(
   status: FreenetHostStatus,
-  extras: { fdevBin?: string; packWasm?: string; mistRoot?: string } = {},
+  extras: {
+    fdevBin?: string;
+    packWasm?: string;
+    /** Join-slot contract — what makes a short ticket resolve off the owner's Wi-Fi. */
+    slotWasm?: string;
+    mistRoot?: string;
+  } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {
     FREENET_TRANSPORT: 'ws02',
@@ -484,6 +490,7 @@ export function freenetHostEnv(
   };
   if (extras.fdevBin) env.FDEV_BIN = extras.fdevBin;
   if (extras.packWasm) env.FREENET_PACK_WASM = extras.packWasm;
+  if (extras.slotWasm) env.FREENET_SLOT_WASM = extras.slotWasm;
   if (extras.mistRoot) env.MIST_FREENET_ROOT = extras.mistRoot;
   return env;
 }

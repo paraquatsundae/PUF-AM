@@ -1,0 +1,5 @@
+# `fdev build` writes the compiled WASM here; the shipped copy is the vendored
+# one at units/mist-freenet/assets/slot-contract.wasm, pinned in
+# scripts/freenet-binaries.json. Committing both would let them drift.
+/target
+/build

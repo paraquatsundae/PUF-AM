@@ -2,6 +2,7 @@
  * Shared mist first-run / recovery finish — persist session, open IndexedDB store, enter app.
  */
 
+import { getDesktopBridge } from '../lib/desktopBridge.ts';
 import { setFarmStoreBackend } from './farmStoreBackend.ts';
 import {
   createMistSessionRecord,
@@ -9,6 +10,27 @@ import {
   type MistSessionRole,
 } from './mistDeviceSession.ts';
 import { createAppFarmStore } from './createFarmStore.ts';
+
+/**
+ * A Freenet farm on this desktop means this desktop needs a Freenet node at
+ * launch — otherwise the operator reopens the app, lands straight in their farm
+ * (which is the point of the session), and finds every send/join control greyed
+ * out until they go and tick a box in Settings they have never seen.
+ *
+ * Best effort by design: an older shell has no `mist` bridge, and the saved
+ * session is worth having either way.
+ */
+async function rememberMistOnThisDesktop(): Promise<void> {
+  const bridge = getDesktopBridge();
+  if (!bridge?.mist) return;
+  try {
+    const pref = await bridge.mist.getPreference();
+    if (pref.enabled) return;
+    await bridge.mist.setPreference(true);
+  } catch {
+    /* The farm is saved regardless; the toggle is still in Settings. */
+  }
+}
 
 /**
  * Only the operator who minted the farm gets marched through the geometry and
@@ -56,6 +78,7 @@ export async function finishMistFarmSetup(input: {
     joinTicketPending: input.joinTicketPending,
   });
   await createAppFarmStore(input.farmId);
+  await rememberMistOnThisDesktop();
 
   window.location.href = mistSetupDestination({
     role,

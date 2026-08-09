@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeyRound, Loader2, ShieldAlert } from 'lucide-react';
-import { FarmCodeError, parseFarmCode, type ParsedFarmCode } from '../../units/mist-freenet/src/index.ts';
+import {
+  FARM_CODE_BODY_LEN,
+  FARM_CODE_LEGACY_BODY_LEN,
+  FARM_CODE_LEGACY_VERSION,
+  FARM_CODE_VERSION,
+  FarmCodeError,
+  farmCodeSymbolCount,
+  farmCodeVersionForBody,
+  formatFarmCodeInput,
+  parseFarmCode,
+  type ParsedFarmCode,
+} from '../../units/mist-freenet/src/index.ts';
 import { DEFAULT_JOIN_ROLE, JOIN_TICKET_PREFIX } from '../../shared/sync/joinTicket.ts';
 import { APP_NAME } from '../brand';
 import { finishMistFarmSetup } from '../mist/finishMistFarmSetup.ts';
@@ -20,6 +31,12 @@ export function MistRecoverFarm() {
   const [skipPin, setSkipPin] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const typedSymbols = farmCodeSymbolCount(farmCodeInput);
+  const detectedVersion = farmCodeVersionForBody(farmCodeInput);
+  // A legacy paste overshoots the short body, so only then switch the target.
+  const expectedSymbols =
+    typedSymbols > FARM_CODE_BODY_LEN ? FARM_CODE_LEGACY_BODY_LEN : FARM_CODE_BODY_LEN;
 
   const validateAndContinue = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,21 +195,43 @@ export function MistRecoverFarm() {
 
         <form className="space-y-4" onSubmit={(e) => void validateAndContinue(e)}>
           <div className="space-y-2">
-            <label htmlFor="farmCode" className="text-sm font-medium text-slate-700">
-              FarmCode
-            </label>
-            <textarea
-              id="farmCode"
-              required
-              rows={3}
-              value={farmCodeInput}
-              onChange={(e) => setFarmCodeInput(e.target.value)}
-              placeholder="mist-fc-1  XXXXX-XXXXX-…"
-              spellCheck={false}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-mono text-sm leading-relaxed"
-            />
+            <div className="flex items-baseline justify-between gap-2">
+              <label htmlFor="farmCode" className="text-sm font-medium text-slate-700">
+                FarmCode
+              </label>
+              <span
+                className={`font-mono text-[11px] ${
+                  detectedVersion ? 'text-emerald-700' : 'text-slate-400'
+                }`}
+              >
+                {typedSymbols}/{expectedSymbols}
+              </span>
+            </div>
+
+            <div className="flex items-stretch rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-violet-500 overflow-hidden">
+              <span className="flex items-center px-3 bg-slate-100 text-slate-500 font-mono text-xs border-r border-slate-200 select-none">
+                {detectedVersion ?? FARM_CODE_VERSION}
+              </span>
+              <input
+                id="farmCode"
+                required
+                value={farmCodeInput}
+                onChange={(e) => setFarmCodeInput(formatFarmCodeInput(e.target.value))}
+                placeholder="XXXXX-XXXXX-XXXXX-XX"
+                inputMode="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                className="flex-1 min-w-0 px-3 py-3 font-mono text-base sm:text-lg tracking-[0.15em] uppercase focus:outline-none"
+              />
+            </div>
+
             <p className="text-[11px] text-slate-500">
-              Paste the full line from your paper wallet (starts with <code>mist-fc-1</code>).
+              Type the {FARM_CODE_BODY_LEN} letters and numbers from your paper wallet — dashes and
+              the <code>{FARM_CODE_VERSION}</code> label fill themselves in. Older{' '}
+              <code>{FARM_CODE_LEGACY_VERSION}</code> codes ({FARM_CODE_LEGACY_BODY_LEN} symbols)
+              still work; pasting a whole line is fine.
             </p>
           </div>
 
@@ -225,7 +264,7 @@ export function MistRecoverFarm() {
 
           <button
             type="submit"
-            disabled={busy || displayName.trim().length < 2 || !farmCodeInput.trim()}
+            disabled={busy || displayName.trim().length < 2 || !detectedVersion}
             className="w-full flex justify-center items-center gap-2 py-3 rounded-xl bg-violet-700 text-white font-semibold disabled:opacity-60"
           >
             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-5 h-5" />}

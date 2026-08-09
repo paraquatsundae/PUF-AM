@@ -1,30 +1,30 @@
-import type { LucideIcon } from 'lucide-react';
+import type { Icon } from '@tabler/icons-react';
 import {
-  LayoutDashboard,
-  Map,
-  BookOpen,
-  Bug,
-  Droplets,
-  Beaker,
-  Tractor,
-  LineChart,
-  Users,
-  Settings as SettingsIcon,
-  Info,
-  ShieldCheck,
-  TreePine,
-  Sprout,
-  ClipboardList,
-  Wrench,
-  Warehouse,
-} from 'lucide-react';
+  IconLayoutDashboard,
+  IconMap,
+  IconBook,
+  IconBug,
+  IconDroplets,
+  IconFlask2,
+  IconTractor,
+  IconChartLine,
+  IconUsers,
+  IconSettings,
+  IconInfoCircle,
+  IconShieldCheck,
+  IconTrees,
+  IconPlant,
+  IconClipboardList,
+  IconTool,
+  IconBuildingWarehouse,
+} from '@tabler/icons-react';
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import { effectiveModules } from '../../shared/auth/farmModules';
 
 export type NavItem = {
   name: string;
   href: string;
-  icon: LucideIcon;
+  icon: Icon;
   adminOnly?: boolean;
   /** Farm module gate (platform Admin has no moduleId). */
   moduleId?: FarmModuleId;
@@ -35,7 +35,7 @@ export type NavGroupId = 'field' | 'crop' | 'records' | 'system';
 export type NavGroup = {
   id: NavGroupId;
   name: string;
-  icon: LucideIcon;
+  icon: Icon;
   items: NavItem[];
 };
 
@@ -52,7 +52,7 @@ export function navGroupsForMapTitle(mapTitle: string): NavGroup[] {
 export const dashboardItem: NavItem = {
   name: 'Dashboard',
   href: '/',
-  icon: LayoutDashboard,
+  icon: IconLayoutDashboard,
   moduleId: 'dashboard',
 };
 
@@ -60,41 +60,41 @@ export const navGroups: NavGroup[] = [
   {
     id: 'field',
     name: 'Field',
-    icon: TreePine,
+    icon: IconTrees,
     items: [
-      { name: 'Paddock Map', href: '/map', icon: Map, moduleId: 'map' },
-      { name: 'Farm Diary', href: '/diary', icon: BookOpen, moduleId: 'diary' },
+      { name: 'Paddock Map', href: '/map', icon: IconMap, moduleId: 'map' },
+      { name: 'Farm Diary', href: '/diary', icon: IconBook, moduleId: 'diary' },
     ],
   },
   {
     id: 'crop',
     name: 'Crop',
-    icon: Sprout,
+    icon: IconPlant,
     items: [
-      { name: 'Blight Risk', href: '/blight', icon: Bug, moduleId: 'blight' },
-      { name: 'Water', href: '/water', icon: Droplets, moduleId: 'water' },
-      { name: 'Nutrition', href: '/nutrition', icon: Beaker, moduleId: 'nutrition' },
+      { name: 'Blight Risk', href: '/blight', icon: IconBug, moduleId: 'blight' },
+      { name: 'Water', href: '/water', icon: IconDroplets, moduleId: 'water' },
+      { name: 'Nutrition', href: '/nutrition', icon: IconFlask2, moduleId: 'nutrition' },
     ],
   },
   {
     id: 'records',
     name: 'Records',
-    icon: ClipboardList,
+    icon: IconClipboardList,
     items: [
-      { name: 'Harvest', href: '/harvest', icon: Tractor, moduleId: 'harvest' },
-      { name: 'Financials', href: '/financials', icon: LineChart, moduleId: 'financials' },
-      { name: 'Farm Management', href: '/farm-management', icon: Users, moduleId: 'farm_management' },
+      { name: 'Harvest', href: '/harvest', icon: IconTractor, moduleId: 'harvest' },
+      { name: 'Financials', href: '/financials', icon: IconChartLine, moduleId: 'financials' },
+      { name: 'Farm Management', href: '/farm-management', icon: IconUsers, moduleId: 'farm_management' },
     ],
   },
   {
     id: 'system',
     name: 'System',
-    icon: Wrench,
+    icon: IconTool,
     items: [
-      { name: 'Farm Setup', href: '/farm-setup', icon: Warehouse, moduleId: 'farm_setup' },
-      { name: 'Settings', href: '/settings', icon: SettingsIcon, moduleId: 'settings' },
-      { name: 'About', href: '/about', icon: Info },
-      { name: 'Admin', href: '/admin', icon: ShieldCheck, adminOnly: true },
+      { name: 'Farm Setup', href: '/farm-setup', icon: IconBuildingWarehouse, moduleId: 'farm_setup' },
+      { name: 'Settings', href: '/settings', icon: IconSettings, moduleId: 'settings' },
+      { name: 'About', href: '/about', icon: IconInfoCircle },
+      { name: 'Admin', href: '/admin', icon: IconShieldCheck, adminOnly: true },
     ],
   },
 ];

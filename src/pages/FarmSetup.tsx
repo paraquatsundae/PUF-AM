@@ -6,6 +6,7 @@ import { useMapStore } from '../lib/mapStore';
 import { useFarmDiary, IrrigationSystemType, resolveFarmProfile } from '../lib/farmDiary';
 import { FarmDryer, getFarmAssets, saveFarmAssets } from '../lib/farmAssets';
 import { updateFarmModules } from '../lib/invitePinAuth';
+import { FarmPeopleCard } from '../components/FarmPeopleCard';
 import { cn } from '../lib/utils';
 import {
   HIGHLIGHT_DEFAULT_SECONDS,
@@ -339,6 +340,14 @@ export function FarmSetup() {
           </label>
         )}
       </div>
+
+      {/*
+        People sits with the rest of the farm's one-time setup rather than in
+        Settings: "who is on this farm" is the same kind of fact as which blocks
+        and dryers it has, and on a Freenet farm there was previously nowhere at
+        all to see it — see Plans/SETTINGS_SYNC_AND_CREW.md §4a.
+      */}
+      <FarmPeopleCard />
 
       {/* Blocks from map */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">

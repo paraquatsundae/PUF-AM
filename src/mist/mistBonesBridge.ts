@@ -12,7 +12,6 @@ import {
   type MistStore,
 } from '../../units/mist-freenet/src/index.ts';
 import { hasSubtleCrypto } from '../../units/mist-freenet/src/subtle-crypto.ts';
-import { hexToBytes } from '../../units/mist-freenet/src/farm-seed.ts';
 import {
   BONES_FARM_GEOMETRY_ASSET_ID,
   packFarmGeometryFromIdb,
@@ -20,13 +19,18 @@ import {
   type BonesFarmGeometryPayload,
 } from './bonesGeometry.ts';
 import { ensureBrowserMistStore } from './createFarmStore.ts';
-import { hasMistDeviceSession, loadMistDeviceSession } from './mistDeviceSession.ts';
+import { hasMistDeviceSession } from './mistDeviceSession.ts';
 import {
   getMistHotPublishStatus,
   saveMistBonesPublishStatus,
   type MistBonesPublishStatus,
 } from './mistHotPublishMeta.ts';
-import { getMistStoreForHotBridge, clearCachedFarmSeedForHot } from './mistHotBridge.ts';
+import {
+  clearCachedFarmSeedForHot,
+  farmSeedLockedError,
+  getMistStoreForHotBridge,
+  resolveMistFarmSeed,
+} from './mistHotBridge.ts';
 
 export type PublishMistBonesResult = {
   storageKey: string;
@@ -48,12 +52,6 @@ export type ReadMistBonesResult = {
 
 export { BONES_FARM_GEOMETRY_ASSET_ID };
 
-async function resolveFarmSeed(devicePin?: string): Promise<Uint8Array | null> {
-  const session = await loadMistDeviceSession(devicePin);
-  if (!session) return null;
-  return hexToBytes(session.farmSeedHex);
-}
-
 /** Publish local geometry snapshot to mist bones (`farm-geometry` asset). */
 export async function publishLocalGeometryToMistBones(
   farmId: string,
@@ -64,9 +62,9 @@ export async function publishLocalGeometryToMistBones(
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveFarmSeed(devicePin);
+  const farmSeed = await resolveMistFarmSeed(devicePin);
   if (!farmSeed) {
-    throw new Error('Mist device session locked — unlock to publish bones');
+    throw farmSeedLockedError('publish bones', devicePin);
   }
 
   const { payload, plainBytes } = await packFarmGeometryFromIdb(farmId);
@@ -113,9 +111,9 @@ export async function readMistBonesFarmGeometry(
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveFarmSeed(devicePin);
+  const farmSeed = await resolveMistFarmSeed(devicePin);
   if (!farmSeed) {
-    throw new Error('Mist device session locked — unlock to read bones');
+    throw farmSeedLockedError('read bones', devicePin);
   }
 
   const storageKey = bonesKey(farmId, BONES_FARM_GEOMETRY_ASSET_ID);

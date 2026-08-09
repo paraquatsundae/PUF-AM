@@ -26,6 +26,7 @@ import {
   type LanHighlightEntry,
 } from './lanHighlightStore.ts';
 import { registerJoinTicketRoutes } from './joinTicketRoutes.ts';
+import { registerMistLanShelfRoutes } from './mistLanShelfRoutes.ts';
 
 type ShelfEntry = {
   farmId: string;
@@ -116,6 +117,10 @@ async function verifyFarmMember(req: Request, farmId: string): Promise<{ uid: st
 export function registerLanSyncRoutes(app: Express): void {
   // Short join tickets resolve over the same LAN shelf idea; see joinTicketRoutes.ts.
   registerJoinTicketRoutes(app);
+  // The same shelf for a farm with no cloud account to authenticate against —
+  // sealed bytes only. See mistLanShelfRoutes.ts for why it is not per-farm
+  // authenticated, and Plans/SETTINGS_SYNC_AND_CREW.md §9.
+  registerMistLanShelfRoutes(app);
 
   /** This hub's mDNS identity + LAN IPs (no auth — used before / after sign-in). */
   app.get('/api/sync/self', (_req: Request, res: Response) => {

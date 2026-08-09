@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, X } from 'lucide-react';
+import { IconLayoutDashboard, IconX } from '@tabler/icons-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -64,7 +64,7 @@ export function BottomNav() {
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center gap-2">
-                <openGroup.icon className="w-5 h-5 text-emerald-600" />
+                <openGroup.icon className="w-5 h-5 text-emerald-600" stroke={1.75} />
                 <span className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                   {openGroup.name}
                 </span>
@@ -75,7 +75,7 @@ export function BottomNav() {
                 className="p-2 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-900"
                 aria-label="Close"
               >
-                <X className="w-5 h-5" />
+                <IconX className="w-5 h-5" stroke={1.75} />
               </button>
             </div>
             <div className="overflow-y-auto py-1">
@@ -95,7 +95,7 @@ export function BottomNav() {
                         : 'text-slate-700 hover:bg-slate-50'
                     )}
                   >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                    <item.icon className="w-5 h-5 flex-shrink-0" stroke={1.75} />
                     <span className="text-base font-medium">{item.name}</span>
                   </button>
                 );
@@ -118,7 +118,7 @@ export function BottomNav() {
             )
           }
         >
-          <LayoutDashboard className="w-6 h-6" />
+          <IconLayoutDashboard className="w-6 h-6" stroke={1.75} />
           <span className="text-[10px] font-medium">Home</span>
         </NavLink>
         )}
@@ -149,7 +149,7 @@ export function BottomNav() {
               aria-expanded={isOpen}
               aria-label={`${group.name} menu`}
             >
-              <Icon className="w-6 h-6" />
+              <Icon className="w-6 h-6" stroke={1.75} />
               <span className="text-[10px] font-medium">{group.name}</span>
             </button>
           );

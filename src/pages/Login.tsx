@@ -26,7 +26,11 @@ import { APP_LOGO_SRC, APP_NAME, APP_TAGLINE } from '../brand';
 import { getFarmStoreBackend, isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import { isDesktopShell } from '../lib/desktopBridge.ts';
 import { freenetOptionState, initialLoginStep, type LoginStep } from '../lib/loginStorageChoice.ts';
-import { canReachFreenetNode, detectFreenetRuntime } from '../lib/freenetRuntime.ts';
+import {
+  canReachFreenetNode,
+  detectFreenetReadOnly,
+  detectFreenetRuntime,
+} from '../lib/freenetRuntime.ts';
 
 type Mode = 'join' | 'create';
 
@@ -76,9 +80,14 @@ export function Login() {
     mistEnabled: isMistExperimentalEnabled(),
     desktop: isDesktopShell(),
   });
-  // The tablet can hold a mist farm; it cannot yet move one over Freenet. Say so
-  // on the card that offers the choice — see `Plans/APK_FREENET_PLUGIN.md`.
-  const freenetShareable = canReachFreenetNode(detectFreenetRuntime());
+  // The tablet can hold a mist farm, and beside a Freenet node app it can fetch
+  // one; what it still cannot do is *send* one, because publishing needs a tool
+  // that only runs on a laptop. Say so on the card that offers the choice —
+  // see `Plans/APK_FREENET_PLUGIN.md` §3a.
+  const freenetShareable = (() => {
+    const runtime = detectFreenetRuntime();
+    return canReachFreenetNode(runtime) && !detectFreenetReadOnly(runtime);
+  })();
   const [step, setStep] = useState<LoginStep>(() =>
     initialLoginStep({
       freenet: freenetOptionState({
@@ -310,8 +319,8 @@ export function Login() {
                   </p>
                   {!freenetShareable && (
                     <p className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
-                      On this tablet the farm stays here — Freenet itself only runs on a PUF-AM
-                      laptop, so sharing means publishing there and joining with a FarmCode.
+                      On this tablet the farm stays here — sending a farm out needs a PUF-AM laptop,
+                      so sharing means publishing there and joining with a FarmCode.
                     </p>
                   )}
                   <p className="text-[11px] text-slate-400 mt-2">Stored on this device (mist)</p>

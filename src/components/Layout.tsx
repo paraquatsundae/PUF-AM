@@ -1,7 +1,12 @@
 import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Menu, ChevronDown } from 'lucide-react';
+import {
+  IconChevronsLeft,
+  IconChevronDown,
+  IconLogout,
+  IconMenu2,
+} from '@tabler/icons-react';
 import { cn } from '../lib/utils';
 import {
   dashboardItem,
@@ -14,7 +19,10 @@ import {
 import { BottomNav } from './BottomNav';
 import { useFarmDiary } from '../lib/farmDiary';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
-import { APP_FULL_NAME, APP_NAME, APP_TAGLINE } from '../brand';
+import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
+
+/** Below xl: overlay drawer (phone + tablet). xl+: permanent sidebar. */
+const NAV_DRAWER_MQ = '(max-width: 1279px)';
 
 export function Layout() {
   const { user, userData, isAdmin, hasModule, farmEnabledModules, logout } = useAuth();
@@ -40,51 +48,67 @@ export function Layout() {
     );
   }, [activeGroup?.id]);
 
+  // Close drawer on route change when in overlay mode (phone/tablet)
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia(NAV_DRAWER_MQ).matches) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
+
   const toggleGroup = (id: NavGroupId) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const closeSidebar = () => setSidebarOpen(false);
+  const toggleSidebar = () => setSidebarOpen((open) => !open);
 
   return (
-    <div className="h-dvh max-h-dvh overflow-hidden bg-slate-50 flex flex-col lg:flex-row">
+    <div className="h-dvh max-h-dvh overflow-hidden bg-slate-50 flex flex-col xl:flex-row">
       <BottomNav />
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-[5000] bg-slate-900/50 lg:hidden"
+          className="fixed inset-0 z-[5000] bg-slate-900/50 xl:hidden"
           onClick={closeSidebar}
+          aria-hidden="true"
         />
       )}
 
-      <div
+      <aside
+        id="app-nav-sidebar"
         className={cn(
-          'fixed inset-y-0 left-0 z-[5001] w-52 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0',
+          'fixed inset-y-0 left-0 z-[5001] w-72 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out xl:translate-x-0 xl:static xl:flex-shrink-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
+        aria-label="Main navigation"
       >
         <div className="h-full flex flex-col">
-          <NavLink
-            to="/"
-            onClick={closeSidebar}
-            className="flex items-center justify-center h-14 px-3 bg-slate-950 gap-2.5 hover:bg-slate-900 transition-colors"
-            title={APP_FULL_NAME}
-          >
-            <img
-              src="/logo.png"
-              alt={APP_NAME}
-              className="w-7 h-7 rounded-lg object-cover shrink-0"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div className="flex flex-col leading-tight min-w-0">
-              <span className="text-lg font-bold text-white">{APP_NAME}</span>
-              <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider truncate">
-                {APP_TAGLINE}
+          <div className="flex items-center h-14 bg-slate-950 gap-1 pr-2">
+            <NavLink
+              to="/"
+              onClick={closeSidebar}
+              className="flex items-center flex-1 min-w-0 h-full px-3 gap-2.5 hover:bg-slate-900 transition-colors"
+              title={APP_FULL_NAME}
+            >
+              <img
+                src={APP_LOGO_SRC}
+                alt=""
+                className="w-7 h-7 rounded-lg object-cover shrink-0"
+                referrerPolicy="no-referrer"
+              />
+              <span className="text-sm font-bold text-white leading-tight whitespace-nowrap">
+                {APP_NAME}
               </span>
-            </div>
-          </NavLink>
+            </NavLink>
+            <button
+              type="button"
+              onClick={closeSidebar}
+              className="xl:hidden p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 flex-shrink-0"
+              aria-label="Collapse navigation menu"
+            >
+              <IconChevronsLeft className="h-5 w-5" stroke={1.75} />
+            </button>
+          </div>
 
           <nav className="flex-1 px-1.5 py-3 space-y-1 overflow-y-auto">
             {hasModule('dashboard') && (
@@ -101,7 +125,11 @@ export function Layout() {
                 )
               }
             >
-              <dashboardItem.icon className="mr-2.5 flex-shrink-0 h-4 w-4" aria-hidden="true" />
+              <dashboardItem.icon
+                className="mr-2.5 flex-shrink-0 h-5 w-5"
+                stroke={1.75}
+                aria-hidden="true"
+              />
               {dashboardItem.name}
             </NavLink>
             )}
@@ -135,15 +163,20 @@ export function Layout() {
                       )}
                       aria-expanded={isOpen}
                     >
-                      <group.icon className="mr-2.5 flex-shrink-0 h-4 w-4" aria-hidden="true" />
+                      <group.icon
+                        className="mr-2.5 flex-shrink-0 h-5 w-5"
+                        stroke={1.75}
+                        aria-hidden="true"
+                      />
                       <span className="flex-1 text-left uppercase tracking-wider text-[10px]">
                         {group.name}
                       </span>
-                      <ChevronDown
+                      <IconChevronDown
                         className={cn(
                           'h-4 w-4 transition-transform duration-200',
                           isOpen && 'rotate-180'
                         )}
+                        stroke={1.75}
                       />
                     </button>
 
@@ -166,7 +199,8 @@ export function Layout() {
                             }
                           >
                             <item.icon
-                              className="mr-2.5 flex-shrink-0 h-4 w-4"
+                              className="mr-2.5 flex-shrink-0 h-5 w-5"
+                              stroke={1.75}
                               aria-hidden="true"
                             />
                             {item.name}
@@ -191,8 +225,8 @@ export function Layout() {
                 alt=""
                 referrerPolicy="no-referrer"
               />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-white truncate w-40">
+              <div className="ml-3 min-w-0">
+                <p className="text-sm font-medium text-white truncate">
                   {user?.displayName || user?.email || 'Workshop User'}
                 </p>
               </div>
@@ -202,34 +236,38 @@ export function Layout() {
               onClick={logout}
               className="flex items-center w-full px-2 py-2 text-sm font-medium text-slate-300 rounded-md hover:bg-slate-800 hover:text-white transition-colors"
             >
-              <LogOut className="mr-3 h-5 w-5" />
+              <IconLogout className="mr-3 h-5 w-5" stroke={1.75} />
               Sign out
             </button>
           </div>
         </div>
-      </div>
+      </aside>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <div className="lg:hidden flex items-center justify-between bg-white border-b border-slate-200 px-4 py-2">
-          <div className="flex items-center gap-2">
-            <img
-              src="/logo.png"
-              alt="PUF"
-              className="w-6 h-6 rounded object-cover"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <span className="text-lg font-bold text-slate-900 truncate">PUF</span>
-          </div>
+        <div className="xl:hidden flex items-center gap-2 bg-white border-b border-slate-200 px-3 py-2">
           <button
             type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 flex-shrink-0"
+            onClick={toggleSidebar}
+            className="p-2 -ml-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 flex-shrink-0"
+            aria-label={sidebarOpen ? 'Collapse navigation menu' : 'Open navigation menu'}
+            aria-expanded={sidebarOpen}
+            aria-controls="app-nav-sidebar"
           >
-            <Menu className="h-6 w-6" />
+            {sidebarOpen ? (
+              <IconChevronsLeft className="h-6 w-6" stroke={1.75} />
+            ) : (
+              <IconMenu2 className="h-6 w-6" stroke={1.75} />
+            )}
           </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <img
+              src={APP_LOGO_SRC}
+              alt=""
+              className="w-6 h-6 rounded object-cover shrink-0"
+              referrerPolicy="no-referrer"
+            />
+            <span className="text-base font-bold text-slate-900 truncate">{APP_NAME}</span>
+          </div>
         </div>
 
         <main

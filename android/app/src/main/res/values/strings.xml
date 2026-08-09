@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">PUF-AM</string>
-    <string name="title_activity_main">PUF-AM</string>
+    <string name="app_name">PUF-Ag Manager</string>
+    <string name="title_activity_main">PUF-Ag Manager</string>
     <string name="package_name">com.sentinut.farm</string>
     <string name="custom_url_scheme">com.sentinut.farm</string>
 </resources>

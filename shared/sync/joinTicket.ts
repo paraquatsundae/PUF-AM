@@ -43,6 +43,25 @@ export type JoinRole = (typeof JOIN_ROLES)[number];
  */
 export const DEFAULT_JOIN_ROLE: JoinRole = 'farmer';
 
+/**
+ * The words an owner reads when choosing what a ticket grants.
+ *
+ * The enum is a wire value; `farmer` on a dropdown is jargon in the one place
+ * the choice is actually made. These match the preset labels on the cloud
+ * invite-PIN screen (`MODULE_PRESETS`) so the two backends read the same way —
+ * see `Plans/SETTINGS_SYNC_AND_CREW.md` §3.
+ */
+export const JOIN_ROLE_LABELS: Record<JoinRole, string> = {
+  owner: 'Owner (another of your own devices)',
+  admin: 'Admin',
+  farmer: 'Full farmer',
+  viewer: 'Viewer (read-only)',
+};
+
+export function joinRoleLabel(role: JoinRole): string {
+  return JOIN_ROLE_LABELS[role] ?? role;
+}
+
 export function isJoinRole(value: unknown): value is JoinRole {
   return typeof value === 'string' && (JOIN_ROLES as readonly string[]).includes(value);
 }
@@ -84,6 +103,34 @@ function groupTicketBody(body: string): string {
 
 /** Wrap a bare 8-symbol body in the prefix + hyphens operators actually see. */
 export function formatJoinTicketCode(body: string): string {
+  return `${JOIN_TICKET_PREFIX}-${groupTicketBody(body)}`;
+}
+
+/**
+ * Format a half-typed ticket for display in an input, so the prefix and hyphens
+ * appear on their own. A gloved thumb on a tablet should only have to enter the
+ * eight symbols it can read off the whiteboard.
+ *
+ * Deliberately tolerant of every partial state: `PUF` typed by hand is taken as
+ * the prefix rather than doubled, and no hyphen is ever appended to the end so
+ * backspace always removes a symbol instead of stalling on punctuation.
+ * Non-Crockford characters are left alone here — `normalizeJoinTicket` folds
+ * them on submit, and swapping a symbol out from under a typist is worse than a
+ * moment of the invalid-ticket hint.
+ */
+export function formatJoinTicketInput(raw: string): string {
+  const cleaned = String(raw ?? '')
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, '');
+  if (!cleaned) return '';
+
+  // `P` / `PU` / `PUF` on their own are the prefix mid-flight, not a body.
+  if (JOIN_TICKET_PREFIX.startsWith(cleaned)) return cleaned;
+
+  const body = (
+    cleaned.startsWith(JOIN_TICKET_PREFIX) ? cleaned.slice(JOIN_TICKET_PREFIX.length) : cleaned
+  ).slice(0, JOIN_TICKET_SYMBOLS);
+
   return `${JOIN_TICKET_PREFIX}-${groupTicketBody(body)}`;
 }
 

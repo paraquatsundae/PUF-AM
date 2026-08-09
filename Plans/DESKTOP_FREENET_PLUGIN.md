@@ -1,6 +1,6 @@
 # PUF-AM desktop installer + Freenet as an in-app plugin
 
-**Status:** Phases 0–4 done on Fedora. **Field-validated** ~2026-08-04: two Fedora laptops completed a full A→B farm join over Freenet 0.2 Opennet running **only the AppImage** — bundled Freenet (`source: bundled`), no terminal, no `npm run dev`, no sidecar (§14 Phase 3). Phase 4 closed the loopback API behind a per-launch bearer (§6.3) and produced copyable **Windows portable + zip** artifacts from Fedora (§8.5); the NSIS `.exe` and the first `freenet.exe` launch still want a Windows machine. Not shipped.
+**Status:** Phases 0–4 done on Fedora. **Field-validated** ~2026-08-04: two Fedora laptops completed a full A→B farm join over Freenet 0.2 Opennet running **only the AppImage** — bundled Freenet (`source: bundled`), no terminal, no `npm run dev`, no sidecar (§14 Phase 3). Phase 4 closed the loopback API behind a per-launch bearer (§6.3) and produced copyable **Windows portable + zip** artifacts from Fedora (§8.5); the NSIS `.exe` and the first `freenet.exe` launch still want a Windows machine. **~2026-08-07** the deferred Phase 4 item 9 landed: a running AppImage can be the **tablet hub** on the shed LAN — a second, LAN-bound listener behind a pairing code that mints per-device tokens, serving an allowlist of sync/Freenet routes and never the UI (§6.4). Not shipped.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
 **Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
 
@@ -225,6 +225,43 @@ Binding an HTTP API to `127.0.0.1` means any local process can reach it. That is
 
 Verified on the rebuilt AppImage: from the renderer, `/api/definitely-not-a-route` returns the API's own `404 API route not found`; the same URL from another process returns `401 PUF-AM desktop loopback token required`; `window.pufamDesktop` exposes no token-shaped key.
 
+### 6.4 The tablet hub — a second, LAN-bound listener (Phase 4 item 9)
+
+§6.3 closed the loopback API so hard that nothing off the machine could reach it, which is correct for a desktop app and useless for a shed. The tablet needs the laptop to be its sync hub: mDNS discovery, join-ticket register/resolve, `/api/sync/*`, and the Freenet routes the tablet already calls. Item 9 was deferred pending "a decision about what authorises a phone against it". This is that decision.
+
+**The listener is separate, not the loopback one widened.** [`desktop/lanApi.ts`](../desktop/lanApi.ts) binds a *second* Express app on `0.0.0.0`, default port 3000 with an incremental search (up to 10 ports) when something else holds it. The loopback listener in `localApi.ts` is untouched: it keeps its ephemeral port, its per-launch bearer, and its static bundle. Widening the existing one would have meant a single middleware deciding between two very different trust levels on every request, and would have put the desktop UI's own token one misconfigured bind away from the network.
+
+| Decision | Why |
+|----------|-----|
+| **Pairing code → per-device token**, not a shared secret | The code is 8 characters the operator can read across a shed (`ABCD-2345`, Crockford-ish alphabet, no `O`/`I`/`L`/`U`). It is a *bootstrap* credential only: `POST /api/hub/pair` exchanges it for 256 bits of per-device token, and the code can be rotated without re-pairing devices that already hold one. A single shared secret would mean rotating it kicks every tablet |
+| Tokens stored **hashed** (SHA-256) in `desktop-prefs.json` | The prefs file is plain JSON in `<userData>`. Storing the token itself would make a backup of that file equivalent to a paired device |
+| `x-puf-hub-token`, a **different header** from `x-puf-desktop-token` | They authorise different boundaries. Reusing the loopback header would mean a paired tablet's token and the desktop's launch token were interchangeable in one middleware — exactly the confusion the separate listener exists to avoid |
+| **Route allowlist by prefix**, default deny | LAN callers reach `/api/sync/*`, `/api/presence/*`, `/api/highlights/*`, `/api/mist/freenet/*` and nothing else. `/api/auth/*` and `/api/weather/*` return **404 with a sentence explaining they are cloud routes**, so a confused tablet retries against the cloud instead of showing a dead hub |
+| **No static bundle over LAN** | The LAN app mounts API routes only; `GET /` is a 404. Serving the UI would invite someone to browse the farm from a phone that never paired, and the tablet already has its own build |
+| `/api/health`, `/api/hub/info`, `/api/hub/pair` are **open** | Discovery has to work before pairing exists. `hub/info` deliberately reveals only what a joiner needs to route correctly — hub kind, whether pairing is required, which prefixes are local vs cloud. No farm names, no device list |
+| Pairing is **rate-limited and LAN-only** | Wrong codes are throttled per client (429 with `Retry-After`), and `POST /api/hub/pair` refuses any caller that is not on a private address (403). Eight characters is short enough that unmetered guessing would matter |
+| **Off by default**, one toggle in Settings | Binding `0.0.0.0` is the operator's decision, not a side effect of launching the app. [`src/components/TabletHubCard.tsx`](../src/components/TabletHubCard.tsx) shows the code, the LAN URL, the paired-device list, **Rotate code**, and **Forget** per device |
+
+**Wire shape.** [`shared/sync/hubInfo.ts`](../shared/sync/hubInfo.ts) is the contract both sides compile against, so the tablet's routing table comes *from the hub* rather than being hardcoded per hub kind. A `npm run dev` server answers the same endpoint with `kind: 'workshop-dev'` and `pairingRequired: false`, which is why the existing vite-based tablet flow keeps working unchanged.
+
+```
+tablet                                  laptop (AppImage)
+  │  mDNS _pufom-sync._tcp                 │  advertises ip= kind=desktop-lan pair=1
+  │─────── GET /api/hub/info ─────────────►│  open: kind, pairingRequired, prefixes
+  │─────── POST /api/hub/pair {code} ─────►│  throttled, LAN-only, mints 256-bit token
+  │◄────── { token, hub } ─────────────────│  stores SHA-256 in desktop-prefs.json
+  │─────── GET /api/sync/... ──────────────►│  x-puf-hub-token, allowlisted prefix
+  │─────── GET /api/auth/... ──────────────►│  404 + "that one comes from the cloud"
+```
+
+On the tablet, [`src/lib/hubIdentity.ts`](../src/lib/hubIdentity.ts) keeps the token and the cached `HubInfo` in `localStorage` keyed by hub base, so [`src/lib/apiBase.ts`](../src/lib/apiBase.ts) can decide *synchronously* — before first paint — whether a given path goes to the hub or the cloud. `apiFetch()` attaches the header only when the target is the current hub, the same origin-matching discipline §6.3 uses to keep the desktop token off `am.pufworks.farm`.
+
+**mDNS now advertises something reachable.** `listLanIpv4()` in [`server/mdnsHub.ts`](../server/mdnsHub.ts) ranks interfaces so a Wi-Fi address beats a USB-tether or virtual-bridge address — the multi-homed laptop trap that made the advertised URL unreachable from the tablet. `main.ts` also re-checks the address periodically and republishes when it changes, which a laptop carried between house and shed does constantly.
+
+Verified live against the packaged build (§14 Phase 4 item 9): open health and hub/info, 401 on a scoped route without a token, 401 on a wrong code, pair, then a full join-ticket register → resolve round trip through the hub, 404 on `/api/auth/pins`, 404 on `/`, and `avahi-browse` seeing `ip=`/`kind=desktop-lan`/`pair=1` — while the loopback UI still served 200 and its API still 401'd without the desktop token.
+
+**Re-verified 2026-08-07** against a freshly built `release/PUF-AM-0.1.0.AppImage`, dialling the LAN address (`http://192.168.1.205:3000`) rather than loopback, so the checks crossed the `0.0.0.0` bind the way a tablet does. 19 checks, all passing: the sequence above, plus a `Bearer` form of the token, `paired: true` reflected back in `/api/hub/info`, resolve **refused** without a token, `/api/weather/chill-portions` 404, `/index.html` 404, a forged 64-hex token 401'd, and a token minted before a relaunch still accepted after it (the token hash is persisted; only the hash). In the same run the loopback listener on its ephemeral port served the UI 200, still 401'd `/api/sync/self` without the desktop token, and **was not reachable on the LAN address at all** — which is the property that makes the second listener worth having rather than widening the first.
+
 ---
 
 ## 7. Bundle layout and data directories
@@ -387,7 +424,7 @@ Built on Fedora by `npm run desktop:dist:win:portable`, into `release/` (gitigno
 | `release/PUF-AM-0.1.0-win.zip` | ~169 MB | The same app unzipped rather than self-extracting. Unzip, run `PUF-AM.exe`. Useful when a portable exe trips a policy or an AV scanner |
 | `release/win-unpacked/` | ~440 MB | The raw tree the other two are made from. Copyable too, but the zip is the same thing without 3000 files |
 
-Both carry `resources/freenet/{freenet.exe,fdev.exe}` and `resources/contracts/pack-contract.wasm`, so the target machine needs **no Node, no npm, and no Freenet install**.
+Both carry `resources/freenet/{freenet.exe,fdev.exe}` and `resources/contracts/{pack-contract.wasm,slot-contract.wasm}`, so the target machine needs **no Node, no npm, and no Freenet install**.
 
 **Unsigned, by design** (§11). Windows SmartScreen will show *"Windows protected your PC"* on first launch: **More info → Run anyway**. Signing means an EV certificate, which is out of scope for workshop builds.
 
@@ -537,6 +574,15 @@ Landed:
 
 **Verified on Fedora 44:** `npm run desktop:dist:linux:appimage` → `release/PUF-AM-0.1.0.AppImage` (164 MB). Launching it reports **`mode=managed source=bundled`** — the first time the resolver has picked `resources/freenet/` rather than `vendor/` — serves the UI and `/api/health` from `127.0.0.1:<ephemeral>`, runs `/tmp/.mount_*/resources/freenet/freenet` against `~/.config/PUF-AM/freenet/{config,data,logs}`, and on quit stops only its own node: the operator's workshop `freenet network` on `:7509` was still running afterwards. `resources/freenet/{freenet,fdev,LICENSE.md}` and `resources/contracts/pack-contract.wasm` are present in both the Linux and Windows outputs.
 
+**Re-verified ~2026-08-09, and the join slot needed two packaging fixes.** The slot contract landed *after* the 2026-08-07 AppImage, and a packaged build could not have used it:
+
+| Gap | Why it mattered | Fix |
+|---|---|---|
+| `slot-contract.wasm` was not in `extraResources` | Publishing a slot is `fdev put --code <wasm>`, and `mist-freenet`'s default resolves relative to `import.meta.url` — a path that does not survive bundling into the CJS main, and that `fdev` could not read out of the asar anyway | Bundled to `resources/contracts/slot-contract.wasm`; `desktop/main.ts` resolves it and `freenetHostEnv()` exports `FREENET_SLOT_WASM`, exactly as it already did for the pack WASM |
+| `@noble/curves` was missing from the asar allowlist | The slot's ed25519 signing pulled in a new runtime dependency | Allowlist regenerated from `desktop:verify:deps` |
+
+The second one is why the dependency gate exists: `npm run desktop:dist:linux:appimage` **refused to build** rather than shipping an app that would have thrown on the first slot publish.
+
 **Windows:** `npm run desktop:dist:win` produces a complete `release/win-unpacked/` on Fedora — asar, `freenet.exe`, `fdev.exe`, and the pack WASM all land correctly — then fails at the NSIS step with `spawn wine ENOENT`. That is the documented boundary, not a config problem: run the same command on the `C:\Projects` Windows box (§8.1). `freenet.exe` has still **never been launched**, so `win-x64` stays `pinned` in the manifest until it spawns a node there.
 
 **Field-validated ~2026-08-04 — two laptops, AppImage only.** Laptop A published Hot + bones and produced a join ticket; laptop B, a machine that had never held this farm, recovered the identity from the paper FarmCode, pasted the ticket, and pulled diary entries plus the full map geometry back over Opennet. Neither laptop had a repo clone, `npm`, an operator-installed Freenet, or a browser pointed at `am.pufworks.farm`. This is the first end-to-end PUF-AM desktop mist join, and it retires the "still open" item below about installing on a bare machine. Detail: [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) § AppImage A→B.
@@ -562,11 +608,11 @@ The Phase 3 pass proved the flow exists. Phase 4 is about making it something a 
 | 6 | Plain-language status instead of peer/port jargon | **done** — one readiness line plus a single **Connect** button; the UDP-vs-WebSocket note folds away behind a disclosure in the diagnostics card |
 | 7 | Loopback guard — bearer token and/or IPC-only Freenet calls (§6.3) | **done** — per-launch token in [`desktop/loopbackAuth.ts`](../desktop/loopbackAuth.ts), injected by the session so the renderer never holds it. 14 hermetic tests + a live AppImage check (§6.3) |
 | 8 | Windows: copyable artifact + first `freenet.exe` launch | **half done** — `portable` + `zip` now build on Fedora (§8.1.1, §8.5). The NSIS `.exe` and the first `freenet.exe` launch still need the Windows machine |
-| 9 | mDNS LAN-hub advertising from the shell | **deferred, on purpose** — see below |
+| 9 | mDNS LAN-hub advertising from the shell | **done** — second LAN-bound listener behind a pairing code, off by default, one toggle in Settings (§6.4) |
 
-**Item 9 is deferred, not forgotten.** `startPufomMdns()` advertises a *LAN* base URL (`http://<lan-ip>:<port>`), and the desktop API binds `127.0.0.1` only. Advertising it today would publish an address nothing can reach, and item 7 now means a LAN client would be 401'd even if it could. Doing this properly needs a second, LAN-bound listener and a decision about what authorises a phone against it — the existing `/api/sync/*` farm bearer is the obvious candidate. That is a sync-path design question, not desktop polish, so it moves out of Phase 4.
+**Item 9 landed as the tablet hub (§6.4).** The deferral was waiting on one question — what authorises a phone against a LAN-bound desktop API. The answer is *not* the `/api/sync/*` farm bearer that this table originally guessed at: that bearer identifies a farm, not a device, so it cannot be revoked for one lost tablet and it says nothing about whether the operator consented to this laptop serving the network at all. Instead a short pairing code shown in Settings is exchanged once for a per-device token, over a listener that is separate from the loopback one and serves an allowlist of routes. Full reasoning, wire shape, and the live verification are in §6.4.
 
-**Done when:** the two-Fedora pass criteria are met with zero terminals open **and** nothing in the operator path requires an environment variable. Items 1–7 clear that. What remains under Phase 4 is Windows-host work (item 8) and the deferred item 9.
+**Done when:** the two-Fedora pass criteria are met with zero terminals open **and** nothing in the operator path requires an environment variable. Items 1–7 and 9 clear that. What remains under Phase 4 is Windows-host work (item 8).
 
 #### What the join feels like after items 4–6
 
@@ -590,6 +636,8 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 | Bundled WASM drifts from pinned code hash | **Closed** — `npm run desktop:verify:pack` plus a hermetic test on the pin (§7.1). Publishing with a mismatched hash silently changes every URI, so this fails the build rather than warning |
 | Redistributing an AGPL binary | **Closed** — upstream `LICENSE.md` explicitly exempts bundling the unmodified binary alongside an app that talks to it over a network protocol; the text ships beside the binaries (§8.4) |
 | Loopback API reachable by local processes | **Closed** — per-launch bearer required on every `/api/*` except `/api/health`, injected into renderer requests by the session so the token never enters the renderer (§6.3) |
+| LAN listener widens the attack surface of a shed laptop | **Bounded, not eliminated** — it is off until the operator turns it on, binds a separate app from the loopback one, serves an allowlist rather than the whole API, never serves the UI, and needs a per-device token that can be revoked one tablet at a time (§6.4). What remains open by design: traffic is plain HTTP on the LAN, so anyone already on the Wi-Fi can read a paired tablet's sync traffic. TLS needs a cert story a farmer can complete, which is its own piece of work |
+| 8-character pairing code is guessable | Throttled per client with `Retry-After`, refused outright from non-private addresses, and rotatable from Settings without unpairing existing devices. The code is a bootstrap credential with a short useful life, not the thing that authorises requests (§6.4) |
 | `process.cwd()` assumptions in `server/*` | Audited in Phase 1. `firebaseAdmin.ts` is the only other reader and `/api/auth/*` is cloud-only. `getMistFreenetRootDir()` fell back to `cwd()/tmp`, so `main.ts` now sets `MIST_FREENET_ROOT` unconditionally at boot |
 | Two PUF apps racing for `:7509` | Attach mode; only the spawner may stop the node |
 | Freenet upstream API churn (0.2.x is moving fast) | Version pinned in `scripts/freenet-binaries.json` and checksum-enforced; `fdev` removal tracked as PUF-FN work |

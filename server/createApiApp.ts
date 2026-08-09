@@ -1,5 +1,8 @@
+import { hostname as osHostname } from "node:os";
+
 import express, { Express } from "express";
 import { runBlightModel, defaultCalibration } from "../src/lib/blightModel.ts";
+import { HUB_INFO_PATH, type HubInfo } from "../shared/sync/hubInfo.ts";
 import { registerAccessPinRoutes } from "./accessPinRoutes.ts";
 import { registerWeatherCacheRoutes } from "./weatherCacheRoutes.ts";
 import { registerChillRoutes } from "./chillRoutes.ts";
@@ -10,17 +13,20 @@ import {
   fetchDpirdDailySummaries,
 } from "../shared/weather/dpirdClient.ts";
 
-/** Express app with API routes only (no Vite/static middleware). Used by server.ts and tests. */
-export function createApiApp(): Express {
-  const app = express();
+// Capacitor, LAN devices, and am.pufworks.farm → local Freenet sidecar call cross-origin.
+const allowedCorsOrigins = new Set([
+  'https://am.pufworks.farm',
+  'https://pufom-quby5ye5pa-ts.a.run.app',
+]);
 
-  // Capacitor, LAN devices, and am.pufworks.farm → local Freenet sidecar call cross-origin.
-  const allowedCorsOrigins = new Set([
-    'https://am.pufworks.farm',
-    'https://pufom-quby5ye5pa-ts.a.run.app',
-  ]);
-
-  app.use((req, res, next) => {
+/**
+ * Shared so the desktop shell's LAN listener can put its own `/api/hub/*` routes
+ * in front of `createApiApp()` and still answer a preflight the same way. Two
+ * copies of this would drift, and the failure mode is a tablet that works on one
+ * listener and not the other.
+ */
+export function apiCorsMiddleware(): express.RequestHandler {
+  return (req, res, next) => {
     const origin = req.headers.origin;
     let allowOrigin = '*';
     if (origin) {
@@ -36,15 +42,25 @@ export function createApiApp(): Express {
     }
     res.setHeader('Access-Control-Allow-Origin', allowOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    // `x-puf-hub-token` is the paired-tablet credential for a desktop LAN hub.
+    // Omitting it here is invisible on same-origin and fails every cross-origin
+    // call from the APK, which is the only place it is ever sent from.
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, Accept, api-key'
+      'Content-Type, Authorization, Accept, api-key, x-puf-hub-token'
     );
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
     }
     return next();
-  });
+  };
+}
+
+/** Express app with API routes only (no Vite/static middleware). Used by server.ts and tests. */
+export function createApiApp(): Express {
+  const app = express();
+
+  app.use(apiCorsMiddleware());
 
   app.use(express.json());
 
@@ -64,6 +80,27 @@ export function createApiApp(): Express {
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  /**
+   * The workshop answer to the tablet's hub handshake. A repo checkout holds the
+   * Firebase and DPIRD secrets, so it serves every family itself and asks for no
+   * credential — the opposite of the packaged desktop LAN hub, which registers a
+   * richer version of this route in front of `createApiApp()`.
+   */
+  app.get(HUB_INFO_PATH, (_req, res) => {
+    const info: HubInfo = {
+      product: 'PUF-AM',
+      kind: 'workshop-dev',
+      name: `PUF-AM dev (${osHostname().split('.')[0] || 'workshop'})`,
+      pairingRequired: false,
+      paired: true,
+      cloudOnlyPrefixes: [],
+      cloudApiBase: '',
+      lanScopePrefixes: [],
+      freenet: process.env.MIST_FREENET_DISABLED !== '1',
+    };
+    res.json(info);
   });
 
   app.post("/api/weather/blight-risk", async (req, res) => {

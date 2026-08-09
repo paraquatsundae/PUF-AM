@@ -33,6 +33,12 @@ export {
   FREENET02_MAX_BLOB_BYTES,
   DEFAULT_PACK_CONTRACT_WASM,
 } from './freenet02-pack.ts';
+export {
+  DEFAULT_SLOT_CONTRACT_WASM,
+  putJoinSlotViaFdev,
+  resolveSlotContractWasmPath,
+} from './freenet02-fdev-slot.ts';
+export type { SlotPutResult } from './freenet02-fdev-slot.ts';
 export { MockFreenetTransport, mockChkUriFromContent } from './mock-freenet-transport.ts';
 export type { MockFreenetTransportOptions } from './mock-freenet-transport.ts';
 

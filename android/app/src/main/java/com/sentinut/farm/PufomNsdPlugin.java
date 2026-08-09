@@ -15,6 +15,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -116,6 +117,12 @@ public class PufomNsdPlugin extends Plugin {
                             addrs.put(info.getHost().getHostAddress());
                         }
                         row.put("addresses", addrs);
+                        // A multi-homed hub answers getaddrinfo with whichever
+                        // interface it feels like — on a laptop with USB tethering
+                        // up, that is routinely the address the tablet cannot
+                        // reach. The hub also states its LAN address in TXT, so
+                        // pass the attributes through and let the caller prefer it.
+                        row.put("txt", readAttributes(info));
                         synchronized (resolved) {
                             resolved.add(row);
                         }
@@ -141,6 +148,17 @@ public class PufomNsdPlugin extends Plugin {
         }
 
         mainHandler.postDelayed(this::stopAndComplete, Math.max(1200, timeoutMs));
+    }
+
+    private JSObject readAttributes(NsdServiceInfo info) {
+        JSObject txt = new JSObject();
+        Map<String, byte[]> attrs = info.getAttributes();
+        if (attrs == null) return txt;
+        for (Map.Entry<String, byte[]> entry : attrs.entrySet()) {
+            byte[] value = entry.getValue();
+            txt.put(entry.getKey(), value == null ? "" : new String(value, StandardCharsets.UTF_8));
+        }
+        return txt;
     }
 
     private void maybeComplete() {

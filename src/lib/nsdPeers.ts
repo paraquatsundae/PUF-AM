@@ -20,6 +20,8 @@ type NsdService = {
   host: string;
   port: number;
   addresses: string[];
+  /** Service TXT record. `ip` is the hub's own view of its LAN address. */
+  txt?: Record<string, string>;
 };
 
 type PufomNsdPlugin = {
@@ -67,8 +69,22 @@ export async function discoverNsdPeers(timeoutMs = 3500): Promise<PufomSyncPeer[
   for (const svc of services) {
     const port = Number(svc.port) || 0;
     if (!port) continue;
-    const ip = pickIpv4(svc.addresses || []) || (svc.host && !svc.host.includes(':') ? svc.host : '');
+
+    // A hub with more than one interface up — Wi‑Fi plus USB tethering is the
+    // common one — resolves to whichever address Android's getaddrinfo returned,
+    // and that is regularly the one on a network this tablet is not on. The hub
+    // publishes the address it wants to be reached on in TXT; try every
+    // candidate rather than trusting the first.
+    const advertised = svc.txt?.ip?.trim();
+    const candidates = [
+      ...(advertised ? [advertised] : []),
+      ...(svc.addresses || []),
+      ...(svc.host && !svc.host.includes(':') ? [svc.host] : []),
+    ];
+    const ordered = [...new Set(candidates.filter(Boolean))];
+    const ip = pickIpv4(ordered) || ordered[0];
     if (!ip) continue;
+
     const baseUrl = `http://${ip}:${port}`;
     if (seen.has(baseUrl)) continue;
     seen.add(baseUrl);
@@ -77,18 +93,26 @@ export async function discoverNsdPeers(timeoutMs = 3500): Promise<PufomSyncPeer[
       name: svc.name || 'PUFOM Sync',
       host: svc.host || ip,
       port,
-      addresses: svc.addresses?.length ? svc.addresses : [ip],
+      addresses: ordered.length ? ordered : [ip],
       baseUrl,
+      ...(svc.txt ? { txt: svc.txt } : {}),
       source: 'nsd',
       seenAt: new Date().toISOString(),
     });
   }
 
-  // Drop unreachable hubs (stale NSD ghosts)
+  // Drop unreachable hubs (stale NSD ghosts), and fall back through the other
+  // addresses a hub gave us before writing it off.
   const live: PufomSyncPeer[] = [];
   await Promise.all(
     peers.map(async (p) => {
-      if (await probeHub(p.baseUrl)) live.push(p);
+      for (const candidate of p.addresses) {
+        const baseUrl = `http://${candidate}:${p.port}`;
+        if (await probeHub(baseUrl)) {
+          live.push({ ...p, baseUrl, id: `nsd:${baseUrl}` });
+          return;
+        }
+      }
     })
   );
   return live;

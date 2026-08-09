@@ -285,10 +285,13 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">Label</label>
+              <label className="text-xs font-medium text-slate-600">
+                Name / label (shown in Active & past PINs)
+              </label>
               <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
+                placeholder="e.g. Sam — season worker"
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
               />
             </div>
@@ -357,6 +360,9 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
 
       <div className="border-t border-slate-100 pt-4 space-y-2">
         <h3 className="text-sm font-semibold text-slate-800">Active & past PINs</h3>
+        <p className="text-xs text-slate-500">
+          Each row shows the name/label set when that PIN was created (and who last used it, if known).
+        </p>
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading…
@@ -365,22 +371,40 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
           <p className="text-sm text-slate-500">No PINs yet. Use a quick-create button above.</p>
         ) : (
           <ul className="space-y-2">
-            {pins.map((p) => (
+            {pins.map((p) => {
+              const pinName =
+                (p.label && p.label.trim()) ||
+                `${p.role} · ${(p.createdAt || '').slice(0, 10) || 'invite'}`;
+              return (
               <li
                 key={p.pinId}
                 className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">
-                    {p.label}{' '}
-                    <span className="text-slate-400 font-normal">({p.role})</span>
+                  <p className="text-sm font-semibold text-slate-900 truncate" title={pinName}>
+                    {pinName}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {p.codeHint || '••••'} · uses {p.useCount}
+                    <span className="capitalize">{p.role}</span>
+                    {' · '}
+                    {p.codeHint || '••••'}
+                    {' · '}
+                    uses {p.useCount}
                     {p.maxUses != null ? `/${p.maxUses}` : ''}
+                    {p.createdAt ? ` · created ${p.createdAt.slice(0, 10)}` : ''}
                     {p.expiresAt ? ` · exp ${p.expiresAt.slice(0, 10)}` : ''}
                     {!p.active ? ' · revoked' : ''}
                   </p>
+                  {p.lastRedeemedDisplayName ? (
+                    <p className="text-xs text-emerald-800 mt-0.5 truncate">
+                      Used by {p.lastRedeemedDisplayName}
+                      {p.lastRedeemedAt ? ` · ${p.lastRedeemedAt.slice(0, 10)}` : ''}
+                    </p>
+                  ) : p.useCount > 0 ? (
+                    <p className="text-[11px] text-slate-400 mt-0.5">Redeemed (name not recorded)</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 mt-0.5">Not used yet</p>
+                  )}
                   {p.modules?.length > 0 && (
                     <p className="text-[10px] text-slate-400 mt-0.5 truncate">
                       {p.modules.map((m) => MODULE_LABELS[m] || m).join(' · ')}
@@ -397,7 +421,8 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
                   </button>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

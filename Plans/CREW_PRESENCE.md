@@ -34,6 +34,14 @@ When Cloud is down but Express hub is reachable (or as a same-Wi‑Fi complement
 
 Discovery: Offline & sync peers / last hub (`mdnsPeers.ts`). Tablet must point at the PC hub base URL.
 
+### P2b — Coarse position over Freenet (planned, off by default)
+
+For a farm with no cloud and no shared Wi‑Fi. **Not live tracking** — a Freenet PUT is
+seconds-to-minutes, so this is a "last seen" point, ≥5 min apart, geohash‑7, latest only, inside
+the sealed Hot blob. Design frozen in
+[`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §5; LAN presence above stays the live path
+on Freenet farms.
+
 ### P3 — Mesh / device relay (no hub)
 
 Hardest; defer until P1–P2 prove useful in the paddock.
