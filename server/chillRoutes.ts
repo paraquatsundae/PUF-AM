@@ -2,7 +2,7 @@ import type { Express, Request, Response } from 'express';
 import { getDpirdApiKey } from './envSecrets.ts';
 import { getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
 import {
-  resolveNearestAnchorStation,
+  resolveWeatherStation,
   fetchDpirdHourlyTemps,
   type HourlyTempPoint,
 } from '../shared/weather/dpirdClient.ts';
@@ -44,6 +44,7 @@ function buildPayload(
   const result = calculateChillData(temps, times, { enforceSeasonWindow: true });
   return {
     totalPortions: result.totalPortions,
+    portionsLast24h: result.portionsLast24h,
     chartData: result.chartData,
     hoursProcessed: result.hoursProcessed,
     hoursSkipped: result.hoursSkipped,
@@ -109,9 +110,11 @@ export function registerChillRoutes(app: Express) {
       const lng = req.query.lng !== undefined ? Number(req.query.lng) : undefined;
       const stationCodeQ =
         typeof req.query.stationCode === 'string' ? req.query.stationCode.trim() : undefined;
+      const stationNameQ =
+        typeof req.query.stationName === 'string' ? req.query.stationName.trim() : undefined;
       const force = req.query.force === '1' || req.query.force === 'true';
 
-      const station = resolveNearestAnchorStation(lat, lng, stationCodeQ || undefined);
+      const station = resolveWeatherStation(lat, lng, stationCodeQ || undefined, stationNameQ);
       const window = getSouthernHemisphereChillWindow(new Date());
       const memKey = `v3:${station.stationCode}:${window.seasonYear}:${window.end.toISOString().slice(0, 13)}`;
 

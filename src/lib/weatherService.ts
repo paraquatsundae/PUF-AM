@@ -13,6 +13,8 @@ import {
   type CachedWeatherRecord,
   type DayWeather,
 } from '../../shared/weather/dpirdClient';
+
+export { WEATHER_STATION_ANCHORS };
 import { estimateWetnessHoursProxy } from '../../shared/weather/jiBlightModel';
 import { isForecastStale } from '../../shared/weather/metnoForecast';
 import { readWeatherFromIdb, saveWeatherToIdb } from './weatherCacheIdb';
@@ -330,32 +332,47 @@ export async function fetchWeatherData(
 
 let cachedStations: unknown[] | null = null;
 
-/** Dev-only station list; production should use cached station metadata. */
+/** DPIRD station directory (via server proxy). Falls back to regional anchors. */
 export async function fetchAllDPIRDStations(): Promise<unknown[]> {
-  if (!isDev) {
-    return WEATHER_STATION_ANCHORS.map((s) => ({
-      stationCode: s.stationCode,
-      stationName: s.name,
-      status: 'Active',
-    }));
-  }
-
   if (cachedStations) return cachedStations;
 
   try {
     trackMetric('weather').catch(console.error);
     const url = apiUrl('/api/weather/dpird/stations?limit=500');
     const response = await fetchWithTimeout(url);
-    if (!response.ok) return [];
+    if (!response.ok) {
+      return WEATHER_STATION_ANCHORS.map((s) => ({
+        stationCode: s.stationCode,
+        stationName: s.name,
+        latitude: s.lat,
+        longitude: s.lng,
+        status: 'Active',
+      }));
+    }
 
     const data = await response.json();
     let stations: unknown[] = data.collection || data.data || data;
     if (!Array.isArray(stations)) stations = [];
+    if (stations.length === 0) {
+      return WEATHER_STATION_ANCHORS.map((s) => ({
+        stationCode: s.stationCode,
+        stationName: s.name,
+        latitude: s.lat,
+        longitude: s.lng,
+        status: 'Active',
+      }));
+    }
     cachedStations = stations;
     return stations;
   } catch (error) {
     console.error('Error fetching all DPIRD stations:', error);
-    return [];
+    return WEATHER_STATION_ANCHORS.map((s) => ({
+      stationCode: s.stationCode,
+      stationName: s.name,
+      latitude: s.lat,
+      longitude: s.lng,
+      status: 'Active',
+    }));
   }
 }
 

@@ -49,12 +49,17 @@ import debounce from 'lodash/debounce';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import {
   cancelActiveDrawer,
+  clearDrawUiIgnoreWindow,
   getCurrentDrawHandler,
+  reviveActiveDrawer,
   startActiveDrawer,
   type LeafletDrawHandler,
 } from '../lib/mapDrawHelpers';
 import { DrawingActionBar } from '../components/map/DrawingActionBar';
-import { BoundaryEditActionBar } from '../components/map/BoundaryEditActionBar';
+import {
+  BoundaryEditActionBar,
+  type InternalBoundaryKind,
+} from '../components/map/BoundaryEditActionBar';
 import { BoundaryImportSheet } from '../components/map/BoundaryImportSheet';
 import {
   UserLocationLayer,
@@ -102,15 +107,20 @@ import {
   type InfraTypeId,
 } from '../../shared/farm/infraTypes';
 import {
+  asFeature,
   effectivePaddockAreaHa,
+  internalBoundariesIntersectingBlock,
+  isInternalBoundaryType,
+  parsePossiblyStringifiedGeojson,
+  polygonMostlyOutsideBlock,
   recomputeBlockAreasForFarm,
   subtractingExclusionPolygons,
 } from '../lib/paddockExclusions';
 import {
   applyInfraPolygonPattern,
+  ensureInfraFillPatterns,
   infraPolygonPathStyle,
   PUFAM_FILL_PATTERN_CSS,
-  PUFAM_FILL_PATTERN_SVG,
 } from '../lib/infraMapStyles';
 import {
   PUFAM_TRACK_STROKE_CSS,
@@ -343,9 +353,8 @@ export function OrchardMap() {
     syncError,
     clearSyncError,
     flushSync,
+    loadData,
   } = useMapStore();
-
-  const farmChill = useFarmChillPortions(viewport.lat, viewport.lng);
 
   /** Once we've framed the paddocks for this farm, don't keep re-zooming on edits. */
   const fittedToBlocksFarmRef = React.useRef<string | null>(null);
@@ -433,6 +442,19 @@ export function OrchardMap() {
   activeTabRef.current = activeTab;
   const infraDrawKindRef = useRef(infraDrawKind);
   infraDrawKindRef.current = infraDrawKind;
+  const pinsRef = useRef(pins);
+  pinsRef.current = pins;
+  /** Blocks-tab draw of an internal pad / hazard (not a new paddock). */
+  const internalBoundaryDrawRef = useRef<{
+    kind: InternalBoundaryKind;
+    blockId: string;
+  } | null>(null);
+  /** Ignore DRAWSTOP from cancelActiveDrawer while arming a new internal draw. */
+  const skipInternalDrawClearRef = useRef(false);
+  const [internalBoundaryDrawing, setInternalBoundaryDrawing] = useState<{
+    kind: InternalBoundaryKind;
+    blockId: string;
+  } | null>(null);
   const [forceRender, setForceRender] = useState(0);
 
   // Phase 4.3: Farm Diary Integration
@@ -444,6 +466,13 @@ export function OrchardMap() {
     return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
   }, []);
   const { events, settings, getSprayEvents, getIrrigationEvents } = useFarmDiary(diaryDateRange.start, diaryDateRange.end);
+  const farmChill = useFarmChillPortions(
+    viewport.lat,
+    viewport.lng,
+    true,
+    settings.dpirdStationCode,
+    settings.dpirdStationName
+  );
   const mapCopy = useMemo(() => mapUiCopy(settings.farmProfile), [settings.farmProfile]);
   const {
     highlights: mapHighlights,
@@ -560,6 +589,12 @@ export function OrchardMap() {
     const handleMapClick = (e: any) => {
       if (e.originalEvent?._stopped) return;
       if (placingHighlightRef.current) return;
+      // Pan/zoom trailing clicks and tap-to-place both fire map click.
+      // Never deselect the source paddock (or cancel context) while drawing /
+      // vertex-editing — especially internal-boundary hazard/pad from Blocks.
+      if (getCurrentDrawHandler()?._enabled) return;
+      if (internalBoundaryDrawRef.current) return;
+      if (boundaryEditRef.current) return;
       if (placingFlag && mapMode === 'operate') {
         const lat = e.latlng.lat as number;
         const lng = e.latlng.lng as number;
@@ -672,8 +707,16 @@ export function OrchardMap() {
       // Never steal taps while a draw tool or boundary-edit session is active —
       // paddocks cover most of the farm, so this used to cancel infra/track draws
       // and force the Blocks tab mid-placement.
-      if (getCurrentDrawHandler()?._enabled) return;
-      if (boundaryEditRef.current) return;
+      // Mark _stopped so map background-click cannot clear highlightedBlockId
+      // (internal-boundary draw stays on Blocks with the source paddock selected).
+      if (
+        getCurrentDrawHandler()?._enabled ||
+        boundaryEditRef.current ||
+        internalBoundaryDrawRef.current
+      ) {
+        if (e.originalEvent) e.originalEvent._stopped = true;
+        return;
+      }
 
       const mapping = layerMapRef.current[e.layer._leaflet_id];
       if (mapping && mapping.type === 'block') {
@@ -890,27 +933,28 @@ export function OrchardMap() {
     };
   }, [mapInstance, setViewport, setBounds]);
 
+  // Pattern defs must outlive React commits (see ensureInfraFillPatterns).
+  useEffect(() => {
+    ensureInfraFillPatterns();
+  }, []);
+
   // Keep Leaflet layers in sync with store (re-runs when EditControl mounts/clears the group)
   useEffect(() => {
     if (!isLoaded || !mapInstance) return;
+    ensureInfraFillPatterns();
 
     const normalizeGeojson = (raw: unknown): any | null => {
-      if (!raw) return null;
-      if (typeof raw === 'string') {
-        try {
-          return JSON.parse(raw);
-        } catch {
-          return null;
-        }
-      }
-      // Unwrap Feature / bare geometry for L.geoJSON
-      return raw;
+      const parsed = parsePossiblyStringifiedGeojson(raw);
+      if (!parsed) return null;
+      // Prefer a Turf-normalized Polygon/MultiPolygon Feature (imported FC / string OK).
+      return asFeature(parsed) || parsed;
     };
 
     const syncLayers = () => {
       const fg = featureGroupRef.current;
       if (!fg) return;
       let membershipChanged = false;
+      ensureInfraFillPatterns();
 
       // Drop stale leaflet-id mappings after EditControl clears the group
       const liveIds = new Set(
@@ -955,13 +999,21 @@ export function OrchardMap() {
         const existingLayer = existing.get(key);
         if (existingLayer) {
           const isMarker = existingLayer instanceof L.Marker;
-          // Recreate when draw mode / geojson presence no longer matches the layer kind.
-          if (wantsGeo === isMarker) {
-            fg.removeLayer(existingLayer);
-            delete layerMapRef.current[(existingLayer as any)._leaflet_id];
+          const onMap = typeof fg.hasLayer === 'function' ? fg.hasLayer(existingLayer) : true;
+          // Recreate when missing from FG, or draw mode / geojson no longer matches layer kind.
+          if (!onMap || wantsGeo === isMarker) {
+            if (onMap) {
+              fg.removeLayer(existingLayer);
+              delete layerMapRef.current[(existingLayer as any)._leaflet_id];
+            }
             existing.delete(key);
             membershipChanged = true;
           } else {
+            // Keep membership; refresh polygon fill so hazards/pads/dams stay painted
+            // after draw finish / pattern-def lifecycle (do not wait for a tab switch).
+            if (wantsGeo && draw === 'polygon' && existingLayer instanceof L.Polygon) {
+              applyInfraPolygonPattern(existingLayer, pin.type);
+            }
             continue;
           }
         }
@@ -1076,13 +1128,36 @@ export function OrchardMap() {
   }, [isLoaded, blocks, pins, tracks, mapInstance, mapMode, activeTab, getPinIcon, getPinTooltip]);
 
   // Let draw tools receive taps over paddocks when placing infra / tracks
+  // (and when drawing an internal hazard/pad from Blocks — same tab would
+  // otherwise keep paddock polygons interactive and steal tap-to-vertex).
+  // CSS class survives highlight setStyle; JS walk covers nested GeoJSON groups.
   useEffect(() => {
     const fg = featureGroupRef.current;
     if (!fg) return;
     const passBlocksThrough =
-      mapMode === 'edit' && activeTab !== 'blocks' && activeTab !== 'analytics';
+      mapMode === 'edit' &&
+      ((activeTab !== 'blocks' && activeTab !== 'analytics') ||
+        Boolean(internalBoundaryDrawing));
     const passTracksThrough =
       mapMode === 'edit' && activeTab !== 'tracks';
+
+    if (mapInstance) {
+      mapInstance.getContainer().classList.toggle('pufom-draw-over-paddocks', passBlocksThrough);
+    }
+
+    const applyPassThrough = (layer: L.Layer, passThrough: boolean) => {
+      if ('options' in layer && layer.options) {
+        (layer.options as { interactive?: boolean }).interactive = !passThrough;
+      }
+      const el = (layer as L.Path).getElement?.() as HTMLElement | undefined;
+      if (el?.style) {
+        el.style.pointerEvents = passThrough ? 'none' : '';
+      }
+      const group = layer as L.LayerGroup;
+      if (typeof group.eachLayer === 'function') {
+        group.eachLayer((child) => applyPassThrough(child, passThrough));
+      }
+    };
 
     for (const layer of fg.getLayers() as L.Layer[]) {
       const mapping = layerMapRef.current[(layer as any)._leaflet_id];
@@ -1091,16 +1166,23 @@ export function OrchardMap() {
       if (mapping.type === 'block') passThrough = passBlocksThrough;
       else if (mapping.type === 'track') passThrough = passTracksThrough;
       else continue;
-
-      if ('options' in layer && layer.options) {
-        (layer.options as { interactive?: boolean }).interactive = !passThrough;
-      }
-      const el = (layer as L.Path).getElement?.() as HTMLElement | undefined;
-      if (el?.style) {
-        el.style.pointerEvents = passThrough ? 'none' : '';
-      }
+      applyPassThrough(layer, passThrough);
     }
-  }, [mapMode, activeTab, forceRender, blocks, tracks, isLoaded]);
+
+    return () => {
+      mapInstance?.getContainer().classList.remove('pufom-draw-over-paddocks');
+    };
+  }, [
+    mapMode,
+    activeTab,
+    forceRender,
+    blocks,
+    tracks,
+    isLoaded,
+    internalBoundaryDrawing,
+    mapInstance,
+    highlightedBlockId,
+  ]);
 
   useEffect(() => {
     if (!featureGroupRef.current) return;
@@ -1458,6 +1540,11 @@ export function OrchardMap() {
     };
   }, [debouncedUpdateTrackName]);
 
+  const clearInternalBoundaryDraw = useCallback(() => {
+    internalBoundaryDrawRef.current = null;
+    setInternalBoundaryDrawing(null);
+  }, []);
+
   // Cancel Quick Add drawers when leaving edit mode, switching tabs, or changing infra draw kind
   const drawContextRef = useRef({ activeTab, mapMode, infraDrawKind });
   useEffect(() => {
@@ -1468,13 +1555,29 @@ export function OrchardMap() {
       prev.infraDrawKind !== infraDrawKind;
     drawContextRef.current = { activeTab, mapMode, infraDrawKind };
     if (!changed) return;
+
+    // Internal-boundary draw from block edit stays on Blocks — don't kill it when
+    // infraDrawKind / unrelated context flaps. Leaving Blocks or Edit cancels it.
+    if (internalBoundaryDrawRef.current) {
+      if (activeTab !== 'blocks' || mapMode !== 'edit') {
+        clearInternalBoundaryDraw();
+        cancelActiveDrawer(activeDrawerRef);
+        if (boundaryEditRef.current) {
+          cancelBoundaryEdit(boundaryEditRef.current);
+          boundaryEditRef.current = null;
+          setBoundaryEditBlockId(null);
+        }
+      }
+      return;
+    }
+
     cancelActiveDrawer(activeDrawerRef);
     if (boundaryEditRef.current) {
       cancelBoundaryEdit(boundaryEditRef.current);
       boundaryEditRef.current = null;
       setBoundaryEditBlockId(null);
     }
-  }, [activeTab, mapMode, infraDrawKind]);
+  }, [activeTab, mapMode, infraDrawKind, clearInternalBoundaryDraw]);
 
   useEffect(() => {
     return () => {
@@ -1489,6 +1592,7 @@ export function OrchardMap() {
   const beginBoundaryEdit = useCallback(
     (blockId: string) => {
       if (!mapInstance || !canEdit || mapMode !== 'edit' || !featureGroupRef.current) return;
+      clearInternalBoundaryDraw();
       cancelActiveDrawer(activeDrawerRef);
       if (boundaryEditRef.current) {
         cancelBoundaryEdit(boundaryEditRef.current);
@@ -1523,7 +1627,7 @@ export function OrchardMap() {
       setBoundaryEditBlockId(blockId);
       setBoundaryEditTick((t) => t + 1);
     },
-    [mapInstance, canEdit, mapMode]
+    [mapInstance, canEdit, mapMode, clearInternalBoundaryDraw]
   );
 
   const saveBoundaryEdit = useCallback(() => {
@@ -1553,6 +1657,113 @@ export function OrchardMap() {
     setBoundaryEditBlockId(null);
   }, []);
 
+  /**
+   * From block edit: stay on Blocks tab, cancel vertex edit, start polygon draw
+   * for passable pad or impassable hazard (creates InfrastructurePin on Finish).
+   */
+  const beginInternalBoundaryDraw = useCallback(
+    (kind: InternalBoundaryKind, blockId: string) => {
+      if (!mapInstance || !canEdit || mapMode !== 'edit') return;
+      if (!(L as any).Draw) {
+        console.error('Leaflet Draw not initialized');
+        return;
+      }
+
+      // Avoid DRAWSTOP from this cancel clearing the pending draw we are about to arm.
+      skipInternalDrawClearRef.current = true;
+      cancelActiveDrawer(activeDrawerRef);
+      if (boundaryEditRef.current) {
+        cancelBoundaryEdit(boundaryEditRef.current);
+        boundaryEditRef.current = null;
+        setBoundaryEditBlockId(null);
+      }
+
+      setEditingBlockId(null);
+      setIsConfirmingDeleteBlock(false);
+      setEditingPinId(null);
+      setActiveTab('blocks');
+      setHighlightedBlockId(blockId);
+      // Do not setInfraDrawKind — that effect cancels the active drawer.
+
+      internalBoundaryDrawRef.current = { kind, blockId };
+      setInternalBoundaryDrawing({ kind, blockId });
+
+      const polyStyle = infraPolygonPathStyle(kind);
+      try {
+        startActiveDrawer(
+          activeDrawerRef,
+          new (L as any).Draw.Polygon(mapInstance, {
+            shapeOptions: {
+              color: polyStyle.color,
+              fillColor: polyStyle.fillColor,
+              fillOpacity: polyStyle.fillOpacity,
+              weight: polyStyle.weight,
+              className: polyStyle.className,
+              dashArray: polyStyle.dashArray,
+            },
+          })
+        );
+        window.setTimeout(() => {
+          skipInternalDrawClearRef.current = false;
+        }, 0);
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+          setShowSidebar(false);
+        }
+      } catch (err) {
+        console.error('Failed to start internal boundary draw', err);
+        skipInternalDrawClearRef.current = false;
+        clearInternalBoundaryDraw();
+        cancelActiveDrawer(activeDrawerRef);
+      }
+    },
+    [mapInstance, canEdit, mapMode, clearInternalBoundaryDraw]
+  );
+
+  // Workflow: Add hazard → zoom → place point. Zoom/pinch must not leave the drawer
+  // ignoring taps. Revive the same handler (keeps vertices); only recreate if missing.
+  useEffect(() => {
+    if (!mapInstance || !internalBoundaryDrawing || mapMode !== 'edit' || !canEdit) return;
+
+    const revive = () => {
+      if (!internalBoundaryDrawRef.current) return;
+      clearDrawUiIgnoreWindow();
+      if (reviveActiveDrawer(activeDrawerRef)) return;
+      if (!(L as any).Draw) return;
+      const { kind } = internalBoundaryDrawRef.current;
+      const polyStyle = infraPolygonPathStyle(kind);
+      try {
+        startActiveDrawer(
+          activeDrawerRef,
+          new (L as any).Draw.Polygon(mapInstance, {
+            shapeOptions: {
+              color: polyStyle.color,
+              fillColor: polyStyle.fillColor,
+              fillOpacity: polyStyle.fillOpacity,
+              weight: polyStyle.weight,
+              className: polyStyle.className,
+              dashArray: polyStyle.dashArray,
+            },
+          })
+        );
+      } catch (err) {
+        console.warn('[OrchardMap] Failed to restore internal boundary draw after zoom', err);
+      }
+    };
+
+    // Only on zoom — dragend keeps a short ignore window so pan doesn't drop a ghost point.
+    mapInstance.on('zoomend', revive);
+    const onZoomEndDelayed = () => {
+      window.setTimeout(revive, 50);
+      window.setTimeout(revive, 250);
+    };
+    mapInstance.on('zoomend', onZoomEndDelayed);
+
+    return () => {
+      mapInstance.off('zoomend', revive);
+      mapInstance.off('zoomend', onZoomEndDelayed);
+    };
+  }, [mapInstance, internalBoundaryDrawing, mapMode, canEdit]);
+
   // Phase 5.1: Quick Add Tool Trigger
   const handleQuickAdd = useCallback(() => {
     if (!mapInstance || !canEdit || mapMode !== 'edit') return;
@@ -1561,6 +1772,8 @@ export function OrchardMap() {
       boundaryEditRef.current = null;
       setBoundaryEditBlockId(null);
     }
+    // Plus draws a paddock / track / infra asset — not an internal-boundary shortcut.
+    clearInternalBoundaryDraw();
 
     if (!(L as any).Draw) {
       console.error("Leaflet Draw not initialized");
@@ -1630,7 +1843,7 @@ export function OrchardMap() {
       console.error("Failed to enable draw handler", err);
       cancelActiveDrawer(activeDrawerRef);
     }
-  }, [mapInstance, activeTab, canEdit, mapMode, infraDrawKind]);
+  }, [mapInstance, activeTab, canEdit, mapMode, infraDrawKind, clearInternalBoundaryDraw]);
 
   // Phase 4.3: Geocoding Search
   const handleSearch = async (e: React.FormEvent) => {
@@ -1767,82 +1980,27 @@ export function OrchardMap() {
     }, 180);
   }, [mapInstance, reportDraft?.lat, reportDraft?.lng]);
 
-  const leafletDrawOptions = useMemo(() => {
-    const infraMode =
-      activeTab === 'infrastructure' ? infraDrawMode(infraDrawKind) : null;
-    const infraColor = getInfraType(infraDrawKind)?.color || '#0891b2';
-    const polygonOpts =
-      activeTab === 'blocks'
-        ? {
-            allowIntersection: false,
-            showArea: true,
-            drawError: {
-              color: '#ef4444',
-              message: '<strong>Error:</strong> shape edges cannot cross!',
-            },
-            shapeOptions: {
-              color: '#4f46e5',
-              fillOpacity: 0.4,
-              weight: 3,
-            },
-          }
-        : infraMode === 'polygon'
-          ? (() => {
-              const polyStyle = infraPolygonPathStyle(infraDrawKind);
-              return {
-                allowIntersection: false,
-                showArea: true,
-                drawError: {
-                  color: '#ef4444',
-                  message: '<strong>Error:</strong> shape edges cannot cross!',
-                },
-                shapeOptions: {
-                  color: polyStyle.color,
-                  fillColor: polyStyle.fillColor,
-                  fillOpacity: polyStyle.fillOpacity,
-                  weight: polyStyle.weight,
-                  className: polyStyle.className,
-                  dashArray: polyStyle.dashArray,
-                },
-              };
-            })()
-          : false;
-    const polylineOpts =
-      activeTab === 'tracks'
-        ? {
-            shapeOptions: {
-              color: TRACK_COLOR_DRAW,
-              weight: 5,
-              opacity: 1,
-              className: 'pufam-track-line',
-            },
-          }
-        : infraMode === 'line'
-          ? {
-              shapeOptions: {
-                color: infraColor,
-                weight: 4,
-              },
-            }
-          : false;
-    return {
+  // Stock leaflet-draw toolbar is hidden (Plus / DrawingActionBar / Edit boundary only).
+  // Keep EditControl mounted for draw:created; all toolbar tools stay disabled.
+  const leafletDrawOptions = useMemo(
+    () => ({
       rectangle: false,
       circle: false,
       circlemarker: false,
-      polyline: polylineOpts,
-      // leaflet-draw mutates option objects — never pass boolean `true`
-      marker: infraMode === 'point' ? {} : false,
-      polygon: polygonOpts,
-    };
-  }, [activeTab, infraDrawKind]);
+      polyline: false,
+      marker: false,
+      polygon: false,
+    }),
+    []
+  );
 
   const leafletEditOptions = useMemo(
     () => ({
-      // leaflet-draw assigns selectedPathOptions onto `edit` — must be {} or false, not true
-      edit: activeTab === 'blocks' ? {} : false,
-      remove: {},
+      // Boundary vertex edit is custom (Edit boundary); never expose stock edit/delete.
+      edit: false,
+      remove: false,
     }),
-    [activeTab]
+    []
   );
 
   const enterEditPaddocks = () => {
@@ -1888,7 +2046,8 @@ export function OrchardMap() {
               type="button"
               onClick={() => setShowSidebar(!showSidebar)}
               className="lg:hidden p-1.5 text-slate-600 rounded-lg hover:bg-slate-100"
-              title="Menu"
+              title="Edit tools"
+              aria-label={showSidebar ? 'Close edit tools' : 'Open edit tools'}
             >
               {showSidebar ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
@@ -2305,6 +2464,58 @@ export function OrchardMap() {
                           ) : null}
                         </>
                       )}
+                      {(() => {
+                        const internals = internalBoundariesIntersectingBlock(block, pins);
+                        if (internals.length === 0 && highlightedBlockId !== block.id) return null;
+                        return (
+                          <div
+                            className="mt-2 pt-2 border-t border-slate-100 space-y-1.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                              Internal boundaries
+                              {internals.length > 0 ? ` · ${internals.length}` : ''}
+                            </div>
+                            {internals.length > 0 ? (
+                              <ul className="space-y-0.5">
+                                {internals.map((pin) => (
+                                  <li
+                                    key={pin.id}
+                                    className="text-[11px] text-slate-600 flex items-center justify-between gap-2"
+                                  >
+                                    <span className="truncate">{pin.name}</span>
+                                    <span className="shrink-0 text-slate-400">
+                                      {pin.type === 'internal_impassable' ? 'Impassable' : 'Passable'}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                            {canEdit && highlightedBlockId === block.id ? (
+                              <div className="flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    beginInternalBoundaryDraw('internal_passable', block.id)
+                                  }
+                                  className="flex-1 px-2 py-1 rounded-md bg-stone-100 text-stone-700 text-[10px] font-semibold hover:bg-stone-200"
+                                >
+                                  Add pad
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    beginInternalBoundaryDraw('internal_impassable', block.id)
+                                  }
+                                  className="flex-1 px-2 py-1 rounded-md bg-orange-50 text-orange-800 text-[10px] font-semibold hover:bg-orange-100"
+                                >
+                                  Add hazard
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -2628,7 +2839,7 @@ export function OrchardMap() {
             wheelDebounceTime={40}
             zoomSnap={0}
             zoomDelta={0.5}
-            className="absolute inset-0 z-0 orchard-map-leaflet"
+            className="absolute inset-0 z-0 orchard-map-leaflet pufom-hide-draw-toolbar"
             ref={setMapInstance}
           >
             {mapLayer === 'satellite' && basemapPack ? (
@@ -2667,6 +2878,8 @@ export function OrchardMap() {
                 <StableEditControl
                   position="bottomleft"
                   onCreated={(e) => {
+                  // Capture before cancelActiveDrawer / DRAWSTOP can race-clear the ref.
+                  const pendingInternal = internalBoundaryDrawRef.current;
                   cancelActiveDrawer(activeDrawerRef);
                   const layer = e.layer;
                   const tab = activeTabRef.current;
@@ -2686,55 +2899,132 @@ export function OrchardMap() {
                   };
 
                   if (e.layerType === 'polygon') {
-                    try {
-                      const geojson = layer.toGeoJSON();
+                    const geojson = layer.toGeoJSON();
 
+                    const saveInfraPolygon = (
+                      pinKind: Exclude<InfraTypeId, ''>,
+                      opts?: { relatedBlockId?: string; stayOnBlocksTab?: boolean }
+                    ): boolean => {
+                      if (!farmId) {
+                        rejectLayer('Sign in to a farm before saving infrastructure.');
+                        return false;
+                      }
+                      if (!canEdit) {
+                        rejectLayer('Your role is view-only — ask a farm admin to grant edit access.');
+                        return false;
+                      }
+                      if (infraDrawMode(pinKind) !== 'polygon') {
+                        rejectLayer(
+                          'Select Dam, Pad (passable), or Hazard zone / impassable before drawing an area.'
+                        );
+                        return false;
+                      }
+
+                      if (opts?.relatedBlockId && isInternalBoundaryType(pinKind)) {
+                        try {
+                          const related = blocks.find((b) => b.id === opts.relatedBlockId);
+                          const blockGeo = related?.geojson
+                            ? asFeature(related.geojson) || related.geojson
+                            : null;
+                          if (blockGeo && polygonMostlyOutsideBlock(geojson, blockGeo)) {
+                            const ok = window.confirm(
+                              'This shape is mostly outside the selected paddock. Save it anyway?'
+                            );
+                            if (!ok) {
+                              rejectLayer('Internal boundary not saved.');
+                              return false;
+                            }
+                          }
+                        } catch (overlapErr) {
+                          // Never abort create because imported geometry failed Turf checks.
+                          console.warn(
+                            '[OrchardMap] Internal-boundary outside-check failed; saving anyway',
+                            overlapErr
+                          );
+                        }
+                      }
+
+                      layerMapRef.current[layer._leaflet_id] = { type: 'pin', id };
+                      if (layer instanceof L.Polygon) {
+                        ensureInfraFillPatterns();
+                        applyInfraPolygonPattern(layer, pinKind);
+                        // Re-paint after React commit so sibling hazard/pad fills stay bound
+                        // to stable pattern defs (not destroyed by a re-render).
+                        window.requestAnimationFrame(() => {
+                          ensureInfraFillPatterns();
+                          const fg = featureGroupRef.current;
+                          if (!fg) return;
+                          for (const ly of fg.getLayers() as L.Layer[]) {
+                            const mapping = layerMapRef.current[(ly as any)._leaflet_id];
+                            if (!mapping || mapping.type !== 'pin') continue;
+                            if (!(ly instanceof L.Polygon)) continue;
+                            const p = pinsRef.current.find((x) => x.id === mapping.id);
+                            if (p && infraDrawMode(p.type) === 'polygon') {
+                              applyInfraPolygonPattern(ly, p.type);
+                            }
+                          }
+                        });
+                      }
+                      let lat = viewport.lat;
+                      let lng = viewport.lng;
+                      try {
+                        const c = turf.centroid(geojson as GeoJSON.Feature);
+                        lng = c.geometry.coordinates[0];
+                        lat = c.geometry.coordinates[1];
+                      } catch {
+                        /* keep viewport */
+                      }
+                      const newPin: InfrastructurePin = {
+                        id,
+                        name: defaultInfraName(pinKind, pins.length + 1),
+                        type: pinKind,
+                        status: 'active',
+                        lat,
+                        lng,
+                        geojson,
+                      };
+                      addPin(newPin);
+                      setEditingPinId(id);
+                      if (opts?.stayOnBlocksTab) {
+                        setActiveTab('blocks');
+                        if (opts.relatedBlockId) {
+                          setHighlightedBlockId(opts.relatedBlockId);
+                        }
+                      } else {
+                        setActiveTab('infrastructure');
+                      }
+                      setShowSidebar(true);
+                      return true;
+                    };
+
+                    // Block-edit shortcut: pad / hazard — must win over paddock create.
+                    if (pendingInternal) {
+                      try {
+                        const saved = saveInfraPolygon(pendingInternal.kind, {
+                          relatedBlockId: pendingInternal.blockId,
+                          stayOnBlocksTab: true,
+                        });
+                        if (saved) {
+                          internalBoundaryDrawRef.current = null;
+                          setInternalBoundaryDrawing(null);
+                        }
+                      } catch (err) {
+                        console.error('Failed to save internal boundary after draw', err);
+                        alert(
+                          'Could not save that pad/hazard. Try Add hazard/pad again, then Finish with at least 3 points.'
+                        );
+                      }
+                      return;
+                    }
+
+                    try {
                       // Infrastructure tab: polygon create uses selected area type (dam / internal).
                       if (tab === 'infrastructure') {
-                        if (!farmId) {
-                          rejectLayer('Sign in to a farm before saving infrastructure.');
-                          return;
-                        }
-                        if (!canEdit) {
-                          rejectLayer('Your role is view-only — ask a farm admin to grant edit access.');
-                          return;
-                        }
-                        if (infraDrawMode(kind) !== 'polygon') {
-                          rejectLayer(
-                            'Select Dam, Pad (passable), or Hazard zone / impassable before drawing an area.'
-                          );
-                          return;
-                        }
-                        layerMapRef.current[layer._leaflet_id] = { type: 'pin', id };
-                        if (layer instanceof L.Polygon) {
-                          applyInfraPolygonPattern(layer, kind);
-                        }
-                        let lat = viewport.lat;
-                        let lng = viewport.lng;
-                        try {
-                          const c = turf.centroid(geojson as GeoJSON.Feature);
-                          lng = c.geometry.coordinates[0];
-                          lat = c.geometry.coordinates[1];
-                        } catch {
-                          /* keep viewport */
-                        }
-                        const newPin: InfrastructurePin = {
-                          id,
-                          name: defaultInfraName(kind, pins.length + 1),
-                          type: kind,
-                          status: 'active',
-                          lat,
-                          lng,
-                          geojson,
-                        };
-                        addPin(newPin);
-                        setEditingPinId(id);
-                        setActiveTab('infrastructure');
-                        setShowSidebar(true);
+                        saveInfraPolygon(kind);
                         return;
                       }
 
-                      // Blocks tab only — create paddock / orchard block
+                      // Blocks tab only — create paddock / orchard block (Plus entry point).
                       if (tab !== 'blocks') {
                         rejectLayer('Switch to Blocks to draw paddock boundaries.');
                         return;
@@ -3337,8 +3627,12 @@ export function OrchardMap() {
             map={mapInstance}
             enabled={
               (mapMode === 'edit' && canEdit && !boundaryEditBlockId) ||
-              (mapMode === 'operate' && placingHighlight)
+              (mapMode === 'operate' && placingHighlight) ||
+              Boolean(internalBoundaryDrawing && mapMode === 'edit' && canEdit)
             }
+            onCancel={() => {
+              clearInternalBoundaryDraw();
+            }}
           />
           <BoundaryEditActionBar
             map={mapInstance}
@@ -3356,11 +3650,33 @@ export function OrchardMap() {
               setBoundaryEditTick((t) => t + 1);
             }}
             onCancel={cancelBoundaryEditUi}
+            onAddInternalBoundary={
+              boundaryEditBlockId && canEdit
+                ? (kind) => beginInternalBoundaryDraw(kind, boundaryEditBlockId)
+                : undefined
+            }
           />
           {/* force re-render of edit bar when vertices change */}
           <span className="hidden" aria-hidden>
             {boundaryEditTick}
           </span>
+          {internalBoundaryDrawing && mapMode === 'edit' && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1100] pointer-events-none w-[calc(100%-1.5rem)] max-w-md">
+              <div className="rounded-xl border border-slate-200 bg-white/95 backdrop-blur shadow-lg px-3 py-2 text-center">
+                <p className="text-xs font-semibold text-slate-800">
+                  Drawing{' '}
+                  {getInfraType(internalBoundaryDrawing.kind)?.shortLabel || 'internal boundary'}
+                  {(() => {
+                    const b = blocks.find((x) => x.id === internalBoundaryDrawing.blockId);
+                    return b?.name ? ` · ${b.name}` : '';
+                  })()}
+                </p>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Tap to place points · Finish when closed · Cancel to abort
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* Coverage Zones Legend */}
           <AnimatePresence>
@@ -3390,9 +3706,6 @@ export function OrchardMap() {
             )}
           </AnimatePresence>
 
-          {/* SVG fill patterns for dam / internal zone polygons (satellite-visible) */}
-          <div dangerouslySetInnerHTML={{ __html: PUFAM_FILL_PATTERN_SVG }} />
-
           {/* Global Styles for Leaflet Draw overrides */}
           <style>{`
             ${PUFAM_FILL_PATTERN_CSS}
@@ -3421,6 +3734,16 @@ export function OrchardMap() {
             /* React DrawingActionBar owns Finish/Undo/Cancel — hide stock menu (ghost taps). */
             .leaflet-container.pufom-using-draw-bar .leaflet-draw-actions {
               display: none !important;
+              pointer-events: none !important;
+            }
+            /* Plus / Add pad / Add hazard / Edit boundary are the only draw entry points. */
+            .orchard-map-leaflet .leaflet-draw {
+              display: none !important;
+              pointer-events: none !important;
+            }
+            /* Paddock/track fills must not steal tap-to-vertex (survives highlight setStyle). */
+            .leaflet-container.pufom-draw-over-paddocks .leaflet-overlay-pane path,
+            .leaflet-container.pufom-using-draw-bar .leaflet-overlay-pane path {
               pointer-events: none !important;
             }
             .pufom-boundary-vertex {
@@ -3651,6 +3974,86 @@ export function OrchardMap() {
                           )}
                         </div>
                       </div>
+
+                      {(() => {
+                        const internals = internalBoundariesIntersectingBlock(block, pins);
+                        return (
+                          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                                Internal boundaries
+                              </label>
+                              <span className="text-[10px] text-slate-400">
+                                {internals.length === 0 ? 'None' : `${internals.length}`}
+                              </span>
+                            </div>
+                            {internals.length > 0 ? (
+                              <ul className="space-y-1">
+                                {internals.map((pin) => {
+                                  const def = getInfraType(pin.type);
+                                  return (
+                                    <li key={pin.id}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingBlockId(null);
+                                          setIsConfirmingDeleteBlock(false);
+                                          setEditingPinId(pin.id);
+                                        }}
+                                        className="w-full flex items-center justify-between gap-2 rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-left text-xs hover:border-indigo-300 hover:bg-indigo-50/40 transition-colors"
+                                      >
+                                        <span className="font-medium text-slate-800 truncate">
+                                          {pin.name || def?.shortLabel || 'Boundary'}
+                                        </span>
+                                        <span
+                                          className={cn(
+                                            'shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded',
+                                            pin.type === 'internal_impassable'
+                                              ? 'bg-orange-100 text-orange-800'
+                                              : 'bg-stone-100 text-stone-700'
+                                          )}
+                                        >
+                                          {pin.type === 'internal_impassable'
+                                            ? 'Impassable'
+                                            : 'Passable'}
+                                        </span>
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="text-[11px] text-slate-500 leading-snug">
+                                Pads stay in usable area; hazard zones subtract from ha.
+                              </p>
+                            )}
+                            {canEdit && mapMode === 'edit' ? (
+                              <div className="flex gap-2 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    beginInternalBoundaryDraw('internal_passable', block.id)
+                                  }
+                                  className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg bg-stone-200/80 text-stone-800 text-[11px] font-semibold hover:bg-stone-300 transition-colors"
+                                >
+                                  <Hexagon className="w-3.5 h-3.5" />
+                                  Add pad
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    beginInternalBoundaryDraw('internal_impassable', block.id)
+                                  }
+                                  className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg bg-orange-100 text-orange-900 text-[11px] font-semibold hover:bg-orange-200 transition-colors"
+                                >
+                                  <Hexagon className="w-3.5 h-3.5" />
+                                  Add hazard
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
 
                       {kindOptions.length > 1 && (
                         <div className="space-y-1.5">
@@ -3949,6 +4352,20 @@ export function OrchardMap() {
           currentFarmName={settings.farmName || 'Farm'}
           onCurrentFarmBlock={async (block) => {
             await addBlock(block);
+          }}
+          onCurrentFarmDelete={async (id) => {
+            await removeBlock(id);
+          }}
+          onImported={async ({ currentAdded }) => {
+            if (!farmId || currentAdded <= 0) return;
+            // Rehydrate from IndexedDB so list + FeatureGroup sync even if a
+            // canEdit-gated addBlock no-op skipped the zustand append.
+            fittedToBlocksFarmRef.current = null;
+            await loadData(farmId);
+            // Allow React to commit blocks before fitting
+            window.requestAnimationFrame(() => {
+              fitFarmInView({ animate: true });
+            });
           }}
         />
 

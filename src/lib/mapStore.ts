@@ -214,10 +214,18 @@ export const useMapStoreInternal = create<MapState>((set, get) => ({
   },
 
   addBlock: async (farmId, canEdit, block) => {
-    if (!farmId || !canEdit) return;
+    if (!farmId) return;
+    if (!canEdit) {
+      // Do not silent-no-op: boundary import and other callers await this.
+      console.warn('[mapStore.addBlock] skipped — user cannot edit this farm');
+      return;
+    }
     // Bump generation so an in-flight hydrate cannot overwrite this draw
     loadGeneration += 1;
-    set((state) => ({ blocks: [...state.blocks, block] }));
+    set((state) => {
+      if (state.blocks.some((b) => b.id === block.id)) return state;
+      return { blocks: [...state.blocks, block] };
+    });
     try {
       const sync = await persistBlock(farmId, block);
       await get().refreshPendingCount(farmId);
@@ -416,8 +424,8 @@ export function useMapStore() {
   }, [farmId]);
 
   const addBlock = useCallback(
-    (block: OrchardBlock) => {
-      if (farmId) store.addBlock(farmId, canEdit, block);
+    async (block: OrchardBlock) => {
+      if (farmId) await store.addBlock(farmId, canEdit, block);
     },
     [farmId, canEdit, store.addBlock]
   );
@@ -430,8 +438,8 @@ export function useMapStore() {
   );
 
   const removeBlock = useCallback(
-    (id: string) => {
-      if (farmId) store.removeBlock(farmId, canEdit, id);
+    async (id: string) => {
+      if (farmId) await store.removeBlock(farmId, canEdit, id);
     },
     [farmId, canEdit, store.removeBlock]
   );

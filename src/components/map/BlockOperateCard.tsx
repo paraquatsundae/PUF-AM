@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BookOpen, ClipboardList, Flag, Loader2, Snowflake, X } from 'lucide-react';
 import type { OrchardBlock } from '../../lib/mapStore';
-import { resolveCultivarTarget } from '../../lib/chillPortions';
 import { cn } from '../../lib/utils';
 import {
   areaWordForCropKind,
@@ -36,11 +35,8 @@ export function BlockOperateCard({
   onReportIssue,
 }: Props) {
   const tree = isTreeCropKind(block.cropKind);
-  const showChill =
-    tree && String(block.species || '').trim().toLowerCase() === 'walnut';
-  const cultivar = resolveCultivarTarget(block.cultivar);
-  const met =
-    chill.portions != null && chill.portions >= cultivar.requiredCP;
+  /** Plain CP for any tree/vine block — no cultivar target (avoids false Chandler fallback). */
+  const showChill = tree;
   const subtitle = tree
     ? [block.species, block.cultivar?.trim() || null].filter(Boolean).join(' · ') ||
       'Species not set'
@@ -108,28 +104,15 @@ export function BlockOperateCard({
               ) : chill.error ? (
                 <span className="text-xs font-semibold text-rose-600">Unavailable</span>
               ) : (
-                <span
-                  className={cn(
-                    'font-bold font-mono tabular-nums',
-                    met ? 'text-emerald-700' : 'text-slate-900'
-                  )}
-                >
-                  {chill.portions ?? '—'}/{cultivar.requiredCP}
+                <span className="font-bold font-mono tabular-nums text-slate-900">
+                  {chill.portions ?? '—'} CP
                 </span>
               )}
             </div>
             <p className="text-[10px] text-slate-400 leading-snug">
               {chill.error
                 ? chill.error
-                : [
-                    chill.stationName ? `DPIRD ${chill.stationName}` : null,
-                    chill.seasonLabel,
-                    cultivar.sourceKind === 'ucanr'
-                      ? 'Req: UCANR'
-                      : cultivar.sourceKind === 'luedeling'
-                        ? 'Req: Luedeling 2009'
-                        : 'Req: estimate',
-                  ]
+                : [chill.stationName ? `DPIRD ${chill.stationName}` : null, chill.seasonLabel]
                     .filter(Boolean)
                     .join(' · ')}
             </p>

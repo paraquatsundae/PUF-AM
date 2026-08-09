@@ -9,21 +9,38 @@ export type FarmChillState = {
 };
 
 /**
- * Seasonal chill portions for the farm viewport (nearest DPIRD anchor = blight default).
+ * Seasonal chill portions for the farm viewport / preferred DPIRD station.
  */
-export function useFarmChillPortions(lat?: number, lng?: number): FarmChillState {
-  const [loading, setLoading] = useState(true);
+export function useFarmChillPortions(
+  lat?: number,
+  lng?: number,
+  enabled = true,
+  stationCode?: string,
+  stationName?: string
+): FarmChillState {
+  const [loading, setLoading] = useState(Boolean(enabled));
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<FarmChillPortions | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(null);
+      setData(null);
+      return;
+    }
     let cancelled = false;
     const run = async () => {
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchFarmChillPortions({ lat, lng });
+        const result = await fetchFarmChillPortions({
+          lat,
+          lng,
+          stationCode: stationCode?.trim() || undefined,
+          stationName: stationName?.trim() || undefined,
+        });
         if (!cancelled) setData(result);
       } catch (e) {
         if (!cancelled) {
@@ -38,7 +55,7 @@ export function useFarmChillPortions(lat?: number, lng?: number): FarmChillState
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, tick]);
+  }, [lat, lng, tick, enabled, stationCode, stationName]);
 
   return {
     loading,

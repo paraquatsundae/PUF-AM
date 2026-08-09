@@ -23,9 +23,11 @@ type Props = {
   map: LeafletMap | null;
   /** Only show in edit mode */
   enabled: boolean;
+  /** Called when the user taps Cancel (after drawer disable). */
+  onCancel?: () => void;
 };
 
-export function DrawingActionBar({ map, enabled }: Props) {
+export function DrawingActionBar({ map, enabled, onCancel }: Props) {
   const [active, setActive] = useState(false);
   const [points, setPoints] = useState(0);
   const [isPolygon, setIsPolygon] = useState(true);
@@ -147,6 +149,7 @@ export function DrawingActionBar({ map, enabled }: Props) {
           onClick={(e) => {
             blockPointer(e);
             cancelActiveDrawing();
+            onCancel?.();
           }}
           className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 min-h-[52px] rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold active:bg-rose-100"
         >

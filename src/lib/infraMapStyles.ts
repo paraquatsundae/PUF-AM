@@ -41,6 +41,21 @@ export const PUFAM_FILL_PATTERN_SVG = `
 </svg>
 `.trim();
 
+/**
+ * Inject pattern defs once into document.body.
+ * Do NOT put this SVG in React render via dangerouslySetInnerHTML — recreating
+ * the paint servers each commit breaks fill:url(#…) on existing Leaflet paths
+ * (hazards/pads/dams vanish until a remount recreates the paths).
+ */
+export function ensureInfraFillPatterns(): void {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('pufam-fill-pattern-defs')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = PUFAM_FILL_PATTERN_SVG;
+  const el = wrap.firstElementChild;
+  if (el) document.body.appendChild(el);
+}
+
 export const PUFAM_FILL_PATTERN_CSS = `
 path.pufam-fill-water {
   fill: url(#pufam-pattern-water) !important;
@@ -94,6 +109,7 @@ export function infraPolygonPathStyle(type: string | undefined | null): {
 
 /** Apply pattern class to an existing Leaflet path (className is init-only in Leaflet). */
 export function applyInfraPolygonPattern(layer: Path, type: string | undefined | null): void {
+  ensureInfraFillPatterns();
   const style = infraPolygonPathStyle(type);
   layer.setStyle({
     color: style.color,
@@ -105,5 +121,11 @@ export function applyInfraPolygonPattern(layer: Path, type: string | undefined |
   const el = layer.getElement?.() as SVGElement | undefined;
   if (!el) return;
   for (const c of ALL_PATTERN_CLASSES) el.classList.remove(c);
-  if (style.className) el.classList.add(style.className);
+  if (style.className) {
+    el.classList.add(style.className);
+    // Force paint-server rebind if the class was already present (Chrome can keep a
+    // dead fill:url(#…) reference after defs were previously torn down).
+    el.classList.remove(style.className);
+    el.classList.add(style.className);
+  }
 }

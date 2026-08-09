@@ -13,30 +13,71 @@ import type { InfrastructurePin, OrchardBlock } from './mapStore';
 
 export type PolygonLike = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon> | GeoJSON.Polygon | GeoJSON.MultiPolygon;
 
-function asFeature(
+/** Parse stringified GeoJSON (Firestore / IDB) and unwrap one nesting level. */
+export function parsePossiblyStringifiedGeojson(raw: unknown): unknown {
+  let geo: unknown = raw;
+  for (let i = 0; i < 2; i++) {
+    if (typeof geo !== 'string') break;
+    const s = geo.trim();
+    if (!s) return null;
+    try {
+      geo = JSON.parse(s);
+    } catch {
+      return null;
+    }
+  }
+  return geo;
+}
+
+/**
+ * Normalize block/pin geometry to a Polygon or MultiPolygon Feature.
+ * Handles stringified JSON, bare geometry, Feature, FeatureCollection (first poly),
+ * and rewinds rings so Turf overlap checks work on imported ISOXML/KML shapes.
+ */
+export function asFeature(
   geo: unknown
 ): GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon> | null {
-  if (!geo || typeof geo !== 'object') return null;
-  const g = geo as {
+  const parsed = parsePossiblyStringifiedGeojson(geo);
+  if (!parsed || typeof parsed !== 'object') return null;
+  const g = parsed as {
     type?: string;
     geometry?: { type?: string; coordinates?: unknown };
     coordinates?: unknown;
+    features?: unknown[];
   };
+
+  let feature: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon> | null = null;
 
   if (g.type === 'Feature' && g.geometry) {
     const gt = g.geometry.type;
     if (gt !== 'Polygon' && gt !== 'MultiPolygon') return null;
-    return geo as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
-  }
-  if (g.type === 'Polygon' || g.type === 'MultiPolygon') {
-    return {
+    feature = parsed as GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
+  } else if (g.type === 'Polygon' || g.type === 'MultiPolygon') {
+    feature = {
       type: 'Feature',
       properties: {},
-      geometry: geo as GeoJSON.Polygon | GeoJSON.MultiPolygon,
+      geometry: parsed as GeoJSON.Polygon | GeoJSON.MultiPolygon,
     };
+  } else if (g.type === 'FeatureCollection' && Array.isArray(g.features)) {
+    for (const f of g.features) {
+      const inner = asFeature(f);
+      if (inner) {
+        feature = inner;
+        break;
+      }
+    }
   }
-  if (g.type === 'FeatureCollection') return null;
-  return null;
+
+  if (!feature) return null;
+
+  try {
+    // Imported rings are often clockwise; Turf intersect is happier with RFC 7946 winding.
+    return turf.rewind(feature, { mutate: false }) as GeoJSON.Feature<
+      GeoJSON.Polygon | GeoJSON.MultiPolygon
+    >;
+  } catch {
+    return feature;
+  }
 }
 
 /** Collect polygon geometries from subtracting infra pins. */
@@ -44,15 +85,7 @@ export function subtractingExclusionPolygons(pins: InfrastructurePin[]): Polygon
   const out: PolygonLike[] = [];
   for (const pin of pins) {
     if (!infraSubtractsFromPaddock(pin.type) || !pin.geojson) continue;
-    let geo: unknown = pin.geojson;
-    if (typeof geo === 'string') {
-      try {
-        geo = JSON.parse(geo);
-      } catch {
-        continue;
-      }
-    }
-    const feature = asFeature(geo);
+    const feature = asFeature(pin.geojson);
     if (feature) out.push(feature);
   }
   return out;
@@ -140,4 +173,67 @@ export function recomputeBlockAreasForFarm(
     }
   }
   return updates;
+}
+
+/** Passable pad or impassable hazard zone drawn inside a paddock. */
+export function isInternalBoundaryType(type: string | undefined | null): boolean {
+  return type === 'internal_passable' || type === 'internal_impassable';
+}
+
+/**
+ * Fraction of `polyGeo` area that intersects `blockGeo` (0–1).
+ * Returns 0 when either geometry is missing/invalid; 1 when poly is fully inside.
+ */
+export function polygonOverlapRatioWithBlock(polyGeo: unknown, blockGeo: unknown): number {
+  const poly = asFeature(polyGeo);
+  const block = asFeature(blockGeo);
+  if (!poly || !block) return 0;
+  try {
+    const polyArea = turf.area(poly);
+    if (!(polyArea > 0)) return 0;
+    const inter = turf.intersect(turf.featureCollection([poly, block]));
+    if (!inter) return 0;
+    return Math.min(1, turf.area(inter) / polyArea);
+  } catch (err) {
+    console.warn('[paddockExclusions] overlap check failed', err);
+    return 0;
+  }
+}
+
+/** True when less than half of the drawn polygon lies inside the block (v1 warn threshold). */
+export function polygonMostlyOutsideBlock(polyGeo: unknown, blockGeo: unknown): boolean {
+  return polygonOverlapRatioWithBlock(polyGeo, blockGeo) < 0.5;
+}
+
+function pinAsPolygonFeature(
+  pin: InfrastructurePin
+): GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon> | null {
+  if (!pin.geojson) return null;
+  return asFeature(pin.geojson);
+}
+
+/**
+ * Internal boundary pins (passable / impassable) that intersect a paddock polygon.
+ * Used in block detail UI — does not include dams (those are water bodies, not "internal boundaries").
+ */
+export function internalBoundariesIntersectingBlock(
+  block: OrchardBlock,
+  pins: InfrastructurePin[]
+): InfrastructurePin[] {
+  const blockFeat = asFeature(block.geojson);
+  if (!blockFeat) return [];
+
+  const out: InfrastructurePin[] = [];
+  for (const pin of pins) {
+    if (!isInternalBoundaryType(pin.type)) continue;
+    const pinFeat = pinAsPolygonFeature(pin);
+    if (!pinFeat) continue;
+    try {
+      const inter = turf.intersect(turf.featureCollection([blockFeat, pinFeat]));
+      if (inter && turf.area(inter) > 0) out.push(pin);
+    } catch {
+      /* skip invalid pairs */
+    }
+  }
+  return out;
 }

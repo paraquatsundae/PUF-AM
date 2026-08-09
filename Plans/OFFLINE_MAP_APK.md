@@ -183,8 +183,8 @@ Device outbox ──► Firebase Firestore (current)
 | Export / import / LAN client | `src/lib/pufomSync.ts` |
 | LAN shelf API | `server/lanSyncRoutes.ts` → `POST/GET /api/sync/lan/:farmId` |
 | Native NSD + hub scan | `PufomNsdPlugin.java`, `nsdPeers.ts`, `mdnsPeers.ts` |
-| Offline weather IDB | `weatherCacheIdb.ts` + OfflineSyncCard **Cache weather** |
-| Settings UI | `src/components/OfflineSyncCard.tsx` |
+| Offline weather IDB | `weatherCacheIdb.ts` + Settings → Sync → Files & backup **Cache weather** |
+| Settings UI | `src/components/sync/` (`FarmSyncCards`, `LanSyncCard`, `FilesBackupCard`) — see [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §2 |
 | Listener cost (issues + archive) | poll + cache instead of live `onSnapshot` |
 
 ### Workshop LAN flow

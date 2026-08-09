@@ -1,10 +1,13 @@
 /**
  * Save / Delete point / Cancel while editing an existing paddock boundary.
+ * Optional second row starts an internal boundary draw (cancels vertex edit via parent).
  */
 import React from 'react';
 import type { Map as LeafletMap } from 'leaflet';
-import { Check, Trash2, X } from 'lucide-react';
+import { Check, Hexagon, Trash2, X } from 'lucide-react';
 import { markDrawUiInteraction } from '../../lib/mapDrawHelpers';
+
+export type InternalBoundaryKind = 'internal_passable' | 'internal_impassable';
 
 type Props = {
   map: LeafletMap | null;
@@ -14,6 +17,8 @@ type Props = {
   onSave: () => void;
   onDeletePoint: () => void;
   onCancel: () => void;
+  /** When set, shows Passable / Impassable shortcuts under the main bar. */
+  onAddInternalBoundary?: (kind: InternalBoundaryKind) => void;
 };
 
 export function BoundaryEditActionBar({
@@ -24,6 +29,7 @@ export function BoundaryEditActionBar({
   onSave,
   onDeletePoint,
   onCancel,
+  onAddInternalBoundary,
 }: Props) {
   if (!enabled) return null;
 
@@ -79,6 +85,36 @@ export function BoundaryEditActionBar({
           Cancel
         </button>
       </div>
+      {onAddInternalBoundary ? (
+        <div className="mt-1.5 flex items-stretch gap-2 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-lg p-1.5">
+          <button
+            type="button"
+            onPointerDown={blockPointer}
+            onClick={(e) => {
+              blockPointer(e);
+              onAddInternalBoundary('internal_passable');
+            }}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 min-h-[40px] rounded-xl bg-stone-100 text-stone-800 text-[11px] font-semibold active:bg-stone-200"
+            title="Draw a passable pad / hardstand inside this paddock"
+          >
+            <Hexagon size={16} className="pufom-map-icon shrink-0" aria-hidden />
+            Pad (passable)
+          </button>
+          <button
+            type="button"
+            onPointerDown={blockPointer}
+            onClick={(e) => {
+              blockPointer(e);
+              onAddInternalBoundary('internal_impassable');
+            }}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 min-h-[40px] rounded-xl bg-orange-50 text-orange-900 text-[11px] font-semibold active:bg-orange-100"
+            title="Draw an impassable hazard zone (subtracts usable area)"
+          >
+            <Hexagon size={16} className="pufom-map-icon shrink-0" aria-hidden />
+            Hazard zone
+          </button>
+        </div>
+      ) : null}
       <p className="text-center text-[10px] text-white/90 mt-1.5 drop-shadow lg:hidden">
         {selected
           ? 'Drag to move · Delete point removes the selected vertex'

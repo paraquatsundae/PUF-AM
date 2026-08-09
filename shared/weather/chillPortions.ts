@@ -197,6 +197,8 @@ export type ChillChartPoint = { month: string; portions: number };
 
 export type ChillCalculation = {
   totalPortions: number;
+  /** Portions accumulated in the 24h ending at `asOf` (path-dependent delta). */
+  portionsLast24h: number;
   chartData: ChillChartPoint[];
   hoursProcessed: number;
   hoursSkipped: number;
@@ -206,13 +208,19 @@ export type ChillCalculation = {
  * Dynamic Model (Fishman/Erez). Expects hourly °C temperatures.
  * Only hours inside the Southern Hemisphere Mar–Sep window (Perth) accumulate.
  * Null/undefined hours are skipped without advancing the intermediate product.
+ *
+ * `portionsLast24h` is the increase in cumulative CP over hours after
+ * `asOf - 24h` (default asOf = now). The model still runs over the full series
+ * so intermediate state stays correct.
  */
 export function calculateChillData(
   hourlyTemps: Array<number | null | undefined>,
   timeArray: Array<string | Date>,
-  options?: { enforceSeasonWindow?: boolean }
+  options?: { enforceSeasonWindow?: boolean; asOf?: Date }
 ): ChillCalculation {
   const enforceSeason = options?.enforceSeasonWindow !== false;
+  const asOf = options?.asOf ?? new Date();
+  const cutoffMs = asOf.getTime() - 24 * 60 * 60 * 1000;
   const e0 = 4153.5;
   const e1 = 12888.8;
   const a0 = 139500.0;
@@ -224,6 +232,7 @@ export function calculateChillData(
 
   let x = 0.0;
   let portions = 0.0;
+  let portionsAtCutoff = 0.0;
   let hoursProcessed = 0;
   let hoursSkipped = 0;
 
@@ -281,6 +290,10 @@ export function calculateChillData(
         monthlyData[month] += xi;
       }
     }
+
+    if (date.getTime() <= cutoffMs) {
+      portionsAtCutoff = portions;
+    }
   }
 
   const chartData = Object.keys(monthlyData).map((month) => ({
@@ -288,8 +301,11 @@ export function calculateChillData(
     portions: Math.round(monthlyData[month]! * 10) / 10,
   }));
 
+  const portionsLast24h = Math.max(0, Math.round(portions - portionsAtCutoff));
+
   return {
     totalPortions: Math.round(portions),
+    portionsLast24h,
     chartData,
     hoursProcessed,
     hoursSkipped,

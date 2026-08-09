@@ -151,6 +151,13 @@ export function shouldIgnoreMapDrawInput(
   return touchTargetIsDrawUi(e);
 }
 
+/** Allow tap-to-vertex immediately after zoom (clears pan-swallow window). */
+export function clearDrawUiIgnoreWindow(): void {
+  drawUiIgnoreUntil = 0;
+  const h = currentDrawHandler;
+  if (h) h._pufomPanning = false;
+}
+
 function attachPanGuards(handler: LeafletDrawHandler): void {
   const map = handler._map;
   if (!map || handler._pufomPanGuards) return;
@@ -166,16 +173,21 @@ function attachPanGuards(handler: LeafletDrawHandler): void {
     drawUiIgnoreUntil = Date.now() + 450;
     markDrawUiInteraction(map as { _container?: HTMLElement });
   };
+  // Zoom must not look like pan — clear flags and allow immediate tap-to-vertex.
+  const onZoomEnd = () => {
+    handler._pufomPanning = false;
+    drawUiIgnoreUntil = 0;
+  };
 
   map.on('dragstart', onDragStart);
   map.on('dragend', onDragEnd);
-  map.on('movestart', onDragStart);
-  map.on('moveend', onDragEnd);
+  map.on('zoomstart', onZoomEnd);
+  map.on('zoomend', onZoomEnd);
   handler._pufomRemovePanGuards = () => {
     map.off('dragstart', onDragStart);
     map.off('dragend', onDragEnd);
-    map.off('movestart', onDragStart);
-    map.off('moveend', onDragEnd);
+    map.off('zoomstart', onZoomEnd);
+    map.off('zoomend', onZoomEnd);
     handler._pufomPanGuards = false;
     handler._pufomRemovePanGuards = undefined;
   };
@@ -323,6 +335,12 @@ export function patchLeafletDrawTouchGuards(): void {
     if (shouldIgnoreMapDrawInput(e, this)) return;
 
     const oe = e.originalEvent;
+    // Pinch / two-finger zoom — never start a vertex gesture.
+    if ((oe?.touches?.length ?? 0) > 1 || (oe?.targetTouches?.length ?? 0) > 1) {
+      this._pufomPanning = false;
+      (this as { _touchHandled?: unknown })._touchHandled = null;
+      return;
+    }
     const touch0 = oe?.touches?.[0];
     if (
       !oe ||
@@ -465,6 +483,46 @@ export function startActiveDrawer(
   ref.current = drawer;
   currentDrawHandler = drawer;
   notifyDrawHandlerChange();
+}
+
+/**
+ * After zoom/pinch, leaflet-draw + our pan guards can leave the handler ignoring
+ * taps (or briefly disabled) with vertices intact. Revive without recreating.
+ * Returns true if a drawer is enabled afterwards.
+ */
+export function reviveActiveDrawer(ref: {
+  current: LeafletDrawHandler | null;
+}): boolean {
+  drawUiIgnoreUntil = 0;
+  const drawer = ref.current;
+  if (!drawer) return false;
+
+  const sticky = drawer as LeafletDrawHandler & {
+    _touchHandled?: unknown;
+    _clickHandled?: unknown;
+    _mouseDownOrigin?: unknown;
+    _disableMarkers?: boolean;
+  };
+  sticky._pufomPanning = false;
+  sticky._touchHandled = null;
+  sticky._clickHandled = null;
+  sticky._mouseDownOrigin = null;
+  if (sticky._disableMarkers) sticky._disableMarkers = false;
+
+  try {
+    if (!drawer._enabled) {
+      drawer.enable();
+    } else {
+      currentDrawHandler = drawer;
+      // Pan guards attach on enable; ensure they exist if already enabled.
+      attachPanGuards(drawer);
+    }
+  } catch {
+    return Boolean(drawer._enabled);
+  }
+  currentDrawHandler = drawer;
+  notifyDrawHandlerChange();
+  return Boolean(drawer._enabled);
 }
 
 export function drawHandlerMarkerCount(handler: LeafletDrawHandler | null): number {

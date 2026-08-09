@@ -1,6 +1,10 @@
 import { JSDOM } from 'jsdom';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { parseIsoxmlTaskData } from './isoxmlBoundaries';
+import {
+  describeEmptyIsoxml,
+  parseIsoxmlTaskData,
+  parseIsoxmlTaskDataWithStats,
+} from './isoxmlBoundaries';
 
 beforeAll(() => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>');
@@ -33,6 +37,13 @@ const SAMPLE = `<?xml version="1.0" encoding="utf-8"?>
   </PFD>
 </ISO11783_TaskData>`;
 
+const EMPTY_PFD = `<?xml version="1.0" encoding="utf-8"?>
+<ISO11783_TaskData VersionMajor="4" VersionMinor="2">
+  <CTR A="CTR1" B="Client" />
+  <FRM A="FRM1" B="Farm" I="CTR1" />
+  <PFD A="PFD1" C="Bare" D="0" E="CTR1" F="FRM1" />
+</ISO11783_TaskData>`;
+
 describe('parseIsoxmlTaskData', () => {
   it('reads farm names, paddock names, and boundary rings', () => {
     const tree = parseIsoxmlTaskData(SAMPLE);
@@ -47,5 +58,13 @@ describe('parseIsoxmlTaskData', () => {
     expect(clare.fields[0].boundary[0][0]).toBeCloseTo(120.89);
     expect(clare.fields[0].boundary[0][1]).toBeCloseTo(-33.67);
     expect(clare.fields[0].boundary.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('explains empty PFD exports that need a zip of companion geometry', () => {
+    const { tree, stats } = parseIsoxmlTaskDataWithStats(EMPTY_PFD);
+    expect(tree.clients).toHaveLength(0);
+    expect(stats.pfdTotal).toBe(1);
+    expect(stats.pfdNoRing).toBe(1);
+    expect(describeEmptyIsoxml(stats)).toMatch(/zip/i);
   });
 });

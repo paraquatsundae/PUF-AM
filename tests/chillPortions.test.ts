@@ -107,4 +107,22 @@ describe('calculateChillData', () => {
     expect(result.hoursProcessed).toBe(3);
     expect(result.hoursSkipped).toBe(2);
   });
+
+  it('reports portionsLast24h as path-dependent delta ending at asOf', () => {
+    const temps: number[] = [];
+    const times: string[] = [];
+    // 10 days of cool hours in June; asOf = end of day 10
+    for (let h = 0; h < 10 * 24; h++) {
+      const day = 1 + Math.floor(h / 24);
+      const hour = h % 24;
+      temps.push(5);
+      times.push(perthLocalToUtcDate(2026, 6, day, hour).toISOString());
+    }
+    const asOf = perthLocalToUtcDate(2026, 6, 10, 23);
+    const result = calculateChillData(temps, times, { asOf });
+    expect(result.portionsLast24h).toBeGreaterThanOrEqual(0);
+    expect(result.portionsLast24h).toBeLessThanOrEqual(result.totalPortions);
+    // Last day alone should be less than the full 10-day total
+    expect(result.portionsLast24h).toBeLessThan(result.totalPortions);
+  });
 });

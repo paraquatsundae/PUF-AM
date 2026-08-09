@@ -41,12 +41,15 @@ describe('dpirdClient cache helpers', () => {
   });
 
   it('prunes days older than keep window', () => {
+    // The cutoff is relative to *today*, so the kept day must be too — a
+    // hardcoded date here quietly starts failing once it ages past the window.
+    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const data = {
       '2020-01-01': day(1),
-      '2026-07-01': day(2),
+      [recent]: day(2),
     };
     const pruned = pruneWeatherData(data, 30);
     expect(pruned['2020-01-01']).toBeUndefined();
-    expect(pruned['2026-07-01']).toBeDefined();
+    expect(pruned[recent]).toBeDefined();
   });
 });

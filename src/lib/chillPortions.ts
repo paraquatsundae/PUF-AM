@@ -18,6 +18,7 @@ import { apiUrl } from './apiBase';
 
 export type FarmChillPortions = {
   totalPortions: number;
+  portionsLast24h: number;
   chartData: Array<{ month: string; portions: number }>;
   hoursProcessed: number;
   hoursSkipped: number;
@@ -37,11 +38,13 @@ export async function fetchFarmChillPortions(input: {
   lat?: number;
   lng?: number;
   stationCode?: string;
+  stationName?: string;
 }): Promise<FarmChillPortions> {
   const params = new URLSearchParams();
   if (input.lat !== undefined) params.set('lat', String(input.lat));
   if (input.lng !== undefined) params.set('lng', String(input.lng));
   if (input.stationCode) params.set('stationCode', input.stationCode);
+  if (input.stationName) params.set('stationName', input.stationName);
 
   const res = await fetch(apiUrl(`/api/weather/chill-portions?${params.toString()}`));
   const text = await res.text();

@@ -35,6 +35,25 @@ export function resolveNearestAnchorStation(
   return best;
 }
 
+/**
+ * Chill / weather station resolution: honour any explicit DPIRD station code
+ * (not only the four regional anchors), else nearest anchor to lat/lng.
+ */
+export function resolveWeatherStation(
+  lat?: number,
+  lng?: number,
+  stationCode?: string,
+  stationName?: string
+): { stationCode: string; name: string } {
+  const code = stationCode?.trim();
+  if (code) {
+    const anchor = WEATHER_STATION_ANCHORS.find((s) => s.stationCode === code);
+    if (anchor) return { stationCode: anchor.stationCode, name: anchor.name };
+    return { stationCode: code, name: stationName?.trim() || code };
+  }
+  return resolveNearestAnchorStation(lat, lng);
+}
+
 /** How fresh the hourly “recent” slice must be for clients. */
 export const WEATHER_CACHE_MAX_AGE_HOURS = 2;
 
