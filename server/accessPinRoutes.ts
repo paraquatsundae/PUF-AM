@@ -25,6 +25,11 @@ import {
   syntheticEmail,
   uidForPinRedeem,
 } from './accessPinCrypto.ts';
+import {
+  markEnrollmentCodeUsed,
+  releaseEnrollmentCode,
+  reserveEnrollmentCode,
+} from './enrollmentCodes.ts';
 import { getAdminAuth, getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
 
 const PINS = 'access_pins';
@@ -108,6 +113,8 @@ async function loadFarmEnabledModules(farmId: string): Promise<FarmModuleId[]> {
 
 export function registerAccessPinRoutes(app: Express) {
   app.post('/api/auth/create-farm', async (req: Request, res: Response) => {
+    // Set once a code is reserved, so every failure path below can give it back.
+    let enrollmentHash: string | null = null;
     try {
       if (!isAdminSdkReady()) {
         return res.status(503).json({
@@ -130,6 +137,18 @@ export function registerAccessPinRoutes(app: Express) {
       const geo = parseGeoInput(req.body);
       const showNearby = req.body?.showNearby !== false;
 
+      // The gate (Plans/FIREBASE_BILLING.md §5.1): a cloud farm on this project
+      // costs its owner money, so nobody creates one without a code he issued.
+      // Reserved before anything is built — the reservation is the single-use
+      // guarantee — and released below if the build fails.
+      const enrollment = await reserveEnrollmentCode(String(req.body?.enrollmentCode || ''));
+      if (!enrollment.ok || !enrollment.codeHash) {
+        return res
+          .status(enrollment.status ?? 403)
+          .json({ error: enrollment.error ?? 'Enrollment code refused.' });
+      }
+      enrollmentHash = enrollment.codeHash;
+
       const db = getAdminDb();
       const auth = getAdminAuth();
       const recoveryCode = generatePinCode(8);
@@ -143,6 +162,7 @@ export function registerAccessPinRoutes(app: Express) {
 
       const existingUser = await auth.getUser(uid).catch(() => null);
       if (existingUser) {
+        await releaseEnrollmentCode(enrollmentHash);
         return res.status(409).json({
           error: 'Could not create account — try a slightly different display name.',
         });
@@ -257,6 +277,8 @@ export function registerAccessPinRoutes(app: Express) {
 
       const customToken = await auth.createCustomToken(uid, claims);
 
+      await markEnrollmentCodeUsed(enrollmentHash, { farmId, farmName: farmName.slice(0, 120) });
+
       return res.json({
         token: customToken,
         farmId,
@@ -268,6 +290,7 @@ export function registerAccessPinRoutes(app: Express) {
         recoveryPin: recoveryCode,
       });
     } catch (error) {
+      if (enrollmentHash) await releaseEnrollmentCode(enrollmentHash);
       console.error('[auth] create-farm failed:', error);
       return res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to create farm',

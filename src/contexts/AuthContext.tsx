@@ -144,7 +144,7 @@ interface AuthContextType {
   createFarm: (
     farmName: string,
     displayName: string,
-    opts?: { lat?: number; lng?: number; showNearby?: boolean }
+    opts?: { lat?: number; lng?: number; showNearby?: boolean; enrollmentCode?: string }
   ) => Promise<{ recoveryPin: string; token: string; farmId: string; farmName: string }>;
   completeFarmSignIn: (
     token: string,
@@ -575,7 +575,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const createFarm = async (
     farmName: string,
     displayName: string,
-    opts?: { lat?: number; lng?: number; showNearby?: boolean }
+    opts?: { lat?: number; lng?: number; showNearby?: boolean; enrollmentCode?: string }
   ) => {
     const { token, recoveryPin, farmId } = await createFarmAccount(farmName, displayName, opts);
     return { recoveryPin, token, farmId, farmName };

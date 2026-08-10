@@ -76,6 +76,7 @@ export function Login() {
   const [locating, setLocating] = useState(false);
   const [locationNote, setLocationNote] = useState<string | null>(null);
   const [showNearbyOnCreate, setShowNearbyOnCreate] = useState(true);
+  const [enrollmentCode, setEnrollmentCode] = useState('');
   const freenetOption = freenetOptionState({
     mistEnabled: isMistExperimentalEnabled(),
     desktop: isDesktopShell(),
@@ -171,8 +172,9 @@ export function Login() {
     setRecoveryPin(null);
     setPendingToken(null);
     try {
-      let opts: { lat?: number; lng?: number; showNearby?: boolean } = {
+      let opts: { lat?: number; lng?: number; showNearby?: boolean; enrollmentCode?: string } = {
         showNearby: showNearbyOnCreate,
+        enrollmentCode: enrollmentCode.trim(),
       };
       try {
         const coords = await getDeviceCoords(8000);
@@ -651,6 +653,27 @@ export function Login() {
                 placeholder="Name"
                 className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="enrollmentCode" className="text-sm font-medium text-slate-700">
+                Enrollment code
+              </label>
+              <input
+                id="enrollmentCode"
+                type="text"
+                required
+                value={enrollmentCode}
+                onChange={(e) => setEnrollmentCode(e.target.value.toUpperCase())}
+                placeholder="From whoever runs this server"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <p className="text-[11px] text-slate-400">
+                Cloud farms run on the operator&apos;s Firebase project, so creating one takes a
+                code they issue. Each code works once.
+              </p>
             </div>
 
             <label className="flex items-start gap-2 text-sm text-slate-600">

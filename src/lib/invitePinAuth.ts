@@ -40,7 +40,7 @@ export type NearbyFarm = {
 export async function createFarmAccount(
   farmName: string,
   displayName: string,
-  opts?: { lat?: number; lng?: number; showNearby?: boolean }
+  opts?: { lat?: number; lng?: number; showNearby?: boolean; enrollmentCode?: string }
 ): Promise<{
   token: string;
   farmId: string;
@@ -59,6 +59,8 @@ export async function createFarmAccount(
       lat: opts?.lat,
       lng: opts?.lng,
       showNearby: opts?.showNearby !== false,
+      // Cloud farms are gated — see server/enrollmentCodes.ts.
+      enrollmentCode: opts?.enrollmentCode || '',
     }),
   });
   const data = await readJsonResponse(res);

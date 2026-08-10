@@ -405,17 +405,24 @@ and the project is currently reachable by anyone who loads the site.
 
 ### 5.1 The open door
 
-**`POST /api/auth/create-farm` is unauthenticated.** The only gate is
+**`POST /api/auth/create-farm` was unauthenticated** until 2026-08-10. The only gate was
 `rateLimit(clientKey(req, 'create-farm'), 5, 60 * 60 * 1000)` — five farms per IP per
-hour, in-process, so it resets on every Cloud Run cold start and is per-instance, not
-global. Anyone who finds `am.pufworks.farm` can create farms on George's project and
+hour, in-process, so it reset on every Cloud Run cold start and was per-instance, not
+global. Anyone who found `am.pufworks.farm` could create farms on George's project and
 start writing to his Firestore.
 
-Everything else in this section is secondary to closing that.
+**Closed — item 1 below is built** (`server/enrollmentCodes.ts`). The route now fails
+closed: no configured codes means farm creation is off, said plainly. Codes come from
+`PUF_ENROLLMENT_CODES` (Secret Manager on Cloud Run) or `secrets/enrollment-codes.json`
+in the workshop; single-use is a Firestore `create()` reservation keyed by the code's
+SHA-256 — atomic across instances, surviving cold starts, storing the hash rather than
+the code — reserved before the farm is built, released if the build fails, and stamped
+with the resulting `farmId` for the audit trail. **Deploying this to Cloud Run and
+setting the secret is what makes it real on `am.pufworks.farm`.**
 
 | # | Action | Effort | Notes |
 |---|--------|--------|-------|
-| 1 | **Gate `create-farm` behind an enrolment code** George issues (env var / Secret Manager list, single-use, logged). | Small | The single highest-value change in this document. |
+| 1 | ~~**Gate `create-farm` behind an enrolment code** George issues (env var / Secret Manager list, single-use, logged).~~ **Done 2026-08-10** — see above; needs the Cloud Run redeploy + secret. | Small | The single highest-value change in this document. |
 | 2 | **Allowlist the farms in `firestore.rules`.** A literal `farmId in ['...','...']` constant in the rules file costs **no extra read** to evaluate, unlike an `exists()` lookup against an allowlist collection. George has a handful of farms; redeploying rules to add one is the right trade. | Small | Belt and braces with #1: even a leaked token cannot create a new farm's worth of data. |
 | 3 | **Set a GCP budget alert** at $1 / $5 / $20 to George's email, plus the Pub/Sub → disable-billing function for the runaway case. | Small | **A budget does not cap spend.** It is an alarm. The Pub/Sub automation is a fire axe: it takes the whole app down, George's farms included. |
 | 4 | **Turn on App Check** (reCAPTCHA Enterprise on web, Play Integrity on Android) and enforce it on Firestore, Storage and Cloud Run. Nothing in the repo references App Check today. | Medium | Caveats worth knowing before starting: the Electron desktop shell and sideloaded (non-Play) APKs are awkward to attest, `npm run dev` needs the debug provider, and reCAPTCHA Enterprise has its own cost above its free assessments. Roll out in monitor-only mode first. |
@@ -440,7 +447,7 @@ else is damage control, which is exactly why B is ranked last.
 ### Now — this week (docs + policy, mostly not code)
 
 - [x] This document.
-- [ ] §5 item 1 — enrolment code on `create-farm`.
+- [x] §5 item 1 — enrolment code on `create-farm` (built 2026-08-10; Cloud Run redeploy pending).
 - [ ] §5 item 2 — farm allowlist in `firestore.rules`.
 - [ ] §5 item 3 — budget alerts at $1 / $5 / $20.
 - [ ] §5 item 5 — close `test/connection`.
