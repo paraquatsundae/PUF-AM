@@ -58,10 +58,38 @@ if (-not $hasSecret) {
   Write-Host "Created Secret Manager secret $dpirdSecret"
 }
 
-# Grant Cloud Run runtime SA access to the secret
+# Ensure enrollment-codes secret exists (create from secrets/enrollment-codes.json once if missing).
+# This is the gate on POST /api/auth/create-farm (Plans/FIREBASE_BILLING.md §5.1) — the
+# server fails closed without it, so a deploy that forgets this turns farm creation off,
+# which is the safe direction but worth knowing.
+$enrollSecret = "PUF_ENROLLMENT_CODES"
+$hasEnroll = $false
+$prevErr = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $gcloudCmd secrets describe $enrollSecret 2>$null | Out-Null
+if ($LASTEXITCODE -eq 0) { $hasEnroll = $true }
+$ErrorActionPreference = $prevErr
+
+if (-not $hasEnroll) {
+  $enrollFile = "secrets/enrollment-codes.json"
+  if (-not (Test-Path $enrollFile)) {
+    throw "No Secret Manager secret '$enrollSecret' and no $enrollFile to bootstrap from."
+  }
+  $codes = (Get-Content $enrollFile -Raw | ConvertFrom-Json).codes -join ","
+  if (-not $codes) { throw "$enrollFile has no codes." }
+  $codes | & $gcloudCmd secrets create $enrollSecret --data-file=-
+  if ($LASTEXITCODE -ne 0) { throw "Failed to create secret $enrollSecret" }
+  Write-Host "Created Secret Manager secret $enrollSecret"
+}
+
+# Grant Cloud Run runtime SA access to the secrets
 $projectNumber = & $gcloudCmd projects describe $ProjectId --format="value(projectNumber)"
 $runtimeSa = "$projectNumber-compute@developer.gserviceaccount.com"
 & $gcloudCmd secrets add-iam-policy-binding $dpirdSecret `
+  --member="serviceAccount:$runtimeSa" `
+  --role="roles/secretmanager.secretAccessor" `
+  --quiet | Out-Null
+& $gcloudCmd secrets add-iam-policy-binding $enrollSecret `
   --member="serviceAccount:$runtimeSa" `
   --role="roles/secretmanager.secretAccessor" `
   --quiet | Out-Null
@@ -120,7 +148,7 @@ Write-Host "Building and deploying (Cloud Build + Cloud Run)..."
   --max-instances 3 `
   --set-build-env-vars $buildEnv `
   --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=$ProjectId,FIRESTORE_DATABASE_ID=$firestoreDb,APP_URL=$AppUrl,MIST_FREENET_DISABLED=1" `
-  --set-secrets "DPIRD_API_KEY=DPIRD_API_KEY:latest"
+  --set-secrets "DPIRD_API_KEY=DPIRD_API_KEY:latest,PUF_ENROLLMENT_CODES=PUF_ENROLLMENT_CODES:latest"
 
 if ($LASTEXITCODE -ne 0) { throw "Cloud Run deploy failed (exit $LASTEXITCODE)" }
 
