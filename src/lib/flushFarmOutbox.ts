@@ -3,9 +3,17 @@
  */
 import { deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { listOutbox, removeOutboxOp, type OutboxOp } from './localFarmRepo';
+import { listOutbox, putOutboxOp, removeOutboxOp, type OutboxOp } from './localFarmRepo';
 import { isLocalOnlyFarmSession } from './workshopMode';
 import { flushPhotoOutbox } from './flushPhotoOutbox';
+import { stripUndefinedDeep } from './stripUndefined';
+
+/**
+ * A permanently-failing op is dropped after this many attempts rather than
+ * retried forever. Only the *sync op* is dropped — the entry itself stays in
+ * the local store and on this device.
+ */
+export const OUTBOX_MAX_ATTEMPTS = 5;
 
 function isPermissionOrOfflineError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
@@ -25,7 +33,7 @@ async function applyOp(op: OutboxOp): Promise<void> {
       await deleteDoc(ref);
       return;
     }
-    if (op.payload) await setDoc(ref, op.payload, { merge: true });
+    if (op.payload) await setDoc(ref, stripUndefinedDeep(op.payload), { merge: true });
     return;
   }
 
@@ -36,7 +44,7 @@ async function applyOp(op: OutboxOp): Promise<void> {
       await deleteDoc(ref);
       return;
     }
-    if (op.payload) await setDoc(ref, op.payload, { merge: true });
+    if (op.payload) await setDoc(ref, stripUndefinedDeep(op.payload), { merge: true });
   }
 }
 
@@ -60,10 +68,20 @@ export async function flushFarmOutbox(farmId?: string): Promise<{ flushed: numbe
     } catch (error) {
       if (isPermissionOrOfflineError(error)) {
         failed += 1;
-        break; // stop — likely offline again
+        break; // stop — likely offline again; transient failures don't count against the op
       }
-      console.warn('[flushFarmOutbox] op failed', op.id, error);
       failed += 1;
+      const attempts = (op.attempts ?? 0) + 1;
+      if (attempts >= OUTBOX_MAX_ATTEMPTS) {
+        // Poison pill: this op will never succeed and was blocking nothing —
+        // ops are independent docs — but retried forever and spammed the log.
+        // The entry is still in the local store; only the doomed write goes.
+        console.warn('[flushFarmOutbox] dropping op after repeated failures', op.id, error);
+        await removeOutboxOp(op.id).catch(() => undefined);
+      } else {
+        console.warn(`[flushFarmOutbox] op failed (attempt ${attempts})`, op.id, error);
+        await putOutboxOp({ ...op, attempts }).catch(() => undefined);
+      }
     }
   }
   return { flushed, failed };

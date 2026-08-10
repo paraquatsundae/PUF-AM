@@ -16,6 +16,8 @@ export type OutboxOp = {
   payload?: FieldIssue | DiaryEvent;
   updatedAt: string;
   createdAt: string;
+  /** Failed flush attempts with a *permanent* error. Absent on ops from older builds. */
+  attempts?: number;
 };
 
 const DB_NAME = 'pufom_farm_local';
@@ -177,6 +179,11 @@ export async function listOutbox(farmId?: string): Promise<OutboxOp[]> {
     req.onsuccess = () => resolve((req.result as OutboxOp[]) || []);
     req.onerror = () => reject(req.error);
   });
+}
+
+/** Re-writes an op in place (same id) — used to persist the failed-attempt count. */
+export async function putOutboxOp(op: OutboxOp): Promise<void> {
+  return enqueue(op);
 }
 
 export async function removeOutboxOp(id: string): Promise<void> {
