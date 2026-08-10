@@ -69,15 +69,20 @@ import {
  * to everything else in the shed.
  */
 async function probeSyncPeer(): Promise<SyncPeerState> {
+  let remote = false;
   try {
     const resolution = await ensureSyncHub();
     if (resolution.needsPairing) return 'needs-pairing';
+    // The ladder has already preferred this Wi‑Fi and only fallen through to the
+    // gateway if nothing was here, so this is a report rather than a choice.
+    remote = resolution.source === 'gateway';
   } catch {
     /* Discovery is a convenience; the health probe below is the real answer. */
   }
   try {
-    const res = await apiFetch(syncApiUrl('/api/health'), { timeoutMs: 4000 });
-    return res.ok ? 'reachable' : 'none';
+    const res = await apiFetch(syncApiUrl('/api/health'), { timeoutMs: 6000 });
+    if (!res.ok) return 'none';
+    return remote ? 'reachable-remote' : 'reachable';
   } catch {
     return 'none';
   }

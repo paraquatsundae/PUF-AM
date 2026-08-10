@@ -16,6 +16,11 @@
  *    last-writer-wins on both sides, so it is safe to run unattended. Preferred
  *    whenever a peer answers — including when Freenet is also up, because a
  *    Freenet round trip is minutes and needs a laptop.
+ * 1b. **The same hub at the farm's gateway address.** Same routes, same merge,
+ *    same rung — just reached from outside the shed, which is what lets a tablet
+ *    sync and join with no Freenet node and no laptop on its Wi‑Fi. Below LAN
+ *    because it is the long way round to the same machine. See
+ *    `src/lib/farmGateway.ts`.
  * 2. **Freenet.** The farm moves between devices that cannot see each other.
  *    One press, never a timer: publishing goes through `fdev` on a laptop, and
  *    a Freenet pull *replaces* local records rather than merging them
@@ -32,6 +37,13 @@ import type { FarmPipe } from './farmPipes.ts';
 export type SyncPeerState =
   /** A hub answered `/api/health` and this device may use it. */
   | 'reachable'
+  /**
+   * The same, reached at the farm's remembered **gateway** address rather than on
+   * this Wi‑Fi (`farmGateway.ts`). Identical routes and identical merge, so it is
+   * the same rung — it is a separate state only because the operator is owed a
+   * different sentence, and because the bytes may be leaving the farm.
+   */
+  | 'reachable-remote'
   /** A hub answered, but it is a packaged desktop that wants a pairing code first. */
   | 'needs-pairing'
   | 'none';
@@ -67,7 +79,7 @@ export type SyncRoute =
   | 'freenet-pull'
   | 'blocked';
 
-export type SyncVia = 'wifi' | 'freenet' | 'none';
+export type SyncVia = 'wifi' | 'gateway' | 'freenet' | 'none';
 
 export type SyncPlan = {
   route: SyncRoute;
@@ -88,7 +100,8 @@ export type SyncPlan = {
 const NO_PEER_DETAIL =
   'A PUF-AM peer is any laptop on this Wi‑Fi with PUF-AM open — the hub is on by default. ' +
   'If none is found, check both devices are on the same network, or type the laptop address ' +
-  'under Wi‑Fi (LAN) below.';
+  'under Wi‑Fi (LAN) below. To sync when there is no laptop on this Wi‑Fi at all, set the ' +
+  'farm’s gateway address once under Farm gateway below.';
 
 const PAIRING_DETAIL =
   'A PUF-AM laptop answered but wants its pairing code first. Read it off that laptop under ' +
@@ -113,15 +126,26 @@ export function planFarmSync(conditions: SyncConditions): SyncPlan {
   }
 
   // A peer beats Freenet even when both are up: seconds against minutes, and the
-  // shelf merges where a Freenet pull replaces.
-  if (peer === 'reachable') {
+  // shelf merges where a Freenet pull replaces. A gateway peer beats it for the
+  // same reasons — it is the same shelf on the same hub, just further away.
+  if (peer === 'reachable' || peer === 'reachable-remote') {
+    const remote = peer === 'reachable-remote';
+    const peerLabel = remote
+      ? 'Farm gateway — reaching the farm’s hub from here'
+      : 'Wi‑Fi — a PUF-AM peer is on this network';
+    const remoteDetail = remote
+      ? 'This is the farm’s own hub at its gateway address, so sync works away from the shed ' +
+        'Wi‑Fi. It may use mobile data.'
+      : undefined;
+
     if (pipe === 'freenet') {
       if (farmUnlocked) {
         return {
           route: 'lan-sealed',
-          via: 'wifi',
+          via: remote ? 'gateway' : 'wifi',
           auto: true,
-          label: 'Wi‑Fi — a PUF-AM peer is on this network',
+          label: peerLabel,
+          ...(remoteDetail ? { detail: remoteDetail } : {}),
         };
       }
       return {
@@ -130,17 +154,19 @@ export function planFarmSync(conditions: SyncConditions): SyncPlan {
         auto: false,
         label: 'Locked on this device',
         detail:
-          'A peer is on this Wi‑Fi, but the farm is sealed with your device PIN and this device ' +
-          'has not unlocked it yet. Unlock the farm and sync starts by itself.',
+          `A hub is reachable ${remote ? 'at the farm gateway' : 'on this Wi‑Fi'}, but the farm ` +
+          'is sealed with your device PIN and this device has not unlocked it yet. Unlock the ' +
+          'farm and sync starts by itself.',
       };
     }
 
     if (cloudSignedIn) {
       return {
         route: 'lan-pufom',
-        via: 'wifi',
+        via: remote ? 'gateway' : 'wifi',
         auto: true,
-        label: 'Wi‑Fi — a PUF-AM peer is on this network',
+        label: peerLabel,
+        ...(remoteDetail ? { detail: remoteDetail } : {}),
       };
     }
     return {
@@ -270,9 +296,16 @@ export function describeAgo(iso: string, now = Date.now()): string {
 }
 
 /** The one status line: what moved, over what, how long ago. */
+const VIA_WORDS: Record<SyncVia, string> = {
+  wifi: 'Wi‑Fi',
+  gateway: 'the farm gateway',
+  freenet: 'Freenet',
+  none: 'this device',
+};
+
 export function describeLastSync(entry: LastSyncEntry | null, now = Date.now()): string {
   if (!entry) return 'Not synced on this device yet';
-  const via = entry.via === 'wifi' ? 'Wi‑Fi' : entry.via === 'freenet' ? 'Freenet' : 'this device';
+  const via = VIA_WORDS[entry.via] ?? VIA_WORDS.none;
   const when = describeAgo(entry.at, now);
   if (!entry.ok) return `Last try over ${via} failed ${when} — ${entry.summary}`;
   return `Last synced via ${via} ${when}${entry.summary ? ` — ${entry.summary}` : ''}`;

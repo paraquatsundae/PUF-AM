@@ -97,6 +97,52 @@ export function getHubToken(base: string): string {
   return getHubCredential(base)?.token ?? '';
 }
 
+/**
+ * Reuse the pairing this device already has, for the same hub at a second
+ * address (`src/lib/farmGateway.ts`).
+ *
+ * Credentials are per base, which is right — a tablet that visits two sheds must
+ * not lose the first pairing. But one hub reachable two ways (the shed Wi‑Fi and
+ * the farm VPN) is *one* pairing, and asking the operator for a code they already
+ * used, for a laptop they already own, is the kind of ceremony this whole line of
+ * work exists to delete.
+ *
+ * Two things bound it, both deliberate:
+ *
+ * - **The hub has to claim the same `hubId`.** That is not authentication — the
+ *   value is public and a hostile server can echo it — it is a guard against
+ *   sending a token minted for *this* laptop to a *different* PUF-AM, which is
+ *   what a mistyped address in a shearing shed with two laptops would otherwise
+ *   do.
+ * - **Only from an address the operator entered.** The trust decision is the
+ *   operator naming a machine they own, exactly as it already is when they type a
+ *   LAN address. Nothing here happens on discovery.
+ *
+ * Returns false when there is nothing to reuse, which is the ordinary
+ * "now enter the pairing code" path.
+ */
+export function adoptHubCredentialByHubId(base: string, hubId: string | undefined): boolean {
+  if (!hubId) return false;
+  const target = hubKey(base);
+  if (!target) return false;
+
+  const store = readStore();
+  if (store[target]?.token) return true;
+
+  for (const [key, cred] of Object.entries(store)) {
+    if (key === target || !cred.token) continue;
+    if (!isHubInfo(cred.info) || cred.info.hubId !== hubId) continue;
+    store[target] = {
+      ...store[target],
+      token: cred.token,
+      pairedAt: cred.pairedAt,
+    };
+    writeStore(store);
+    return true;
+  }
+  return false;
+}
+
 export function getHubInfo(base: string): HubInfo | null {
   const info = getHubCredential(base)?.info;
   return isHubInfo(info) ? info : null;

@@ -27,7 +27,15 @@ import {
 } from '../../lib/mdnsPeers';
 import { nsdBrowseAvailable } from '../../lib/nsdPeers';
 import { apiHubMissing, isPackagedNativeAndroid } from '../../lib/apiBase';
-import { ensureSyncHub, useManualHub, type SyncHubResolution } from '../../lib/syncHub';
+import {
+  clearFarmGateway,
+  ensureSyncHub,
+  rememberGatewayIdentity,
+  useFarmGateway,
+  useManualHub,
+  type SyncHubResolution,
+} from '../../lib/syncHub';
+import { readFarmGateway, sameHubBase, type FarmGateway } from '../../lib/farmGateway';
 import { defaultDeviceName, fetchHubInfo, pairWithHub } from '../../lib/hubPairing';
 import { getHubToken } from '../../lib/hubIdentity';
 import type { HubInfo } from '../../../shared/sync/hubInfo';
@@ -55,7 +63,7 @@ import { useMapStoreInternal } from '../../lib/mapStore';
 import { getLastFarm } from '../../lib/deviceSession';
 
 /** Which card a note belongs in. */
-export type SyncZone = 'lan' | 'cloud' | 'files';
+export type SyncZone = 'lan' | 'gateway' | 'cloud' | 'files';
 
 export type SyncNote = { zone: SyncZone; tone: 'ok' | 'error'; text: string };
 
@@ -89,6 +97,10 @@ export function useFarmSync() {
   const [hubMissing, setHubMissing] = useState(apiHubMissing());
   const [hubInfo, setHubInfo] = useState<HubInfo | null>(null);
   const [needsPairing, setNeedsPairing] = useState(false);
+  const [gateway, setGateway] = useState<FarmGateway | null>(() => readFarmGateway());
+  /** The ladder fell through to the gateway, so this is how the farm is reachable now. */
+  const [gatewayInUse, setGatewayInUse] = useState(false);
+  const [gatewayIdentityChanged, setGatewayIdentityChanged] = useState(false);
   const needsHub = isPackagedNativeAndroid();
 
   const refresh = useCallback(async () => {
@@ -119,6 +131,9 @@ export function useFarmSync() {
     setHubInfo(res.info ?? null);
     setNeedsPairing(Boolean(res.needsPairing));
     setHubMissing(apiHubMissing());
+    setGateway(readFarmGateway());
+    setGatewayInUse(res.source === 'gateway');
+    setGatewayIdentityChanged(Boolean(res.identityChanged));
   }, []);
 
   useEffect(() => {
@@ -229,6 +244,54 @@ export function useFarmSync() {
       return `Paired with ${result.info.name} as “${result.deviceName}”. Push, pull and join now work through it.`;
     });
 
+  // ---- Farm gateway ------------------------------------------------------
+
+  const setGatewayAddress = (address: string) =>
+    void run('gateway', 'gateway', async () => {
+      const result = await useFarmGateway(address);
+      applyResolution(result.resolution);
+      setGateway(result.gateway);
+      const where = result.gateway.hubName || result.gateway.base;
+      if (result.resolution.needsPairing) {
+        return `Found ${where} — now enter its pairing code below.`;
+      }
+      return result.adopted
+        ? `Gateway set to ${where}. It is the hub this tablet is already paired with, so nothing ` +
+            'else is needed — sync and join now work away from the shed Wi‑Fi.'
+        : `Gateway set to ${where}. Sync and join now work away from the shed Wi‑Fi.`;
+    });
+
+  /**
+   * Pairing at the gateway address, for the case adoption cannot cover: a tablet
+   * that has never been on the farm's Wi‑Fi at all, so it has no pairing to reuse.
+   */
+  const pairGateway = (pairingCode: string) =>
+    void run('gateway', 'pair-gateway', async () => {
+      const base = gateway?.base;
+      if (!base) throw new Error('Set the gateway address first.');
+      const result = await pairWithHub(base, pairingCode, defaultDeviceName());
+      // The operator has just said "this machine is my gateway", so it becomes the
+      // identity the guard compares against — otherwise the next resolve would
+      // drop the pairing that was only just made.
+      rememberGatewayIdentity(result.info);
+      setGateway(readFarmGateway());
+      setHubInfo(result.info);
+      setNeedsPairing(false);
+      setGatewayIdentityChanged(false);
+      setHubMissing(apiHubMissing());
+      return `Paired with ${result.info.name} as “${result.deviceName}” over the gateway.`;
+    });
+
+  const forgetGateway = () =>
+    void run('gateway', 'gateway-forget', async () => {
+      clearFarmGateway();
+      setGateway(null);
+      setGatewayInUse(false);
+      setGatewayIdentityChanged(false);
+      setHubMissing(apiHubMissing());
+      return 'Gateway forgotten. This tablet now syncs only when a PUF-AM laptop is on its Wi‑Fi.';
+    });
+
   const pushToLan = () =>
     void run('lan', 'push', async () => {
       const r = await pushLanBundle(farmId);
@@ -318,9 +381,23 @@ export function useFarmSync() {
     hubInfo,
     needsPairing,
     needsHub,
+    gateway,
+    gatewayInUse,
+    gatewayIdentityChanged,
+    /**
+     * The gateway wants a code. Read off the saved gateway rather than the hub
+     * currently in use, so the prompt does not appear in this card because the
+     * *LAN* hub is unpaired.
+     */
+    gatewayNeedsPairing: Boolean(
+      gateway && needsPairing && sameHubBase(selectedPeer, gateway.base),
+    ),
     selectPeer,
     scanForHubs,
     setManualHubAddress,
+    setGatewayAddress,
+    pairGateway,
+    forgetGateway,
     pair,
     pushToLan,
     pullFromLan,

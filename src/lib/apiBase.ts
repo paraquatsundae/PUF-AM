@@ -108,8 +108,9 @@ export function apiHubMissing(): boolean {
 export const NO_API_HUB_MESSAGE =
   'This tablet has no PUF-AM hub yet. Put the tablet and the laptop on the same Wi‑Fi, ' +
   'switch on Settings → Tablet hub in PUF-AM on the laptop, then use ' +
-  'Settings → Offline & sync → Scan for hubs here — or type the laptop address ' +
-  '(for example 192.168.1.20:3000).';
+  'Settings → Sync → Wi‑Fi (LAN) → Scan for hubs here — or type the laptop address ' +
+  '(for example 192.168.1.20:3000). To work away from that Wi‑Fi, set the farm’s ' +
+  'gateway address once under Settings → Sync → Farm gateway.';
 
 /** Fallback for cloud-only routes when the hub named no base of its own. */
 const DEFAULT_CLOUD_API_BASE = 'https://am.pufworks.farm';

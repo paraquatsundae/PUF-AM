@@ -7,6 +7,7 @@
 **Update ~2026-08-09 (b):** §3 option B said "nobody else ships one". **That is now false** — an unofficial third-party Android node exists and is sideloadable (§3a). It changes which blocker is binding, not what is implemented here: still no Freenet on this tablet.
 **Update ~2026-08-09 (c):** option B is **taken, and reads work on hardware.** A browser-side GET client speaks the 0.2 WS API straight at the sideloaded node on `127.0.0.1:7509`, so the SM-T545 resolves a join slot and pulls a farm with no hub, no pairing and no shed Wi‑Fi. §2 blocker 2 — "the whole Freenet client path is server-side" — is **lifted for GET**. Publishing is unchanged and still wants a laptop. Details and the device evidence in §3b.
 **Update ~2026-08-09 (d):** the node app has a **power policy and a boot receiver**, so "open the Freenet app first" (§8b step 1) is a tablet setup step, not a permanent requirement. §8c records what its manifest does and does not let PUF-AM drive, and ranks the ways to remove that step.
+**Update ~2026-08-10:** **the sideloaded node is now optional.** §8d makes the *gateway* explicit: the same paired hub, reachable at a remembered non-LAN address, so a tablet joins and syncs off the shed Wi‑Fi with nothing extra installed on it. Ladder is **LAN hub → farm gateway → local node (if sideloaded) → a named error**. Slice built; the honest security position, including which addresses are **refused**, is in §8d.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Android / Capacitor (`com.sentinut.farm`)
 **Experimental:** mist/Freenet stays experimental everywhere. **Firebase Auth + invite PIN remains the shipping path** on tablets and is unaffected by anything below.
 
@@ -314,6 +315,8 @@ For an off-Wi-Fi POC on a tablet *without* the node app the honest shape is ther
 | **4a (done)** | **Reader beside a sideloaded node** — browser-side GET client, `android-local-node` runtime, slot resolve and Hot/bones pull off `127.0.0.1:7509`. Join with no hub | — · built and device-verified, §3b |
 | **4b** | **Publishing from a tablet** | `fdev` removal — native-protocol PUT in TypeScript, the same item as desktop plan §4.3. Until then a tablet reads and a laptop sends |
 | **4c** | On-device peer inside our APK (option C) | **Still rejected**, now on AGPL linkage as much as toolchain cost. §3b's two-app shape is what made it unnecessary |
+| **5 (done)** | **Farm gateway** — the paired hub at a remembered non-LAN address, so a tablet joins and syncs with **no node app on it and no laptop on its Wi‑Fi** | — · built, §8d. Makes phase 4a's sideloaded node the power-user option rather than the requirement |
+| **6** | TLS a farmer can complete, then (later) a hosted relay for farms with no always-on machine | §8d Phase 2 / Phase 3 |
 
 ---
 
@@ -363,6 +366,103 @@ Two things worth telling an operator up front, because both look like faults and
 | 5 | **Stay hub-dependent** (§8a) | None | Keep as the fallback it already is. Publishing still needs it — `fdev` is a laptop binary (§8 phase 4b) |
 
 Options 1 and 2 leave the two-app shape, the loopback WebSocket, and the licensing position exactly as §3b froze them.
+
+---
+
+## 8d. Seamless Freenet on a tablet — the farm gateway (built 2026-08-10)
+
+**Status:** slice 1 built. Ladder, address rules, credential reuse, Settings card, tests.
+**The requirement:** a farm worker with a tablet never installs, opens, or hears about a separate Freenet node app. §8b and §8c made that step *smaller*; this deletes it.
+
+### The problem, stated exactly
+
+A tablet cannot host a Freenet node (§2, four independent blockers). So something else must speak Freenet on its behalf, and that something already exists and is field-proven: **the desktop LAN hub**. It relays `/api/mist/freenet/*` off a real node, it has `fdev` for publishing, and it holds the join-manifest shelf. Its one deficiency was never capability — it was **reach**. The hub was findable on the shed Wi‑Fi and nowhere else.
+
+That single gap is what pushed a tablet towards the sideloaded node app, and it is the reason §8b's operator instructions begin with "install and open the Freenet Android node app". A tablet in a paddock, in the ute on the road, or at a worker's house had no gateway at all.
+
+### The options, honestly
+
+| | Option | Works today | What it costs | Verdict |
+|---|---|---|---|---|
+| **A** | **LAN hub as the Freenet gateway** — the tablet's join and sync ride the paired laptop's node | **Yes, shipped** | Nothing new | **Rung 1.** Fastest, free, no internet. Its limit is exactly one thing: a laptop has to be on this Wi‑Fi |
+| **B** | **The farm's own always-on gateway over the internet** — the shed PC reached from anywhere | **Yes, as of this slice** | An address (Tailscale/VPN), and a real answer to TLS | **Rung 2, and the answer to the product requirement.** The farm already trusts this machine and already runs the software; nothing is added to the tablet, and no third party is introduced |
+| **C** | **PUFworks-hosted relay** (`pufworks.farm`) — George runs an authenticated Freenet gateway; tablets fall back to it | No | A service to run, a bill, and farms' ciphertext passing through infrastructure we own | **Phase 3, and deliberately last.** See the philosophy note below |
+| **D** | **Sideloaded node on the tablet** (§3a/§3b) | Yes | An operator installs a stranger's alpha and manages its battery policy | **Keep as the power-user path**, documented, no longer required. It is also the only path that needs no other machine awake at all, which is why it stays |
+
+**Why B over C, given C would be more seamless still.** Two reasons, and the second is the one that decides it. The billing philosophy: PUF-AM's Freenet path exists so a farm does not have to keep its records in someone else's cloud, and a PUFworks relay would put every tablet's traffic back through a machine PUFworks owns and pays for — reintroducing exactly the dependency and the running cost the Freenet pipe was chosen to remove (`SETTINGS_SYNC_AND_CREW.md` §6). And liability: a relay that holds a farm's sealed traffic is a thing that can be subpoenaed, breached or switched off, and telling farmers "your farm is not in anyone's cloud" while routing it through ours would be untrue. B keeps the trust boundary where the farm already put it: the machine in their own shed.
+
+### The ladder (frozen)
+
+Gateway selection — which machine answers this tablet's `/api/*`, including the Freenet relay routes:
+
+| # | Rung | Where | Why here |
+|---|------|-------|----------|
+| 1 | **A hub on this Wi‑Fi** — NSD, or an address typed once | `syncHub.ts` | Seconds, free, works with no internet at all |
+| 2 | **The farm gateway** — the same hub at a remembered non-LAN address | `farmGateway.ts` | The tablet is not at the farm. Same machine, same token, same routes |
+| 3 | **A Freenet node on this device**, if one has been sideloaded | `freenetLocalNode.ts` (§3b, unchanged) | Needs no other machine awake. Reads only — `fdev` is a laptop binary |
+| 4 | An error naming what was tried | — | Never a bare "Failed to fetch" |
+
+**Rung 3 is not demoted by this slice.** For a *Freenet read* — slot resolve, Hot/bones pull — a node on this device still goes first, exactly as §3b froze it: no pairing, no Wi‑Fi, nothing left running on someone else's laptop. Rungs 1 and 2 answer a different question ("which hub is this tablet's gateway"), and the local node is not a hub. The two ladders meet where §3b said they would: a local node that has not found a blob yet degrades to *whichever* hub the gateway ladder settled on, which is now sometimes the shed laptop over a VPN.
+
+**A gateway does not outrank LAN discovery**, even though it is the operator's own typed address and a chosen hub normally does. It is the *same laptop* reached the long way — out through a VPN, over somebody's upload speed, possibly on mobile data. Standing next to the laptop, that would be slower and metered for no gain. `hubLadderOrder()` therefore demotes a gateway that happens to be the current base below discovery, and only then gives it its turn.
+
+### What shipped
+
+| File | Job |
+|------|-----|
+| [`src/lib/farmGateway.ts`](../src/lib/farmGateway.ts) | **New.** Address classification (what is accepted and refused, and why), the remembered gateway, `gatewayIdentityChanged()` |
+| [`src/lib/syncHub.ts`](../src/lib/syncHub.ts) | `hubLadderOrder()` (pure), the gateway rung, `useFarmGateway()`, `clearFarmGateway()`, the identity guard |
+| [`src/lib/hubIdentity.ts`](../src/lib/hubIdentity.ts) | `adoptHubCredentialByHubId()` — one laptop reachable two ways is **one** pairing |
+| [`shared/sync/hubInfo.ts`](../shared/sync/hubInfo.ts) | `HubInfo.hubId`, optional, explicitly **not** an authenticator |
+| [`src/lib/autoSync.ts`](../src/lib/autoSync.ts) | `SyncPeerState: 'reachable-remote'`, `SyncVia: 'gateway'`, operator copy |
+| [`src/components/sync/FarmGatewayCard.tsx`](../src/components/sync/FarmGatewayCard.tsx) | **New.** One address field, status chip, the refusal explained before it happens |
+| [`desktop/lanHubAuth.ts`](../desktop/lanHubAuth.ts) | `isPairableRemoteAddress()` (moved out of `lanApi.ts` so it is testable) now admits CGNAT; `mintHubId()` |
+| [`desktop/lanApi.ts`](../desktop/lanApi.ts), [`desktopPrefs.ts`](../desktop/desktopPrefs.ts), [`main.ts`](../desktop/main.ts) | Serve a persistent `hubId`; pair over the farm VPN as well as the LAN |
+
+Tests: [`tests/farmGateway.test.ts`](../tests/farmGateway.test.ts) (the address rules, including every refusal), [`tests/farmGatewayLadder.test.ts`](../tests/farmGatewayLadder.test.ts) (rung order, credential reuse, and that the token authorises over the remote base and still goes nowhere else), plus the new rung in [`tests/autoSyncLadder.test.ts`](../tests/autoSyncLadder.test.ts) and the address/identity cases in [`tests/lanHubAuth.test.ts`](../tests/lanHubAuth.test.ts).
+
+Nothing on the wire changed. Same `x-puf-hub-token`, same routes, same `LAN_SCOPE_PREFIXES`. The hub does not know which of its addresses a request arrived on, and does not need to.
+
+### Security posture — stated plainly
+
+**The hub speaks plain HTTP and this slice does not change that.** `x-puf-hub-token` is a bearer credential. On the shed LAN that is a stated, accepted risk (§10 — "treat the farm LAN as the trust boundary"). Across the internet it is not, and "we documented it" is how that becomes "we shipped it". So the rule is **enforced in code, not written in a warning**:
+
+| Address | Verdict |
+|---|---|
+| `https://gateway.example` | accepted — TLS carries the token |
+| `http://100.101.102.103:3000` (Tailscale, CGNAT) | accepted — the tunnel is the encryption |
+| `http://laptop.tailnet-1a2b.ts.net:3000` | accepted — MagicDNS, same tailnet |
+| `http://192.168.1.20:3000` | accepted, and the card says it only answers on that network |
+| `http://farm.duckdns.org:3000` | **refused** |
+| `http://203.0.113.9:3000` | **refused** |
+
+The refusal names both ways out — a VPN address, or TLS — because an operator told only "no" will port-forward plain HTTP and believe that is what we meant. `classifyGatewayAddress()` is the single place this lives, and `readFarmGateway()` re-applies it on the way *out* of storage, so tightening the rule later also applies to gateways already saved on a tablet (the `pufom_last_sync_hub` lesson, §7a).
+
+**What the VPN rung actually buys, and what it does not.** It buys transport encryption and authenticated peers on the path, which is what makes the bearer token safe to send. It does not make the hub itself authenticated to the tablet: with no TLS there is no server identity, so anything that can occupy the address can collect the token. Two bounds, both partial and both worth naming:
+
+- **`hubId` is not authentication.** It is served unauthenticated beside the rest of the handshake, so it can be read by anything that reaches the port and claimed by anything that answers on one. Its only job is to stop this tablet handing a token minted for *one* laptop to a *different* PUF-AM by mistake — a reassigned DHCP address, a moved port forward, a second install on the same tailnet. That is the ordinary version of the problem, not the adversarial one. If the identity at a saved gateway changes, the pairing is **dropped** rather than the token sent on, and the operator is asked for a code.
+- **The trust decision is the operator typing an address they own**, exactly as it already is for a LAN address. Nothing is adopted from discovery.
+
+Unchanged and still true: pairing controls *who may call the hub*, not who may listen; the LAN sealed shelf carries **ciphertext only** and is unauthenticated per farm by design (`SETTINGS_SYNC_AND_CREW.md` §9), so a gateway relays farm bytes it cannot read; a role is bookkeeping, not enforcement (§3 of the settings plan). New and worth saying: over a gateway the sync **may use mobile data**, so the card and the ladder say so rather than leaving an operator to find out from a bill.
+
+**Pairing over the VPN.** `POST /api/hub/pair` refused everything outside RFC1918 and loopback, which would have 403'd a first pairing from a tailnet. It now admits `100.64.0.0/10` and unique-local IPv6 as well. That is carrier-grade NAT space, so in principle an ISP could place a stranger there — but only on an interface this listener is bound to, the code still has to be read off the laptop's screen, and failures are still throttled per client.
+
+### What Phase 2 and Phase 3 look like
+
+| Phase | Work | Turns this into |
+|-------|------|-----------------|
+| **2 — TLS the farm can actually complete** | An `https://` gateway a farmer can set up without being a sysadmin: Tailscale Serve (a real cert on a `.ts.net` name, one command) first, since the tailnet is already the recommended path; then a documented reverse proxy for a farm with its own domain. Optionally pin the hub's certificate on the tablet at pairing time, which would give the server identity the VPN rung does not | The two refused rows above become accepted, and a port-forwarded gateway stops being a bad idea |
+| **2b — publishing without a laptop awake** | Nothing new here: an always-on shed gateway *is* the publish path, because `fdev` is on it. What is missing is the copy and the ladder telling an operator that "send this farm" now works from a tablet in a paddock (it does, through the gateway) | Deletes the last "needs a laptop" sentence for a farm with a shed PC |
+| **3 — PUFworks-hosted relay** | A thin authenticated gateway on `pufworks.farm` as the last rung, for farms with **no** always-on machine. Needs: an auth model that is not a shared bearer, a stated retention policy (relay-only, no storage), a cost ceiling, and an honest answer to "why is my farm going through your server" | Removes the last requirement for a second machine. Kept last deliberately — see the philosophy note above |
+| **3b — mesh / Reticulum** | The rung *below* Freenet for devices with no shared Wi‑Fi and no internet: LoRa/RNode multi-hop, ciphertext only, record-level deltas rather than a whole bundle (`MIST_NETWORK_STORAGE.md`; `SETTINGS_SYNC_AND_CREW.md` §9). The gateway concept survives it unchanged — a mesh peer is another way to reach a hub, so it lands as a new `SyncPeerState` and a new rung, not a rewrite | A paddock with no coverage at all |
+
+### Operator setup, once
+
+**On the farm machine** (the shed PC or the laptop that stays home): PUF-AM running, *Settings → Tablet hub* on — it is on by default — and the machine on the farm's VPN. Read off its VPN address and the pairing code.
+
+**On the tablet:** *Settings → Sync → **Farm gateway*** → type the address → **Save**. If the tablet has already paired with that machine on the shed Wi‑Fi, it is done — the pairing is reused and nothing else is asked. If it has never been on that Wi‑Fi, it asks for the pairing code once.
+
+After that the tablet decides for itself: the shed Wi‑Fi when a laptop is on it, the gateway when none is. No Freenet app, no second icon, nothing to open.
 
 ---
 
@@ -416,6 +516,9 @@ Freenet host on Android · bundling `freenet` / `fdev` in the APK · linking `fr
 | `VITE_MIST_EXPERIMENTAL` silently missing from a build | `grep` check in §6.3; the flag is defaulted in the script rather than passed by hand |
 | Hub relay leaks the desktop loopback token to the LAN | **Closed** — the LAN listener is a separate app with its own credential (`x-puf-hub-token`, per device) and never sees `x-puf-desktop-token`. Desktop plan §6.4 |
 | Anyone on the shed Wi‑Fi can read a paired tablet's traffic | **Open, by design for now** — the hub speaks plain HTTP. Pairing controls *who may call it*, not who may listen. TLS needs a certificate story a farmer can complete; until then treat the farm LAN as the trust boundary |
+| The same plain HTTP, but across the internet, once a hub is reachable remotely | **Closed by refusal, not by warning** (§8d) — a gateway address is accepted only over TLS or on a private/VPN network, and the rule is re-applied to already-saved gateways on read. A DDNS name or public IP over `http://` is refused with both ways out named |
+| No server identity on a gateway without TLS, so whatever holds the address collects the token | **Open, and bounded rather than closed** — the VPN authenticates the path, the operator typing the address is the trust decision, and `hubId` catches the *accidental* version (reassigned address, second install) by dropping the pairing instead of sending the token. Real server identity is §8d Phase 2 |
+| A tablet on the gateway quietly using mobile data | **Open, and said out loud** — the sync card and the ladder both name it. The unattended attempt is one `meta` request when nothing changed; a changed farm uploads the sealed bundle |
 | Any app on the tablet can drive the node on `127.0.0.1:7509` | **Open, and not ours to close** — the node app's WS port has no auth (§3a). It bounds what the arrangement is worth, not whether it works: everything PUF-AM puts through it is ciphertext, the manifest is AEAD-sealed and the slot signature is checked in the page, so a hostile local app can waste our GETs but cannot read a farm or forge one |
 | We depend on one person's alpha, and on its release cadence | **Open** — the node app tracks upstream closely and is self-described as battery-hungry. Mitigated by the shape rather than by trust: it is a separate package the operator installs, the feature degrades to the hub when it is absent, and `freenetLocalNode.ts` is the only file that would need to change for a different node app |
 | Node runs 0.2.123 against our 0.2.119 pin | **Checked, narrowly** — the GET path handshakes and answers correctly across both (§3b). Contract *code hashes* are still unverified across the version gap, so a cross-version join is not yet trusted end to end; that is the §8b test |

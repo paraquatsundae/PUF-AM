@@ -14,10 +14,14 @@
  *      the shed laptop's DHCP lease changes and a stale hub is worse than none.
  *   2. Native NSD for `_pufom-sync._tcp` — the laptop running `npm run dev`
  *      advertises itself, so the tablet needs no address typed at all.
- *   3. The emulator alias, but only if something actually answers on it. That
+ *   3. The **farm gateway** — the same hub at a remembered non-LAN address, so a
+ *      tablet away from the shed Wi‑Fi still has something that speaks Freenet on
+ *      its behalf (`farmGateway.ts`, `Plans/APK_FREENET_PLUGIN.md` §8d).
+ *   4. The emulator alias, but only if something actually answers on it. That
  *      keeps the emulator workflow working without inflicting it on hardware.
  *
- * Plan: `Plans/APK_FREENET_PLUGIN.md` — Option A, the shed/LAN hub.
+ * Plan: `Plans/APK_FREENET_PLUGIN.md` — Option A, the shed/LAN hub, and §8d for
+ * the gateway rung that gives it reach.
  */
 
 import type { HubInfo } from '../../shared/sync/hubInfo';
@@ -27,15 +31,25 @@ import {
   isPackagedNativeAndroid,
   normalizeHubBase,
 } from './apiBase';
-import { getHubToken } from './hubIdentity';
+import {
+  classifyGatewayAddress,
+  forgetFarmGateway,
+  gatewayIdentityChanged,
+  readFarmGateway,
+  sameHubBase,
+  saveFarmGateway,
+  type FarmGateway,
+  type GatewayVerdict,
+} from './farmGateway';
+import { adoptHubCredentialByHubId, forgetHubCredential, getHubToken } from './hubIdentity';
 import { fetchHubInfo } from './hubPairing';
 import { discoverNsdPeers, nsdBrowseAvailable } from './nsdPeers';
-import { setSelectedSyncPeerBase } from './mdnsPeers';
+import { forgetRememberedSyncHub, setSelectedSyncPeerBase } from './mdnsPeers';
 
 export type SyncHubResolution = {
   /** '' when nothing answered — callers should say so rather than fetch blind. */
   baseUrl: string;
-  source: 'existing' | 'nsd' | 'emulator' | 'none';
+  source: 'existing' | 'nsd' | 'gateway' | 'emulator' | 'none';
   /** What the hub said about itself, when it answered the handshake. */
   info?: HubInfo | null;
   /**
@@ -43,7 +57,15 @@ export type SyncHubResolution = {
    * because the fix is a pairing code from the laptop, not a different Wi‑Fi.
    */
   needsPairing?: boolean;
+  /**
+   * Something answered at the gateway address, and it is not the hub this tablet
+   * paired with. The pairing was dropped rather than the token sent on.
+   */
+  identityChanged?: boolean;
 };
+
+/** A gateway is across a VPN or the internet, so give it longer than a LAN hop. */
+export const GATEWAY_PROBE_TIMEOUT_MS = 6000;
 
 /** Liveness check against a candidate hub. Never throws. */
 export async function probeHubBase(baseUrl: string, timeoutMs = 2500): Promise<boolean> {
@@ -85,6 +107,62 @@ async function describe(baseUrl: string, source: SyncHubResolution['source']) {
   } satisfies SyncHubResolution;
 }
 
+export type HubLadderRung = 'existing' | 'nsd' | 'gateway' | 'emulator';
+
+/**
+ * The order the rungs are tried in — pure, so each one has a test.
+ *
+ * Two judgement calls are worth stating, because they will look arbitrary later:
+ *
+ * **A remembered gateway does not outrank LAN discovery**, even though it is the
+ * operator's own typed address and rule 1 above says a chosen hub comes first.
+ * The gateway is the *same machine* as the hub NSD would find, reached the long
+ * way: across a VPN, possibly over cellular, with the shed's upload speed at the
+ * far end. When the tablet is standing next to the laptop, going out to the
+ * internet and back to reach it would be slower and metered for no gain. So a
+ * gateway that happens to be the current base is demoted below discovery, and
+ * *only* then does it get its turn.
+ *
+ * **Everything else keeps its old place.** With no gateway saved this returns
+ * exactly the ladder that shipped, which is what makes the change safe for every
+ * tablet already in a shed.
+ */
+export function hubLadderOrder(input: {
+  hasExisting: boolean;
+  /** The current base *is* the saved gateway, so trying it first would skip LAN. */
+  existingIsGateway: boolean;
+  hasGateway: boolean;
+  nsdAvailable: boolean;
+  /** The operator pressed Scan: re-discover rather than trust what is set. */
+  force: boolean;
+}): HubLadderRung[] {
+  const rungs: HubLadderRung[] = [];
+  if (input.hasExisting && !input.force && !input.existingIsGateway) rungs.push('existing');
+  if (input.nsdAvailable) rungs.push('nsd');
+  if (input.hasGateway) rungs.push('gateway');
+  rungs.push('emulator');
+  return rungs;
+}
+
+/**
+ * Refuse to keep using a pairing when the machine at the gateway address is not
+ * the hub it was minted for.
+ *
+ * The `hubId` is not a credential (`shared/sync/hubInfo.ts`), so this cannot stop
+ * a determined impostor — it stops the ordinary version of the problem: an
+ * address reassigned by DHCP, a port forward pointed somewhere else, a second
+ * PUF-AM install on the same tailnet. The token is dropped rather than sent, and
+ * the operator is asked for a pairing code, which is the honest state.
+ */
+function guardGatewayIdentity(
+  gateway: FarmGateway,
+  resolution: SyncHubResolution,
+): SyncHubResolution {
+  if (!gatewayIdentityChanged(gateway.hubId, resolution.info?.hubId)) return resolution;
+  forgetHubCredential(gateway.base);
+  return { ...resolution, needsPairing: true, identityChanged: true };
+}
+
 async function resolve(force: boolean): Promise<SyncHubResolution> {
   // Browser, live-reload APK and Electron are all same-origin already; there is
   // no second machine to find and nothing here should override their base.
@@ -93,26 +171,46 @@ async function resolve(force: boolean): Promise<SyncHubResolution> {
   }
 
   const current = getApiBaseUrl();
-  if (current && !force) {
-    if (await probeHubBase(current)) return describe(current, 'existing');
-  }
+  const gateway = readFarmGateway();
+  const order = hubLadderOrder({
+    hasExisting: Boolean(current),
+    existingIsGateway: Boolean(current && gateway && sameHubBase(current, gateway.base)),
+    hasGateway: Boolean(gateway),
+    nsdAvailable: nsdBrowseAvailable(),
+    force,
+  });
 
-  if (nsdBrowseAvailable()) {
-    try {
-      const peers = await discoverNsdPeers(3500);
-      const peer = peers[0];
-      if (peer) {
-        setSelectedSyncPeerBase(peer.baseUrl);
-        return describe(peer.baseUrl, 'nsd');
-      }
-    } catch {
-      /* NSD is a convenience; the manual address field is the fallback. */
+  for (const rung of order) {
+    if (rung === 'existing') {
+      if (await probeHubBase(current)) return describe(current, 'existing');
+      continue;
     }
-  }
 
-  if (await probeHubBase(EMULATOR_HOST_BASE, 1200)) {
-    setSelectedSyncPeerBase(EMULATOR_HOST_BASE);
-    return describe(EMULATOR_HOST_BASE, 'emulator');
+    if (rung === 'nsd') {
+      try {
+        const peers = await discoverNsdPeers(3500);
+        const peer = peers[0];
+        if (peer) {
+          setSelectedSyncPeerBase(peer.baseUrl);
+          return describe(peer.baseUrl, 'nsd');
+        }
+      } catch {
+        /* NSD is a convenience; the manual address field is the fallback. */
+      }
+      continue;
+    }
+
+    if (rung === 'gateway') {
+      if (!gateway) continue;
+      if (!(await probeHubBase(gateway.base, GATEWAY_PROBE_TIMEOUT_MS))) continue;
+      setSelectedSyncPeerBase(gateway.base);
+      return guardGatewayIdentity(gateway, await describe(gateway.base, 'gateway'));
+    }
+
+    if (await probeHubBase(EMULATOR_HOST_BASE, 1200)) {
+      setSelectedSyncPeerBase(EMULATOR_HOST_BASE);
+      return describe(EMULATOR_HOST_BASE, 'emulator');
+    }
   }
 
   // A hub that was chosen once but did not answer is kept as the remembered
@@ -132,6 +230,109 @@ export function ensureSyncHub(options?: { force?: boolean }): Promise<SyncHubRes
   });
   inFlight = run;
   return run;
+}
+
+export type FarmGatewayResult = {
+  gateway: FarmGateway;
+  resolution: SyncHubResolution;
+  /** The pairing from the shed Wi‑Fi was reused, so no code is needed. */
+  adopted: boolean;
+  verdict: GatewayVerdict;
+};
+
+/**
+ * Operator entered the farm gateway address. One field, once.
+ *
+ * Order matters and each step is refusable:
+ *
+ * 1. **Classify.** An address that cannot carry the hub token safely is refused
+ *    here, before anything is saved or sent (`farmGateway.ts`).
+ * 2. **Probe.** So a typo is an immediate answer rather than a mystery the next
+ *    time the tablet leaves the shed.
+ * 3. **Handshake**, and reuse the existing pairing if this is the hub already
+ *    paired with. That is the step that makes the gateway feel like the same hub
+ *    instead of a second one.
+ * 4. **Save**, and use it now — the operator just typed it, so the next request
+ *    should go there. The ladder decides again on the next resolve, and will
+ *    prefer the shed Wi‑Fi when the tablet is on it.
+ */
+export async function useFarmGateway(input: string): Promise<FarmGatewayResult> {
+  const verdict = classifyGatewayAddress(input);
+  if (!verdict.ok) throw new Error(verdict.reason);
+
+  if (!(await probeHubBase(verdict.base, GATEWAY_PROBE_TIMEOUT_MS))) {
+    throw new Error(
+      `Nothing answered at ${verdict.base}. Check PUF-AM is running on that machine with ` +
+        'Tablet hub switched on, and that this tablet can reach it — if it is a VPN address, ' +
+        'the VPN has to be connected on both ends.',
+    );
+  }
+
+  const info = await fetchHubInfo(verdict.base);
+  const adopted = adoptHubCredentialByHubId(verdict.base, info?.hubId);
+
+  const gateway: FarmGateway = {
+    base: verdict.base,
+    kind: verdict.kind,
+    savedAt: new Date().toISOString(),
+    ...(info?.hubId ? { hubId: info.hubId } : {}),
+    ...(info?.name ? { hubName: info.name } : {}),
+  };
+  saveFarmGateway(gateway);
+  setSelectedSyncPeerBase(verdict.base);
+
+  return {
+    gateway,
+    adopted,
+    verdict,
+    resolution: {
+      baseUrl: verdict.base,
+      source: 'gateway',
+      info,
+      needsPairing: Boolean(info?.pairingRequired) && !getHubToken(verdict.base),
+    },
+  };
+}
+
+/**
+ * After a deliberate pairing at the gateway, the machine there **is** the hub this
+ * tablet knows.
+ *
+ * Without this the identity guard would be a trap rather than a guard: an operator
+ * who moved the farm to a new shed PC pairs with it, and the next resolve compares
+ * the new hub against the old saved identity, drops the pairing it just made and
+ * asks for the code again. Replaced wholesale rather than merged — a hub that
+ * publishes no identity leaves none behind, which is the same "unknown is not
+ * changed" rule the guard itself uses.
+ */
+export function rememberGatewayIdentity(info: HubInfo | null): void {
+  const gateway = readFarmGateway();
+  if (!gateway) return;
+  const { hubId: _previous, hubName: _previousName, ...rest } = gateway;
+  saveFarmGateway({
+    ...rest,
+    ...(info?.hubId ? { hubId: info.hubId } : {}),
+    ...(info?.name ? { hubName: info.name } : {}),
+  });
+}
+
+/**
+ * Forget the gateway: stop routing there, and stop restoring it at cold start.
+ *
+ * **The pairing is deliberately kept.** Credentials are per hub base and a tablet
+ * that visits two sheds keeps both, which is a rule this must not quietly bend:
+ * a gateway address can legitimately *be* a hub the tablet also uses on the Wi‑Fi
+ * (an operator may save the LAN address), and unpairing on removal would then cost
+ * them the shed pairing as a side effect of tidying up a field. Dropping a pairing
+ * has its own action (`unpairHub`), and re-adding a gateway is instant because the
+ * token is still there.
+ */
+export function clearFarmGateway(): void {
+  const gateway = readFarmGateway();
+  forgetFarmGateway();
+  if (gateway && sameHubBase(getApiBaseUrl(), gateway.base)) {
+    forgetRememberedSyncHub();
+  }
 }
 
 /** Operator typed an address. Probe before accepting so the error is immediate. */

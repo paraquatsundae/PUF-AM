@@ -146,6 +146,51 @@ export function newDeviceId(): string {
   return randomBytes(8).toString('hex');
 }
 
+/**
+ * This install's `hubId` (`shared/sync/hubInfo.ts`).
+ *
+ * Random rather than derived from the hostname or a MAC: it is published
+ * unauthenticated in `/api/hub/info`, so it must say *this is the same hub you
+ * paired with* and nothing else about the machine.
+ */
+export function mintHubId(): string {
+  return randomBytes(16).toString('hex');
+}
+
+export function isHubId(raw: unknown): raw is string {
+  return typeof raw === 'string' && /^[0-9a-f]{32}$/.test(raw);
+}
+
+/**
+ * May a device at this address exchange a pairing code for a token?
+ *
+ * Pairing is deliberately not reachable from the open internet: the code is 40
+ * bits, and an address that arbitrary hosts can reach turns a throttle into the
+ * only thing standing between a shed laptop and a farm. Everything below is a
+ * network the operator is already inside — the shed LAN, loopback, or the farm's
+ * own VPN.
+ *
+ * **`100.64.0.0/10` is included** because that is where a Tailscale/WireGuard
+ * peer appears, and reaching the hub over the farm's tailnet is the whole point
+ * of a remote gateway (`Plans/APK_FREENET_PLUGIN.md` §8d). It is carrier-grade
+ * NAT space, so in principle an ISP could place a stranger there — but only on an
+ * interface this listener is bound to, and pairing still needs the code off the
+ * laptop's screen and still counts failures per client.
+ */
+export function isPairableRemoteAddress(raw: string): boolean {
+  const addr = String(raw ?? '').replace(/^::ffff:/, '');
+  if (addr === '127.0.0.1' || addr === '::1' || addr === 'localhost') return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(addr)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(addr)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(addr)) return true;
+  if (/^169\.254\./.test(addr)) return true;
+  // 100.64.0.0/10 — CGNAT, where a Tailscale peer lives.
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}$/.test(addr)) return true;
+  // fe80::/10 link-local, fc00::/7 unique-local (Tailscale's fd7a:115c:a1e0::/48)
+  if (/^fe[89ab]/i.test(addr) || /^f[cd]/i.test(addr)) return true;
+  return false;
+}
+
 /** A tablet's own name is untrusted display text, so bound its length and strip control chars. */
 export function sanitizeDeviceName(raw: unknown): string {
   const name = String(raw ?? '')

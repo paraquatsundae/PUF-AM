@@ -110,9 +110,11 @@ export function LanSyncCard({ sync }: { sync: FarmSync }) {
       {/*
         A packaged PUF-AM desktop hub asks for a pairing code once. Shown only
         when the hub actually said so, so a workshop `npm run dev` hub — which
-        needs nothing — is unchanged.
+        needs nothing — is unchanged. When the unpaired hub is the *farm gateway*,
+        the Farm gateway card asks instead: one prompt, in the card whose address
+        it is about.
       */}
-      {needsHub && needsPairing && (
+      {needsHub && needsPairing && !sync.gatewayNeedsPairing && (
         <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-3 space-y-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-sky-900">
             <KeyRound className="w-4 h-4" />

@@ -67,6 +67,50 @@ describe('planFarmSync — the Wi‑Fi rung', () => {
   });
 });
 
+describe('planFarmSync — the farm gateway rung', () => {
+  it('uses the same shelf route as the Wi‑Fi rung, because it is the same hub', () => {
+    // The gateway is the shed laptop at a second address. Same routes, same
+    // last-writer-wins merge, so it is one rung with two labels rather than a
+    // second mechanism.
+    const plan = planFarmSync(conditions({ peer: 'reachable-remote' }));
+    expect(plan.route).toBe('lan-sealed');
+    expect(plan.auto).toBe(true);
+    expect(plan.via).toBe('gateway');
+    expect(plan.label).toMatch(/farm gateway/i);
+  });
+
+  it('does the same for a cloud farm', () => {
+    const plan = planFarmSync(
+      conditions({ pipe: 'cloud', cloudSignedIn: true, peer: 'reachable-remote' }),
+    );
+    expect(plan.route).toBe('lan-pufom');
+    expect(plan.via).toBe('gateway');
+  });
+
+  it('warns that it may cost mobile data, which Wi‑Fi never does', () => {
+    expect(planFarmSync(conditions({ peer: 'reachable-remote' })).detail).toMatch(/mobile data/i);
+    expect(planFarmSync(conditions({ peer: 'reachable' })).detail).toBeUndefined();
+  });
+
+  it('beats Freenet, for the same reasons Wi‑Fi does', () => {
+    const plan = planFarmSync(conditions({ peer: 'reachable-remote', freenet: 'read-only' }));
+    expect(plan.route).toBe('lan-sealed');
+  });
+
+  it('says where the hub is when the farm is locked here', () => {
+    const plan = planFarmSync(conditions({ peer: 'reachable-remote', farmUnlocked: false }));
+    expect(plan.route).toBe('blocked');
+    expect(plan.detail).toMatch(/farm gateway/i);
+  });
+
+  it('names the gateway in the status line', () => {
+    const at = new Date(Date.now() - 60_000).toISOString();
+    expect(describeLastSync({ at, via: 'gateway', ok: true, summary: '1 diary' })).toMatch(
+      /via the farm gateway/,
+    );
+  });
+});
+
 describe('planFarmSync — the Freenet rung', () => {
   it('falls to a Freenet publish when no peer answers', () => {
     const plan = planFarmSync(conditions({ freenet: 'publish' }));
@@ -102,6 +146,8 @@ describe('planFarmSync — nothing available', () => {
     expect(plan.route).toBe('blocked');
     expect(plan.via).toBe('none');
     expect(plan.label).toMatch(/waiting for a wi‑fi peer or a freenet node/i);
+    // And the third way out, which needs no laptop on this Wi‑Fi and no node app.
+    expect(plan.detail).toMatch(/gateway/i);
   });
 
   it('asks for a pairing code when that is the only thing in the way', () => {

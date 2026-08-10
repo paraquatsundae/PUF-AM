@@ -63,6 +63,28 @@ export function setSelectedSyncPeerBase(baseUrl: string | null): void {
   setRuntimeApiBaseUrl(base || null);
 }
 
+/**
+ * Forget the hub entirely — this session's and the one restored at cold start.
+ *
+ * `setSelectedSyncPeerBase(null)` deliberately leaves `pufom_last_sync_hub`
+ * alone, because a hub that did not answer is usually a laptop asleep rather than
+ * a wrong address. This is the other case: the operator has removed the machine,
+ * so the address must not come back on the next launch.
+ */
+export function forgetRememberedSyncHub(): void {
+  try {
+    sessionStorage?.removeItem(PEER_BASE_KEY);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage?.removeItem(LAST_HUB_KEY);
+  } catch {
+    /* ignore */
+  }
+  setRuntimeApiBaseUrl(null);
+}
+
 /** Build an absolute API URL against the selected sync peer (or default API base). */
 export function syncApiUrl(path: string): string {
   const base = getSelectedSyncPeerBase();

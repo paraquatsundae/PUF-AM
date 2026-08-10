@@ -21,6 +21,8 @@ import { encodeDesktopConfig, type DesktopConfig } from './desktopConfig.ts';
 import { LOOPBACK_TOKEN_HEADER, mintLoopbackToken } from './loopbackAuth.ts';
 import {
   LAN_HUB_DEFAULT_PORT,
+  isHubId,
+  mintHubId,
   mintPairingCode,
   normalizePairingCode,
   type LanHubDevice,
@@ -203,6 +205,19 @@ function activePairingCode(): string {
 }
 
 /**
+ * This install's `hubId`, minted once and kept.
+ *
+ * It is what lets a tablet paired on the shed Wi‑Fi recognise the same laptop at
+ * its VPN address without pairing again (`shared/sync/hubInfo.ts`). Minted beside
+ * the pairing code — on first enable rather than at install — because a hub that
+ * never served anything has no identity worth publishing.
+ */
+function ensureHubId(): string {
+  if (isHubId(desktopPrefs.lanHubId)) return desktopPrefs.lanHubId;
+  return persistPrefs({ lanHubId: mintHubId() }).lanHubId;
+}
+
+/**
  * Addresses a tablet could actually reach, best first.
  *
  * `listLanIpv4()` ranks by interface before address class, so a laptop with USB
@@ -222,12 +237,14 @@ async function startLanHub(): Promise<void> {
   lanApiError = null;
 
   const pairingCode = ensurePairingCode();
+  const hubId = ensureHubId();
   const { startLanApi } = await import('./lanApi.ts');
 
   try {
     lanApi = await startLanApi({
       port: lanHubPort(),
       pairingCode: () => activePairingCode() || pairingCode,
+      hubId: () => hubId,
       devices: () => desktopPrefs.lanHubDevices,
       onPaired: (device) => {
         persistPrefs({ lanHubDevices: [...desktopPrefs.lanHubDevices, device] });

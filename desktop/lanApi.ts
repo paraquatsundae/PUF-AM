@@ -37,6 +37,7 @@ import {
   LAN_SCOPE_PREFIXES,
   PairingThrottle,
   decideLanRequest,
+  isPairableRemoteAddress,
   mintDeviceToken,
   hashDeviceToken,
   newDeviceId,
@@ -75,19 +76,12 @@ export type LanApiOptions = {
   freenetReady(): boolean;
   /** `http://<lan-ip>:<port>` for the operator-facing name; resolved by main. */
   lanAddress?(): string | undefined;
+  /**
+   * This install's stable identity, so a tablet that paired on the shed Wi‑Fi
+   * recognises the same hub at its VPN address instead of pairing twice.
+   */
+  hubId?(): string;
 };
-
-function isPrivateRemote(raw: string): boolean {
-  const addr = raw.replace(/^::ffff:/, '');
-  if (addr === '127.0.0.1' || addr === '::1' || addr === 'localhost') return true;
-  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(addr)) return true;
-  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(addr)) return true;
-  if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(addr)) return true;
-  if (/^169\.254\./.test(addr)) return true;
-  // fe80::/10 link-local, fc00::/7 unique-local
-  if (/^fe[89ab]/i.test(addr) || /^f[cd]/i.test(addr)) return true;
-  return false;
-}
 
 function clientKey(req: express.Request): string {
   return String(req.ip || req.socket.remoteAddress || 'unknown');
@@ -147,6 +141,7 @@ export async function startLanApi(options: LanApiOptions): Promise<LanApiHandle>
     product: 'PUF-AM',
     kind: 'desktop-lan',
     name: hubName(),
+    ...(options.hubId?.() ? { hubId: options.hubId() } : {}),
     pairingRequired: true,
     paired: Boolean(findDeviceByToken(options.devices(), presentedHubToken(req.headers))),
     cloudOnlyPrefixes: [...HUB_CLOUD_ONLY_PREFIXES],
@@ -169,8 +164,12 @@ export async function startLanApi(options: LanApiOptions): Promise<LanApiHandle>
    */
   app.post(HUB_PAIR_PATH, (req, res) => {
     const key = clientKey(req);
-    if (!isPrivateRemote(key)) {
-      return res.status(403).json({ error: 'PUF-AM hubs only pair with devices on this network' });
+    if (!isPairableRemoteAddress(key)) {
+      return res.status(403).json({
+        error:
+          'PUF-AM hubs only pair with devices on this network or on the farm VPN. ' +
+          'Put the tablet on the shed Wi‑Fi, or on the same tailnet as this laptop, and pair once.',
+      });
     }
 
     const retryMs = throttle.retryAfterMs(key);

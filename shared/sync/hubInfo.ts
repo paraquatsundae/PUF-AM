@@ -35,6 +35,27 @@ export type HubInfo = {
   kind: HubKind;
   /** Operator-facing hub name, e.g. `PUF-AM (cdgeo)`. */
   name: string;
+  /**
+   * Stable per install, so the same hub is recognisable at a second address.
+   *
+   * A tablet pairs with `http://192.168.1.20:3000` in the shed and later reaches
+   * the same laptop at `http://100.101.102.103:3000` over the farm's VPN. Those
+   * are two hub bases, and credentials are stored per base, so without an
+   * identity the operator would have to pair twice with a laptop they have
+   * already paired with.
+   *
+   * **Not an authenticator.** It is served unauthenticated beside everything else
+   * in this handshake, so anything that can reach the port can read it and
+   * anything that can answer on a port can claim it. Its only job is to stop this
+   * device handing a token minted for *one* hub to a *different* PUF-AM by
+   * mistake; the trust decision is still the operator typing an address they own.
+   * See `src/lib/farmGateway.ts`.
+   *
+   * Optional: a `npm run dev` hub has none, and a desktop older than this field
+   * answers without it. Both still work — they simply cannot be recognised at a
+   * second address without pairing again.
+   */
+  hubId?: string;
   /** True when `/api/*` needs a device token from `POST /api/hub/pair`. */
   pairingRequired: boolean;
   /** True when the caller's token was recognised. `false` + `pairingRequired` = pair first. */

@@ -10,10 +10,10 @@
  */
 
 import React from 'react';
-import { CheckCircle2, Loader2, RefreshCw, Radio, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle2, Globe2, Loader2, RefreshCw, Radio, Wifi, WifiOff } from 'lucide-react';
 import { clsx } from 'clsx';
 
-import { describeLastSync } from '../../lib/autoSync';
+import { describeLastSync, type SyncPlan } from '../../lib/autoSync';
 import { useAutoSync } from './useAutoSync';
 
 const ROUTE_ACTION: Record<string, string> = {
@@ -23,6 +23,12 @@ const ROUTE_ACTION: Record<string, string> = {
   'freenet-pull': 'Fetch over Freenet',
 };
 
+/** The same two shelf routes, named for where they are actually going. */
+function actionLabel(plan: SyncPlan): string {
+  if (plan.via === 'gateway') return 'Sync via farm gateway';
+  return ROUTE_ACTION[plan.route] ?? 'Sync now';
+}
+
 export function AutoSyncCard() {
   const sync = useAutoSync();
   if (!sync.farmId) return null;
@@ -30,6 +36,7 @@ export function AutoSyncCard() {
   const { plan, last, busy, settling } = sync;
   const live = plan.route !== 'blocked';
   const wifi = plan.via === 'wifi';
+  const gateway = plan.via === 'gateway';
 
   return (
     <div
@@ -51,6 +58,8 @@ export function AutoSyncCard() {
             <WifiOff className="w-5 h-5" />
           ) : wifi ? (
             <Wifi className="w-5 h-5" />
+          ) : gateway ? (
+            <Globe2 className="w-5 h-5" />
           ) : (
             <Radio className="w-5 h-5" />
           )}
@@ -90,7 +99,7 @@ export function AutoSyncCard() {
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}
-          {ROUTE_ACTION[plan.route] ?? 'Sync now'}
+          {actionLabel(plan)}
         </button>
 
         <button
@@ -109,14 +118,16 @@ export function AutoSyncCard() {
             onChange={(e) => sync.setAuto(e.target.checked)}
             className="w-4 h-4 accent-emerald-700"
           />
-          Sync by itself over Wi‑Fi
+          Sync by itself when a hub answers
         </label>
       </div>
 
       <p className="text-[11px] text-slate-500">
-        Automatic sync only ever uses Wi‑Fi, where both devices merge what each has and nothing is
-        overwritten. Freenet moves a farm between devices that cannot see each other — it takes
-        minutes and changes the join ticket, so it waits for you to press it.
+        Automatic sync only ever uses the farm’s hub — on this Wi‑Fi, or at the farm gateway
+        address if one is set — where both devices merge what each has and nothing is overwritten.
+        Over the gateway that can use mobile data. Freenet moves a farm between devices that cannot
+        see each other at all; it takes minutes and changes the join ticket, so it waits for you to
+        press it.
       </p>
     </div>
   );

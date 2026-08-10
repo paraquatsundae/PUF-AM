@@ -41,8 +41,23 @@ describe('desktop preferences', () => {
       lanHubPort: LAN_HUB_DEFAULT_PORT,
       lanHubPairingCode: '',
       lanHubDevices: [],
+      // Minted by `main.ts` on first serve, not by a read — see `ensureHubId`.
+      lanHubId: '',
       appPort: APP_LOCAL_PORT_DEFAULT,
     });
+  });
+
+  it('keeps a hub identity across launches, and drops a junk one', () => {
+    // A tablet recognises the hub it paired with by this value, so an identity
+    // that changed every launch would ask for a pairing code every morning at the
+    // gateway address.
+    const file = desktopPrefsPath(dir);
+    const hubId = 'b'.repeat(32);
+    writeDesktopPrefs(file, prefs({ lanHubId: hubId }));
+    expect(readDesktopPrefs(file).lanHubId).toBe(hubId);
+
+    writeDesktopPrefs(file, prefs({ lanHubId: 'not-a-hub-id' }));
+    expect(readDesktopPrefs(file).lanHubId).toBe('');
   });
 
   it('honours an operator who turned the LAN hub off', () => {

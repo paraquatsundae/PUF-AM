@@ -17,6 +17,7 @@ import { activeFarmPipes, showFreenetFarmTools } from '../../lib/farmPipes';
 import { MistFarmSyncCard } from '../MistFarmSyncCard';
 import { AutoSyncCard } from './AutoSyncCard';
 import { CloudSyncCard } from './CloudSyncCard';
+import { FarmGatewayCard } from './FarmGatewayCard';
 import { FilesBackupCard } from './FilesBackupCard';
 import { LanSyncCard } from './LanSyncCard';
 import { useFarmSync } from './useFarmSync';
@@ -59,6 +60,12 @@ export function FarmSyncCards() {
       */}
       <AutoSyncCard />
       <LanSyncCard sync={sync} />
+      {/*
+        Only on a device that is a *client* of a hub. A desktop is the hub — its
+        remote reach is a VPN on that machine plus Settings → Tablet hub, not an
+        address it would type about itself.
+      */}
+      {sync.needsHub && <FarmGatewayCard sync={sync} />}
       {pipes.cloud && <CloudSyncCard sync={sync} />}
       {showFreenetFarmTools() && <MistFarmSyncCard />}
       {pipes.freenet && <FreenetCrewNote />}

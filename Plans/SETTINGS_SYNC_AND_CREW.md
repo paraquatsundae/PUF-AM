@@ -1,8 +1,9 @@
 # Settings → Sync, and the crew who join a farm
 
 **Status:** §1–§2 shipped (Settings XOR + card split), §3 slices 3a and 3b shipped,
-§9 auto-sync slice 1 shipped. §4–§5 planned. §6 deferred.
-**Date:** 2026-08-09
+§9 auto-sync slice 1 shipped, §10 farm gateway slice 1 shipped. §4–§5 planned.
+§6 deferred.
+**Date:** 2026-08-10
 **Goal:** A farm is created against exactly one off-device backend, so Settings shows
 Wi‑Fi, *that* backend, and files — never both backends — and "who else is on this
 farm" gets one honest answer per backend.
@@ -121,6 +122,7 @@ Sync, in the order the jobs happen:
 | 0′ | **Keeping devices in step** (auto-sync — §9) | `components/sync/AutoSyncCard.tsx` | Always |
 | 1 | **Tablet hub** | `components/TabletHubCard.tsx` | Desktop shell only (bridge exists) |
 | 2 | **Wi‑Fi (LAN)** | `components/sync/LanSyncCard.tsx` | Always |
+| 2′ | **Farm gateway** (§10) | `components/sync/FarmGatewayCard.tsx` | Devices that are a *client* of a hub — packaged APK |
 | 3 | **Cloud sync** | `components/sync/CloudSyncCard.tsx` | `pipes.cloud` |
 | 3′ | **Send or join a farm over Freenet** | `components/MistFarmSyncCard.tsx` | `showFreenetFarmTools()` |
 | 3″ | Crew note | `components/sync/FarmSyncCards.tsx` | `pipes.freenet` |
@@ -427,16 +429,31 @@ source; presence backends publish what it already produces.
 
 ## §6 Deferred — Firebase own-billing
 
+**Superseded by [`FIREBASE_BILLING.md`](FIREBASE_BILLING.md) (2026-08-09).** Read that
+first; this section is now the one-paragraph summary and the pointer back to §1.
+
 Letting an owner point PUF-AM at **their own** Firebase project (their keys, their
-bill) is **deferred, unchanged, and out of scope for this pass.** Left as-is: `.env` /
+bill) is **still deferred, and still out of scope for this pass.** Left as-is: `.env` /
 `firebase-applet-config.json`, one workshop project, `firestore.rules` deployed by
 hand.
 
 Deferred rather than dropped, because Freenet answers the same question for the farms
 that were asking it — "I don't want my farm in someone else's cloud" — without an
-owner administering a Firebase project. Revisit only if a cloud farm asks for data
-residency Freenet cannot satisfy. Interaction with §1: own-billing would still be *the
-cloud pipe*, not a third one, so the XOR holds.
+owner administering a Firebase project. Interaction with §1 is unchanged and is the
+reason the billing plan needs no new pipe: own-billing would still be *the cloud
+pipe*, not a third one, so the **XOR holds** and billing only ever concerns cloud
+farms. `activeFarmPipe()` returns `cloud` either way, and no component learns whose
+Firebase project a farm sits in.
+
+What the billing doc adds on top of this note:
+
+| | |
+|--|--|
+| **Why it is no longer just "revisit if asked"** | The requirement changed from *data residency* to *George must incur zero cost from other people's farms*. That is a billing question, and it has a deadline the moment a second farm signs up. |
+| **The posture until own-billing ships** | Cloud is **George's farms only** — enforced at `POST /api/auth/create-farm` (today unauthenticated, rate-limited only) and by a farm allowlist in `firestore.rules`. Everyone else gets Freenet or LAN. |
+| **What a cloud farm actually costs** | ~$1/month quiet, ~$35 working, ~$200 in a harvest month with five devices. Dominated by `PRESENCE_UPSERT_MS = 500` and by `photoData` previews riding inside issue documents that `fieldStore` re-polls every 30 s. |
+| **What blocks own-billing** | `src/firebase.ts` imports its config at *build* time, and invite PINs mint custom tokens, which needs Admin credentials in the **target** project — so §3's invite-PIN vocabulary is affected, not just the config path. |
+| **Rejected honestly** | Quotas + budget alerts + a kill switch on George's project. Google has **no hard spend cap**; a budget is an alarm, and detaching billing takes the app down for everyone. It does not meet the requirement. |
 
 ---
 
@@ -481,8 +498,8 @@ close it.
 Not in this line of work: §6 own-billing · renaming `mist` identifiers · federating
 manifest shelves between hubs · crew presence P3 mesh.
 
-Landed since, out of that order because it was in the way of everything else:
-**§9 auto-sync**.
+Landed since, out of that order because both were in the way of everything else:
+**§9 auto-sync** and **§10 the farm gateway**.
 
 ---
 
@@ -518,6 +535,7 @@ has a test in `tests/autoSyncLadder.test.ts`. Probing lives in
 | 0 | `!online` | `blocked` | — | Nothing. Work carries on locally. |
 | 1 | Peer reachable · Freenet farm · unlocked | **`lan-sealed`** | **yes** | Sealed `.pufom` bundle both ways |
 | 2 | Peer reachable · cloud farm · signed in | **`lan-pufom`** | **yes** | `.pufom` bundle both ways (unchanged) |
+| 2′ | Peer reachable **at the farm gateway** (`reachable-remote`) | same two routes, `via: 'gateway'` | **yes** | The same shelf on the same hub, from outside the shed (§10) |
 | 3 | No peer · Freenet farm · node can publish | `freenet-publish` | no | Hot + bones + a fresh join ticket |
 | 4 | No peer · Freenet farm · read-only node | `freenet-pull` | no | Hot + bones down, from saved addresses |
 | 5 | Anything else | `blocked` | — | Nothing, and it says which of the two would fix it |
@@ -525,6 +543,11 @@ has a test in `tests/autoSyncLadder.test.ts`. Probing lives in
 **A peer beats Freenet even when both are up.** Seconds against minutes, and the
 Wi‑Fi rung *merges* where the Freenet rung *replaces* (below). A node being
 available is never a reason to take the long way.
+
+**A gateway peer is the same rung, not a new one.** Rung 2′ runs the identical
+route against the identical hub; it is a separate `SyncPeerState` only because the
+operator is owed a different sentence and because the bytes may be leaving the
+farm on mobile data. LAN is still tried first — §10.
 
 **Rung 3/4 order is not a preference, it is a capability.** `fdev` is not on
 Android and could not be exec'd there if it were (`APK_FREENET_PLUGIN.md` §2), so
@@ -621,8 +644,10 @@ Not faked, not stubbed. The candidates, unranked and unscheduled:
 3. **Meshtastic / Reticulum** (below) — the honest long answer for devices with no
    shared Wi‑Fi at all.
 
-Until one lands, the copy must keep saying *a laptop on this Wi‑Fi*, not *another
-device*.
+Until one lands, the copy must keep saying *a laptop on this Wi‑Fi* — or, since
+§10, *a laptop on this Wi‑Fi or at the farm gateway* — and never *another device*.
+The gateway widens **which** hub a tablet can reach, not what a tablet can serve:
+two tablets and no farm machine still cannot sync, and that hole is unchanged.
 
 ### Meshtastic / Reticulum — the roadmap hook
 
@@ -671,3 +696,63 @@ the honest question — how old is what I am looking at — is always answered.
 - **The digest is content, not causality.** Two devices editing while apart both
   push; LWW picks per entity. There is no vector clock and this slice does not
   pretend otherwise.
+
+---
+
+## §10 Farm gateway — the hub, reachable from anywhere
+
+**Status:** slice 1 shipped 2026-08-10. Design, security posture and phasing live in
+[`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §8d; this section is the Settings
+half — what an operator sees and what the copy may claim.
+
+### Why it is a card and not a field
+
+The tablet's job needs a machine that speaks Freenet for it, because it cannot host
+a node (`APK_FREENET_PLUGIN.md` §2). The hub already did that job and could only be
+found on the shed Wi‑Fi, which is what pushed tablets towards a sideloaded node app.
+A gateway is **the same paired hub at a remembered second address** — no new
+service, no new credential, nothing on the wire.
+
+That is a different question from the one *Wi‑Fi (LAN)* answers, which is why it is
+a separate card. *Which laptop is on this network* changes every time the tablet
+moves; *where is the farm's hub* is set up once and never thought about again.
+Inside the LAN card it read as one more troubleshooting step.
+
+### The card
+
+| Element | Copy rule |
+|---|---|
+| Title | **Farm gateway.** Never "remote hub", "WAN" or "tunnel" |
+| Status chip | `Not set` · `In use now` · `Saved · VPN` / `Encrypted` / `Wi‑Fi only` |
+| One address field | Placeholder is a Tailscale address, because that is the recommended shape |
+| Refusal | Stated **before** it happens, and it names both ways out (a VPN address, or `https://`). An operator told only "no" will port-forward plain HTTP and think that is what we meant |
+| Pairing prompt | Appears here, not in the Wi‑Fi card, when the unpaired hub is the gateway — one prompt, in the card whose address it is about |
+| Data | Says the gateway may use mobile data. Wi‑Fi never does |
+
+**"Works from anywhere" may only be claimed for an address that does.** A saved
+RFC1918 address is accepted and the card says plainly that it answers on that
+network only. `gatewayReachesAnywhere()` is what the copy branches on, so the claim
+cannot drift from the rule.
+
+### What the operator does, once
+
+Read the VPN address and pairing code off the farm machine's *Settings → Tablet
+hub*; type the address into *Farm gateway* on the tablet; press **Save**. If that
+tablet has already paired with that machine on the shed Wi‑Fi, **it is finished** —
+the pairing is reused (`adoptHubCredentialByHubId`), because one laptop reachable
+two ways is one pairing. If it has never been on that Wi‑Fi, it asks for the code
+once.
+
+### Limits, so the copy stays honest
+
+- **The farm still needs one machine that is awake.** The gateway removes the
+  requirement that it be *on this Wi‑Fi*, not the requirement that it exist. Farms
+  with no always-on machine are `APK_FREENET_PLUGIN.md` §8d Phase 3, and the
+  sideloaded node (§3b) remains the only path needing no other machine at all.
+- **Plain HTTP is refused off a private network.** Not warned — refused. The rule
+  is re-applied when a saved gateway is *read*, so tightening it later reaches
+  tablets already in the field.
+- **`hubId` is not authentication.** It stops a token minted for one laptop reaching
+  a different PUF-AM by accident; it cannot stop an impostor. Do not write copy
+  implying the tablet has verified who answered.
+- **This does not make a tablet a peer.** §9's APK gap is untouched.

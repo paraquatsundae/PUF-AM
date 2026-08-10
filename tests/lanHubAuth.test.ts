@@ -7,7 +7,10 @@ import {
   decideLanRequest,
   findDeviceByToken,
   hashDeviceToken,
+  isHubId,
+  isPairableRemoteAddress,
   mintDeviceToken,
+  mintHubId,
   mintPairingCode,
   normalizePairingCode,
   pairingCodesMatch,
@@ -33,6 +36,47 @@ function request(path: string, token?: string, method = 'GET') {
     headers: token ? { [HUB_TOKEN_HEADER]: token } : {},
   };
 }
+
+describe('who may pair', () => {
+  it('lets the shed Wi‑Fi and loopback pair, as it always did', () => {
+    expect(isPairableRemoteAddress('192.168.1.44')).toBe(true);
+    expect(isPairableRemoteAddress('10.1.2.3')).toBe(true);
+    expect(isPairableRemoteAddress('172.16.0.9')).toBe(true);
+    expect(isPairableRemoteAddress('127.0.0.1')).toBe(true);
+    expect(isPairableRemoteAddress('::ffff:192.168.1.44')).toBe(true);
+  });
+
+  it('lets a device on the farm VPN pair', () => {
+    // A tablet reaching this laptop over the tailnet arrives from 100.64/10, and
+    // pairing it is the point of the farm gateway. Tailscale's IPv6 range sits
+    // inside fc00::/7 and is already covered.
+    expect(isPairableRemoteAddress('100.101.102.103')).toBe(true);
+    expect(isPairableRemoteAddress('fd7a:115c:a1e0::1')).toBe(true);
+  });
+
+  it('still refuses the open internet', () => {
+    // 40 bits of pairing code is plenty against a human reading it out and
+    // nothing against the internet, so the address class is the real gate.
+    expect(isPairableRemoteAddress('203.0.113.9')).toBe(false);
+    expect(isPairableRemoteAddress('100.63.255.255')).toBe(false);
+    expect(isPairableRemoteAddress('100.128.0.1')).toBe(false);
+    expect(isPairableRemoteAddress('')).toBe(false);
+  });
+});
+
+describe('hub identity', () => {
+  it('mints something a tablet can recognise and nothing more', () => {
+    const id = mintHubId();
+    expect(isHubId(id)).toBe(true);
+    expect(id).not.toBe(mintHubId());
+  });
+
+  it('rejects a junk value rather than publishing it', () => {
+    expect(isHubId('')).toBe(false);
+    expect(isHubId('nope')).toBe(false);
+    expect(isHubId('A'.repeat(32))).toBe(false);
+  });
+});
 
 describe('pairing codes', () => {
   it('mints a readable XXXX-XXXX code with no ambiguous letters', () => {

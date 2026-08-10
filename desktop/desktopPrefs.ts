@@ -20,6 +20,7 @@ import path from 'node:path';
 
 import {
   LAN_HUB_DEFAULT_PORT,
+  isHubId,
   normalizePairingCode,
   type LanHubDevice,
 } from './lanHubAuth.ts';
@@ -56,6 +57,15 @@ export type DesktopPrefs = {
   /** Paired tablets, by token hash. */
   lanHubDevices: LanHubDevice[];
   /**
+   * This install's `hubId`, published in `/api/hub/info`.
+   *
+   * Persisted for the same reason the pairing code is: a tablet recognises the
+   * hub it paired with by this value, so one that changed every launch would ask
+   * for a pairing code every morning at the gateway address. Not a secret — see
+   * the field's note in `shared/sync/hubInfo.ts`.
+   */
+  lanHubId: string;
+  /**
    * Loopback port the renderer is served from — **the origin's identity**.
    *
    * Chromium keys `localStorage` and IndexedDB by origin, and the renderer's
@@ -79,6 +89,7 @@ export const DESKTOP_PREFS_DEFAULT: DesktopPrefs = {
   lanHubPort: LAN_HUB_DEFAULT_PORT,
   lanHubPairingCode: '',
   lanHubDevices: [],
+  lanHubId: '',
   appPort: APP_LOCAL_PORT_DEFAULT,
 };
 
@@ -122,6 +133,9 @@ function normalize(parsed: Partial<DesktopPrefs> | null): DesktopPrefs {
     lanHubPort: coercePort(parsed?.lanHubPort),
     lanHubPairingCode: normalizePairingCode(parsed?.lanHubPairingCode),
     lanHubDevices: coerceDevices(parsed?.lanHubDevices),
+    // Minted by `main.ts` on first use rather than here, so a prefs read never
+    // has a side effect. A junk value is dropped instead of served.
+    lanHubId: isHubId(parsed?.lanHubId) ? parsed.lanHubId : '',
     // A prefs file written before the port was persisted has none, and gets the
     // default — which is the port that install will now keep for good.
     appPort: coerceAppPort(parsed?.appPort),
