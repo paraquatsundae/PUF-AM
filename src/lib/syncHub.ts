@@ -67,6 +67,63 @@ export type SyncHubResolution = {
 /** A gateway is across a VPN or the internet, so give it longer than a LAN hop. */
 export const GATEWAY_PROBE_TIMEOUT_MS = 6000;
 
+/**
+ * How many *consecutive* failed resolutions a remembered hub survives.
+ *
+ * One miss is a laptop asleep, and clearing the address for that would make the
+ * operator retype it for a fault that fixes itself. But a tablet that moved to a
+ * different network kept hammering the old Wi‑Fi's DHCP address on every request,
+ * forever — mixed-content noise in the log and a bare "Failed to fetch" in every
+ * card. Three misses in a row means the address is dead where this tablet now is,
+ * and the honest state is "no hub — scan or type an address", not blind retries.
+ */
+export const HUB_STRIKE_LIMIT = 3;
+
+const HUB_STRIKES_KEY = 'pufom_hub_probe_strikes';
+
+type HubStrikes = { base: string; count: number };
+
+/**
+ * Pure so the drop rule has a test: one more failure against `base`, given what
+ * was recorded before. Strikes belong to one address — a *different* remembered
+ * hub starts back at one rather than inheriting the old address's misses.
+ */
+export function nextHubStrikes(prev: HubStrikes | null, base: string): HubStrikes {
+  if (prev && prev.base === base) return { base, count: prev.count + 1 };
+  return { base, count: 1 };
+}
+
+function readHubStrikes(): HubStrikes | null {
+  try {
+    const raw = localStorage.getItem(HUB_STRIKES_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<HubStrikes>;
+    if (typeof parsed.base !== 'string' || typeof parsed.count !== 'number') return null;
+    return { base: parsed.base, count: parsed.count };
+  } catch {
+    return null;
+  }
+}
+
+function clearHubStrikes(): void {
+  try {
+    localStorage.removeItem(HUB_STRIKES_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** @returns true when the strike limit is reached and the hub should be dropped. */
+function recordHubStrike(base: string): boolean {
+  const strikes = nextHubStrikes(readHubStrikes(), base);
+  try {
+    localStorage.setItem(HUB_STRIKES_KEY, JSON.stringify(strikes));
+  } catch {
+    /* ignore */
+  }
+  return strikes.count >= HUB_STRIKE_LIMIT;
+}
+
 /** Liveness check against a candidate hub. Never throws. */
 export async function probeHubBase(baseUrl: string, timeoutMs = 2500): Promise<boolean> {
   const base = normalizeHubBase(baseUrl);
@@ -180,9 +237,15 @@ async function resolve(force: boolean): Promise<SyncHubResolution> {
     force,
   });
 
+  let existingProbeFailed = false;
+
   for (const rung of order) {
     if (rung === 'existing') {
-      if (await probeHubBase(current)) return describe(current, 'existing');
+      if (await probeHubBase(current)) {
+        clearHubStrikes();
+        return describe(current, 'existing');
+      }
+      existingProbeFailed = true;
       continue;
     }
 
@@ -191,6 +254,7 @@ async function resolve(force: boolean): Promise<SyncHubResolution> {
         const peers = await discoverNsdPeers(3500);
         const peer = peers[0];
         if (peer) {
+          clearHubStrikes();
           setSelectedSyncPeerBase(peer.baseUrl);
           return describe(peer.baseUrl, 'nsd');
         }
@@ -203,11 +267,13 @@ async function resolve(force: boolean): Promise<SyncHubResolution> {
     if (rung === 'gateway') {
       if (!gateway) continue;
       if (!(await probeHubBase(gateway.base, GATEWAY_PROBE_TIMEOUT_MS))) continue;
+      clearHubStrikes();
       setSelectedSyncPeerBase(gateway.base);
       return guardGatewayIdentity(gateway, await describe(gateway.base, 'gateway'));
     }
 
     if (await probeHubBase(EMULATOR_HOST_BASE, 1200)) {
+      clearHubStrikes();
       setSelectedSyncPeerBase(EMULATOR_HOST_BASE);
       return describe(EMULATOR_HOST_BASE, 'emulator');
     }
@@ -215,7 +281,15 @@ async function resolve(force: boolean): Promise<SyncHubResolution> {
 
   // A hub that was chosen once but did not answer is kept as the remembered
   // value — the laptop is probably just asleep, and clearing it would make the
-  // operator type the address again for a fault that fixes itself.
+  // operator type the address again for a fault that fixes itself. But not
+  // forever: each failed resolution is a strike, and at the limit the address is
+  // dropped so the operator is *asked* rather than every request fetching into
+  // the void at an address from some other network (HUB_STRIKE_LIMIT above).
+  if (current && existingProbeFailed && recordHubStrike(current)) {
+    clearHubStrikes();
+    forgetRememberedSyncHub();
+    return { baseUrl: '', source: 'none' };
+  }
   return { baseUrl: current, source: current ? 'existing' : 'none' };
 }
 
@@ -268,6 +342,7 @@ export async function useFarmGateway(input: string): Promise<FarmGatewayResult> 
     );
   }
 
+  clearHubStrikes();
   const info = await fetchHubInfo(verdict.base);
   const adopted = adoptHubCredentialByHubId(verdict.base, info?.hubId);
 
@@ -346,6 +421,7 @@ export async function useManualHub(input: string): Promise<SyncHubResolution> {
       `Nothing answered at ${base}. Check the laptop is on this Wi‑Fi and PUF-AM is running there.`,
     );
   }
+  clearHubStrikes();
   setSelectedSyncPeerBase(base);
   return describe(base, 'existing');
 }
