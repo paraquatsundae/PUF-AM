@@ -100,12 +100,32 @@ service cloud.firestore {
       return isAuthenticated() && isNotBlacklisted() && (isPinAuthenticated() || isWhitelisted());
     }
 
+    // ===============================================================
+    // Cloud farm allowlist (Plans/FIREBASE_BILLING.md §5 item 2)
+    // ===============================================================
+    // Only these farmIds may be read or written by clients on George's
+    // Firebase project. Literal list — no exists()/get() — so evaluation
+    // costs zero document reads. Admin SDK (create-farm) bypasses rules;
+    // after minting a new farm, add its id here and deploy rules.
+    // `npm run deploy:rules` refuses an empty list.
+    function allowedFarmIds() {
+      return [
+        // 'farm_xxxxxxxx',
+      ];
+    }
+
+    function isAllowedFarm(farmId) {
+      return farmId in allowedFarmIds();
+    }
+
     function isFarmMember(farmId) {
-      return isAdmin() || isFarmOwner(farmId) || (
-        isAuthorized() && (
-          (isPinAuthenticated() && request.auth.token.farmId == farmId) ||
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.farmId == farmId)
+      return isAllowedFarm(farmId) && (
+        isAdmin() || isFarmOwner(farmId) || (
+          isAuthorized() && (
+            (isPinAuthenticated() && request.auth.token.farmId == farmId) ||
+            (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.farmId == farmId)
+          )
         )
       );
     }
@@ -810,9 +830,10 @@ service cloud.firestore {
     match /farms/{farmId} {
       allow read: if isFarmMember(farmId);
       // Prefer server create-farm (Admin SDK). Client create kept for legacy Google owners.
-      allow create: if isAuthorized() && isValidFarm(request.resource.data) && request.resource.data.ownerUid == request.auth.uid;
+      // Client create still needs the farmId already on the allowlist (redeploy to add one).
+      allow create: if isAuthorized() && isAllowedFarm(farmId) && isValidFarm(request.resource.data) && request.resource.data.ownerUid == request.auth.uid;
       allow update: if canMutateFarm(farmId) && (isAdmin() || resource.data.ownerUid == request.auth.uid);
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() && isAllowedFarm(farmId);
 
       match /blocks/{blockId} {
         allow read: if isFarmMember(farmId);

@@ -450,7 +450,7 @@ What the billing doc adds on top of this note:
 | | |
 |--|--|
 | **Why it is no longer just "revisit if asked"** | The requirement changed from *data residency* to *George must incur zero cost from other people's farms*. That is a billing question, and it has a deadline the moment a second farm signs up. |
-| **The posture until own-billing ships** | Cloud is **George's farms only** — enforced at `POST /api/auth/create-farm` (today unauthenticated, rate-limited only) and by a farm allowlist in `firestore.rules`. Everyone else gets Freenet or LAN. |
+| **The posture until own-billing ships** | Cloud is **George's farms only** — enforced at `POST /api/auth/create-farm` (enrolment codes, 2026-08-10) and by `allowedFarmIds()` in `firestore.rules` (2026-08-11). Everyone else gets Freenet or LAN. |
 | **What a cloud farm actually costs** | ~$1/month quiet, ~$35 working, ~$200 in a harvest month with five devices. Dominated by `PRESENCE_UPSERT_MS = 500` and by `photoData` previews riding inside issue documents that `fieldStore` re-polls every 30 s. |
 | **What blocks own-billing** | `src/firebase.ts` imports its config at *build* time, and invite PINs mint custom tokens, which needs Admin credentials in the **target** project — so §3's invite-PIN vocabulary is affected, not just the config path. |
 | **Rejected honestly** | Quotas + budget alerts + a kill switch on George's project. Google has **no hard spend cap**; a budget is an alarm, and detaching billing takes the app down for everyone. It does not meet the requirement. |
