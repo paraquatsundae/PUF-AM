@@ -13,6 +13,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { createRequire } from 'module';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { assertAllowedFarmIdsReady } from './firestoreAllowedFarms.mjs';
 
 const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,6 +39,13 @@ function findKeyFile() {
 async function main() {
   const keyFile = findKeyFile();
   const rules = readFileSync(join(root, 'firestore.rules'), 'utf8');
+  const allowEmpty = process.env.PUF_ALLOW_EMPTY_FARM_ALLOWLIST === '1';
+  const allowedFarms = assertAllowedFarmIdsReady(rules, { allowEmpty });
+  console.log(
+    allowEmpty
+      ? `Farm allowlist: EMPTY (PUF_ALLOW_EMPTY_FARM_ALLOWLIST=1) — clients cannot use any farm`
+      : `Farm allowlist: ${allowedFarms.length} farmId(s) — ${allowedFarms.join(', ')}`
+  );
   const auth = new GoogleAuth({
     keyFile,
     scopes: [
