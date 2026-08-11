@@ -60,9 +60,10 @@ function AssumptionsAndLimitsBox() {
                 <div className="space-y-2">
                   <h3 className="font-bold text-slate-900">Admin settings</h3>
                   <p>
-                    <strong>Settings → Advanced</strong> (admin): change blight calibration. Farm dryers / water
-                    allocation live under <strong>Farm setup</strong>. Changing model knobs changes curves for
-                    everyone on the farm — treat as experiment, not science publication.
+                    <strong>Blight risk</strong> (admin): set orchard inoculum (Ji k). Sandbox research knobs
+                    still under <strong>Settings → Advanced</strong> for now. Farm dryers / water allocation live
+                    under <strong>Farm setup</strong>. Changing production inoculum changes curves for everyone
+                    on the farm.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -316,7 +317,7 @@ export function About() {
               </li>
               <li>
                 <strong>Primary inoculum:</strong> <em>k</em>(1 − 0.916<sup>ΣR</sup>) from budbreak; <em>k</em> is the
-                only farm-tunable term. Set it in <strong>Settings → Advanced → Orchard inoculum</strong> as
+                only farm-tunable term. Set it on <strong>Blight risk → Orchard inoculum</strong> as
                 Low / Medium / High (0.5× / 1.0× / 2.0×) from prior-season blight or bud CFU — Medium is the baseline.
                 These multipliers are workshop defaults until bud-CFU calibration. Incubation (15–21 day symptom lag)
                 is shown as a scouting overlay; Ji's secondary-inoculum stage is not modelled yet.
@@ -413,9 +414,10 @@ export function About() {
         </h2>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
           <p className="text-sm text-slate-800 leading-relaxed">
-            Admin users can change blight calibration knobs under <strong>Settings → Advanced</strong> (CDF
-            weighting, splash, experimental latency multipliers, efficacy defaults, tree geometry for TRV, etc.).
-            Those knobs exist so we can experiment on-farm.
+            Admin users set production orchard inoculum on <strong>Blight risk</strong>. Sandbox / research
+            knobs (CDF weighting, splash, experimental latency multipliers, efficacy defaults, tree geometry for
+            TRV, etc.) still live under <strong>Settings → Advanced</strong> for now — they only change Sandbox
+            what-ifs.
           </p>
           <p className="text-sm text-slate-600 leading-relaxed">
             There is no separate research team, no continuous academic collaboration loop, and no automated

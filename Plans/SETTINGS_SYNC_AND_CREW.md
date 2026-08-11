@@ -112,7 +112,7 @@ Three tabs. The old General tab carried seven cards, five of which were sync.
 |-----|----------|
 | **General** | Farm profile · Invite PINs (*admin **and** cloud farm*) **or** the Crew pointer (*Freenet farm*) · Personal unlock PIN · Privacy · Legal |
 | **Sync** | The cards below |
-| **Advanced** | Model modifier engine — unchanged |
+| **Advanced** | Research / sandbox modifiers (temporary) + Market & Economics. Production orchard inoculum is on **Blight risk** ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) BE-02) |
 
 Sync, in the order the jobs happen:
 
