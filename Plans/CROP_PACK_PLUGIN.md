@@ -7,11 +7,11 @@
 
 ---
 
-## Problem
+## Goals
 
-Walnut blight is the first **crop pack**: gate (`farmHasWalnutPack`), module id (`blight`), route, settings surface, science copy, and a typed settings doc slice. The next packs (almond phenology, vineyard spray calendar, marron water quality, broadacre season packs, …) must not each invent a one-off gate + Settings dump + About park note.
-
-Developers (in-house or later external) need a **repeatable seam**: what a pack owns, how it mounts UI, where knobs live, how modules turn on, and what they must never touch.
+1. **Developer contract** — a pack author knows exactly what to ship so the pack works with nav, auth, storage, invites, and Farm Setup.
+2. **Farm-admin lifecycle** — install, activate, deactivate, and delete a pack from one clear UI (admin only), without editing code or Firestore by hand.
+3. **Walnut blight as reference** — migrate today’s auto walnut↔blight sync onto this lifecycle without surprising existing farms.
 
 ---
 
@@ -22,98 +22,204 @@ Developers (in-house or later external) need a **repeatable seam**: what a pack 
 | **Crop pack** / **pack plugin** | Optional enterprise capability: modules, routes, pack settings UI, optional engine | Freenet / Capacitor / npm “plugin” |
 | **Freenet host plugin** | In-app Freenet lifecycle unit (`puf-freenet-host`) | Crop packs |
 
-UI copy should say the pack name (“Walnut blight”, “Season pack”). Docs may say “crop-pack plugin” for the seam. Do not invent a second product mark.
+UI copy: pack product name (“Walnut blight”). Docs: “crop-pack plugin” for the seam.
 
 ---
 
-## What a crop pack is
+## Mental model
 
-A pack is a **declared capability** bound to farm profile / paddock identity, not a remote code load.
+```
+App catalog (code shipped in PUF-AM)
+        │
+        ▼  Install          (admin adds pack to this farm)
+Farm: installed
+        │
+        ▼  Activate         (pack on — modules/nav/settings live)
+Farm: active
+        │
+        ▼  Deactivate       (pack off — data kept, UI/modules hidden)
+Farm: installed + inactive
+        │
+        ▼  Delete           (remove from farm — settings wiped, modules gone)
+Back to catalog-only (not on this farm)
+```
 
-| Piece | Contract |
-|-------|----------|
-| **Pack id** | Stable string, e.g. `walnut_blight`, `season_rotation` (catalog below) |
-| **Gate** | Pure function of `FarmProfile` + blocks (pattern: `farmHasWalnutPack`) |
-| **Modules** | Zero or more `FarmModuleId`s auto-offered when the gate is true (`WALNUT_PACK_MODULES` today) |
-| **Routes / nav** | Module-gated pages only; no pack UI when module off |
-| **Settings surface** | Pack-owned panel(s) next to the pack’s primary page — **not** Settings → Advanced |
-| **Storage** | Prefer `farms/{id}/settings/<packDoc>` or a typed slice of a shared doc; document field ownership |
-| **Science / honesty** | Pack-owned copy on the pack surface; About keeps app-level pointer only |
-| **Engine** | Optional shared math module under `shared/` + CF mirror when Dashboard aggregates |
+| State | On farm? | Modules offered | Pack UI / knobs | Pack settings doc |
+|-------|----------|-----------------|-----------------|-------------------|
+| Not installed | No | No | No | Absent / ignored |
+| Installed + **active** | Yes | Yes (admin may still toggle individual modules) | Yes | Read/write |
+| Installed + **inactive** | Yes | No | No (or “pack off” stub) | Kept |
+| Deleted | No | No | No | Removed (or tombstoned then deleted) |
 
-**Not in scope for v1 of this seam:** dynamic `import()` of third-party bundles, marketplace install, Freenet-distributed pack code, or Capacitor native modules.
-
----
-
-## Reference shape (walnut blight)
-
-| Concern | Walnut blight today |
-|---------|---------------------|
-| Pack id | Implicit `walnut` → modules `['blight']` |
-| Gate | `farmHasWalnutPack` in `shared/farm/farmTypes.ts` |
-| Module sync | Farm setup → `withWalnutPackModules` / `withoutWalnutPackModules` |
-| Surface | `/blight` — inoculum, science, Sandbox research |
-| Settings left behind | Economics only under Settings |
-| Params | `src/lib/modelParameters.ts` slices; doc `settings/model_params` |
-| Engine | Ji in `shared/weather/jiBlightModel.ts`; Sandbox in `src/lib/blightModel.ts` |
-
-New packs should copy this **layout**, not the blight field names.
+**Eligibility** (e.g. “farm has walnuts”) is a **hint / soft gate for Install**, not a silent auto-on. Admin can still deactivate a pack while walnuts remain on the map.
 
 ---
 
-## Proposed catalog API
+## Farm-admin UX
 
-Centralize what is today scattered across `farmModules.ts` + `farmTypes.ts` + Farm Setup.
+**Home:** Farm Setup → **Crop packs** (new card; Farm Modules stays for fine-grained module toggles).
+
+Admin-only. One row per catalog pack:
+
+| Control | Action |
+|---------|--------|
+| **Install** | Add pack to `farms/{id}.cropPacks[packId]`; leave **inactive** until Activate (or Install+Activate in one step — product default: **Install activates**) |
+| **Activate** | `status: active`; merge pack modules into farm `enabledModules`; show nav/routes |
+| **Deactivate** | `status: inactive`; strip pack modules from catalog; hide pack UI; **keep** settings + any pack-owned data |
+| **Delete** | Confirm dialog (“Removes pack settings for this farm. Cannot undo.”); strip modules; delete `settings/<packDoc>`; remove pack entry from farm |
+
+Copy rules:
+
+- Show eligibility hint when Install is discouraged (“No walnut areas yet — pack won’t have orchard data”) but do not hard-block unless `requiresEligibility: true` on the def.
+- Never imply Delete removes diary/map history that isn’t pack-owned.
+- Invite PIN presets still limit who *sees* modules after Activate; packs do not bypass grants.
+
+**Default for v1 Install:** Install = active immediately (one button). Deactivate / Delete remain separate. Two-step Install→Activate is optional later if we need staged setup wizards.
+
+---
+
+## Persistence
 
 ```ts
-// shared/farm/cropPacks.ts (proposed)
+// on farms/{farmId} (proposed)
+cropPacks?: {
+  [packId: string]: {
+    status: 'active' | 'inactive';
+    installedAt: string; // ISO
+    activatedAt?: string;
+  };
+};
+```
 
-export type CropPackId = 'walnut_blight' /* | 'almond_…' | … */;
+- Pack settings: `farms/{id}/settings/<settingsDocId>` (per pack def).
+- Module catalog: still `farms/{id}.enabledModules` — lifecycle helpers add/remove the pack’s module list; they do not invent a second nav system.
+- Legacy walnut: if `cropPacks.walnut_blight` missing, derive initial state once from `farmHasWalnutPack` + whether `blight` is in `enabledModules` (migration in CP-01).
+
+---
+
+## Developer contract — requirements for a pack to work
+
+A pack is **not loaded** until it is registered in the app catalog. For v1, registration = in-repo entry in `shared/farm/cropPacks.ts` + UI/engine code shipped with PUF-AM. No hot-load of untrusted bundles.
+
+### Must ship (hard requirements)
+
+| # | Requirement | Why the system needs it |
+|---|-------------|-------------------------|
+| D1 | Stable **`CropPackId`** + human **label** / **blurb** | Catalog row + admin UI |
+| D2 | **`modules: FarmModuleId[]`** owned by this pack | Activate/Deactivate can sync nav |
+| D3 | **`settingsDocId`** (`string \| null`) | Delete knows what to wipe; Deploy knows where to write |
+| D4 | **Primary route(s)** registered in the pack route table, wrapped in `ModuleRoute` | Nav only appears when module + pack active |
+| D5 | **Pack surface** for production knobs (not Settings → Advanced) | Admin finds controls next to the tool |
+| D6 | **Lifecycle hooks** (may be no-ops): `onInstall`, `onActivate`, `onDeactivate`, `onDelete` | System calls these so packs can seed defaults / clean up |
+| D7 | **Firestore rules** for any pack settings fields (`isValid…`) | Client writes stay legal |
+| D8 | **Tests**: catalog entry, activate adds modules, deactivate strips them, delete removes settings doc | Regressions break every pack |
+
+### Should ship (strongly expected)
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| D9 | Honesty / science panel on the pack page | About = one app-level pointer only |
+| D10 | Merge-save helpers if sharing a doc (legacy) | Prefer dedicated settings doc for new packs |
+| D11 | `canInstall(ctx)` eligibility | Soft hint in admin UI; optional hard block |
+| D12 | Plan file under `Plans/` with slices | Same discipline as blight BE-* |
+
+### May ship (optional)
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| D13 | Engine under `shared/` + CF mirror + parity test | Only if Dashboard aggregates |
+| D14 | Research / sandbox subsection | Must not affect production path without an explicit label |
+| D15 | Seed defaults in `onInstall` / `onActivate` | e.g. write default settings doc |
+
+### Must not
+
+- Write farm-wide Settings dump for pack knobs  
+- Auto-enable always-on modules (`dashboard`, `farm_setup`, …)  
+- Bypass invite / role checks  
+- Delete non-pack diary or map data in `onDelete`  
+- Call itself a Freenet plugin in UI copy  
+
+### Acceptance — “works with the rest of the system”
+
+A pack passes when, on a farm with an admin:
+
+1. **Install (+ activate)** → pack modules appear in Farm Modules; primary route reachable for members who have the module grant.  
+2. **Deactivate** → routes/nav gone; settings doc still present; reactivation restores without re-entering knobs.  
+3. **Delete** → settings doc gone; modules gone; reinstall starts clean (defaults).  
+4. Invited viewer/farmer still constrained by PIN modules ∩ farm catalog.  
+5. Farm without the pack installed never sees pack UI (even if eligibility would be true).
+
+---
+
+## Catalog API (proposed)
+
+```ts
+// shared/farm/cropPacks.ts
+
+export type CropPackId = 'walnut_blight' /* | next… */;
+
+export type CropPackLifecycleCtx = {
+  farmId: string;
+  profile: FarmProfile;
+  blocks: BlockLike[];
+};
 
 export type CropPackDef = {
   id: CropPackId;
   label: string;
   blurb: string;
-  /** Modules offered when the pack gate is true. */
   modules: FarmModuleId[];
-  /** Pure gate — no I/O. */
-  isActive: (ctx: { profile: FarmProfile; blocks: BlockLike[] }) => boolean;
-  /**
-   * Firestore settings doc id under farms/{id}/settings/, or null if the pack
-   * only uses existing farm/block fields.
-   */
   settingsDocId: string | null;
+  /** Soft/hard eligibility for Install button. */
+  canInstall?: (ctx: CropPackLifecycleCtx) => { ok: boolean; hint?: string; hard?: boolean };
+  onInstall?: (ctx: CropPackLifecycleCtx) => Promise<void>;
+  onActivate?: (ctx: CropPackLifecycleCtx) => Promise<void>;
+  onDeactivate?: (ctx: CropPackLifecycleCtx) => Promise<void>;
+  onDelete?: (ctx: CropPackLifecycleCtx) => Promise<void>;
 };
+
+/** System helpers used by Farm Setup UI */
+export function installPack(farmId, packId): Promise<void>;
+export function activatePack(farmId, packId): Promise<void>;
+export function deactivatePack(farmId, packId): Promise<void>;
+export function deletePack(farmId, packId): Promise<void>;
+export function isPackActive(farm, packId): boolean;
 ```
 
-**Migration path**
-
-1. **CP-00** — This plan.  
-2. **CP-01** — Add `cropPacks.ts` with `walnut_blight` wrapping existing `farmHasWalnutPack` + `WALNUT_PACK_MODULES`; Farm Setup calls `syncPackModules(profile, blocks, modules)` instead of walnut-only helpers. Behaviour-identical.  
-3. **CP-02** — Pack registry consumed by Farm Modules card (show “from walnut pack” vs optional ops modules).  
-4. **CP-03** — Soft convention: each pack ships `src/packs/<id>/` (or `src/components/<pack>/`) with `SettingsPanel`, `SciencePanel`, routes registered in one table. Walnut moves under that folder only when cheap.  
-5. **CP-04** — Document external contributor checklist (below); still in-repo PRs only.
-
-No BE-06-style doc split required before CP-01.
+Route/panel registry (CP-03): each pack exports `{ path, element, moduleId }` so Layout/BottomNav stay dumb.
 
 ---
 
-## UI / settings rules (mandatory)
+## Reference: walnut blight today → target
 
-1. **One job per pack surface** — primary page owns production knobs; research/sandbox collapsed or tabbed; honesty copy on the same page.  
-2. **Settings shell stays farm-wide** — account, crew, economics, Freenet, discovery. Crop engines do not grow Advanced again.  
-3. **Merge-save by slice** — if multiple packs share a doc (legacy `model_params`), each Deploy writes only its keys (see `pickResearchModelParams` / economics picks). Prefer a dedicated `settings/<pack>` doc for new packs.  
-4. **Admin write ceiling unchanged** — pack panels use existing role checks.  
-5. **No hero clutter** — pack pages follow existing app chrome; do not invent a second design language.
+| Concern | Today | Target |
+|---------|--------|--------|
+| Install | Implicit via walnut species / profile | Admin Install (migrate: auto-install+activate once if `farmHasWalnutPack`) |
+| Activate / Deactivate | Tied to Farm Setup walnut sync | Explicit Activate / Deactivate; eligibility is hint only |
+| Delete | None | Delete clears `settings/model_params` blight slices or dedicated blight doc (after BE-06 prefer dedicated doc) |
+| Modules | `withWalnutPackModules` on Farm Setup save | Lifecycle helpers only |
+| Surface | `/blight` | Unchanged ownership |
+
+Until CP-01 ships, keep current walnut auto-sync so production farms do not regress.
 
 ---
 
 ## Module & invite interaction
 
-- Packs **offer** modules; they do not bypass invite PIN presets.  
-- Turning a pack off (gate false) removes pack modules from the farm catalog (`without*PackModules` pattern).  
-- Member grants still intersect `farmEnabledModules` — a pack module missing from the farm catalog stays hidden even if the grant lists it.  
-- Always-on modules (`dashboard`, `farm_setup`, …) are never pack-owned.
+- Packs **offer** modules on Activate; they do not grant users those modules.  
+- Deactivate / Delete remove pack modules from `enabledModules`.  
+- Member access = grant ∩ farm catalog (unchanged).  
+- Always-on modules are never pack-owned.
+
+---
+
+## UI / settings rules (mandatory)
+
+1. Production knobs live on the pack surface, not Settings → Advanced.  
+2. Settings shell stays farm-wide (account, crew, economics, Freenet).  
+3. Merge-save by slice if sharing a doc; new packs get their own settings doc.  
+4. Admin write ceiling unchanged.  
+5. Crop Packs card is the lifecycle UI; Farm Modules remains the fine-grained module list.
 
 ---
 
@@ -121,51 +227,51 @@ No BE-06-style doc split required before CP-01.
 
 | Pattern | When |
 |---------|------|
+| `farms/{id}.cropPacks` | Install / active / inactive state |
 | `settings/<packId>` | New packs with farm-level knobs |
-| Typed slice of shared doc + pick helpers | Legacy / economics coexistence (blight today) |
-| Block / diary fields only | Packs that need no farm-wide knobs |
-| CF mirror of shared math | Any pack that Dashboard aggregates |
+| Typed slice + pick helpers | Legacy blight `model_params` until BE-06 |
+| Block / diary only | Packs with no farm-wide knobs |
 
-Rules: each pack documents `isValid…` fields in `firestore.rules`. Empty allowlists / secrets stay out of pack code.
-
----
-
-## Contributor checklist (other developers)
-
-To add a pack in-repo:
-
-1. Add `CropPackDef` (gate + modules + settings doc id).  
-2. Add or reuse `FarmModuleId`s + labels/blurbs.  
-3. Route + `ModuleRoute` + nav entry.  
-4. Pack surface component(s); production knobs on that surface.  
-5. Optional `shared/` engine + CF parity test if aggregates exist.  
-6. Honesty / science panel on the pack page; About = one pointer.  
-7. Plan file under `Plans/` with slices (`XX-00` …).  
-8. Farm Setup sync via shared `syncPackModules` (after CP-01).  
-9. Tests: gate true/false, module sync, pick/merge writes, engine golden if any.
-
-**Out of band until explicitly opened:** shipping a pack as a separate npm package or Freenet-published bundle.
+`onDelete` must only remove pack-owned settings (and pack-declared subcollections if any). Document the wipe list on the pack def.
 
 ---
 
-## Build slices (system)
+## Contributor checklist (copy into PR template later)
+
+- [ ] `CropPackDef` registered (D1–D3, D6)  
+- [ ] Modules + labels/blurbs  
+- [ ] Routes + `ModuleRoute` (D4)  
+- [ ] Pack surface + production knobs (D5)  
+- [ ] Rules + tests (D7–D8)  
+- [ ] Honesty panel (D9)  
+- [ ] `canInstall` hint if enterprise-specific (D11)  
+- [ ] Plan slices (D12)  
+- [ ] Manual: Install → use → Deactivate → Activate → Delete on a test farm  
+
+**Out of band:** separate npm package / Freenet-published pack code.
+
+---
+
+## Build slices
 
 | ID | Slice | Status | Notes |
 |----|-------|--------|-------|
-| `CP-00` | **This plan** | `done` | Design only |
-| `CP-01` | `shared/farm/cropPacks.ts` + walnut adapter; Farm Setup uses generic sync | `todo` | No UX change |
-| `CP-02` | Farm Modules card labels pack-sourced modules | `todo` | |
-| `CP-03` | Pack folder convention + registry for routes/panels | `todo` | Move walnut only if low-risk |
-| `CP-04` | External-contributor doc link from README / NAMING | `todo` | Still PR-based |
+| `CP-00` | **This plan** (contract + admin lifecycle) | `done` | Design only |
+| `CP-01` | `cropPacks.ts` + lifecycle helpers; walnut adapter; legacy one-time migrate from `farmHasWalnutPack` | `todo` | Keep behaviour for existing walnut farms |
+| `CP-02` | Farm Setup **Crop packs** card: Install / Activate / Deactivate / Delete | `todo` | Admin only |
+| `CP-03` | Farm Modules card labels “from \<pack\>”; disable pack modules when pack inactive | `todo` | |
+| `CP-04` | Pack route/panel registry convention (`src/packs/<id>/` optional move) | `todo` | |
+| `CP-05` | Developer requirements doc link (README / NAMING) + PR checklist | `todo` | Still in-repo PRs |
 
 ---
 
 ## Non-goals
 
-- Hot-loading untrusted pack code  
+- Hot-loading untrusted pack code / app-store install of binaries  
 - Renaming Freenet “plugin” units  
 - Moving Market & Economics into a crop pack  
-- Replacing `FarmModuleId` with pack ids (modules remain the nav atom)
+- Replacing `FarmModuleId` with pack ids (modules remain the nav atom)  
+- Auto-deleting diary events when a pack is deleted  
 
 ---
 
@@ -173,9 +279,10 @@ To add a pack in-repo:
 
 | Risk | Mitigation |
 |------|------------|
-| Everything becomes a “pack” | Packs require a gate + optional modules; ops modules stay optional without a pack |
-| Shared `model_params` collisions | New packs get own settings docs; blight keeps picks until BE-06 |
-| Naming clash with Freenet | This doc + NAMING cross-link; UI says pack product names |
+| Existing walnut farms lose blight | CP-01 migrates: walnut gate true → install+activate once |
+| Admin deletes pack expecting diary wipe | Confirm copy lists only settings doc; never diary/map |
+| Activate without eligibility | Soft hint; optional `hard` on `canInstall` |
+| Naming clash with Freenet | This doc + NAMING; UI says pack names |
 
 ---
 
@@ -183,4 +290,5 @@ To add a pack in-repo:
 
 | Date | Slice | Notes |
 |------|-------|-------|
-| 2026-08-11 | CP-00 | Drafted after BE-05 type unify; walnut blight is the reference consumer |
+| 2026-08-11 | CP-00 | Refined: developer hard/soft requirements + farm-admin Install / Activate / Deactivate / Delete lifecycle |
+| 2026-08-11 | CP-00 | First draft after BE-05; walnut blight as reference consumer |
