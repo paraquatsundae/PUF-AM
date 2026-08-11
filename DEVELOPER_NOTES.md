@@ -265,6 +265,7 @@ Details: [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md).
 | AU second track | Lang moisture-intensity overlay later (Ji notes XanthoCast weak in wet AU seasons) |
 
 **Authoritative plan:** [`Plans/BLIGHT_VALIDATION.md`](Plans/BLIGHT_VALIDATION.md)  
+**Settings home (draft):** [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) — model modifiers leave Settings → Advanced for the blight pack surface  
 **Code (in progress):** `shared/weather/jiBlightModel.ts` · golden fixture from notebook 32-day series  
 **Local research pack:** `Documents\Agronomy'\2026\Walnut\Blight forecasting\` (Ji PDF + Mathematica notebooks)
 
