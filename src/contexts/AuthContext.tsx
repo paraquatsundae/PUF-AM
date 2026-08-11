@@ -28,6 +28,10 @@ import {
   resolveFarmEnabledModules,
   sanitizeModules,
 } from '../../shared/auth/farmModules';
+import {
+  resolveFarmCropPacks,
+  type FarmCropPacksMap,
+} from '../../shared/farm/cropPacks';
 
 export enum OperationType {
   CREATE = 'create',
@@ -123,6 +127,7 @@ export interface Farm {
   ownerUid: string;
   createdAt: string;
   enabledModules?: FarmModuleId[];
+  cropPacks?: FarmCropPacksMap;
 }
 
 interface AuthContextType {
@@ -135,6 +140,9 @@ interface AuthContextType {
   /** Modules this farm offers (owner catalog). */
   farmEnabledModules: FarmModuleId[];
   refreshFarmModules: () => Promise<void>;
+  /** Installed crop packs on this farm (Plans/CROP_PACK_PLUGIN.md). */
+  farmCropPacks: FarmCropPacksMap;
+  refreshFarmCropPacks: () => Promise<void>;
   signInWithInvitePin: (
     pin: string,
     displayName: string,
@@ -173,6 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [farmEnabledModules, setFarmEnabledModules] =
     useState<FarmModuleId[]>(allFarmModules());
+  const [farmCropPacks, setFarmCropPacks] = useState<FarmCropPacksMap>({});
   const [mistLocked, setMistLocked] = useState(false);
 
   const applyMistSession = async (devicePin?: string): Promise<boolean> => {
@@ -600,23 +609,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Farm-level module catalog (owner toggles).
+  // Farm-level module catalog + crop packs (owner toggles).
   useEffect(() => {
     if (isWorkshopMode() || isMistFarmSessionActive()) return;
     const farmId = userData?.farmId;
     if (!farmId) {
       setFarmEnabledModules(allFarmModules());
+      setFarmCropPacks({});
       return;
     }
     const farmRef = doc(db, 'farms', farmId);
     const unsub = onSnapshot(
       farmRef,
       (snap) => {
-        setFarmEnabledModules(resolveFarmEnabledModules(snap.data()?.enabledModules));
+        const data = snap.data();
+        setFarmEnabledModules(resolveFarmEnabledModules(data?.enabledModules));
+        setFarmCropPacks(resolveFarmCropPacks(data?.cropPacks));
       },
       (err) => {
         console.warn('[Auth] farm modules listen failed:', err);
         setFarmEnabledModules(allFarmModules());
+        setFarmCropPacks({});
       }
     );
     return () => unsub();
@@ -633,6 +646,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFarmEnabledModules(resolveFarmEnabledModules(snap.data()?.enabledModules));
     } catch (e) {
       console.warn('[Auth] refreshFarmModules failed:', e);
+    }
+  };
+
+  const refreshFarmCropPacks = async () => {
+    const farmId = userData?.farmId;
+    if (!farmId || isWorkshopMode() || isMistFarmSessionActive()) {
+      setFarmCropPacks({});
+      return;
+    }
+    try {
+      const snap = await getDoc(doc(db, 'farms', farmId));
+      setFarmCropPacks(resolveFarmCropPacks(snap.data()?.cropPacks));
+    } catch (e) {
+      console.warn('[Auth] refreshFarmCropPacks failed:', e);
     }
   };
 
@@ -733,6 +760,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         pendingInvite,
         farmEnabledModules,
         refreshFarmModules,
+        farmCropPacks,
+        refreshFarmCropPacks,
         signInWithInvitePin,
         createFarm,
         completeFarmSignIn,

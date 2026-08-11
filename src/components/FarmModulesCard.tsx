@@ -79,12 +79,11 @@ export function FarmModulesCard() {
           <h2 className="text-lg font-bold text-slate-900">Farm modules</h2>
           <p className="text-sm text-slate-500">
             Choose tools this farm uses. Worker invite PINs can only grant modules you enable here.
-            Walnut blight appears only when the walnut crop pack is on (
+            Walnut blight appears only when the{' '}
             <Link to="/farm-setup" className="text-emerald-700 underline-offset-2 hover:underline">
-              Farm setup
-            </Link>
-            {' '}
-            / walnut areas on the map).
+              Walnut blight crop pack
+            </Link>{' '}
+            is installed and active.
           </p>
         </div>
       </div>
@@ -97,8 +96,8 @@ export function FarmModulesCard() {
 
       {orphanBlightOnFarm && (
         <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-          Blight is still on the farm catalog but this farm has no walnuts configured. Save modules
-          to clear it, or add walnut in Farm setup / on the map.
+          Blight is still on the farm catalog but the walnut blight pack is not active. Save modules
+          to clear it, or activate the pack under Farm setup → Crop packs.
         </div>
       )}
 
@@ -141,7 +140,8 @@ export function FarmModulesCard() {
         </div>
         {!hasWalnutPack && (
           <p className="text-[11px] text-slate-500">
-            Blight Risk stays hidden until walnuts are on this farm.
+            Blight Risk stays hidden until you install and activate Walnut blight under Farm setup →
+            Crop packs.
           </p>
         )}
       </div>

@@ -215,7 +215,7 @@ service cloud.firestore {
     }
 
     function isValidFarm(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'ownerUid', 'createdAt', 'lat', 'lng', 'showNearby', 'enabledModules']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'ownerUid', 'createdAt', 'lat', 'lng', 'showNearby', 'enabledModules', 'cropPacks']) &&
              hasRequiredFields(['id', 'name', 'ownerUid', 'createdAt']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
@@ -224,7 +224,8 @@ service cloud.firestore {
              (!('lat' in data) || data.lat is number) &&
              (!('lng' in data) || data.lng is number) &&
              (!('showNearby' in data) || data.showNearby is bool) &&
-             (!('enabledModules' in data) || data.enabledModules is list);
+             (!('enabledModules' in data) || data.enabledModules is list) &&
+             (!('cropPacks' in data) || data.cropPacks is map);
     }
 
     // Discovery index — written by Admin SDK / Express only (nearby join API).
