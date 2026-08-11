@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clampModulesToActivePacks,
+  installedPackModuleRows,
   isPackActive,
   isPackInstalled,
+  isPackModuleOffered,
   listCropPacks,
   migrateLegacyWalnutPack,
+  optionalOpsModules,
+  packOwningModule,
   planActivatePack,
   planDeactivatePack,
   planDeletePack,
@@ -71,6 +76,60 @@ describe('cropPack lifecycle plans', () => {
       packs
     );
     expect(synced).not.toContain('blight');
+  });
+});
+
+describe('Farm Modules pack labeling helpers (CP-03)', () => {
+  const now = '2026-08-11T12:00:00.000Z';
+
+  it('maps blight to walnut blight pack and keeps ops modules unowned', () => {
+    expect(packOwningModule('blight')?.id).toBe('walnut_blight');
+    expect(packOwningModule('map')).toBeUndefined();
+    expect(optionalOpsModules()).toContain('map');
+    expect(optionalOpsModules()).not.toContain('blight');
+  });
+
+  it('offers pack modules only when pack is active', () => {
+    const inactive = {
+      walnut_blight: { status: 'inactive' as const, installedAt: now },
+    };
+    const active = {
+      walnut_blight: { status: 'active' as const, installedAt: now, activatedAt: now },
+    };
+    expect(isPackModuleOffered('blight', inactive)).toBe(false);
+    expect(isPackModuleOffered('blight', active)).toBe(true);
+    expect(isPackModuleOffered('diary', inactive)).toBe(true);
+  });
+
+  it('lists installed pack module rows with from-pack metadata', () => {
+    const packs = {
+      walnut_blight: { status: 'inactive' as const, installedAt: now },
+    };
+    expect(installedPackModuleRows({})).toEqual([]);
+    expect(installedPackModuleRows(packs)).toEqual([
+      {
+        moduleId: 'blight',
+        pack: expect.objectContaining({ id: 'walnut_blight', label: 'Walnut blight' }),
+        active: false,
+      },
+    ]);
+  });
+
+  it('clamps orphan pack modules without forcing active pack modules on', () => {
+    const packs = {
+      walnut_blight: { status: 'active' as const, installedAt: now, activatedAt: now },
+    };
+    const withoutBlight = clampModulesToActivePacks(defaultModulesWithoutCropPacks(), packs);
+    expect(withoutBlight).not.toContain('blight');
+
+    const inactive = {
+      walnut_blight: { status: 'inactive' as const, installedAt: now },
+    };
+    const stripped = clampModulesToActivePacks(
+      resolveFarmEnabledModules([...defaultModulesWithoutCropPacks(), 'blight']),
+      inactive
+    );
+    expect(stripped).not.toContain('blight');
   });
 });
 

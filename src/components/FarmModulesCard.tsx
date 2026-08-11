@@ -1,40 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
 import {
   ALWAYS_ON_MODULES,
   MODULE_BLURBS,
   MODULE_LABELS,
-  OPTIONAL_MODULES,
-  resolveFarmEnabledModules,
-  withoutWalnutPackModules,
   type FarmModuleId,
 } from '../../shared/auth/farmModules';
+import {
+  clampModulesToActivePacks,
+  installedPackModuleRows,
+  isPackActive,
+  isPackInstalled,
+  optionalOpsModules,
+  packOwningModule,
+} from '../../shared/farm/cropPacks';
 import { useAuth } from '../contexts/AuthContext';
-import { useWalnutPack } from '../hooks/useWalnutPack';
 import { updateFarmModules } from '../lib/invitePinAuth';
 import { clsx } from 'clsx';
 import { Link } from 'react-router-dom';
 
 export function FarmModulesCard() {
-  const { farmEnabledModules, refreshFarmModules } = useAuth();
-  const hasWalnutPack = useWalnutPack();
+  const { farmEnabledModules, farmCropPacks, refreshFarmModules } = useAuth();
   const [selected, setSelected] = useState<FarmModuleId[]>(farmEnabledModules);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
+  const opsModules = useMemo(() => optionalOpsModules(), []);
+  const packRows = useMemo(
+    () => installedPackModuleRows(farmCropPacks),
+    [farmCropPacks]
+  );
+  const walnutInstalled = isPackInstalled(farmCropPacks, 'walnut_blight');
+  const walnutActive = isPackActive(farmCropPacks, 'walnut_blight');
+
   useEffect(() => {
-    // Drop orphan walnut-pack modules from the editor when the pack is off.
-    setSelected(
-      hasWalnutPack
-        ? farmEnabledModules
-        : withoutWalnutPackModules(farmEnabledModules)
-    );
-  }, [farmEnabledModules, hasWalnutPack]);
+    // Drop pack modules whose pack is inactive / not installed.
+    setSelected(clampModulesToActivePacks(farmEnabledModules, farmCropPacks));
+  }, [farmEnabledModules, farmCropPacks]);
 
   const toggle = (id: FarmModuleId) => {
     if (ALWAYS_ON_MODULES.includes(id)) return;
-    if (id === 'blight' && !hasWalnutPack) return;
+    const pack = packOwningModule(id);
+    if (pack && !isPackActive(farmCropPacks, pack.id)) return;
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
     );
@@ -44,9 +52,7 @@ export function FarmModulesCard() {
     setSaving(true);
     setError(null);
     try {
-      const next = hasWalnutPack
-        ? resolveFarmEnabledModules(selected)
-        : withoutWalnutPackModules(selected);
+      const next = clampModulesToActivePacks(selected, farmCropPacks);
       await updateFarmModules(next);
       await refreshFarmModules();
       setSelected(next);
@@ -59,15 +65,13 @@ export function FarmModulesCard() {
     }
   };
 
-  const catalogBaseline = hasWalnutPack
-    ? resolveFarmEnabledModules(farmEnabledModules)
-    : withoutWalnutPackModules(farmEnabledModules);
-  const catalogNext = hasWalnutPack
-    ? resolveFarmEnabledModules(selected)
-    : withoutWalnutPackModules(selected);
+  const catalogBaseline = clampModulesToActivePacks(farmEnabledModules, farmCropPacks);
+  const catalogNext = clampModulesToActivePacks(selected, farmCropPacks);
   const dirty = catalogNext.join(',') !== catalogBaseline.join(',');
-  const orphanBlightOnFarm =
-    !hasWalnutPack && farmEnabledModules.includes('blight');
+  const orphanPackModuleOnFarm = farmEnabledModules.some((id) => {
+    const pack = packOwningModule(id);
+    return Boolean(pack && !isPackActive(farmCropPacks, pack.id));
+  });
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -79,11 +83,11 @@ export function FarmModulesCard() {
           <h2 className="text-lg font-bold text-slate-900">Farm modules</h2>
           <p className="text-sm text-slate-500">
             Choose tools this farm uses. Worker invite PINs can only grant modules you enable here.
-            Walnut blight appears only when the{' '}
+            Crop-pack modules are labelled below and stay off until the pack is active in{' '}
             <Link to="/farm-setup" className="text-emerald-700 underline-offset-2 hover:underline">
-              Walnut blight crop pack
-            </Link>{' '}
-            is installed and active.
+              Farm setup → Crop packs
+            </Link>
+            .
           </p>
         </div>
       </div>
@@ -94,10 +98,10 @@ export function FarmModulesCard() {
         </div>
       )}
 
-      {orphanBlightOnFarm && (
+      {orphanPackModuleOnFarm && (
         <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-          Blight is still on the farm catalog but the walnut blight pack is not active. Save modules
-          to clear it, or activate the pack under Farm setup → Crop packs.
+          Some catalog modules belong to a deactivated or removed crop pack. Save modules to clear
+          them, or activate the pack under Farm setup → Crop packs.
         </div>
       )}
 
@@ -118,7 +122,7 @@ export function FarmModulesCard() {
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Optional</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {OPTIONAL_MODULES.filter((id) => id !== 'blight' || hasWalnutPack).map((id) => {
+          {opsModules.map((id) => {
             const on = selected.includes(id);
             return (
               <button
@@ -138,10 +142,83 @@ export function FarmModulesCard() {
             );
           })}
         </div>
-        {!hasWalnutPack && (
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          From crop packs
+        </p>
+        {packRows.length === 0 ? (
           <p className="text-[11px] text-slate-500">
-            Blight Risk stays hidden until you install and activate Walnut blight under Farm setup →
-            Crop packs.
+            No crop packs installed yet.
+            {!walnutInstalled && (
+              <>
+                {' '}
+                Install Walnut blight under{' '}
+                <Link
+                  to="/farm-setup"
+                  className="text-emerald-700 underline-offset-2 hover:underline"
+                >
+                  Farm setup → Crop packs
+                </Link>{' '}
+                to offer Blight Risk here.
+              </>
+            )}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {packRows.map(({ moduleId, pack, active }) => {
+              const on = selected.includes(moduleId);
+              return (
+                <button
+                  key={`${pack.id}:${moduleId}`}
+                  type="button"
+                  disabled={!active}
+                  onClick={() => toggle(moduleId)}
+                  title={
+                    active
+                      ? undefined
+                      : `${pack.label} is inactive — activate it under Farm setup → Crop packs`
+                  }
+                  className={clsx(
+                    'text-left px-3 py-3 rounded-xl border transition-colors',
+                    !active && 'opacity-55 cursor-not-allowed bg-slate-50 border-slate-200',
+                    active && on && 'border-emerald-300 bg-emerald-50/60',
+                    active && !on && 'border-slate-200 bg-white hover:border-slate-300'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{MODULE_LABELS[moduleId]}</p>
+                    <span
+                      className={clsx(
+                        'shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+                        active ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
+                      )}
+                    >
+                      From {pack.label}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{MODULE_BLURBS[moduleId]}</p>
+                  {!active && (
+                    <p className="text-[10px] text-amber-800 mt-1.5">
+                      Pack deactivated —{' '}
+                      <Link
+                        to="/farm-setup"
+                        className="underline-offset-2 hover:underline font-semibold"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        activate in Crop packs
+                      </Link>
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {walnutInstalled && !walnutActive && packRows.length > 0 && (
+          <p className="text-[11px] text-slate-500">
+            Blight Risk stays hidden in the nav until Walnut blight is activated.
           </p>
         )}
       </div>

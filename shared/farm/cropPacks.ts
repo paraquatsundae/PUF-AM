@@ -7,6 +7,7 @@
  */
 
 import {
+  OPTIONAL_MODULES,
   resolveFarmEnabledModules,
   type FarmModuleId,
   withWalnutPackModules,
@@ -170,6 +171,36 @@ export function modulesForActivePacks(packs: FarmCropPacksMap): FarmModuleId[] {
   return [...set];
 }
 
+/** Which catalog pack owns this module (if any). */
+export function packOwningModule(moduleId: FarmModuleId): CropPackDef | undefined {
+  return CROP_PACKS.find((p) => p.modules.includes(moduleId));
+}
+
+/** True when module is not pack-owned, or its pack is active. */
+export function isPackModuleOffered(
+  moduleId: FarmModuleId,
+  packs: FarmCropPacksMap
+): boolean {
+  const pack = packOwningModule(moduleId);
+  if (!pack) return true;
+  return isPackActive(packs, pack.id);
+}
+
+/**
+ * Drop pack-owned modules whose pack is inactive / not installed.
+ * Does **not** force-add active pack modules (admin may leave them off).
+ */
+export function clampModulesToActivePacks(
+  modules: FarmModuleId[],
+  packs: FarmCropPacksMap
+): FarmModuleId[] {
+  const packOwned = new Set(allPackModuleIds());
+  const activeOwned = new Set(modulesForActivePacks(packs));
+  return resolveFarmEnabledModules(modules).filter(
+    (m) => !packOwned.has(m) || activeOwned.has(m)
+  );
+}
+
 /**
  * Align farm module catalog with active packs:
  * - ensure each active pack's modules are present
@@ -179,13 +210,32 @@ export function syncModulesWithCropPacks(
   modules: FarmModuleId[],
   packs: FarmCropPacksMap
 ): FarmModuleId[] {
-  const packOwned = new Set(allPackModuleIds());
-  const activeOwned = new Set(modulesForActivePacks(packs));
-  const kept = resolveFarmEnabledModules(modules).filter(
-    (m) => !packOwned.has(m) || activeOwned.has(m)
-  );
-  const withActive = [...kept, ...activeOwned];
+  const kept = clampModulesToActivePacks(modules, packs);
+  const withActive = [...kept, ...modulesForActivePacks(packs)];
   return resolveFarmEnabledModules(withActive);
+}
+
+/** Optional ops modules that are not owned by any crop pack. */
+export function optionalOpsModules(): FarmModuleId[] {
+  const packOwned = new Set(allPackModuleIds());
+  return OPTIONAL_MODULES.filter((id) => !packOwned.has(id));
+}
+
+/** Pack modules to show on Farm Modules — from installed packs only. */
+export function installedPackModuleRows(packs: FarmCropPacksMap): Array<{
+  moduleId: FarmModuleId;
+  pack: CropPackDef;
+  active: boolean;
+}> {
+  const rows: Array<{ moduleId: FarmModuleId; pack: CropPackDef; active: boolean }> = [];
+  for (const pack of CROP_PACKS) {
+    if (!isPackInstalled(packs, pack.id)) continue;
+    const active = isPackActive(packs, pack.id);
+    for (const moduleId of pack.modules) {
+      rows.push({ moduleId, pack, active });
+    }
+  }
+  return rows;
 }
 
 export function withPackModules(

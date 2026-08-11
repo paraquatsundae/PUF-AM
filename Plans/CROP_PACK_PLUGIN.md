@@ -1,7 +1,7 @@
 # Crop-pack plugin system — design
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Active — CP-00–CP-02 started (catalog + admin Crop packs card); first consumer walnut blight ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md))  
+**Status:** Active — CP-00–CP-03 done (catalog, admin lifecycle, Farm Modules pack labels); first consumer walnut blight ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md))  
 **Date:** 2026-08-11  
 **Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet host plugins ([`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md), [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md)) are a **different** word — do not conflate
 
@@ -259,7 +259,7 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 | `CP-00` | **This plan** (contract + admin lifecycle) | `done` | Design only |
 | `CP-01` | `cropPacks.ts` + lifecycle helpers; walnut adapter; legacy one-time migrate from `farmHasWalnutPack` | `done` | 2026-08-11 — `shared/farm/cropPacks.ts` + `src/lib/cropPackLifecycle.ts`; Farm Setup no longer auto-toggles blight |
 | `CP-02` | Farm Setup **Crop packs** card: Install / Activate / Deactivate / Delete | `done` | 2026-08-11 — `CropPacksCard`; migrate-on-open for legacy walnut farms |
-| `CP-03` | Farm Modules card labels “from \<pack\>”; disable pack modules when pack inactive | `partial` | Blight gated on pack active via `useWalnutPack`; pack-source labels still todo |
+| `CP-03` | Farm Modules card labels “from \<pack\>”; disable pack modules when pack inactive | `done` | 2026-08-11 — “From crop packs” section with From \<label\> badge; inactive rows disabled; ops vs pack split via `optionalOpsModules` / `installedPackModuleRows` |
 | `CP-04` | Pack route/panel registry convention (`src/packs/<id>/` optional move) | `todo` | |
 | `CP-05` | Developer requirements doc link (README / NAMING) + PR checklist | `todo` | Still in-repo PRs |
 
@@ -290,6 +290,7 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 
 | Date | Slice | Notes |
 |------|-------|-------|
+| 2026-08-11 | CP-03 | Farm Modules: ops vs pack sections; “From Walnut blight” badge; inactive pack modules disabled; clamp on save |
 | 2026-08-11 | CP-01/02 | Catalog + pure plans; client lifecycle I/O; Auth `farmCropPacks`; Farm Setup Crop packs card; legacy walnut migrate; Delete strips blight keys only on `model_params` |
 | 2026-08-11 | CP-00 | Refined: developer hard/soft requirements + farm-admin Install / Activate / Deactivate / Delete lifecycle |
 | 2026-08-11 | CP-00 | First draft after BE-05; walnut blight as reference consumer |
