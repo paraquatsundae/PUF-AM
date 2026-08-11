@@ -1,7 +1,7 @@
 # Blight engine plug-in — settings home
 
 **Product:** PUF-AM — Ag Manager (walnut crop pack)  
-**Status:** Active — BE-02 Production inoculum on Blight Risk; BE-03 next (research knobs leave Advanced)  
+**Status:** Active — BE-03 research knobs on Blight → Sandbox; Advanced renamed Economics; BE-04 next (About science move)  
 **Date:** 2026-08-11  
 **Companion:** [`BLIGHT_VALIDATION.md`](BLIGHT_VALIDATION.md) (science / Ji track) · [`FARM_TYPES.md`](FARM_TYPES.md) (walnut pack gating) · [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) (Settings tab inventory)
 
@@ -129,7 +129,7 @@ Requires rules update, one-time merge read for old clients, and CF path change. 
 | `BE-00` | **This plan** + cross-links | `done` | Docs only |
 | `BE-01` | Extract blight panels + glossary from `Settings.tsx` into `BlightEngineSettings` (behaviour-identical, still mounted under Advanced) | `done` | 2026-08-11 — `src/components/blight/BlightEngineSettings.tsx` + `src/lib/modelParameters.ts`; still mounted under Advanced |
 | `BE-02` | Mount Production inoculum on Blight Risk (admin); remove blight knobs from Advanced; leave Research knobs temporarily co-mounted or still in Advanced behind a "moved soon" note | `done` | 2026-08-11 — `BlightOrchardInoculumPanel` on `/blight`; Advanced research panels kept with move note |
-| `BE-03` | Move Research / Sandbox modifiers onto Blight Risk Sandbox (or disclosure); Advanced keeps only economics (rename tab if needed) | `not_started` | Completes the leave-Advanced story |
+| `BE-03` | Move Research / Sandbox modifiers onto Blight Risk Sandbox (or disclosure); Advanced keeps only economics (rename tab if needed) | `done` | 2026-08-11 — `BlightResearchModifiersPanel` on Sandbox; Settings tab → Economics |
 | `BE-04` | Retarget About + BLIGHT_VALIDATION "Calibration UI" pointer; move parked science copy into blight pack surface | `not_started` | Honesty / discoverability |
 | `BE-05` | Shared `ModelParameters` / `CalibrationParams` type (one module, not duplicated in Settings + blightModel) | `in_progress` | `ModelParameters` → `src/lib/modelParameters.ts` with BE-01; `CalibrationParams` merge still open |
 | `BE-06` | (Optional) Split `model_params` → `settings/blight` + `settings/economics` | `deferred` | Only if v1 doc remains awkward |
@@ -137,11 +137,11 @@ Requires rules update, one-time merge read for old clients, and CF path change. 
 Acceptance for **done** (BE-02 + BE-03 + BE-04):
 
 - [x] With walnut pack on, farm admin sets orchard inoculum from Blight Risk without opening Settings *(BE-02)*
-- [ ] Settings → Advanced has **no** blight / sandbox / canopy / chem-bio controls *(BE-03)*
+- [x] Settings → Advanced has **no** blight / sandbox / canopy / chem-bio controls *(BE-03 — tab renamed Economics)*
 - [x] Forecast / Historical / Dashboard aggregate still honour `orchardInoculumLevel` (client + CF) *(unchanged path)*
 - [x] Sandbox still receives legacy calib; Advanced banner says research knobs do not affect Ji production *(BE-02)*
 - [x] About no longer sends people to Settings → Advanced for **orchard inoculum** *(BE-02 partial; full science move is BE-04)*
-- [ ] Farm without walnut pack: Advanced (or Economics) unchanged for market fields; no blight UI anywhere
+- [x] Farm without walnut pack: Advanced (or Economics) unchanged for market fields; no blight UI anywhere *(BE-03 Economics tab)*
 
 ---
 
@@ -186,6 +186,7 @@ Acceptance for **done** (BE-02 + BE-03 + BE-04):
 
 | Date | Slice | Notes |
 |------|-------|-------|
+| 2026-08-11 | BE-03 | Research modifiers on Blight → Sandbox (collapsible); Settings Advanced → Economics (market fields only, merge-save) |
 | 2026-08-11 | BE-02 | Production orchard inoculum (Ji k) on Blight Risk for admins; removed from Advanced; research modifiers stay in Advanced with "moved / moving soon" notes |
 | 2026-08-11 | BE-01 | Extracted blight header/panels/glossary into `BlightEngineSettings`; `ModelParameters` → `src/lib/modelParameters.ts`; still mounted under Settings → Advanced with economics in `gridTrailing` |
 | 2026-08-11 | BE-00 | Plan drafted after Settings → Advanced still holding Model Modifier Engine; About park note confirmed intent |

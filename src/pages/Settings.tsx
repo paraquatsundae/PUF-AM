@@ -11,7 +11,6 @@ import {
   ChevronRight,
   FileText,
   DollarSign,
-  Database,
   Zap,
 } from 'lucide-react';
 import { useAuth, OperationType, handleFirestoreError } from '../contexts/AuthContext';
@@ -23,33 +22,32 @@ import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
 import { MistWorkshopCard } from '../components/MistWorkshopCard';
+import { SliderControl } from '../components/blight/BlightEngineSettings';
 import {
-  BlightEngineSettings,
-  SliderControl,
-} from '../components/blight/BlightEngineSettings';
-import { DEFAULT_MODEL_PARAMS, type ModelParameters } from '../lib/modelParameters';
+  DEFAULT_MODEL_PARAMS,
+  defaultEconomicsModelParams,
+  pickEconomicsModelParams,
+  type EconomicsModelParams,
+  type ModelParameters,
+} from '../lib/modelParameters';
 import { activeFarmPipe } from '../lib/farmPipes';
 import { isWorkshopDiagnosticsEnabled } from '../lib/workshopMode';
-import { useWalnutPack } from '../hooks/useWalnutPack';
 import {
   ensureShareCrewLocationDefault,
   getShareCrewLocation,
   setShareCrewLocation,
 } from '../lib/crewPresence';
 
-
 function MarketEconomicsCard({
   params,
   onParamsChange,
-  isLocked,
 }: {
-  params: ModelParameters;
-  onParamsChange: (next: ModelParameters) => void;
-  isLocked: boolean;
+  params: EconomicsModelParams;
+  onParamsChange: (next: EconomicsModelParams) => void;
 }) {
-  const set = (patch: Partial<ModelParameters>) => onParamsChange({ ...params, ...patch });
+  const set = (patch: Partial<EconomicsModelParams>) => onParamsChange({ ...params, ...patch });
   return (
-    <div className="bg-white border border-indigo-100 p-6 rounded-2xl space-y-6 shadow-sm ring-1 ring-indigo-50 md:col-span-3 lg:col-span-1">
+    <div className="bg-white border border-indigo-100 p-6 rounded-2xl space-y-6 shadow-sm ring-1 ring-indigo-50 max-w-xl">
       <div className="flex items-center gap-3 border-b border-indigo-50 pb-3">
         <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600">
           <DollarSign className="w-5 h-5" />
@@ -65,7 +63,7 @@ function MarketEconomicsCard({
           label="Market Price (AUD/kg)"
           value={params.marketPrice || 3.30}
           min={1.0} max={10.0} step={0.1}
-          isLocked={isLocked}
+          isLocked={false}
           onChange={(val) => set({ marketPrice: val })}
           description="Projected farm gate price for Nut-In-Shell."
         />
@@ -74,7 +72,7 @@ function MarketEconomicsCard({
           label="Harvest Cost (AUD/kg)"
           value={params.harvestCostPerKg || 0.45}
           min={0.1} max={2.0} step={0.05}
-          isLocked={isLocked}
+          isLocked={false}
           onChange={(val) => set({ harvestCostPerKg: val })}
           description="Estimated cost per kg for harvesting and processing."
         />
@@ -83,7 +81,7 @@ function MarketEconomicsCard({
           label="Water Cost (AUD/ML)"
           value={params.waterCostPerML || 150}
           min={50} max={1000} step={10}
-          isLocked={isLocked}
+          isLocked={false}
           onChange={(val) => set({ waterCostPerML: val })}
           description="Current cost of irrigation water per Megalitre."
         />
@@ -91,7 +89,12 @@ function MarketEconomicsCard({
 
       <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
         <p className="text-[9px] text-indigo-700 leading-relaxed">
-          <span className="font-bold uppercase">Note:</span> These values directly impact the <strong>Projected Season Profit</strong> and <strong>ROI</strong> calculations on your dashboard.
+          <span className="font-bold uppercase">Note:</span> These values feed projected season profit / ROI
+          style numbers where those surfaces read them. Walnut blight research knobs live under{' '}
+          <Link to="/blight" className="font-semibold underline underline-offset-2">
+            Blight risk → Sandbox
+          </Link>
+          .
         </p>
       </div>
     </div>
@@ -100,12 +103,10 @@ function MarketEconomicsCard({
 
 export function Settings() {
   const navigate = useNavigate();
-  const { userData, user, isAdmin } = useAuth();
-  const hasWalnutPack = useWalnutPack();
-  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'advanced'>('general');
+  const { userData, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'economics'>('general');
   const farmPipe = activeFarmPipe();
-  const [params, setParams] = useState<ModelParameters>(DEFAULT_MODEL_PARAMS);
-  const [isLocked, setIsLocked] = useState(true);
+  const [economics, setEconomics] = useState<EconomicsModelParams>(defaultEconomicsModelParams());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -122,13 +123,13 @@ export function Settings() {
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setParams({
+        const merged = {
           ...DEFAULT_MODEL_PARAMS,
-          ...docSnap.data()
-        } as ModelParameters);
+          ...docSnap.data(),
+        } as ModelParameters;
+        setEconomics(pickEconomicsModelParams(merged));
       } else {
-        // Initialize with defaults if not exists
-        setParams(DEFAULT_MODEL_PARAMS);
+        setEconomics(defaultEconomicsModelParams());
       }
       setLoading(false);
     }, (error) => {
@@ -143,7 +144,7 @@ export function Settings() {
     return () => unsubscribe();
   }, [userData?.farmId]);
 
-  const handleSaveParams = async () => {
+  const handleSaveEconomics = async () => {
     if (!userData?.farmId || !isAdmin) return;
     
     setSaving(true);
@@ -151,11 +152,12 @@ export function Settings() {
 
     try {
       const docRef = doc(db, 'farms', userData.farmId, 'settings', 'model_params');
-      await setDoc(docRef, params);
-      setIsLocked(true);
-      setMessage({ type: 'success', text: 'Model parameters updated successfully.' });
+      await setDoc(docRef, pickEconomicsModelParams({ ...DEFAULT_MODEL_PARAMS, ...economics }), {
+        merge: true,
+      });
+      setMessage({ type: 'success', text: 'Market & economics saved.' });
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to update parameters. Check permissions.' });
+      setMessage({ type: 'error', text: 'Failed to save. Check permissions.' });
       try {
         handleFirestoreError(error, OperationType.WRITE, `farms/${userData.farmId}/settings/model_params`);
       } catch (e) {
@@ -166,14 +168,8 @@ export function Settings() {
     }
   };
 
-  const handleResetDefaults = () => {
-    if (window.confirm('Are you sure you want to reset all parameters to regional defaults?')) {
-      setParams(DEFAULT_MODEL_PARAMS);
-    }
-  };
-
   if (loading) {
-    return <div className="p-8 text-center text-slate-500 font-mono">INITIALIZING ENGINE...</div>;
+    return <div className="p-8 text-center text-slate-500 font-mono">Loading settings…</div>;
   }
 
   return (
@@ -184,7 +180,7 @@ export function Settings() {
             <SettingsIcon className="w-8 h-8 text-slate-700" />
             Settings
           </h1>
-          <p className="text-slate-500">Manage your farm configuration and engine parameters.</p>
+          <p className="text-slate-500">Manage your farm configuration and market inputs.</p>
         </div>
       </header>
 
@@ -194,7 +190,7 @@ export function Settings() {
           [
             { id: 'general', label: 'General' },
             { id: 'sync', label: 'Sync' },
-            { id: 'advanced', label: 'Advanced' },
+            { id: 'economics', label: 'Economics' },
           ] as const
         ).map((tab) => (
           <button
@@ -218,36 +214,8 @@ export function Settings() {
       <div className="py-4">
         {activeTab === 'sync' ? (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-              <h2 className="text-lg font-bold text-slate-900">How this farm moves around</h2>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                {farmPipe === 'freenet' ? (
-                  <>
-                    This farm lives on its devices, not in a cloud account. It travels two ways:
-                    over <strong>Wi‑Fi</strong> between devices on the same network, and over{' '}
-                    <strong>Freenet</strong> to a device anywhere else. That was chosen when the
-                    farm was created and is not switched here.
-                  </>
-                ) : (
-                  <>
-                    This farm is kept in the <strong>cloud</strong>, so every device with an invite
-                    sees the same thing. It also travels over <strong>Wi‑Fi</strong> between devices
-                    on the same network when there is no internet. That was chosen when the farm was
-                    created and is not switched here.
-                  </>
-                )}
-              </p>
-            </div>
-
             <TabletHubCard />
-
             <FarmSyncCards />
-
-            {/*
-              Every knob and hash for the Freenet / local-store path. A farmer
-              never needs it and it is the loudest thing on the page, so it is
-              bench-only rather than shipped with the app.
-            */}
             {isWorkshopDiagnosticsEnabled() && <MistWorkshopCard />}
           </div>
         ) : activeTab === 'general' ? (
@@ -377,26 +345,20 @@ export function Settings() {
                 <Shield className="w-12 h-12 text-amber-600 mx-auto" />
                 <h2 className="text-xl font-bold text-amber-900">Restricted Access</h2>
                 <p className="text-amber-700 max-w-md mx-auto">
-                  The Model Modifier Menu is restricted to Farm Managers and Researchers with Administrative privileges.
+                  Market & economics inputs are restricted to farm administrators.
                 </p>
               </div>
             ) : (
-              <div className="space-y-8">
-                {!hasWalnutPack && (
-                  <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl space-y-2">
-                    <h2 className="text-lg font-bold text-slate-900">Walnut crop pack off</h2>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      Walnut blight calibration stays hidden until this farm has the walnut crop pack — set
-                      orchard/tree + walnut species in{' '}
-                      <Link to="/farm-setup" className="font-semibold text-emerald-700 hover:underline">
-                        Farm setup
-                      </Link>
-                      , or mark a map area as walnut. Market cost inputs below still apply for any enterprise.
-                    </p>
-                  </div>
-                )}
+              <div className="space-y-6">
+                <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
+                  Farm-gate price and cost inputs for financial modelling. Walnut blight research knobs moved to{' '}
+                  <Link to="/blight" className="font-semibold text-emerald-700 hover:underline">
+                    Blight risk → Sandbox → Research modifiers
+                  </Link>
+                  ; orchard inoculum (Ji k) is on Blight risk for everyone who can see the pack.
+                </p>
 
-                {message && !hasWalnutPack && (
+                {message && (
                   <motion.div 
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -409,74 +371,17 @@ export function Settings() {
                   </motion.div>
                 )}
 
-                {hasWalnutPack ? (
-                  <BlightEngineSettings
-                    params={params}
-                    onParamsChange={setParams}
-                    isLocked={isLocked}
-                    onToggleLock={() => setIsLocked(!isLocked)}
-                    afterHeader={
-                      message ? (
-                        <motion.div 
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium ${
-                            message.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                          }`}
-                        >
-                          {message.type === 'success' ? <Save className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                          {message.text}
-                        </motion.div>
-                      ) : null
-                    }
-                    gridTrailing={
-                      <MarketEconomicsCard
-                        params={params}
-                        onParamsChange={setParams}
-                        isLocked={isLocked}
-                      />
-                    }
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <MarketEconomicsCard
-                      params={params}
-                      onParamsChange={setParams}
-                      isLocked={false}
-                    />
-                  </div>
-                )}
+                <MarketEconomicsCard params={economics} onParamsChange={setEconomics} />
 
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                  <button
-                    onClick={handleSaveParams}
-                    disabled={saving}
-                    className="flex-1 bg-[#141414] text-[#E4E3E0] py-4 rounded-xl font-mono text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:opacity-50"
-                  >
-                    {saving ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    {saving ? 'Processing...' : 'Deploy Parameters'}
-                  </button>
-                  {hasWalnutPack && (
-                  <button
-                    onClick={handleResetDefaults}
-                    className="px-6 py-4 border border-[#141414] text-[#141414] rounded-xl font-mono text-xs font-bold uppercase hover:bg-white transition-colors"
-                  >
-                    Reset to Defaults
-                  </button>
-                  )}
-                </div>
-
-                <div className="p-4 bg-slate-100 border border-slate-200 rounded-xl flex items-start gap-3">
-                  <Database className="w-5 h-5 text-slate-500 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-slate-700 uppercase font-mono">Audit Log Active</p>
-                    <p className="text-[10px] text-slate-500 italic">
-                      All parameter changes are logged with timestamp and user ID: {user?.uid}. 
-                      Historical engine states are preserved for research reconciliation.
-                    </p>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveEconomics}
+                  disabled={saving}
+                  className="w-full sm:w-auto px-8 bg-[#141414] text-[#E4E3E0] py-4 rounded-xl font-mono text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:opacity-50"
+                >
+                  {saving ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {saving ? 'Saving…' : 'Save economics'}
+                </button>
               </div>
             )}
           </div>

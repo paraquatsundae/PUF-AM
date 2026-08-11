@@ -243,4 +243,4 @@ Minimum for calling it a **validated spray-timing aid** for this farm:
 | DPIRD daily + WD proxy | `shared/weather/dpirdClient.ts` |
 | Client weather fetch | `src/lib/weatherService.ts` |
 | Server aggregate (divergent) | `functions/src/blightAggregate.ts` |
-| Calibration UI | `src/pages/Settings.tsx` (Advanced) |
+| Calibration UI | Production inoculum: Blight risk; research knobs: Blight risk → Sandbox ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md)) |

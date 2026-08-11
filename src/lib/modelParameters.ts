@@ -55,3 +55,63 @@ export const DEFAULT_MODEL_PARAMS: ModelParameters = {
   harvestCostPerKg: 0.45,
   waterCostPerML: 150,
 };
+
+/** Sandbox / research knobs — not Ji production inoculum, not market economics. */
+export const RESEARCH_MODEL_PARAM_KEYS = [
+  'blightSensitivity',
+  'cropCoefficient',
+  'gddBaseTemp',
+  'humidityGradientFactor',
+  'splashMultiplier',
+  'chemRainWashoffRate',
+  'bioColonizationEff',
+  'bioFavorableGrowthRate',
+  'bioEnvDegradationCoef',
+  'springStartingInoculum',
+  'latencyGDDThreshold',
+  'secondarySpreadMultiplier',
+  'treeHeight',
+  'canopyWidth',
+  'rowSpacing',
+  'chemEfficacy',
+  'bioEfficacy',
+] as const satisfies ReadonlyArray<keyof ModelParameters>;
+
+export type ResearchModelParamKey = (typeof RESEARCH_MODEL_PARAM_KEYS)[number];
+
+export type ResearchModelParams = Pick<ModelParameters, ResearchModelParamKey>;
+
+export const ECONOMICS_MODEL_PARAM_KEYS = [
+  'marketPrice',
+  'harvestCostPerKg',
+  'waterCostPerML',
+] as const satisfies ReadonlyArray<keyof ModelParameters>;
+
+export type EconomicsModelParams = Pick<
+  ModelParameters,
+  (typeof ECONOMICS_MODEL_PARAM_KEYS)[number]
+>;
+
+export function pickResearchModelParams(params: ModelParameters): ResearchModelParams {
+  const out = {} as ResearchModelParams;
+  for (const key of RESEARCH_MODEL_PARAM_KEYS) {
+    out[key] = params[key] as never;
+  }
+  return out;
+}
+
+export function pickEconomicsModelParams(params: ModelParameters): EconomicsModelParams {
+  return {
+    marketPrice: params.marketPrice,
+    harvestCostPerKg: params.harvestCostPerKg,
+    waterCostPerML: params.waterCostPerML,
+  };
+}
+
+export function defaultResearchModelParams(): ResearchModelParams {
+  return pickResearchModelParams(DEFAULT_MODEL_PARAMS);
+}
+
+export function defaultEconomicsModelParams(): EconomicsModelParams {
+  return pickEconomicsModelParams(DEFAULT_MODEL_PARAMS);
+}

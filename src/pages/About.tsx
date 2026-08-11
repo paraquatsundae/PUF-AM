@@ -60,10 +60,10 @@ function AssumptionsAndLimitsBox() {
                 <div className="space-y-2">
                   <h3 className="font-bold text-slate-900">Admin settings</h3>
                   <p>
-                    <strong>Blight risk</strong> (admin): set orchard inoculum (Ji k). Sandbox research knobs
-                    still under <strong>Settings → Advanced</strong> for now. Farm dryers / water allocation live
-                    under <strong>Farm setup</strong>. Changing production inoculum changes curves for everyone
-                    on the farm.
+                    <strong>Blight risk</strong> (admin): set orchard inoculum (Ji k); Sandbox holds research
+                    modifiers. Market costs live under <strong>Settings → Economics</strong>. Farm dryers / water
+                    allocation live under <strong>Farm setup</strong>. Changing production inoculum changes curves
+                    for everyone on the farm.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -415,9 +415,9 @@ export function About() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
           <p className="text-sm text-slate-800 leading-relaxed">
             Admin users set production orchard inoculum on <strong>Blight risk</strong>. Sandbox / research
-            knobs (CDF weighting, splash, experimental latency multipliers, efficacy defaults, tree geometry for
-            TRV, etc.) still live under <strong>Settings → Advanced</strong> for now — they only change Sandbox
-            what-ifs.
+            knobs (sensitivity, splash, experimental latency multipliers, efficacy defaults, tree geometry for
+            TRV, etc.) live under <strong>Blight risk → Sandbox → Research modifiers</strong> — they only change
+            Sandbox what-ifs.
           </p>
           <p className="text-sm text-slate-600 leading-relaxed">
             There is no separate research team, no continuous academic collaboration loop, and no automated
