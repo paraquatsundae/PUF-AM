@@ -14,6 +14,7 @@ import { db } from '../firebase';
 import { OperationType, handleFirestoreError } from '../contexts/AuthContext';
 import { BlightOrchardInoculumPanel } from '../components/blight/BlightOrchardInoculumPanel';
 import { BlightResearchModifiersPanel } from '../components/blight/BlightResearchModifiersPanel';
+import { BlightEngineSciencePanel } from '../components/blight/BlightEngineScience';
 import type { OrchardInoculumLevel } from '../lib/modelParameters';
 import {
   runBlightModel,
@@ -1425,6 +1426,8 @@ export function BlightRisk() {
           canEdit={Boolean(isAdmin && farmId)}
           onLevelChange={(next) => setCalib((prev) => ({ ...prev, orchardInoculumLevel: next }))}
         />
+
+        <BlightEngineSciencePanel />
       </div>
 
       {/* Compact status strip — one row */}
