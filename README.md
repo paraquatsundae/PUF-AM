@@ -21,7 +21,7 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 1. **Farm setup** — enterprises, dryers, seasonal water allocation (ML), irrigation method (rarely changes).
 2. **Farm map** — draw paddocks/blocks, drop issue pins, optional offline basemap pack.
 3. **Farm diary** — plans, sprays, irrigation, nutrition applications, and work (system of record).
-4. **Blight risk** *(walnut crop pack)* — weather-linked infection risk when the farm has walnuts.
+4. **Blight risk** *(walnut blight pack)* — weather-linked infection risk when that crop pack is active.
 5. **Water & nutrition** — log applications to the diary; water budget uses Farm setup allocation.
 6. **Harvest & drying** — yield by area folder; drying sessions use configured dryers.
 
@@ -31,7 +31,7 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 * **Farm map** — Areas (blocks / paddocks), pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
 * **Farm diary** — Spray, water, nutrition, and work plans with filters and CSV export.
-* **Walnut crop pack** — Blight (Ji et al. 2025) and chill targets unlock only when the farm has walnuts (Farm setup / walnut areas). New farms start without blight in the module catalog.
+* **Crop packs** — Optional tools installed by farm admins under **Farm setup → Crop packs** (Install / Activate / Deactivate / Delete). **Walnut blight** is the first pack (Ji et al. 2025 + chill). See [adding a crop pack](#adding-a-crop-pack) for developers.
 * **Water** — Irrigation logging + seasonal ML budget from Farm setup.
 * **Nutrition** — Application diary (product, rate, N/P/K); soil lab XLSX import deferred.
 * **Harvest & drying** — Per-block harvest folders; exponential-decay dryer moisture prediction.
@@ -89,18 +89,40 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 * `src/components/` — UI components (map, dryer performance, diary panels).
 * `src/pages/` — Main views (Dashboard, Map, Diary, Blight, Water, Nutrition, Harvest, Farm setup, …).
+* `src/packs/` — Crop-pack UI registry (`<packId>/` routes, nav, surfaces → `registry.ts`). Not Freenet plugins.
 * `src/lib/` — Stores and domain logic (`farmDiary`, `blightModel`, `farmAssets`, `mapStore`, …).
 * `src/contexts/` — Auth and shared context.
 * `src/services/` — Firestore/API helpers.
+* `shared/farm/cropPacks.ts` — Pack catalog + Install/Activate/Deactivate/Delete helpers.
 * `shared/weather/` — DPIRD client shared by server and functions.
 * `Plans/` — Roadmap, smoke tests, offline map notes.
 * `DEVELOPER_NOTES.md` — Architecture notes and checklist.
+
+## Adding a crop pack
+
+Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They are **not** Freenet host plugins ([`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md)).
+
+| Doc | Use |
+|-----|-----|
+| [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) | **Developer contract** (D1–D15), farm-admin lifecycle, acceptance checks |
+| [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Reference pack (walnut blight settings home) |
+| [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md) | PR checklist when adding or changing a pack |
+
+**Minimum wiring for a new pack**
+
+1. Catalog entry in `shared/farm/cropPacks.ts` (`CropPackDef`: id, modules, settings doc, `canInstall`).
+2. UI registration in `src/packs/<id>/index.ts` + append to `PACK_UI_REGISTRY` in `src/packs/registry.ts` (routes, nav, surfaces).
+3. Pack surface (production knobs on the pack page — not Settings → Advanced).
+4. Firestore rules for pack settings fields; tests for lifecycle + registry.
+5. Open the PR with the [crop-pack template](.github/PULL_REQUEST_TEMPLATE/crop-pack.md).
 
 ## Development roadmap
 
 | Document | Contents |
 |----------|----------|
 | [`Plans/NAMING.md`](Plans/NAMING.md) | Product, storage keys, export formats, Firestore paths, doc procedures |
+| [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) | Crop-pack developer contract + admin Install/Activate/Deactivate/Delete (not Freenet) |
+| [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Walnut blight pack settings home (reference crop pack) |
 | [`Plans/ROADMAP.md`](Plans/ROADMAP.md) | Full plan: tasks, acceptance criteria, progress |
 | [`DEVELOPER_NOTES.md`](DEVELOPER_NOTES.md) §5 | Quick-reference checklist |
 | [`Plans/SMOKE_TEST_LOG.md`](Plans/SMOKE_TEST_LOG.md) | Manual smoke tests |

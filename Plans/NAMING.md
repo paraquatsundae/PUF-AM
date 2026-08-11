@@ -37,8 +37,12 @@ Related plans (not duplicated here):
 | **PUF-AM Desktop** | The Electron shell + installers (Fedora `rpm`/AppImage, Windows NSIS/portable). Docs shorthand for the packaged app | A separate product — it *is* PUF-AM; do not brand installers differently |
 | **PUF Freenet Host** | The in-app Freenet lifecycle plugin — unit `units/puf-freenet-host/`, package `@pufworks/puf-freenet-host`, `hostId` `puf-freenet-host` | The mist storage unit (`mist-freenet`); a user-visible app or service name |
 | **PUF-FN** | Future product name for the **Freenet client unit** when `units/puf-freenet-host/` forks into its own repo (in-app plugin today → standalone repo later) | Current mist storage unit (`mist-freenet`) or the host unit's present package name; not a shipping product yet |
+| **Crop pack** / **pack plugin** | Optional farm capability: catalog id, modules, routes, pack settings UI ([`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md), `src/packs/`) | Freenet host plugin, Capacitor plugin, npm marketplace install |
+| **Walnut blight** | UI / pack label for pack id `walnut_blight` | Generic “plugin”; Freenet units |
 
 **Brand source of truth (UI strings):** `src/brand.ts` — `APP_SHORT_NAME` = `PUF-AM`, `APP_NAME` = `PUF-Ag Manager`.
+
+**Two “plugin” words:** UI and farm-admin copy say the **pack product name** (“Walnut blight”). Docs may say “crop-pack plugin” for the seam. Never call a crop pack a Freenet plugin.
 
 **Former names (context only):** PUFOM = Orchard Manager; Sentinut = early Android publisher id.
 
@@ -244,6 +248,7 @@ Top-level collections (production):
 | **`Plans/*.md`** | Durable design, roadmaps, acceptance criteria, naming-adjacent specs |
 | **`DEVELOPER_NOTES.md`** | Architecture audit, quick checklist, pointers to Plans — **not** a second naming glossary |
 | **`README.md`** | Operator/dev onboarding, links into Plans |
+| **`.github/PULL_REQUEST_TEMPLATE/`** | PR checklists (e.g. `crop-pack.md` for new/changed crop packs) |
 | **`units/*/README.md`** | Package-local API notes (e.g. mist-freenet, puf-freenet-host) |
 | **`desktop/README.md`** | Electron shell layout + build commands (plan stays in `Plans/`) |
 | **`SITE_SYNOPSIS.txt`** | PUFworks-site module blurb — keep aligned with `brand.ts` |

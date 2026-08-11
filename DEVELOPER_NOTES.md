@@ -10,6 +10,8 @@
 
 Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** (`.pufom`, `pufom_*`, `_pufom-sync._tcp`); Android **`com.sentinut.farm`** and **`sentinut_*`** storage are frozen for continuity. Rebrand checklist: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
 
+**Crop packs** (farm-admin Install / Activate / Deactivate / Delete; developer contract): [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) · UI registry `src/packs/` · catalog `shared/farm/cropPacks.ts` · PR checklist [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md). Not Freenet host plugins.
+
 ### Mist network & storage (experimental)
 
 **Firebase Auth + invite PINs remain the shipping path.** A longer-term “mist” design (local-first + Reticulum on-farm mesh + Freenet-style encrypted peer redundancy, no email / no subscription cloud) is documented as an **experimental fork** — do not merge it over production auth until proven.

@@ -1,7 +1,7 @@
 # Crop-pack plugin system — design
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Active — CP-00–CP-04 done (catalog, admin lifecycle, Farm Modules labels, pack UI registry); first consumer walnut blight ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md))  
+**Status:** Active — CP-00–CP-05 done (contract through developer PR checklist); first consumer walnut blight ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md))  
 **Date:** 2026-08-11  
 **Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet host plugins ([`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md), [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md)) are a **different** word — do not conflate
 
@@ -236,7 +236,11 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 
 ---
 
-## Contributor checklist (copy into PR template later)
+## Contributor checklist
+
+**PR template (use when opening the PR):** [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](../.github/PULL_REQUEST_TEMPLATE/crop-pack.md)
+
+**Onboarding links:** [`README.md` → Adding a crop pack](../README.md#adding-a-crop-pack) · [`NAMING.md`](NAMING.md) §1 (crop pack ≠ Freenet) · [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) §0
 
 - [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (D1–D3, D6)  
 - [ ] Modules + labels/blurbs  
@@ -261,7 +265,7 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 | `CP-02` | Farm Setup **Crop packs** card: Install / Activate / Deactivate / Delete | `done` | 2026-08-11 — `CropPacksCard`; migrate-on-open for legacy walnut farms |
 | `CP-03` | Farm Modules card labels “from \<pack\>”; disable pack modules when pack inactive | `done` | 2026-08-11 — “From crop packs” section with From \<label\> badge; inactive rows disabled; ops vs pack split via `optionalOpsModules` / `installedPackModuleRows` |
 | `CP-04` | Pack route/panel registry convention (`src/packs/<id>/` optional move) | `done` | 2026-08-11 — `src/packs/registry.ts` + `walnut_blight` UI reg; App routes + nav merge from registry; panels re-exported (files stay in `components/blight`) |
-| `CP-05` | Developer requirements doc link (README / NAMING) + PR checklist | `todo` | Still in-repo PRs |
+| `CP-05` | Developer requirements doc link (README / NAMING) + PR checklist | `done` | 2026-08-11 — README “Adding a crop pack”; NAMING crop-pack terms; `.github/PULL_REQUEST_TEMPLATE/crop-pack.md`; DEVELOPER_NOTES pointer |
 
 ---
 
@@ -290,6 +294,7 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 
 | Date | Slice | Notes |
 |------|-------|-------|
+| 2026-08-11 | CP-05 | Developer onboarding: README section, NAMING terms, GitHub crop-pack PR template, DEVELOPER_NOTES link |
 | 2026-08-11 | CP-04 | Pack UI registry: routes/nav/surfaces; walnut blight registered; App + navConfig consume registry |
 | 2026-08-11 | CP-03 | Farm Modules: ops vs pack sections; “From Walnut blight” badge; inactive pack modules disabled; clamp on save |
 | 2026-08-11 | CP-01/02 | Catalog + pure plans; client lifecycle I/O; Auth `farmCropPacks`; Farm Setup Crop packs card; legacy walnut migrate; Delete strips blight keys only on `model_params` |

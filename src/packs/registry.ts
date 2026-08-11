@@ -1,8 +1,11 @@
 /**
  * Aggregate crop-pack UI registrations.
  *
- * To add a pack: create `src/packs/<id>/index.ts`, append to PACK_UI_REGISTRY,
- * and register the catalog entry in shared/farm/cropPacks.ts.
+ * To add a pack:
+ * 1. Catalog: `shared/farm/cropPacks.ts`
+ * 2. UI: `src/packs/<id>/index.ts` → append here
+ * 3. Checklist: `.github/PULL_REQUEST_TEMPLATE/crop-pack.md`
+ * 4. Contract: `Plans/CROP_PACK_PLUGIN.md` (not a Freenet plugin)
  */
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import type { CropPackId } from '../../shared/farm/cropPacks';
