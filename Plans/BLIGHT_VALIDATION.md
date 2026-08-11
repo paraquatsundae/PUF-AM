@@ -5,7 +5,8 @@
 **Date:** July 2026  
 **Authoritative honesty copy:** [`src/pages/About.tsx`](../src/pages/About.tsx)  
 **Engine:** [`src/lib/blightModel.ts`](../src/lib/blightModel.ts) · [`shared/weather/jiBlightModel.ts`](../shared/weather/jiBlightModel.ts)  
-**Weather WD proxy:** [`shared/weather/dpirdClient.ts`](../shared/weather/dpirdClient.ts)
+**Weather WD proxy:** [`shared/weather/dpirdClient.ts`](../shared/weather/dpirdClient.ts)  
+**Settings home (draft):** [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) — move model modifiers out of Settings → Advanced into the blight pack surface
 
 ## Verdict
 
@@ -243,4 +244,4 @@ Minimum for calling it a **validated spray-timing aid** for this farm:
 | DPIRD daily + WD proxy | `shared/weather/dpirdClient.ts` |
 | Client weather fetch | `src/lib/weatherService.ts` |
 | Server aggregate (divergent) | `functions/src/blightAggregate.ts` |
-| Calibration UI | `src/pages/Settings.tsx` (Advanced) |
+| Calibration UI | `src/pages/Settings.tsx` (Advanced) — **moving** to blight pack surface; see [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) |

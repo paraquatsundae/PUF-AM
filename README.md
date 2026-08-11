@@ -112,6 +112,8 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 | [`Plans/APK_FREENET_PLUGIN.md`](Plans/APK_FREENET_PLUGIN.md) | Freenet on the tablet APK — why Android cannot host a node, the hub option recommended for Phase 1, and the APK build wiring (`npm run apk:debug`). **Freenet host not implemented on Android.** |
 | [`Plans/FREENET_CONTRIBUTE_AND_STORAGE.md`](Plans/FREENET_CONTRIBUTE_AND_STORAGE.md) | Contribute vs communicate (`contribute_storage`), what PUF-AM publishes (Hot, bones, join manifests), what is sealed before upload, and what is **not** on Freenet. |
 | [`Plans/LOCAL_DATA_STORAGE.md`](Plans/LOCAL_DATA_STORAGE.md) | Every local store — IndexedDB, localStorage, Firestore paths, Android sandbox, Electron `userData`, LAN shelves — and which are authoritative rather than cache. |
+| [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Move blight model modifiers out of Settings → Advanced into the walnut blight pack surface (draft). |
+| [`Plans/BLIGHT_VALIDATION.md`](Plans/BLIGHT_VALIDATION.md) | Ji blight engine science track, wetness proxy, validation slices. |
 
 ### Tests
 
