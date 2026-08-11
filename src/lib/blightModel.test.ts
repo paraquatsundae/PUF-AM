@@ -284,11 +284,15 @@ describe("runBlightModel", () => {
 
   it("keeps canopy microclimate off by default", () => {
     const weather = buildFavorableWeather("2026-10-01", 10);
+    // Hold research knobs at 1.0 so both runs stay under the 1.5 threat cap;
+    // DEFAULT_MODEL_PARAMS splash/humidity can saturate the series and hide the delta.
     const denseCalib = {
       ...defaultCalibration,
       treeHeight: 8,
       canopyWidth: 7,
       rowSpacing: 5,
+      humidityGradientFactor: 1.0,
+      splashMultiplier: 1.0,
     };
 
     const off = runBlightModel(

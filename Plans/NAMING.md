@@ -14,6 +14,8 @@ Related plans (not duplicated here):
 | [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md) | Pre-Freenet two-laptop smoke — recovery pass done ~2026-08-03 |
 | [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers; Freenet as an in-app plugin (Electron frozen) |
 | [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) | Android/Capacitor: why no Freenet host on tablets, hub options, APK build wiring |
+| [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Crop-pack UI/settings seam (not Freenet) — gates, modules, pack surfaces for other developers |
+| [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) | Walnut blight pack settings home (reference crop pack) |
 | [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) | Contribute vs communicate, what is published, what is sealed, what is not on Freenet |
 | [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Operational inventory of every local store — contents, authority, how it is cleared |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Human-readable `farm-export.json` sketch |

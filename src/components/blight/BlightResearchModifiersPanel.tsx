@@ -10,41 +10,12 @@ import { db } from '../../firebase';
 import { handleFirestoreError, OperationType } from '../../contexts/AuthContext';
 import type { CalibrationParams } from '../../lib/blightModel';
 import {
-  DEFAULT_MODEL_PARAMS,
+  applyResearchToCalibration,
   defaultResearchModelParams,
+  modelParamsFromCalibration,
   pickResearchModelParams,
-  type ModelParameters,
 } from '../../lib/modelParameters';
 import { BlightEngineSettings } from './BlightEngineSettings';
-
-function calibToModelParams(calib: CalibrationParams): ModelParameters {
-  return {
-    ...DEFAULT_MODEL_PARAMS,
-    blightSensitivity: calib.blightSensitivity,
-    cropCoefficient: calib.cropCoefficient,
-    gddBaseTemp: calib.gddBaseTemp,
-    humidityGradientFactor: calib.humidityGradientFactor,
-    splashMultiplier: calib.splashMultiplier,
-    chemRainWashoffRate: calib.chemRainWashoffRate,
-    bioColonizationEff: calib.bioColonizationEff,
-    bioFavorableGrowthRate: calib.bioFavorableGrowthRate,
-    bioEnvDegradationCoef: calib.bioEnvDegradationCoef,
-    springStartingInoculum: calib.springStartingInoculum,
-    orchardInoculumLevel: calib.orchardInoculumLevel,
-    latencyGDDThreshold: calib.latencyGDDThreshold,
-    secondarySpreadMultiplier: calib.secondarySpreadMultiplier,
-    treeHeight: calib.treeHeight,
-    canopyWidth: calib.canopyWidth,
-    rowSpacing: calib.rowSpacing,
-    chemEfficacy: calib.chemEfficacy,
-    bioEfficacy: calib.bioEfficacy,
-  };
-}
-
-function applyResearchToCalib(prev: CalibrationParams, next: ModelParameters): CalibrationParams {
-  const research = pickResearchModelParams(next);
-  return { ...prev, ...research };
-}
 
 export type BlightResearchModifiersPanelProps = {
   farmId: string | undefined;
@@ -62,7 +33,7 @@ export function BlightResearchModifiersPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const params = useMemo(() => calibToModelParams(calib), [calib]);
+  const params = useMemo(() => modelParamsFromCalibration(calib), [calib]);
 
   const handleDeploy = async () => {
     if (!farmId) {
@@ -116,7 +87,7 @@ export function BlightResearchModifiersPanel({
         <div className="border-t border-slate-100 px-3 sm:px-4 py-4 bg-slate-50/60">
           <BlightEngineSettings
             params={params}
-            onParamsChange={(next) => onCalibChange(applyResearchToCalib(calib, next))}
+            onParamsChange={(next) => onCalibChange(applyResearchToCalibration(calib, next))}
             isLocked={isLocked}
             onToggleLock={() => setIsLocked((v) => !v)}
             onDeploy={handleDeploy}
@@ -126,10 +97,12 @@ export function BlightResearchModifiersPanel({
                   'Reset sandbox research knobs to defaults? Deploy to persist. Orchard inoculum and market costs are not changed.'
                 )
               ) {
-                onCalibChange(applyResearchToCalib(calib, {
-                  ...params,
-                  ...defaultResearchModelParams(),
-                }));
+                onCalibChange(
+                  applyResearchToCalibration(calib, {
+                    ...params,
+                    ...defaultResearchModelParams(),
+                  })
+                );
               }
             }}
             saving={saving}

@@ -1,9 +1,10 @@
 # Blight engine plug-in — settings home
 
 **Product:** PUF-AM — Ag Manager (walnut crop pack)  
-**Status:** Active — BE-00–BE-04 done for settings home; BE-05 CalibrationParams merge still open  
+**Status:** Active — BE-00–BE-05 done for settings home + type unify; BE-06 doc split deferred  
 **Date:** 2026-08-11  
-**Companion:** [`BLIGHT_VALIDATION.md`](BLIGHT_VALIDATION.md) (science / Ji track) · [`FARM_TYPES.md`](FARM_TYPES.md) (walnut pack gating) · [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) (Settings tab inventory)
+**Companion:** [`BLIGHT_VALIDATION.md`](BLIGHT_VALIDATION.md) (science / Ji track) · [`FARM_TYPES.md`](FARM_TYPES.md) (walnut pack gating) · [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) (Settings tab inventory) · [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) (general pack seam for other packs)  
+**Honesty UI:** [`src/components/blight/BlightEngineScience.tsx`](../src/components/blight/BlightEngineScience.tsx) on Blight risk
 
 ---
 
@@ -131,7 +132,7 @@ Requires rules update, one-time merge read for old clients, and CF path change. 
 | `BE-02` | Mount Production inoculum on Blight Risk (admin); remove blight knobs from Advanced; leave Research knobs temporarily co-mounted or still in Advanced behind a "moved soon" note | `done` | 2026-08-11 — `BlightOrchardInoculumPanel` on `/blight`; Advanced research panels kept with move note |
 | `BE-03` | Move Research / Sandbox modifiers onto Blight Risk Sandbox (or disclosure); Advanced keeps only economics (rename tab if needed) | `done` | 2026-08-11 — `BlightResearchModifiersPanel` on Sandbox; Settings tab → Economics |
 | `BE-04` | Retarget About + BLIGHT_VALIDATION "Calibration UI" pointer; move parked science copy into blight pack surface | `done` | 2026-08-11 — `BlightEngineSciencePanel` on `/blight`; About keeps pack pointer only |
-| `BE-05` | Shared `ModelParameters` / `CalibrationParams` type (one module, not duplicated in Settings + blightModel) | `in_progress` | `ModelParameters` → `src/lib/modelParameters.ts` with BE-01; `CalibrationParams` merge still open |
+| `BE-05` | Shared `ModelParameters` / `CalibrationParams` type (one module, not duplicated in Settings + blightModel) | `done` | 2026-08-11 — Option A: `modelParameters.ts` owns Firestore slices + `CalibrationParams` (= research + orchard + session); Ctrl+Shift+D knobs stay session-only; single defaults; blightModel re-exports |
 | `BE-06` | (Optional) Split `model_params` → `settings/blight` + `settings/economics` | `deferred` | Only if v1 doc remains awkward |
 
 Acceptance for **done** (BE-02 + BE-03 + BE-04):
@@ -186,6 +187,7 @@ Acceptance for **done** (BE-02 + BE-03 + BE-04):
 
 | Date | Slice | Notes |
 |------|-------|-------|
+| 2026-08-11 | BE-05 | Option A: one Firestore-shaped `ModelParameters` with production/research/economics slices; `CalibrationParams` = research + orchard + `EngineSessionParams` (session-only); defaults no longer drift (`cropCoefficient` 1.15 etc.); research panel uses shared adapters |
 | 2026-08-11 | BE-04 | Parked About science/limits → `BlightEngineSciencePanel` on Blight risk; About keeps walnut-pack pointer only |
 | 2026-08-11 | BE-03 | Research modifiers on Blight → Sandbox (collapsible); Settings Advanced → Economics (market fields only, merge-save) |
 | 2026-08-11 | BE-02 | Production orchard inoculum (Ji k) on Blight Risk for admins; removed from Advanced; research modifiers stay in Advanced with "moved / moving soon" notes |

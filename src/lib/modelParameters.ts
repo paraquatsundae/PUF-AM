@@ -1,12 +1,14 @@
 /**
- * Farm `settings/model_params` shape — shared by Settings → Advanced and the
- * blight engine pack surface (Plans/BLIGHT_ENGINE_PLUGIN.md).
+ * Farm `settings/model_params` shape + sandbox calibration slices
+ * (Plans/BLIGHT_ENGINE_PLUGIN.md BE-05).
  *
- * BE-05 will eventually converge this with Sandbox `CalibrationParams`; until
- * then keep field names stable so Firestore docs round-trip unchanged.
+ * Firestore doc = production + research + economics.
+ * Sandbox `CalibrationParams` = research + orchard inoculum + session-only
+ * engine knobs (Ctrl+Shift+D). Session knobs are never written to Firestore.
  */
 
-export type OrchardInoculumLevel = 'low' | 'medium' | 'high';
+export type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
+import type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
 
 export interface ModelParameters {
   blightSensitivity: number;
@@ -56,6 +58,16 @@ export const DEFAULT_MODEL_PARAMS: ModelParameters = {
   waterCostPerML: 150,
 };
 
+/** Ji production inoculum — only farm-tunable Forecast/Historical term. */
+export const PRODUCTION_MODEL_PARAM_KEYS = ['orchardInoculumLevel'] as const satisfies ReadonlyArray<
+  keyof ModelParameters
+>;
+
+export type ProductionModelParams = Pick<
+  ModelParameters,
+  (typeof PRODUCTION_MODEL_PARAM_KEYS)[number]
+>;
+
 /** Sandbox / research knobs — not Ji production inoculum, not market economics. */
 export const RESEARCH_MODEL_PARAM_KEYS = [
   'blightSensitivity',
@@ -92,7 +104,41 @@ export type EconomicsModelParams = Pick<
   (typeof ECONOMICS_MODEL_PARAM_KEYS)[number]
 >;
 
-export function pickResearchModelParams(params: ModelParameters): ResearchModelParams {
+/**
+ * Ctrl+Shift+D / sandbox engine-only knobs. Session state — not part of
+ * `settings/model_params` and not merge-saved by Deploy.
+ */
+export type EngineSessionParams = {
+  cdfBaseWeighting: number;
+  cdfExponentialEffect: number;
+  tempOptimumWeight: number;
+  wdCompoundingRate: number;
+  chemBaseDecayRate: number;
+  /** Reserved for future calendar-latency experiments; core uses GDD. */
+  latencyDays: number;
+};
+
+export const DEFAULT_ENGINE_SESSION: EngineSessionParams = {
+  cdfBaseWeighting: 0.7,
+  cdfExponentialEffect: 1.0,
+  tempOptimumWeight: 1.2,
+  wdCompoundingRate: 0.1,
+  chemBaseDecayRate: 0.88,
+  latencyDays: 18,
+};
+
+/**
+ * Runtime shape for Sandbox `runBlightModel` + BlightRisk `calib` state.
+ * Research + orchard inoculum share defaults with `ModelParameters`;
+ * engine-session fields stay local.
+ */
+export type CalibrationParams = ResearchModelParams &
+  ProductionModelParams &
+  EngineSessionParams;
+
+export function pickResearchModelParams(
+  params: Pick<ModelParameters, ResearchModelParamKey>
+): ResearchModelParams {
   const out = {} as ResearchModelParams;
   for (const key of RESEARCH_MODEL_PARAM_KEYS) {
     out[key] = params[key] as never;
@@ -108,10 +154,39 @@ export function pickEconomicsModelParams(params: ModelParameters): EconomicsMode
   };
 }
 
+export function pickProductionModelParams(params: ModelParameters): ProductionModelParams {
+  return { orchardInoculumLevel: params.orchardInoculumLevel };
+}
+
 export function defaultResearchModelParams(): ResearchModelParams {
   return pickResearchModelParams(DEFAULT_MODEL_PARAMS);
 }
 
 export function defaultEconomicsModelParams(): EconomicsModelParams {
   return pickEconomicsModelParams(DEFAULT_MODEL_PARAMS);
+}
+
+export function defaultCalibrationParams(): CalibrationParams {
+  return {
+    ...defaultResearchModelParams(),
+    orchardInoculumLevel: DEFAULT_MODEL_PARAMS.orchardInoculumLevel,
+    ...DEFAULT_ENGINE_SESSION,
+  };
+}
+
+/** Fill economics defaults so BlightEngineSettings can edit research slices. */
+export function modelParamsFromCalibration(calib: CalibrationParams): ModelParameters {
+  return {
+    ...DEFAULT_MODEL_PARAMS,
+    ...pickResearchModelParams(calib),
+    orchardInoculumLevel: calib.orchardInoculumLevel,
+  };
+}
+
+/** Apply research fields from a ModelParameters edit; keep session + inoculum. */
+export function applyResearchToCalibration(
+  prev: CalibrationParams,
+  next: Pick<ModelParameters, ResearchModelParamKey>
+): CalibrationParams {
+  return { ...prev, ...pickResearchModelParams(next) };
 }
