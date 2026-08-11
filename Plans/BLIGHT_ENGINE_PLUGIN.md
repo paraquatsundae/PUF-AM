@@ -131,7 +131,7 @@ Requires rules update, one-time merge read for old clients, and CF path change. 
 | `BE-02` | Mount Production inoculum on Blight Risk (admin); remove blight knobs from Advanced; leave Research knobs temporarily co-mounted or still in Advanced behind a "moved soon" note | `not_started` | First user-visible win |
 | `BE-03` | Move Research / Sandbox modifiers onto Blight Risk Sandbox (or disclosure); Advanced keeps only economics (rename tab if needed) | `not_started` | Completes the leave-Advanced story |
 | `BE-04` | Retarget About + BLIGHT_VALIDATION "Calibration UI" pointer; move parked science copy into blight pack surface | `not_started` | Honesty / discoverability |
-| `BE-05` | Shared `ModelParameters` / `CalibrationParams` type (one module, not duplicated in Settings + blightModel) | `not_started` | Cleanup; can ride with BE-01 |
+| `BE-05` | Shared `ModelParameters` / `CalibrationParams` type (one module, not duplicated in Settings + blightModel) | `in_progress` | `ModelParameters` → `src/lib/modelParameters.ts` with BE-01; `CalibrationParams` merge still open |
 | `BE-06` | (Optional) Split `model_params` → `settings/blight` + `settings/economics` | `deferred` | Only if v1 doc remains awkward |
 
 Acceptance for **done** (BE-02 + BE-03 + BE-04):
