@@ -6,8 +6,8 @@
  * Plans/BLIGHT_ENGINE_PLUGIN.md.
  */
 import React, { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { clsx } from 'clsx';
 import {
   Shield,
   Cpu,
@@ -419,7 +419,10 @@ export type BlightEngineSettingsProps = {
   gridTrailing?: ReactNode;
 };
 
-/** Blight header + panels + glossary. Still mounted under Settings → Advanced (BE-01). */
+/**
+ * Research / sandbox knobs still under Settings → Advanced (BE-02).
+ * Production orchard inoculum lives on Blight Risk; BE-03 moves these research panels there too.
+ */
 export function BlightEngineSettings({
   params,
   onParamsChange,
@@ -436,7 +439,7 @@ export function BlightEngineSettings({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Cpu className="w-6 h-6 text-emerald-400" />
-            <h2 className="text-lg font-bold uppercase tracking-wider">Model Modifier Engine v2.4</h2>
+            <h2 className="text-lg font-bold uppercase tracking-wider">Research modifiers (sandbox)</h2>
           </div>
           <button
             onClick={onToggleLock}
@@ -451,10 +454,19 @@ export function BlightEngineSettings({
           </button>
         </div>
         <p className="text-xs opacity-70 leading-relaxed max-w-2xl">
-          Weather knobs (sensitivity, splash, humidity, geometry) affect Forecast / Historical threat. Chem/bio
-          protection knobs only change Blight → Sandbox what-ifs — they do not rewrite diary history or claim field
-          spray efficacy.
+          These knobs only change Blight → Sandbox what-ifs. They do <span className="text-emerald-300">not</span>{' '}
+          change Forecast / Historical / Dashboard (Ji). Production orchard inoculum (Ji k) is set on{' '}
+          <span className="text-emerald-300">Blight risk</span>. This research panel moves to Blight → Sandbox soon
+          (BE-03).
         </p>
+      </div>
+
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 leading-relaxed">
+        <strong className="font-semibold">Orchard inoculum moved.</strong> Set Low / Medium / High on{' '}
+        <Link to="/blight" className="font-semibold text-emerald-800 underline underline-offset-2">
+          Blight risk
+        </Link>
+        . Research knobs below stay here temporarily.
       </div>
 
       {afterHeader}
@@ -467,46 +479,6 @@ export function BlightEngineSettings({
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="font-mono text-[11px] font-bold uppercase tracking-wide">
-                Orchard inoculum (Ji k)
-              </label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(
-                  [
-                    { id: 'low', label: 'Low', k: '0.5×' },
-                    { id: 'medium', label: 'Medium', k: '1.0×' },
-                    { id: 'high', label: 'High', k: '2.0×' },
-                  ] as const
-                ).map((opt) => {
-                  const active = (params.orchardInoculumLevel ?? 'medium') === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      disabled={isLocked}
-                      onClick={() => set({ orchardInoculumLevel: opt.id })}
-                      className={clsx(
-                        'flex flex-col items-center py-2 rounded-lg border text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                        active
-                          ? 'bg-[#141414] text-white border-[#141414]'
-                          : 'bg-white text-[#141414] border-[#141414] hover:bg-slate-100'
-                      )}
-                    >
-                      {opt.label}
-                      <span className={clsx('text-[9px] font-mono', active ? 'text-slate-300' : 'opacity-60')}>
-                        {opt.k}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-[9px] italic opacity-60 leading-tight">
-                Primary inoculum for the Ji Forecast/Historical model, from prior-season blight or bud CFU. Scales
-                infection risk (k); Medium = baseline. Workshop default until bud CFU calibration.
-              </p>
-            </div>
-
             <SliderControl
               label="Sensitivity Threshold"
               value={params.blightSensitivity}
