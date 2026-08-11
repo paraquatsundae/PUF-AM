@@ -6,7 +6,6 @@
  * Plans/BLIGHT_ENGINE_PLUGIN.md.
  */
 import React, { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Shield,
@@ -21,6 +20,9 @@ import {
   Minus,
   ChevronDown,
   ChevronUp,
+  Save,
+  RefreshCcw,
+  AlertTriangle,
 } from 'lucide-react';
 import type { ModelParameters } from '../../lib/modelParameters';
 
@@ -413,15 +415,18 @@ export type BlightEngineSettingsProps = {
   onParamsChange: (next: ModelParameters) => void;
   isLocked: boolean;
   onToggleLock: () => void;
-  /** Save banner etc. — kept between header and parameter grid for layout parity. */
   afterHeader?: ReactNode;
-  /** Market & Economics card — same grid as blight panels (BE-01 layout parity). */
-  gridTrailing?: ReactNode;
+  /** Persist research knobs (merge-write). When set, Deploy / Reset actions render. */
+  onDeploy?: () => void | Promise<void>;
+  onResetDefaults?: () => void;
+  saving?: boolean;
+  message?: { type: 'success' | 'error'; text: string } | null;
 };
 
 /**
- * Research / sandbox knobs still under Settings → Advanced (BE-02).
- * Production orchard inoculum lives on Blight Risk; BE-03 moves these research panels there too.
+ * Research / sandbox knobs for the walnut blight pack (BE-03).
+ * Mounted under Blight risk → Sandbox. Production orchard inoculum is separate
+ * (`BlightOrchardInoculumPanel`). Does not change Ji Forecast / Historical.
  */
 export function BlightEngineSettings({
   params,
@@ -429,12 +434,15 @@ export function BlightEngineSettings({
   isLocked,
   onToggleLock,
   afterHeader,
-  gridTrailing,
+  onDeploy,
+  onResetDefaults,
+  saving = false,
+  message = null,
 }: BlightEngineSettingsProps) {
   const set = (patch: Partial<ModelParameters>) => onParamsChange({ ...params, ...patch });
 
   return (
-    <>
+    <div className="space-y-6">
       <div className="bg-[#141414] text-[#E4E3E0] p-6 rounded-2xl border border-[#141414] shadow-xl space-y-4 font-mono">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -442,6 +450,7 @@ export function BlightEngineSettings({
             <h2 className="text-lg font-bold uppercase tracking-wider">Research modifiers (sandbox)</h2>
           </div>
           <button
+            type="button"
             onClick={onToggleLock}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
               isLocked
@@ -454,22 +463,24 @@ export function BlightEngineSettings({
           </button>
         </div>
         <p className="text-xs opacity-70 leading-relaxed max-w-2xl">
-          These knobs only change Blight → Sandbox what-ifs. They do <span className="text-emerald-300">not</span>{' '}
-          change Forecast / Historical / Dashboard (Ji). Production orchard inoculum (Ji k) is set on{' '}
-          <span className="text-emerald-300">Blight risk</span>. This research panel moves to Blight → Sandbox soon
-          (BE-03).
+          These knobs only change Sandbox what-ifs. They do <span className="text-emerald-300">not</span> change
+          Forecast / Historical / Dashboard (Ji). Production orchard inoculum (Ji k) is the panel above the charts
+          on Blight risk.
         </p>
       </div>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 leading-relaxed">
-        <strong className="font-semibold">Orchard inoculum moved.</strong> Set Low / Medium / High on{' '}
-        <Link to="/blight" className="font-semibold text-emerald-800 underline underline-offset-2">
-          Blight risk
-        </Link>
-        . Research knobs below stay here temporarily.
-      </div>
-
       {afterHeader}
+
+      {message && (
+        <div
+          className={`p-4 rounded-xl flex items-center gap-3 text-sm font-medium ${
+            message.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+          }`}
+        >
+          {message.type === 'success' ? <Save className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          {message.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#E4E3E0] border border-[#141414] p-6 rounded-2xl space-y-6">
@@ -721,10 +732,32 @@ export function BlightEngineSettings({
           </div>
         </div>
 
-        {gridTrailing}
       </div>
 
       <ParameterGlossary />
-    </>
+
+      {onDeploy && (
+        <div className="flex flex-col sm:flex-row gap-4 pt-2">
+          <button
+            type="button"
+            onClick={() => void onDeploy()}
+            disabled={saving}
+            className="flex-1 bg-[#141414] text-[#E4E3E0] py-4 rounded-xl font-mono text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:opacity-50"
+          >
+            {saving ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Processing...' : 'Deploy research knobs'}
+          </button>
+          {onResetDefaults && (
+            <button
+              type="button"
+              onClick={onResetDefaults}
+              className="px-6 py-4 border border-[#141414] text-[#141414] rounded-xl font-mono text-xs font-bold uppercase hover:bg-white transition-colors"
+            >
+              Reset research defaults
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
