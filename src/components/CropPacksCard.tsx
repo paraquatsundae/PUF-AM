@@ -22,6 +22,7 @@ import {
   ensureLegacyWalnutPackMigrated,
   installCropPack,
 } from '../lib/cropPackLifecycle';
+import { WALNUT_BLIGHT_PRIMARY_PATH } from '../packs/walnut_blight';
 import { clsx } from 'clsx';
 
 export function CropPacksCard() {
@@ -190,7 +191,10 @@ export function CropPacksCard() {
               {installed && active && pack.id === 'walnut_blight' && farmEnabledModules.includes('blight') && (
                 <p className="text-[10px] text-slate-500">
                   Open{' '}
-                  <Link to="/blight" className="text-emerald-700 underline-offset-2 hover:underline">
+                  <Link
+                    to={WALNUT_BLIGHT_PRIMARY_PATH}
+                    className="text-emerald-700 underline-offset-2 hover:underline"
+                  >
                     Blight Risk
                   </Link>{' '}
                   for orchard inoculum and engine settings.

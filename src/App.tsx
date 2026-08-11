@@ -23,12 +23,12 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { WorkshopModeBanner } from './components/WorkshopModeBanner';
 import { isWorkshopMode } from './lib/workshopMode';
 import { ModuleRoute } from './components/ModuleRoute';
+import { allPackRoutes } from './packs/registry';
 import { startFarmOutboxFlushListener } from './lib/flushFarmOutbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 startFarmOutboxFlushListener();
 
-const BlightRisk = React.lazy(() => import('./pages/BlightRisk').then(m => ({ default: m.BlightRisk })));
 const WaterMonitoring = React.lazy(() => import('./pages/WaterMonitoring').then(m => ({ default: m.WaterMonitoring })));
 const FarmManagement = React.lazy(() => import('./pages/FarmManagement').then(m => ({ default: m.FarmManagement })));
 const FarmDiary = React.lazy(() => import('./pages/FarmDiary').then(m => ({ default: m.FarmDiary })));
@@ -146,14 +146,20 @@ export default function App() {
                     </ModuleRoute>
                   }
                 />
-                <Route
-                  path="blight"
-                  element={
-                    <ModuleRoute moduleId="blight">
-                      <BlightRisk />
-                    </ModuleRoute>
-                  }
-                />
+                {allPackRoutes().map((packRoute) => {
+                  const PackPage = packRoute.Page;
+                  return (
+                    <Route
+                      key={`pack:${packRoute.path}`}
+                      path={packRoute.path}
+                      element={
+                        <ModuleRoute moduleId={packRoute.moduleId}>
+                          <PackPage />
+                        </ModuleRoute>
+                      }
+                    />
+                  );
+                })}
                 <Route
                   path="water"
                   element={
