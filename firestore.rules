@@ -64,11 +64,20 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isAdmin() {
+    // Platform admin only. Farm-role `admin` is not a global key.
+    // `platformAdmin` is set by scripts/setAdminClaim.ts. The token.admin
+    // fallback matches the old script, which wrote `{ admin: true }` with no
+    // `role` claim — farm-role tokens always carry `role`.
+    function isPlatformAdmin() {
       return isAuthenticated() &&
-        (request.auth.token.admin == true ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+        (request.auth.token.platformAdmin == true ||
+         (request.auth.token.admin == true &&
+          request.auth.token.pinAuth != true &&
+          !('role' in request.auth.token)));
+    }
+
+    function isAdmin() {
+      return isPlatformAdmin();
     }
 
     // Invite-PIN custom tokens carry pinAuth + farmId; they must not depend on email whitelist.
@@ -101,12 +110,26 @@ service cloud.firestore {
     }
 
     function isFarmMember(farmId) {
-      return isAdmin() || isFarmOwner(farmId) || (
+      return isPlatformAdmin() || isFarmOwner(farmId) || (
         isAuthorized() && (
           (isPinAuthenticated() && request.auth.token.farmId == farmId) ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.farmId == farmId)
         )
+      );
+    }
+
+    function farmCallerRole() {
+      return request.auth.token.role is string
+        ? request.auth.token.role
+        : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+            : '');
+    }
+
+    function isFarmAdmin(farmId) {
+      return isPlatformAdmin() || (
+        isFarmMember(farmId) && (isFarmOwner(farmId) || farmCallerRole() == 'admin')
       );
     }
 
@@ -215,7 +238,11 @@ service cloud.firestore {
     }
 
     function isValidFarm(data) {
-      return hasOnlyAllowedFields(['id', 'name', 'ownerUid', 'createdAt', 'lat', 'lng', 'showNearby', 'enabledModules', 'cropPacks']) &&
+      return hasOnlyAllowedFields([
+               'id', 'name', 'ownerUid', 'createdAt', 'lat', 'lng', 'showNearby',
+               'enabledModules', 'cropPacks', 'cloudKind', 'firebaseProjectId',
+               'billingAckText', 'billingAckAt'
+             ]) &&
              hasRequiredFields(['id', 'name', 'ownerUid', 'createdAt']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
@@ -225,7 +252,36 @@ service cloud.firestore {
              (!('lng' in data) || data.lng is number) &&
              (!('showNearby' in data) || data.showNearby is bool) &&
              (!('enabledModules' in data) || data.enabledModules is list) &&
-             (!('cropPacks' in data) || data.cropPacks is map);
+             (!('cropPacks' in data) || data.cropPacks is map) &&
+             (!('cloudKind' in data) || data.cloudKind in ['byo', 'pufworks']) &&
+             (!('firebaseProjectId' in data) || (data.firebaseProjectId is string && data.firebaseProjectId.size() < 128)) &&
+             (!('billingAckText' in data) || (data.billingAckText is string && data.billingAckText.size() < 500)) &&
+             (!('billingAckAt' in data) || data.billingAckAt is string);
+    }
+
+    // Client-readable invite tickets for bring-your-own Firebase (no Admin SDK).
+    // Knowledge of the SHA-256 id is the secret — list is farm-admin only.
+    function isValidJoinTicket(data) {
+      return hasOnlyAllowedFields([
+               'farmId', 'role', 'label', 'active', 'maxUses', 'useCount', 'expiresAt',
+               'createdBy', 'createdAt', 'modules', 'codeHint',
+               'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName'
+             ]) &&
+             hasRequiredFields(['farmId', 'role', 'label', 'active', 'createdBy', 'createdAt']) &&
+             data.farmId is string &&
+             data.role in ['admin', 'farmer', 'viewer'] &&
+             data.label is string && data.label.size() < 200 &&
+             data.active is bool &&
+             (!('maxUses' in data) || data.maxUses == null || data.maxUses is int) &&
+             (!('useCount' in data) || data.useCount is int) &&
+             (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt is string) &&
+             data.createdBy is string &&
+             data.createdAt is string &&
+             (!('modules' in data) || data.modules is list) &&
+             (!('codeHint' in data) || data.codeHint is string) &&
+             (!('lastRedeemedAt' in data) || data.lastRedeemedAt == null || data.lastRedeemedAt is string) &&
+             (!('lastRedeemedBy' in data) || data.lastRedeemedBy == null || data.lastRedeemedBy is string) &&
+             (!('lastRedeemedDisplayName' in data) || data.lastRedeemedDisplayName == null || data.lastRedeemedDisplayName is string);
     }
 
     // Discovery index — written by Admin SDK / Express only (nearby join API).
@@ -348,6 +404,8 @@ service cloud.firestore {
              ));
     }
 
+    // Blight keys are optional so crop-pack Delete can wipe settingsOwnedKeys
+    // and leave economics. Validate type/range only when a field is present.
     function isValidModelParameters(data) {
       return hasOnlyAllowedFields([
                'blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor',
@@ -357,12 +415,11 @@ service cloud.firestore {
                'treeHeight', 'canopyWidth', 'rowSpacing', 'chemEfficacy', 'bioEfficacy',
                'marketPrice', 'harvestCostPerKg', 'waterCostPerML'
              ]) &&
-             hasRequiredFields(['blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor', 'splashMultiplier']) &&
-             data.blightSensitivity is number && data.blightSensitivity >= 0 && data.blightSensitivity <= 1 &&
-             data.cropCoefficient is number && data.cropCoefficient >= 0 &&
-             data.gddBaseTemp is number &&
-             data.humidityGradientFactor is number &&
-             data.splashMultiplier is number &&
+             (!('blightSensitivity' in data) || (data.blightSensitivity is number && data.blightSensitivity >= 0 && data.blightSensitivity <= 1)) &&
+             (!('cropCoefficient' in data) || (data.cropCoefficient is number && data.cropCoefficient >= 0)) &&
+             (!('gddBaseTemp' in data) || data.gddBaseTemp is number) &&
+             (!('humidityGradientFactor' in data) || data.humidityGradientFactor is number) &&
+             (!('splashMultiplier' in data) || data.splashMultiplier is number) &&
              (!('bioColonizationEff' in data) || data.bioColonizationEff is number) &&
              (!('orchardInoculumLevel' in data) || data.orchardInoculumLevel in ['low', 'medium', 'high']);
     }
@@ -767,8 +824,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // PII Protection: Only owner or admin can read the full user document (contains email)
-      allow read: if isOwner(userId) || isAdmin();
+      // Owner, platform admin, or farm admin of the same farm (BYO has no Admin SDK list).
+      allow read: if isOwner(userId) || isAdmin() ||
+                    (resource.data.farmId is string && isFarmAdmin(resource.data.farmId));
       
       allow create: if isAuthorized() && 
                     isOwner(userId) && 
@@ -781,7 +839,8 @@ service cloud.firestore {
                      (request.resource.data.subscriptionTier == 'free' || isAdmin());
                     
       allow update: if isAuthorized() && 
-                    (isOwner(userId) || isAdmin()) && 
+                    (isOwner(userId) || isAdmin() ||
+                     (resource.data.farmId is string && isFarmAdmin(resource.data.farmId))) && 
                     isValidUser(request.resource.data) && 
                     uidNotModified() && 
                     isUnchangedOrNew('createdAt') &&
@@ -812,7 +871,8 @@ service cloud.firestore {
       allow read: if isFarmMember(farmId);
       // Prefer server create-farm (Admin SDK). Client create kept for legacy Google owners.
       allow create: if isAuthorized() && isValidFarm(request.resource.data) && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if canMutateFarm(farmId) && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+      allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) &&
+                    request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if isAdmin();
 
       match /blocks/{blockId} {
@@ -859,9 +919,9 @@ service cloud.firestore {
 
       match /settings/model_params {
         allow read: if isFarmMember(farmId);
-        allow create: if canMutateFarm(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
-        allow update: if canMutateFarm(farmId) && isAdmin() && isValidModelParameters(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && isAdmin();
+        allow create: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidModelParameters(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidModelParameters(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /settings/assets {
@@ -913,7 +973,7 @@ service cloud.firestore {
                       isValidFieldIssueShape(request.resource.data) &&
                       request.resource.data.status == 'archived';
         allow update: if canMutateFarm(farmId) && isValidFieldIssueUpdate(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /pathTraces/{traceId} {
@@ -983,98 +1043,98 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidFinancialTransaction(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidFinancialTransaction(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /financial_summaries/{summaryId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidFinancialSummary(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidFinancialSummary(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /settings/financial {
         allow read: if isFarmMember(farmId);
-        allow create: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
-        allow update: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId)) && isValidFinancialSettings(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow create: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidFinancialSettings(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidFinancialSettings(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /budgets/{budgetId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidBudget(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidBudget(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /processing_logs/{logId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidProcessingLog(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidProcessingLog(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /packing_logs/{logId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidPackingLog(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidPackingLog(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /inventory/{itemId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidInventoryItem(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidInventoryItem(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /machinery/{machineId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidMachineryItem(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidMachineryItem(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /employees/{employeeId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidEmployee(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidEmployee(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /energy_logs/{logId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidEnergyLog(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidEnergyLog(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /rd_projects/{projectId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidRDProject(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidRDProject(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /rd_expenses/{expenseId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidRDExpense(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidRDExpense(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /marketing_campaigns/{campaignId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidMarketingCampaign(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidMarketingCampaign(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /marketing_expenses/{expenseId} {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidMarketingExpense(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidMarketingExpense(request.resource.data);
-        allow delete: if canMutateFarm(farmId) && (isAdmin() || isFarmOwner(farmId));
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
       match /aggregates/{aggregateId} {
         allow read: if isFarmMember(farmId);
@@ -1084,13 +1144,27 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow write: if isFarmMember(farmId);
       }
-    }
 
-    match /invitations/{email} {
-      allow read: if isAuthorized() && (request.auth.token.email.lower() == email.lower() || isAdmin());
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAuthorized() && (request.auth.token.email.lower() == email.lower() || isAdmin());
+      match /join_tickets/{pinHash} {
+        allow get: if true;
+        allow list: if isFarmAdmin(farmId);
+        allow create: if isFarmAdmin(farmId) &&
+                        isValidJoinTicket(request.resource.data) &&
+                        request.resource.data.farmId == farmId;
+        allow update: if isValidJoinTicket(request.resource.data) &&
+                        request.resource.data.farmId == farmId &&
+                        (
+                          isFarmAdmin(farmId) ||
+                          (
+                            isAuthenticated() &&
+                            resource.data.active == true &&
+                            request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['useCount', 'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName']) &&
+                            request.resource.data.useCount == resource.data.useCount + 1
+                          )
+                        );
+        allow delete: if isFarmAdmin(farmId);
+      }
     }
 
     // Invite PINs are minted/redeemed via Admin SDK (Express / Functions).

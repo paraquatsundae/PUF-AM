@@ -14,7 +14,7 @@ import { useFarmDiary } from '../lib/farmDiary';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
 
 export function BottomNav() {
-  const { isAdmin, userData, hasModule, farmEnabledModules } = useAuth();
+  const { isAdmin, isPlatformAdmin, userData, hasModule, farmEnabledModules } = useAuth();
   const { settings } = useFarmDiary();
   const mapTitle = mapUiCopy(settings.farmProfile).mapTitle;
   const navGroups = React.useMemo(() => navGroupsForMapTitle(mapTitle), [mapTitle]);
@@ -32,7 +32,8 @@ export function BottomNav() {
         isAdmin,
         userData?.role,
         userData?.modules,
-        farmEnabledModules
+        farmEnabledModules,
+        isPlatformAdmin
       )
     : [];
 
@@ -129,7 +130,8 @@ export function BottomNav() {
             isAdmin,
             userData?.role,
             userData?.modules,
-            farmEnabledModules
+            farmEnabledModules,
+            isPlatformAdmin
           );
           if (items.length === 0) return null;
           const isOpen = openGroupId === group.id;

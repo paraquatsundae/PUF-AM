@@ -3,7 +3,7 @@
 **Product:** PUF-AM — Ag Manager  
 **Status:** Active — CP-00–CP-05 done (contract through developer PR checklist); first consumer walnut blight ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md))  
 **Date:** 2026-08-11  
-**Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet host plugins ([`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md), [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md)) are a **different** word — do not conflate
+**Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet is a **network pack** ([`APK_FREENET_HOST.md`](APK_FREENET_HOST.md), [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md)) — a **different** word. Do not conflate.
 
 ---
 
@@ -57,7 +57,9 @@ Back to catalog-only (not on this farm)
 
 ## Farm-admin UX
 
-**Home:** Farm Setup → **Crop packs** (new card; Farm Modules stays for fine-grained module toggles).
+**Home:** **Settings → Plugins** (grouped by category). Farm Setup shows a short pointer; **Farm management → Modules** stays for fine-grained module toggles.
+
+Admin-only Install / Activate / Deactivate / Delete for crop packs. Freenet appears in the same Plugins list under **Network & storage** (status + link to Sync — not crop-pack lifecycle).
 
 Admin-only. One row per catalog pack:
 
@@ -75,6 +77,18 @@ Copy rules:
 - Invite PIN presets still limit who *sees* modules after Activate; packs do not bypass grants.
 
 **Default for v1 Install:** Install = active immediately (one button). Deactivate / Delete remain separate. Two-step Install→Activate is optional later if we need staged setup wizards.
+
+### Categories (required)
+
+Every catalog entry **must** set `category` (`shared/farm/pluginCategories.ts`):
+
+| Id | Label | Use for |
+|----|-------|---------|
+| `crop` | Crop tools | Enterprise packs (walnut blight, future apple / citrus) |
+| `network` | Network & storage | Freenet and related hosts |
+| `generic` | General | **Catch-all** — authors who do not have a better fit still pick this; do not omit |
+
+Settings → Plugins groups rows by these categories. Omitting `category` is a contract failure (TypeScript requires it on `CropPackDef`).
 
 ---
 
@@ -97,6 +111,43 @@ cropPacks?: {
 
 ---
 
+## Packaging (zip → `plugins/`)
+
+v1 distribution unit for third-party / side-loaded packs:
+
+| Item | Value |
+|------|--------|
+| Drop folder | repo (or app) **`plugins/`** |
+| Archive | **`{packId}.zip`** |
+| Manifest | **`plugin.json`** at zip root (or `{packId}/plugin.json` in a single top-level folder) |
+| Schema | `shared/farm/plugin.manifest.v1.schema.json` · types `shared/farm/pluginPackage.ts` |
+| Skeleton | `plugins/_skeleton/` |
+
+```
+plugin.json     # required (schemaVersion 1, kind, id, version, label, blurb, category, modules, settingsDocId)
+engine.json     # optional — first-party blight defaults (`plugins/walnut_blight/`)
+README.md       # optional
+LICENSE         # optional
+assets/         # optional
+```
+
+**`category` is required** on every package (`crop` | `network` | `generic`).
+
+**Reference package:** [`plugins/walnut_blight/`](../plugins/walnut_blight/) — catalog + blight engine defaults. `shared/farm/cropPacks.ts` and `src/lib/modelParameters.ts` read that folder; they do not duplicate the numbers. React / Ji code still ships in the app.
+
+```bash
+npm run plugins:verify -- plugins/walnut_blight
+npm run plugins:pack -- plugins/walnut_blight     # → plugins/walnut_blight.zip (gitignored)
+npm run plugins:unpack -- path/to/apple_scab.zip   # → plugins/apple_scab/
+npm run plugins:list
+```
+
+Workshop hub lists unpacked packages at `GET /api/plugins/packages`.
+
+**Still in-app for React UI:** UI under `src/packs/<id>/` so Install activates real routes. Catalog metadata and (for walnut blight) engine defaults live in `plugins/<id>/`. Hot-loading arbitrary React from a zip is out of scope for v1.
+
+---
+
 ## Developer contract — requirements for a pack to work
 
 A pack is **not loaded** until it is registered in the app catalog. For v1, registration = in-repo entry in `shared/farm/cropPacks.ts` + UI/engine code shipped with PUF-AM. No hot-load of untrusted bundles.
@@ -105,7 +156,7 @@ A pack is **not loaded** until it is registered in the app catalog. For v1, regi
 
 | # | Requirement | Why the system needs it |
 |---|-------------|-------------------------|
-| D1 | Stable **`CropPackId`** + human **label** / **blurb** | Catalog row + admin UI |
+| D1 | Stable **`CropPackId`** + human **label** / **blurb** + **`category`** (`crop` \| `network` \| `generic`) | Catalog row + Settings → Plugins grouping; authors must pick a category (`generic` if unsure) |
 | D2 | **`modules: FarmModuleId[]`** owned by this pack | Activate/Deactivate can sync nav |
 | D3 | **`settingsDocId`** (`string \| null`) | Delete knows what to wipe; Deploy knows where to write |
 | D4 | **Primary route(s)** registered in the pack route table, wrapped in `ModuleRoute` | Nav only appears when module + pack active |
@@ -168,6 +219,8 @@ export type CropPackDef = {
   id: CropPackId;
   label: string;
   blurb: string;
+  /** Required — Settings → Plugins grouping. Use `generic` if unsure. */
+  category: 'crop' | 'network' | 'generic';
   modules: FarmModuleId[];
   settingsDocId: string | null;
   /** Soft/hard eligibility for Install button. */
@@ -178,7 +231,7 @@ export type CropPackDef = {
   onDelete?: (ctx: CropPackLifecycleCtx) => Promise<void>;
 };
 
-/** System helpers used by Farm Setup UI */
+/** System helpers used by Settings → Plugins UI */
 export function installPack(farmId, packId): Promise<void>;
 export function activatePack(farmId, packId): Promise<void>;
 export function deactivatePack(farmId, packId): Promise<void>;
@@ -200,7 +253,7 @@ Route/panel registry (CP-04): each pack exports `{ path, Page, moduleId }` + nav
 | Modules | `withWalnutPackModules` on Farm Setup save | Lifecycle helpers only |
 | Surface | `/blight` | Unchanged ownership |
 
-Until CP-01 ships, keep current walnut auto-sync so production farms do not regress.
+**Shipped (CP-01):** walnut farms migrate once onto Install+Activate; Farm Setup no longer auto-toggles blight modules.
 
 ---
 
@@ -219,7 +272,7 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 2. Settings shell stays farm-wide (account, crew, economics, Freenet).  
 3. Merge-save by slice if sharing a doc; new packs get their own settings doc.  
 4. Admin write ceiling unchanged.  
-5. Crop Packs card is the lifecycle UI; Farm Modules remains the fine-grained module list.
+5. Settings → Plugins is the lifecycle UI (Install / Activate / Deactivate / Delete, grouped by category). Farm Setup `CropPacksCard` is a teaser that links there. Farm Modules remains the fine-grained module list.
 
 ---
 
@@ -262,7 +315,7 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 |----|-------|--------|-------|
 | `CP-00` | **This plan** (contract + admin lifecycle) | `done` | Design only |
 | `CP-01` | `cropPacks.ts` + lifecycle helpers; walnut adapter; legacy one-time migrate from `farmHasWalnutPack` | `done` | 2026-08-11 — `shared/farm/cropPacks.ts` + `src/lib/cropPackLifecycle.ts`; Farm Setup no longer auto-toggles blight |
-| `CP-02` | Farm Setup **Crop packs** card: Install / Activate / Deactivate / Delete | `done` | 2026-08-11 — `CropPacksCard`; migrate-on-open for legacy walnut farms |
+| `CP-02` | Settings → **Plugins** (categories + Install lifecycle); Farm Setup pointer | `done` | 2026-08-12 — `PluginsPanel`; Farm Setup teaser; was Farm Setup Crop packs card |
 | `CP-03` | Farm Modules card labels “from \<pack\>”; disable pack modules when pack inactive | `done` | 2026-08-11 — “From crop packs” section with From \<label\> badge; inactive rows disabled; ops vs pack split via `optionalOpsModules` / `installedPackModuleRows` |
 | `CP-04` | Pack route/panel registry convention (`src/packs/<id>/` optional move) | `done` | 2026-08-11 — `src/packs/registry.ts` + `walnut_blight` UI reg; App routes + nav merge from registry; panels re-exported (files stay in `components/blight`) |
 | `CP-05` | Developer requirements doc link (README / NAMING) + PR checklist | `done` | 2026-08-11 — README “Adding a crop pack”; NAMING crop-pack terms; `.github/PULL_REQUEST_TEMPLATE/crop-pack.md`; DEVELOPER_NOTES pointer |
@@ -294,6 +347,8 @@ Until CP-01 ships, keep current walnut auto-sync so production farms do not regr
 
 | Date | Slice | Notes |
 |------|-------|-------|
+| 2026-08-13 | Zip | First-party `plugins/walnut_blight/` is catalog + engine defaults source; `npm run plugins:pack` |
+| 2026-08-12 | CP-02 | Settings → Plugins (categories); Farm Setup teaser; was Farm Setup Crop packs card |
 | 2026-08-11 | CP-05 | Developer onboarding: README section, NAMING terms, GitHub crop-pack PR template, DEVELOPER_NOTES link |
 | 2026-08-11 | CP-04 | Pack UI registry: routes/nav/surfaces; walnut blight registered; App + navConfig consume registry |
 | 2026-08-11 | CP-03 | Farm Modules: ops vs pack sections; “From Walnut blight” badge; inactive pack modules disabled; clamp on save |

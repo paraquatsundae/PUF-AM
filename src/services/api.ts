@@ -2,7 +2,6 @@ import { OrchardBlock, InfrastructurePin, FarmTrack, MapViewport } from '../lib/
 import { DiaryEvent, FarmSettings } from '../lib/farmDiary';
 import { db, auth } from '../firebase';
 import { collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, where, getDocsFromCache, getDocFromCache, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-import { v4 as uuidv4 } from 'uuid';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import { localMapStore } from '../lib/localMapStore';
 
@@ -459,42 +458,6 @@ export const mapApi = {
     }
   },
 
-  createInvitation: async (email: string, farmId: string, role: string, invitedBy: string): Promise<void> => {
-    if (isLocalOnlyFarmSession()) return;
-    try {
-      await setDoc(doc(db, 'invitations', email.toLowerCase()), {
-        email: email.toLowerCase(),
-        farmId,
-        role,
-        invitedBy,
-        createdAt: new Date().toISOString()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `invitations/${email}`);
-    }
-  },
-
-  getInvitation: async (email: string): Promise<any | null> => {
-    if (isLocalOnlyFarmSession()) return null;
-    try {
-      const docSnap = await getDoc(doc(db, 'invitations', email.toLowerCase()));
-      return docSnap.exists() ? docSnap.data() : null;
-    } catch (error) {
-      if (isBenignFirestoreFailure(error)) return null;
-      handleFirestoreError(error, OperationType.GET, `invitations/${email}`);
-      return null;
-    }
-  },
-
-  deleteInvitation: async (email: string): Promise<void> => {
-    if (isLocalOnlyFarmSession()) return;
-    try {
-      await deleteDoc(doc(db, 'invitations', email.toLowerCase()));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `invitations/${email}`);
-    }
-  },
-
   joinFarm: async (uid: string, farmId: string, role: string): Promise<void> => {
     try {
       await setDoc(doc(db, 'users', uid), { farmId, role }, { merge: true });
@@ -528,47 +491,6 @@ export const mapApi = {
   }
 };
 
-// --- Tasks & Field Ops ---
-export const tasksApi = {
-  getTasks: async (farmId: string): Promise<any[]> => {
-    if (isLocalOnlyFarmSession()) return [];
-    try {
-      const path = `farms/${farmId}/tasks`;
-      const q = collection(db, path);
-      const snapshot = isOffline() ? await getDocsFromCache(q) : await getDocs(q);
-      return snapshot.docs.map(doc => doc.data());
-    } catch (error) {
-      if (isOffline() || isBenignFirestoreFailure(error)) return [];
-      handleFirestoreError(error, OperationType.LIST, `farms/${farmId}/tasks`);
-      return [];
-    }
-  },
-  saveTask: async (farmId: string, task: any): Promise<void> => {
-    if (isLocalOnlyFarmSession()) return;
-    try {
-      const path = `farms/${farmId}/tasks`;
-      const dataToSave = { ...task, updatedAt: new Date().toISOString() };
-      Object.keys(dataToSave).forEach(key => {
-        if ((dataToSave as any)[key] === undefined) {
-          delete (dataToSave as any)[key];
-        }
-      });
-      await setDoc(doc(db, path, task.id), dataToSave);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/tasks/${task.id}`);
-    }
-  },
-  deleteTask: async (farmId: string, id: string): Promise<void> => {
-    if (isLocalOnlyFarmSession()) return;
-    try {
-      const path = `farms/${farmId}/tasks`;
-      await deleteDoc(doc(db, path, id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `farms/${farmId}/tasks/${id}`);
-    }
-  }
-};
-
 // --- Safety Checklist ---
 export const safetyApi = {
   getChecklist: async (farmId: string): Promise<any | null> => {
@@ -591,49 +513,6 @@ export const safetyApi = {
       await setDoc(doc(db, path, 'safety'), dataToSave);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/settings/safety`);
-    }
-  }
-};
-
-// --- Notifications ---
-export const notificationApi = {
-  getNotifications: async (userId: string): Promise<any[]> => {
-    if (isLocalOnlyFarmSession()) return [];
-    try {
-      const path = `users/${userId}/notifications`;
-      const q = collection(db, path);
-      const snapshot = isOffline() ? await getDocsFromCache(q) : await getDocs(q);
-      return snapshot.docs.map(doc => doc.data());
-    } catch (error) {
-      if (isOffline() || isBenignFirestoreFailure(error)) return [];
-      handleFirestoreError(error, OperationType.LIST, `users/${userId}/notifications`);
-      return [];
-    }
-  },
-  createNotification: async (userId: string, notification: any): Promise<void> => {
-    if (isLocalOnlyFarmSession()) return;
-    let id = notification.id || uuidv4();
-    try {
-      const path = `users/${userId}/notifications`;
-      const dataToSave = { 
-        ...notification, 
-        id, 
-        userId, // Ensure userId is included in the data for validation
-        createdAt: new Date().toISOString(), 
-        read: false 
-      };
-      await setDoc(doc(db, path, id), dataToSave);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/notifications/${id}`);
-    }
-  },
-  markAsRead: async (userId: string, notificationId: string): Promise<void> => {
-    if (isLocalOnlyFarmSession()) return;
-    try {
-      const path = `users/${userId}/notifications`;
-      await setDoc(doc(db, path, notificationId), { read: true }, { merge: true });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${userId}/notifications/${notificationId}`);
     }
   }
 };

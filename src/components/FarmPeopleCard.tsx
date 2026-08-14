@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, Loader2, Ticket, UserPlus, Users } from 'lucide-react';
 
+import { FreenetHowItWorksButton } from './FreenetHowItWorks';
 import { useAuth } from '../contexts/AuthContext';
 import { activeFarmPipe } from '../lib/farmPipes';
 import { fetchJoinTicketLedger, revokeJoinTicket } from '../lib/joinLedger';
@@ -134,14 +135,27 @@ function FreenetPeople({ farmId }: { farmId: string }) {
         </p>
       ) : rows && rows.length === 0 ? (
         <div className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 space-y-1">
-          <p className="font-semibold text-slate-700">Nobody has been given a ticket yet.</p>
+          <p className="font-semibold text-slate-700">
+            Tickets live on the laptop that Sent
+            {shelf ? (
+              <>
+                {' '}
+                — this list is <code className="font-mono">{shelf}</code>
+              </>
+            ) : (
+              ' — this list is this computer'
+            )}
+            .
+          </p>
+          <p>Nobody has been given a ticket on this hub yet.</p>
           <p>
             It is just you and the devices you have already set up. To put this farm on somebody
             else&apos;s laptop or tablet, use{' '}
-            <Link to="/settings" className="font-semibold text-emerald-700 hover:underline">
+            <Link to="/settings?tab=sync" className="font-semibold text-emerald-700 hover:underline">
               Settings → Sync → Send this farm
             </Link>{' '}
-            and read them the ticket it gives you.
+            and read them the ticket it gives you. Tickets minted on a different laptop stay on that
+            laptop&apos;s list.
           </p>
         </div>
       ) : rows ? (
@@ -218,13 +232,16 @@ export function FarmPeopleCard() {
           </p>
         </div>
         {pipe === 'freenet' && (
-          <Link
-            to="/settings"
-            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50"
-          >
-            <Ticket className="w-3.5 h-3.5" />
-            Send this farm
-          </Link>
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <FreenetHowItWorksButton />
+            <Link
+              to="/settings"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50"
+            >
+              <Ticket className="w-3.5 h-3.5" />
+              Send this farm
+            </Link>
+          </div>
         )}
       </div>
 

@@ -54,6 +54,7 @@ export function Dashboard() {
   const showChill = farmShowsChillPortions({
     profile: settings.farmProfile,
     blocks,
+    walnutPackActive: hasWalnutPack,
   });
   const chill = useFarmChillPortions(
     viewport.lat,

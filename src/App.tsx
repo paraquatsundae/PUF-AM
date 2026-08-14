@@ -12,7 +12,6 @@ import { Login } from './pages/Login';
 import { MistNewFarm } from './pages/MistNewFarm';
 import { MistRecoverFarm } from './pages/MistRecoverFarm';
 import { Dashboard } from './pages/Dashboard';
-import { InvitationOverlay } from './components/InvitationOverlay';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
 import { PrivacyGate } from './components/PrivacyGate';
@@ -116,7 +115,6 @@ export default function App() {
       <AuthProvider>
         <WorkshopModeBanner />
         <OfflineIndicator />
-        <InvitationOverlay />
         <BrowserRouter>
           <Suspense fallback={<RouteFallback />}>
             <Routes>

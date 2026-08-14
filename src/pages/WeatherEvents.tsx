@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useMapStore } from '../lib/mapStore';
 import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
+import { useWalnutPack } from '../hooks/useWalnutPack';
 import { farmShowsChillPortions } from '../../shared/farm/farmTypes';
 import {
   WEATHER_STATION_ANCHORS,
@@ -30,9 +31,11 @@ export function WeatherEvents() {
   const canEdit = userData?.role === 'admin' || userData?.role === 'farmer';
   const { settings, updateSettings } = useFarmDiary();
   const { blocks, viewport } = useMapStore();
+  const hasWalnutPack = useWalnutPack();
   const showChill = farmShowsChillPortions({
     profile: settings.farmProfile,
     blocks,
+    walnutPackActive: hasWalnutPack,
   });
 
   const preferredCode = settings.dpirdStationCode?.trim() || '';

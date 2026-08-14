@@ -1,9 +1,12 @@
 /**
  * Crop-pack catalog + pure lifecycle helpers (Plans/CROP_PACK_PLUGIN.md).
  *
- * Packs are in-app capabilities (not Freenet host plugins). Farm admin
- * Install / Activate / Deactivate / Delete is driven from these defs +
- * `farms/{id}.cropPacks`.
+ * Catalog metadata and blight engine defaults live in `plugins/walnut_blight/`.
+ * React UI still ships in `src/packs/<id>/`. Farm admin Install / Activate /
+ * Deactivate / Delete is driven from these defs + `farms/{id}.cropPacks`.
+ *
+ * Every pack **must** set `category` (see `pluginCategories.ts`). Use
+ * `generic` when no better bucket fits.
  */
 
 import {
@@ -14,8 +17,21 @@ import {
   withoutWalnutPackModules,
 } from '../auth/farmModules';
 import { farmHasWalnutPack, type FarmProfile } from './farmTypes';
+import {
+  resolvePluginCategory,
+  type PluginCategoryId,
+} from './pluginCategories';
+import {
+  WALNUT_BLIGHT_PACK_ID,
+  WALNUT_BLIGHT_PRIMARY_PATH,
+  WALNUT_BLIGHT_SETTINGS_OWNED_KEYS,
+  walnutBlightManifest,
+  walnutBlightModules,
+} from './walnutBlightPackage';
 
-export const CROP_PACK_IDS = ['walnut_blight'] as const;
+export { WALNUT_BLIGHT_SETTINGS_OWNED_KEYS } from './walnutBlightPackage';
+
+export const CROP_PACK_IDS = [WALNUT_BLIGHT_PACK_ID] as const;
 export type CropPackId = (typeof CROP_PACK_IDS)[number];
 
 export type CropPackStatus = 'active' | 'inactive';
@@ -47,6 +63,11 @@ export type CropPackDef = {
   id: CropPackId;
   label: string;
   blurb: string;
+  /**
+   * Settings → Plugins grouping. Required for every pack — use `generic` if
+   * nothing more specific fits (`shared/farm/pluginCategories.ts`).
+   */
+  category: PluginCategoryId;
   modules: FarmModuleId[];
   /**
    * Firestore doc id under farms/{id}/settings/.
@@ -56,40 +77,21 @@ export type CropPackDef = {
   settingsDocId: string | null;
   /** Pack-owned fields inside settingsDocId (legacy shared docs). */
   settingsOwnedKeys?: readonly string[];
+  /** Primary operator route, from plugin.json when the pack ships as a zip. */
+  primaryPath?: string;
   canInstall?: (ctx: CropPackLifecycleCtx) => CropPackInstallCheck;
 };
 
-/** Blight knobs on legacy `model_params` — never wipe economics on Delete. */
-export const WALNUT_BLIGHT_SETTINGS_OWNED_KEYS = [
-  'orchardInoculumLevel',
-  'blightSensitivity',
-  'cropCoefficient',
-  'gddBaseTemp',
-  'humidityGradientFactor',
-  'splashMultiplier',
-  'chemRainWashoffRate',
-  'bioColonizationEff',
-  'bioFavorableGrowthRate',
-  'bioEnvDegradationCoef',
-  'springStartingInoculum',
-  'latencyGDDThreshold',
-  'secondarySpreadMultiplier',
-  'treeHeight',
-  'canopyWidth',
-  'rowSpacing',
-  'chemEfficacy',
-  'bioEfficacy',
-] as const;
-
 export const CROP_PACKS: readonly CropPackDef[] = [
   {
-    id: 'walnut_blight',
-    label: 'Walnut blight',
-    blurb:
-      'Blight Risk (Ji forecast/historical + sandbox), orchard inoculum, and research modifiers.',
-    modules: ['blight'],
-    settingsDocId: 'model_params',
+    id: WALNUT_BLIGHT_PACK_ID,
+    label: walnutBlightManifest.label,
+    blurb: walnutBlightManifest.blurb,
+    category: walnutBlightManifest.category,
+    modules: walnutBlightModules,
+    settingsDocId: walnutBlightManifest.settingsDocId,
     settingsOwnedKeys: WALNUT_BLIGHT_SETTINGS_OWNED_KEYS,
+    primaryPath: WALNUT_BLIGHT_PRIMARY_PATH,
     canInstall: (ctx) => {
       const eligible = farmHasWalnutPack({
         profile: ctx.profile,
@@ -117,6 +119,11 @@ export function getCropPack(id: CropPackId): CropPackDef {
 
 export function listCropPacks(): readonly CropPackDef[] {
   return CROP_PACKS;
+}
+
+/** Category for a pack def (never throws — falls back to generic). */
+export function cropPackCategory(pack: CropPackDef): PluginCategoryId {
+  return resolvePluginCategory(pack.category);
 }
 
 export function resolveFarmCropPacks(input: unknown): FarmCropPacksMap {

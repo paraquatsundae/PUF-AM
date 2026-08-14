@@ -52,6 +52,8 @@ async function wipePackSettings(farmId: string, packId: CropPackId): Promise<voi
   const ref = doc(db, 'farms', farmId, 'settings', pack.settingsDocId);
   const keys = pack.settingsOwnedKeys;
   if (keys && keys.length > 0) {
+    // Merge-delete pack keys only. isValidModelParameters allows those fields
+    // to be absent so economics on model_params survive.
     const patch: Record<string, ReturnType<typeof deleteField>> = {};
     for (const key of keys) patch[key] = deleteField();
     await setDoc(ref, patch, { merge: true });

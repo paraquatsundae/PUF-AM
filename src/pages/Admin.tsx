@@ -50,7 +50,7 @@ interface AccessList {
 }
 
 export function Admin() {
-  const { user, userData, isAdmin } = useAuth();
+  const { user, userData, isPlatformAdmin } = useAuth();
   const [users, setUsers] = useState<UserData[]>([]);
   const [whitelist, setWhitelist] = useState<AccessList>({});
   const [blacklist, setBlacklist] = useState<AccessList>({});
@@ -219,7 +219,7 @@ export function Admin() {
   );
 
 
-  if (!isAdmin) {
+  if (!isPlatformAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
         <div className="text-center">

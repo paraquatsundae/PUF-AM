@@ -357,7 +357,7 @@ What is worth knowing beyond the obvious:
 | Setting | Why it is what it is |
 |---------|----------------------|
 | `directories.buildResources: desktop/resources` | The default is `build/`, which this repo gitignores — the icon would not survive a fresh clone |
-| `files` allowlists ~80 `node_modules` | electron-builder ships **every** production dependency. The main bundle keeps npm packages external (§8.3), so it needs its own runtime closure and nothing else; the renderer's React / icon / PDF packages are already inside `dist/`. This is the difference between a 164 MB AppImage and a ~500 MB one |
+| `files` allowlists ~80 `node_modules` | electron-builder ships **every** production dependency. The main bundle keeps npm packages external (§8.3), so it needs its own runtime closure and nothing else; the renderer's React / icon / PDF packages are already inside `dist/`. This is the difference between a ~157 MB AppImage and a ~500 MB one |
 | `npmRebuild: false` | Nothing native reaches the app now that `better-sqlite3` is gone (§8.3). Adding a native dependency means turning this back on |
 | `linux.syncDesktopName` + `desktopName` in `package.json` | Electron takes its Wayland/X11 `app_id` from `desktopName`; without the two agreeing, the running window shows up as a second iconless entry in the shell |
 | `rpm.packageName: puf-am` | Otherwise the package is named after npm's `walnut-farm-manager` — the clone folder, not the product |
@@ -420,8 +420,8 @@ Built on Fedora by `npm run desktop:dist:win:portable`, into `release/` (gitigno
 
 | Artifact | Size | What it is |
 |----------|------|------------|
-| `release/PUF-AM 0.1.0.exe` | ~107 MB | **Portable.** One file. Copy it anywhere on the Windows PC and double-click — no install, no admin |
-| `release/PUF-AM-0.1.0-win.zip` | ~169 MB | The same app unzipped rather than self-extracting. Unzip, run `PUF-AM.exe`. Useful when a portable exe trips a policy or an AV scanner |
+| `release/PUF-AM 0.1.0.exe` | ~103 MB | **Portable.** One file. Copy it anywhere on the Windows PC and double-click — no install, no admin |
+| `release/PUF-AM-0.1.0-win.zip` | ~163 MB | The same app unzipped rather than self-extracting. Unzip, run `PUF-AM.exe`. Useful when a portable exe trips a policy or an AV scanner |
 | `release/win-unpacked/` | ~440 MB | The raw tree the other two are made from. Copyable too, but the zip is the same thing without 3000 files |
 
 Both carry `resources/freenet/{freenet.exe,fdev.exe}` and `resources/contracts/{pack-contract.wasm,slot-contract.wasm}`, so the target machine needs **no Node, no npm, and no Freenet install**.
@@ -567,12 +567,12 @@ The `source` reported in dev is **`vendor`**, not `bundled`: `bundled` means Ele
 
 Landed:
 
-- [`electron-builder.yml`](../electron-builder.yml) (§8.2) — Fedora `AppImage` + `rpm`, Windows `nsis` + `portable`, `extraResources` for the binaries and pack WASM, and the `node_modules` allowlist that keeps the AppImage at 164 MB instead of ~500 MB.
+- [`electron-builder.yml`](../electron-builder.yml) (§8.2) — Fedora `AppImage` + `rpm`, Windows `nsis` + `portable`, `extraResources` for the binaries and pack WASM, and the `node_modules` allowlist that keeps the AppImage at **~157 MB** (first package was 164 MB) instead of ~500 MB.
 - [`scripts/verify-desktop-deps.mjs`](../scripts/verify-desktop-deps.mjs) (`npm run desktop:verify:deps`) — derives the packaged runtime closure from the built bundle and fails the build when the allowlist drifts or the bundle reaches for a `devDependency`.
 - Gated scripts: **`desktop:dist`** (host platform), **`desktop:dist:linux`**, **`desktop:dist:linux:appimage`**, **`desktop:dist:win`**, plus `desktop:vendor:verify:linux` / `:win`. Every one runs `desktop:vendor:verify` for the *target* platform, `desktop:verify:pack --require-fdev`, a fresh `desktop:build:web` (the Vite build with the mist flag baked in, §8.3) and main/preload bundle, then `desktop:verify:deps` — a stale `vendor/`, a drifted pack-contract hash, or a stale allowlist all stop the build before electron-builder starts.
 - `server/firebaseAdmin.ts` loads the Admin SDK lazily; `better-sqlite3` dropped (§8.3); app icon committed at `desktop/resources/icon.png`.
 
-**Verified on Fedora 44:** `npm run desktop:dist:linux:appimage` → `release/PUF-AM-0.1.0.AppImage` (164 MB). Launching it reports **`mode=managed source=bundled`** — the first time the resolver has picked `resources/freenet/` rather than `vendor/` — serves the UI and `/api/health` from `127.0.0.1:<ephemeral>`, runs `/tmp/.mount_*/resources/freenet/freenet` against `~/.config/PUF-AM/freenet/{config,data,logs}`, and on quit stops only its own node: the operator's workshop `freenet network` on `:7509` was still running afterwards. `resources/freenet/{freenet,fdev,LICENSE.md}` and `resources/contracts/pack-contract.wasm` are present in both the Linux and Windows outputs.
+**Verified on Fedora 44:** `npm run desktop:dist:linux:appimage` → `release/PUF-AM-0.1.0.AppImage` (~157 MB as of 12 Aug 2026; first package was 164 MB). Launching it reports **`mode=managed source=bundled`** — the first time the resolver has picked `resources/freenet/` rather than `vendor/` — serves the UI and `/api/health` from `127.0.0.1:<ephemeral>`, runs `/tmp/.mount_*/resources/freenet/freenet` against `~/.config/PUF-AM/freenet/{config,data,logs}`, and on quit stops only its own node: the operator's workshop `freenet network` on `:7509` was still running afterwards. `resources/freenet/{freenet,fdev,LICENSE.md}` and `resources/contracts/pack-contract.wasm` are present in both the Linux and Windows outputs.
 
 **Re-verified ~2026-08-09, and the join slot needed two packaging fixes.** The slot contract landed *after* the 2026-08-07 AppImage, and a packaged build could not have used it:
 
@@ -630,7 +630,7 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 |------|---------------------|
 | Windows `freenet.exe` availability at pinned version | **Closed** — `freenet-x86_64-pc-windows-msvc.zip` + `fdev` zip ship in `v0.2.119`; both pinned, staged, and packed into the portable exe and the zip (§8.4, §8.5). Never *launched*: still open, now waiting on a Windows machine rather than on a build step |
 | Windows installer needs a build host we do not have | **Downgraded** — only the NSIS uninstaller step needs wine, and `portable` + `zip` give a copyable, double-clickable app without it (§8.1.1). electron-builder's own portable wine bundle is missing `kernel32.dll` and does not rescue the NSIS leg |
-| Installer size ~250 MB with binaries | **Better than feared** — 164 MB AppImage, because the `files` allowlist keeps the renderer's production dependencies out of the asar (§8.2). Would have been ~500 MB without it |
+| Installer size ~250 MB with binaries | **Better than feared** — ~157 MB AppImage (12 Aug 2026; first package 164 MB), because the `files` allowlist keeps the renderer's production dependencies out of the asar (§8.2). Would have been ~500 MB without it |
 | Fresh app-owned peer identity slows first publish | Documented warm-up; start host at launch; consider attach-to-existing as a workshop default |
 | Exit code 42 update loop | Host never auto-updates; surfaces `updateRequired` and stops (§5.4) |
 | Bundled WASM drifts from pinned code hash | **Closed** — `npm run desktop:verify:pack` plus a hermetic test on the pin (§7.1). Publishing with a mismatched hash silently changes every URI, so this fails the build rather than warning |

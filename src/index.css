@@ -69,7 +69,7 @@
   animation: flow-forward 3s linear infinite;
 }
 
-/* Farm tracks — amber stroke + dark halo (OrchardMap + FieldOps) */
+/* Farm tracks — amber stroke + dark halo (OrchardMap) */
 path.pufam-track-line {
   stroke-linecap: round;
   stroke-linejoin: round;

@@ -8,7 +8,7 @@ Use this template when adding or changing a **crop pack** (not a Freenet host pl
 
 ### Checklist
 
-- [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (id, label, blurb, modules, `settingsDocId` / owned keys, `canInstall`)
+- [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (id, label, blurb, **`category`** (`crop` \| `network` \| `generic`), modules, `settingsDocId` / owned keys, `canInstall`)
 - [ ] Module ids + `MODULE_LABELS` / `MODULE_BLURBS` (and pack module list if new)
 - [ ] `src/packs/<id>/index.ts` UI registration (routes, nav, surfaces)
 - [ ] Entry appended to `PACK_UI_REGISTRY` in `src/packs/registry.ts`

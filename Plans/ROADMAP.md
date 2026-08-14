@@ -1,8 +1,8 @@
 # PUFAM (Ag Manager) — Production Roadmap
 
 **Created:** 13 July 2026  
-**Last updated:** 27 July 2026 (Phase D — Offline Phase 3 / D-04)  
-**Status:** Active — Phases A–C code complete; deploy + Phase D product polish in flight  
+**Last updated:** 13 August 2026 (docs audit; Phase E crop packs / plugins / blight / desktop)  
+**Status:** Active — Phases A–C code complete; Phase D polish mostly done (D-07 mesh P3 open); Phase E crop-pack + blight + desktop Freenet in code, zip-as-engine still next  
 **Public name:** PUFAM — Ag Manager (repo folder still `Walnut_farm_manager`)  
 **Companion doc:** [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) §5 (13-step checklist)  
 **Rename:** [RENAME_TO_PUFAM.md](./RENAME_TO_PUFAM.md) · **Farm types:** [FARM_TYPES.md](./FARM_TYPES.md)
@@ -266,7 +266,7 @@ graph TD
   - `Financials`
   - `WaterMonitoring`
   - `Nutrition`
-  - `FieldOps`
+  - `FieldOps` (removed 2026-08-13 — route now redirects to `/map`)
 - [x] Add route-level loading fallback (spinner consistent with `ProtectedRoute`)
 - [x] Configure `build.rollupOptions.output.manualChunks` for:
   - `vendor-react` (react, react-dom, react-router)
@@ -615,12 +615,35 @@ Not part of the original 13 steps. Track here so deploy ops and mixed-farm UX st
 
 ---
 
+## Phase E — Crop packs, blight engine, desktop (post Phase D)
+
+Not part of the original 13 steps. Track here so plugin work does not vanish between ROADMAP stamps.
+
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| E-01 | Crop-pack plugin contract + Settings → Plugins | `done` | CP-00–05, 2026-08-11/12 — `CROP_PACK_PLUGIN.md`; lifecycle UI is Settings → Plugins |
+| E-02 | Blight engine params unify (BE-01–05) | `done` | PR stack #5–#9; walnut blight first consumer |
+| E-03 | Desktop Freenet host + AppImage / portable | `done` | Phases 11a–11l; mist still experimental. Sizes ~157 MB AppImage / ~103 MB portable (12 Aug 2026) |
+| E-04 | Chill portions on dashboard (packaged APK) | `done` | Walnut pack / species / tree cropKind; packaged Android weather/auth → Cloud Run |
+| E-05 | Plugin zip drop (`plugins/`, `plugin.json`) | `done` | First-party `plugins/walnut_blight/` is catalog + engine defaults. React/Ji still in-app. `npm run plugins:pack` |
+| E-06 | Dead-limb cleanup | `done` | 2026-08-13 — FieldOps/FieldMode/taskStore removed; `/field-ops` still redirects to `/map` |
+| E-07 | Freenet operator holes | `in_progress` | Copy + UX done 2026-08-14 (holes 1, 2, 3-copy, 6, 7). Revoke-kick stays later. Hole 5 waits on E-08 |
+| E-08 | APK Freenet network pack | `in_progress` | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) — native PUT spike first; then isolated host, Join, Send |
+
+---
+
 ## Progress log
 
 Record every status change here (newest first).
 
 | Date | Step | Action | Notes |
 |------|------|--------|-------|
+| 2026-08-14 | E-08 | APK Freenet host plan | Network pack in the APK; isolated process; native PUT is the go/no-go — `APK_FREENET_HOST.md` |
+| 2026-08-14 | E-07 | Freenet holes copy + UX | Send PIN wording, Invite PIN leftovers, two-piece handoff, create→Send nudge, People hub empty-state |
+| 2026-08-14 | E-07 | Freenet operator flow + holes plan | `FREENET_OPERATOR_FLOW.md` + `FREENET_HOLES.md`; in-app How this works on Sync / People / join gate |
+| 2026-08-13 | E-06 | Dead-limb cleanup | Removed unused FieldOps page, FieldMode, taskStore, appStore; kept `/field-ops` → `/map` |
+| 2026-08-13 | Docs | Audit stamp | ROADMAP / DEVELOPER_NOTES / crop-pack / Freenet sizes brought in line with code |
+| 2026-08-12 | E-01–E-05 | Plugins + blight + chill | Settings → Plugins; zip `plugins/`; BE-05; chill dashboard routing |
 | 2026-07-28 | D-05b | Dam texture + exclusions | Water/hatch/gravel SVG patterns; internal_passable / internal_impassable; areaHa via turf.difference vs subtracting pins; paddock exterior unchanged |
 | 2026-07-28 | D-08 | Map overlays | Timed highlights, bread trails (2 min), paddock name watermarks — MAP_OVERLAYS.md |
 | 2026-07-28 | D-05 | Map infrastructure | INFRA_TYPES (dam/pipe/vehicle/fuel/hazard + sensors); OrchardMap draw modes, geojson edit, sidebar chips, metadata notes/trackerId; Meshy live track future |
@@ -641,7 +664,11 @@ Record every status change here (newest first).
 
 | Document | Purpose |
 |----------|---------|
-| [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) | Architecture audit, scalability analysis, §5 checklist |
+| [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) | Architecture notes, mist/Freenet phases, §5 checklist |
+| [Plans/FREENET_OPERATOR_FLOW.md](./FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands |
+| [Plans/FREENET_HOLES.md](./FREENET_HOLES.md) | E-07 — how we address the seven known Freenet holes |
+| [Plans/APK_FREENET_HOST.md](./APK_FREENET_HOST.md) | E-08 — Freenet network pack inside the APK |
+| [Plans/CROP_PACK_PLUGIN.md](./CROP_PACK_PLUGIN.md) | Crop-pack contract, Settings → Plugins, zip drop folder |
 | [Plans/SMOKE_TEST_LOG.md](./SMOKE_TEST_LOG.md) | Step 3 manual test results (create when running) |
 | [Plans/AUDIT_LOG.md](./AUDIT_LOG.md) | Step 8 npm audit output (create when running) |
 | [README.md](../README.md) | Setup instructions (update in Steps 1–2, 4) |

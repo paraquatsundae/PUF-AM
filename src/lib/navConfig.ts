@@ -121,11 +121,12 @@ export function visibleGroupItems(
   isAdmin: boolean,
   role?: string,
   modules?: unknown,
-  farmEnabled?: unknown
+  farmEnabled?: unknown,
+  isPlatformAdmin = false
 ): NavItem[] {
   const allowed = effectiveModules(role, modules, farmEnabled);
   return group.items.filter((item) => {
-    if (item.adminOnly && !isAdmin) return false;
+    if (item.adminOnly && !isPlatformAdmin) return false;
     if (item.moduleId && !allowed.includes(item.moduleId)) return false;
     return true;
   });

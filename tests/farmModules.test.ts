@@ -13,7 +13,7 @@ import {
   withWalnutPackModules,
   withoutWalnutPackModules,
 } from '../shared/auth/farmModules';
-import { farmHasWalnutPack } from '../shared/farm/farmTypes';
+import { farmHasWalnutPack, farmShowsChillPortions } from '../shared/farm/farmTypes';
 
 describe('farmModules', () => {
   it('sanitizes unknown and duplicate module ids', () => {
@@ -129,5 +129,50 @@ describe('farmHasWalnutPack', () => {
         blightModuleEnabled: true,
       })
     ).toBe(true);
+  });
+});
+
+describe('farmShowsChillPortions', () => {
+  it('follows the walnut pack even when geometry/profile are thin', () => {
+    expect(
+      farmShowsChillPortions({
+        profile: { enterprises: [], livestockEnabled: false },
+        blocks: [],
+        walnutPackActive: true,
+      })
+    ).toBe(true);
+  });
+
+  it('shows chill for legacy species-only blocks (no cropKind yet)', () => {
+    expect(
+      farmShowsChillPortions({
+        profile: { enterprises: [], livestockEnabled: false },
+        blocks: [{ species: 'walnut' }],
+      })
+    ).toBe(true);
+  });
+
+  it('shows chill for orchard enterprises and cropKinds', () => {
+    expect(
+      farmShowsChillPortions({
+        profile: { enterprises: ['orchard_tree'], livestockEnabled: false },
+        blocks: [],
+      })
+    ).toBe(true);
+    expect(
+      farmShowsChillPortions({
+        profile: { enterprises: [], livestockEnabled: false },
+        blocks: [{ cropKind: 'fruit' }],
+      })
+    ).toBe(true);
+  });
+
+  it('stays off for empty broadacre farms', () => {
+    expect(
+      farmShowsChillPortions({
+        profile: { enterprises: ['broadacre'], livestockEnabled: false },
+        blocks: [{ cropKind: 'broadacre' }],
+      })
+    ).toBe(false);
   });
 });

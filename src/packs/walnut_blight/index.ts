@@ -11,16 +11,19 @@ import { BlightResearchModifiersPanel } from '../../components/blight/BlightRese
 import { BlightEngineSciencePanel } from '../../components/blight/BlightEngineScience';
 import { BlightEngineSettings } from '../../components/blight/BlightEngineSettings';
 import type { CropPackUiRegistration } from '../types';
+import { WALNUT_BLIGHT_PACK_ID, WALNUT_BLIGHT_PRIMARY_PATH } from '../../../shared/farm/walnutBlightPackage';
 
 const BlightRiskPage = React.lazy(() =>
   import('../../pages/BlightRisk').then((m) => ({ default: m.BlightRisk }))
 );
 
+const blightPath = WALNUT_BLIGHT_PRIMARY_PATH.replace(/^\//, '');
+
 export const walnutBlightPackUi: CropPackUiRegistration = {
-  packId: 'walnut_blight',
+  packId: WALNUT_BLIGHT_PACK_ID,
   routes: [
     {
-      path: 'blight',
+      path: blightPath,
       moduleId: 'blight',
       Page: BlightRiskPage,
     },
@@ -29,7 +32,7 @@ export const walnutBlightPackUi: CropPackUiRegistration = {
     {
       groupId: 'crop',
       name: 'Blight Risk',
-      href: '/blight',
+      href: WALNUT_BLIGHT_PRIMARY_PATH,
       icon: IconBug,
       moduleId: 'blight',
     },
@@ -42,5 +45,4 @@ export const walnutBlightPackUi: CropPackUiRegistration = {
   },
 };
 
-/** Stable primary path for links (About, Dashboard, Crop packs card). */
-export const WALNUT_BLIGHT_PRIMARY_PATH = '/blight';
+export { WALNUT_BLIGHT_PRIMARY_PATH } from '../../../shared/farm/walnutBlightPackage';

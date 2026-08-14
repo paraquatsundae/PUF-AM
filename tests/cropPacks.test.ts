@@ -19,12 +19,14 @@ import {
 import { defaultModulesWithoutCropPacks, resolveFarmEnabledModules } from '../shared/auth/farmModules';
 
 describe('cropPacks catalog', () => {
-  it('registers walnut blight with blight module and owned settings keys', () => {
+  it('registers walnut blight with blight module, crop category, and owned settings keys', () => {
     const packs = listCropPacks();
     expect(packs.map((p) => p.id)).toContain('walnut_blight');
     const walnut = packs.find((p) => p.id === 'walnut_blight')!;
     expect(walnut.modules).toEqual(['blight']);
+    expect(walnut.category).toBe('crop');
     expect(walnut.settingsDocId).toBe('model_params');
+    expect(walnut.primaryPath).toBe('/blight');
     expect(walnut.settingsOwnedKeys).toContain('orchardInoculumLevel');
     expect(walnut.settingsOwnedKeys).not.toContain('marketPrice');
   });

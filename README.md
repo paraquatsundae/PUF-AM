@@ -31,7 +31,7 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 * **Farm map** — Areas (blocks / paddocks), pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
 * **Farm diary** — Spray, water, nutrition, and work plans with filters and CSV export.
-* **Crop packs** — Optional tools installed by farm admins under **Farm setup → Crop packs** (Install / Activate / Deactivate / Delete). **Walnut blight** is the first pack (Ji et al. 2025 + chill). See [adding a crop pack](#adding-a-crop-pack) for developers.
+* **Crop packs** — Optional tools installed by farm admins under **Settings → Plugins** (Install / Activate / Deactivate / Delete; grouped by category). **Walnut blight** is the first pack (Ji et al. 2025 + chill). Freenet is listed there under Network & storage. See [adding a crop pack](#adding-a-crop-pack) for developers.
 * **Water** — Irrigation logging + seasonal ML budget from Farm setup.
 * **Nutrition** — Application diary (product, rate, N/P/K); soil lab XLSX import deferred.
 * **Harvest & drying** — Per-block harvest folders; exponential-decay dryer moisture prediction.
@@ -110,11 +110,14 @@ Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They
 
 **Minimum wiring for a new pack**
 
-1. Catalog entry in `shared/farm/cropPacks.ts` (`CropPackDef`: id, modules, settings doc, `canInstall`).
+1. Copy [`plugins/walnut_blight/`](plugins/walnut_blight/) (reference zip package: `plugin.json` + `engine.json`). Catalog in `shared/farm/cropPacks.ts` should **read** that package, not duplicate label/modules/defaults.
 2. UI registration in `src/packs/<id>/index.ts` + append to `PACK_UI_REGISTRY` in `src/packs/registry.ts` (routes, nav, surfaces).
 3. Pack surface (production knobs on the pack page — not Settings → Advanced).
 4. Firestore rules for pack settings fields; tests for lifecycle + registry.
-5. Open the PR with the [crop-pack template](.github/PULL_REQUEST_TEMPLATE/crop-pack.md).
+5. Pack a zip: `npm run plugins:pack -- plugins/<id>` → `plugins/<id>.zip` (gitignored). Verify with `npm run plugins:verify`.
+6. Open the PR with the [crop-pack template](.github/PULL_REQUEST_TEMPLATE/crop-pack.md).
+
+Categories live in `shared/farm/pluginCategories.ts`. Settings → Plugins groups crop packs and Freenet by category (`shared/farm/pluginsCatalog.ts`). On-disk packages: [`plugins/README.md`](plugins/README.md).
 
 ## Development roadmap
 
@@ -131,8 +134,11 @@ Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They
 | [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md) | Experimental mist: Reticulum + Freenet-style storage (fork; does not replace Firebase auth). Laptop B recovery: `/login/mist-recover` with FarmCode — same `farmId`, local IndexedDB only until Freenet sync. |
 | [`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers with Freenet running as an in-app plugin (Electron frozen). Fedora AppImage ships a bundled Freenet node; `npm run desktop:dev` runs the shell. Windows installer still needs a Windows host. |
 | [`Plans/MIST_TWO_FEDORA_FREENET.md`](Plans/MIST_TWO_FEDORA_FREENET.md) | Two-laptop Freenet 0.2 Opennet join. **Passed on the AppImage ~2026-08-04** — blank laptop B recovered a farm from a paper FarmCode plus a join ticket, no terminal on either machine. |
-| [`Plans/APK_FREENET_PLUGIN.md`](Plans/APK_FREENET_PLUGIN.md) | Freenet on the tablet APK — why Android cannot host a node, the hub option recommended for Phase 1, and the APK build wiring (`npm run apk:debug`). **Freenet host not implemented on Android.** |
+| [`Plans/APK_FREENET_PLUGIN.md`](Plans/APK_FREENET_PLUGIN.md) | Freenet on the tablet APK — two-app reader, hub, gateway, APK build wiring. |
+| [`Plans/APK_FREENET_HOST.md`](Plans/APK_FREENET_HOST.md) | Freenet **network pack** inside the APK (isolated process, Join + Send). Native PUT spike first. |
 | [`Plans/FREENET_CONTRIBUTE_AND_STORAGE.md`](Plans/FREENET_CONTRIBUTE_AND_STORAGE.md) | Contribute vs communicate (`contribute_storage`), what PUF-AM publishes (Hot, bones, join manifests), what is sealed before upload, and what is **not** on Freenet. |
+| [`Plans/FREENET_OPERATOR_FLOW.md`](Plans/FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands today. In-app **How this works** uses the same story. |
+| [`Plans/FREENET_HOLES.md`](Plans/FREENET_HOLES.md) | How we will address the seven known Freenet operator holes (copy first, then UX, then product). |
 | [`Plans/LOCAL_DATA_STORAGE.md`](Plans/LOCAL_DATA_STORAGE.md) | Every local store — IndexedDB, localStorage, Firestore paths, Android sandbox, Electron `userData`, LAN shelves — and which are authoritative rather than cache. |
 
 ### Tests

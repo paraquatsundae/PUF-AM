@@ -25,7 +25,7 @@ import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
 const NAV_DRAWER_MQ = '(max-width: 1279px)';
 
 export function Layout() {
-  const { user, userData, isAdmin, hasModule, farmEnabledModules, logout } = useAuth();
+  const { user, userData, isAdmin, isPlatformAdmin, hasModule, farmEnabledModules, logout } = useAuth();
   const { settings } = useFarmDiary();
   const mapTitle = mapUiCopy(settings.farmProfile).mapTitle;
   const groups = React.useMemo(() => navGroupsForMapTitle(mapTitle), [mapTitle]);
@@ -77,7 +77,8 @@ export function Layout() {
       <aside
         id="app-nav-sidebar"
         className={cn(
-          'fixed inset-y-0 left-0 z-[5001] w-72 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out xl:translate-x-0 xl:static xl:flex-shrink-0',
+          // Stop above the persistent BottomNav (< lg) so Sign out stays tappable.
+          'fixed top-0 bottom-20 left-0 z-[5004] w-72 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out lg:bottom-0 xl:translate-x-0 xl:static xl:flex-shrink-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
         aria-label="Main navigation"
@@ -141,7 +142,8 @@ export function Layout() {
                   isAdmin,
                   userData?.role,
                   userData?.modules,
-                  farmEnabledModules
+                  farmEnabledModules,
+                  isPlatformAdmin
                 );
                 if (items.length === 0) return null;
 
@@ -214,7 +216,7 @@ export function Layout() {
             </div>
           </nav>
 
-          <div className="p-4 bg-slate-950">
+          <div className="p-4 bg-slate-950 shrink-0">
             <div className="flex items-center mb-4">
               <img
                 className="h-8 w-8 rounded-full bg-slate-800"

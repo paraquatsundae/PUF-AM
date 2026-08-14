@@ -13,7 +13,6 @@ import { fetchEnvironmentalData } from '../lib/weatherService';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useAuth } from '../contexts/AuthContext';
 import { useMapStore, OrchardBlock, InfrastructurePin, FarmTrack } from '../lib/mapStore';
-import { useTaskStore, Task } from '../lib/taskStore';
 import { EventMarkerCluster } from '../components/map/EventMarkerCluster';
 import { GoogleMapsLayer } from '../components/map/GoogleMapsLayer';
 import {

@@ -9,6 +9,10 @@
 
 export type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
 import type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
+import {
+  walnutBlightModelDefaults,
+  walnutBlightSessionDefaults,
+} from '../../shared/farm/walnutBlightPackage';
 
 export interface ModelParameters {
   blightSensitivity: number;
@@ -35,24 +39,7 @@ export interface ModelParameters {
 }
 
 export const DEFAULT_MODEL_PARAMS: ModelParameters = {
-  blightSensitivity: 0.85,
-  cropCoefficient: 1.15,
-  gddBaseTemp: 10.0,
-  humidityGradientFactor: 1.2,
-  splashMultiplier: 1.5,
-  chemRainWashoffRate: 0.05,
-  bioColonizationEff: 0.75,
-  bioFavorableGrowthRate: 1.1,
-  bioEnvDegradationCoef: 0.75,
-  springStartingInoculum: 0.02,
-  orchardInoculumLevel: 'medium',
-  latencyGDDThreshold: 120.0,
-  secondarySpreadMultiplier: 1.0,
-  treeHeight: 4.5,
-  canopyWidth: 4.0,
-  rowSpacing: 7.0,
-  chemEfficacy: 95,
-  bioEfficacy: 30,
+  ...walnutBlightModelDefaults,
   marketPrice: 3.3,
   harvestCostPerKg: 0.45,
   waterCostPerML: 150,
@@ -119,12 +106,7 @@ export type EngineSessionParams = {
 };
 
 export const DEFAULT_ENGINE_SESSION: EngineSessionParams = {
-  cdfBaseWeighting: 0.7,
-  cdfExponentialEffect: 1.0,
-  tempOptimumWeight: 1.2,
-  wdCompoundingRate: 0.1,
-  chemBaseDecayRate: 0.88,
-  latencyDays: 18,
+  ...walnutBlightSessionDefaults,
 };
 
 /**

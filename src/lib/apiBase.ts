@@ -127,7 +127,18 @@ const DEFAULT_CLOUD_API_BASE = 'https://am.pufworks.farm';
  */
 function hubCloudBaseFor(path: string): string {
   const hub = getApiBaseUrl();
-  if (!hub) return '';
+  if (!hub) {
+    // Packaged tablet with no LAN hub yet: auth + weather still live on Cloud Run.
+    // Without this, relative `/api/weather/*` hits the WebView asset handler and
+    // chill/blight quietly die as non-JSON HTML.
+    if (
+      isPackagedNativeAndroid() &&
+      (path.startsWith('/api/auth/') || path.startsWith('/api/weather/'))
+    ) {
+      return DEFAULT_CLOUD_API_BASE;
+    }
+    return '';
+  }
   const info = getHubInfo(hub);
   if (!hubDefersToCloud(info, path)) return '';
   return (info?.cloudApiBase || DEFAULT_CLOUD_API_BASE).replace(/\/$/, '');

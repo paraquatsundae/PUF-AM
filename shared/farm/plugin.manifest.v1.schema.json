@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://am.pufworks.farm/schemas/plugin.manifest.v1.json",
+  "title": "PUF-AM plugin package manifest v1",
+  "description": "Root plugin.json inside a plugins/{id}.zip or plugins/{id}/ folder. See Plans/CROP_PACK_PLUGIN.md § Packaging.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "id",
+    "version",
+    "label",
+    "blurb",
+    "category",
+    "modules",
+    "settingsDocId"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "type": "string", "enum": ["crop_pack", "system"] },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Stable pack id; must match CropPackId when wired into the app."
+    },
+    "version": { "type": "string", "minLength": 1 },
+    "label": { "type": "string", "minLength": 1 },
+    "blurb": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": ["crop", "network", "generic"],
+      "description": "Required. Use generic if no better fit."
+    },
+    "modules": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 0
+    },
+    "settingsDocId": { "type": ["string", "null"] },
+    "settingsOwnedKeys": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Fields to clear on Delete when settingsDocId is a shared doc (e.g. model_params)."
+    },
+    "primaryPath": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "author": { "type": "string" },
+    "license": { "type": "string" },
+    "homepage": { "type": "string" }
+  }
+}

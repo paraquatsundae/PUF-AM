@@ -46,14 +46,6 @@ export interface FieldIssue {
   updatedAt?: string;
 }
 
-export interface PathTrace {
-  id: string;
-  recordedBy: string;
-  startTime: string;
-  endTime?: string;
-  coordinates: { lat: number; lng: number; timestamp: number }[];
-}
-
 export interface Bounds {
   minLat: number;
   maxLat: number;
@@ -64,7 +56,6 @@ export interface Bounds {
 interface FieldState {
   issues: FieldIssue[];
   archivedIssues: FieldIssue[];
-  pathTraces: PathTrace[];
   isLoaded: boolean;
   isArchiveLoaded: boolean;
   currentFarmId: string | null;
@@ -76,17 +67,14 @@ interface FieldState {
   updateIssue: (farmId: string, id: string, updates: Partial<FieldIssue>) => Promise<void>;
   archiveIssue: (farmId: string, id: string, archivedBy: string) => Promise<void>;
   deleteIssue: (farmId: string, id: string) => Promise<void>;
-  addPathTrace: (farmId: string, trace: PathTrace) => Promise<void>;
 }
 
 let unsubscribeIssues: (() => void) | null = null;
 let unsubscribeArchive: (() => void) | null = null;
-let unsubscribePaths: (() => void) | null = null;
 
 export const useFieldStore = create<FieldState>((set, get) => ({
   issues: [],
   archivedIssues: [],
-  pathTraces: [],
   isLoaded: false,
   isArchiveLoaded: false,
   currentFarmId: null,
@@ -106,7 +94,6 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     const isNewFarm = currentFarmId !== farmId;
     
     if (unsubscribeIssues) unsubscribeIssues();
-    if (unsubscribePaths) unsubscribePaths();
 
     if (isNewFarm) {
       set({ currentFarmId: farmId, isLoaded: false });
@@ -117,7 +104,6 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     if (isLocalOnlyFarmSession()) {
       set({
         issues: localFieldIssues.getOpen(farmId),
-        pathTraces: [],
         isLoaded: true,
       });
       return;
@@ -170,32 +156,14 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       }
     };
 
-    const fetchPaths = async () => {
-      try {
-        const pathsRef = collection(db, `farms/${farmId}/pathTraces`);
-        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-        const snapshot = isOffline ? await getDocsFromCache(pathsRef) : await getDocs(pathsRef);
-        const pathTraces = snapshot.docs.map(doc => doc.data() as PathTrace);
-        set({ pathTraces, isLoaded: true });
-      } catch (error) {
-        if (typeof navigator !== 'undefined' && !navigator.onLine) {
-           return;
-        }
-        handleFirestoreError(error, OperationType.GET, `farms/${farmId}/pathTraces`);
-      }
-    };
-
     fetchIssues();
-    fetchPaths();
 
     // Poll every 30 seconds
     const intervalId = setInterval(() => {
       fetchIssues();
-      fetchPaths();
     }, 30000);
 
     unsubscribeIssues = () => clearInterval(intervalId);
-    unsubscribePaths = () => {}; // Handled by the same interval
   },
 
   loadArchive: (farmId: string) => {
@@ -364,13 +332,4 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       throw error;
     }
   },
-
-  addPathTrace: async (farmId, trace) => {
-    try {
-      await setDoc(doc(db, `farms/${farmId}/pathTraces`, trace.id), trace);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/pathTraces`);
-      throw error;
-    }
-  }
 }));

@@ -84,8 +84,8 @@ export function FarmModulesCard() {
           <p className="text-sm text-slate-500">
             Choose tools this farm uses. Worker invite PINs can only grant modules you enable here.
             Crop-pack modules are labelled below and stay off until the pack is active in{' '}
-            <Link to="/farm-setup" className="text-emerald-700 underline-offset-2 hover:underline">
-              Farm setup → Crop packs
+            <Link to="/settings?tab=plugins" className="text-emerald-700 underline-offset-2 hover:underline">
+              Settings → Plugins
             </Link>
             .
           </p>
@@ -101,7 +101,7 @@ export function FarmModulesCard() {
       {orphanPackModuleOnFarm && (
         <div className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
           Some catalog modules belong to a deactivated or removed crop pack. Save modules to clear
-          them, or activate the pack under Farm setup → Crop packs.
+          them, or activate the pack under Settings → Plugins.
         </div>
       )}
 
@@ -156,10 +156,10 @@ export function FarmModulesCard() {
                 {' '}
                 Install Walnut blight under{' '}
                 <Link
-                  to="/farm-setup"
+                  to="/settings?tab=plugins"
                   className="text-emerald-700 underline-offset-2 hover:underline"
                 >
-                  Farm setup → Crop packs
+                  Settings → Plugins
                 </Link>{' '}
                 to offer Blight Risk here.
               </>
@@ -178,7 +178,7 @@ export function FarmModulesCard() {
                   title={
                     active
                       ? undefined
-                      : `${pack.label} is inactive — activate it under Farm setup → Crop packs`
+                      : `${pack.label} is inactive — activate it under Settings → Plugins`
                   }
                   className={clsx(
                     'text-left px-3 py-3 rounded-xl border transition-colors',
@@ -203,11 +203,11 @@ export function FarmModulesCard() {
                     <p className="text-[10px] text-amber-800 mt-1.5">
                       Pack deactivated —{' '}
                       <Link
-                        to="/farm-setup"
+                        to="/settings?tab=plugins"
                         className="underline-offset-2 hover:underline font-semibold"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        activate in Crop packs
+                        activate in Plugins
                       </Link>
                     </p>
                   )}

@@ -115,7 +115,7 @@ The experimental fork **must not break shipping builds**: Firebase remains defau
 
 Prototype order:
 
-1. **`FarmStore` contract sketch** + invitation → key derivation → contract keys (**this doc § Invitation**). **Phase 1 (done):** frozen TypeScript contract at [`units/mist-freenet/`](../units/mist-freenet/) — `MistStore`, key helpers, `FarmStoreAdapter`; in-memory stub only. **Phase 2 (done):** `DiskMistStore` + `sealHotPeriod()` — local fake Freenet on disk; no wire yet. **Phase 3 (done):** `FreenetMistStore` + FCP transport (mock + real ClientHello/Put/Get) — disk cache hybrid; no app wiring yet. **Phase 4 (done):** FarmCode (`mist-fc-1`), app `src/mist/` FarmStore factory, mist first-run UI, bones workshop — Firebase default unchanged.
+1. **`FarmStore` contract sketch** + invitation → key derivation → contract keys (**this doc § Invitation**). **Phase 1 (done):** frozen TypeScript contract at [`units/mist-freenet/`](../units/mist-freenet/) — `MistStore`, key helpers, `FarmStoreAdapter`; in-memory stub only. **Phase 2 (done):** `DiskMistStore` + `sealHotPeriod()` — local fake Freenet on disk; no wire yet. **Phase 3 (done, historical):** `FreenetMistStore` + FCP transport (mock + real ClientHello/Put/Get) — disk cache hybrid; app wiring is Phase 4, not this bullet. **Phase 4 (done):** FarmCode (`mist-fc-1`), app `src/mist/` FarmStore factory, mist first-run UI, bones workshop — Firebase default unchanged.
 2. First-run setup flow + device session (**§ First-run setup**). Phase 4 covers owner create path; crew join / PIN reload → phase 5.
 3. Local event log / CRDT-friendly store.
 4. Farm bones publish/pull on mist + Reticulum map heads-up.

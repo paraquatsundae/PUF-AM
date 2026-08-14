@@ -16,16 +16,31 @@ import {
   type PinRole,
 } from '../lib/invitePinAuth';
 import { useAuth } from '../contexts/AuthContext';
+import { isByoFirebase } from '../lib/byoFirebaseConfig';
 import { APP_INVITE_SUBJECT } from '../brand';
 import { useWalnutPack } from '../hooks/useWalnutPack';
 
-function shareMessage(code: string, role: PinRole): string {
+function shareMessage(
+  code: string,
+  role: PinRole,
+  extra?: { farmId?: string; byo?: boolean }
+): string {
+  const steps = extra?.byo
+    ? [
+        '1. Cloud sync → Your own Firebase and paste the same project config',
+        `2. Join a farm — farm ID ${extra.farmId || '(ask the owner)'}`,
+        '3. Enter your name (use the same name next time)',
+        `4. Enter this PIN: ${code}`,
+      ]
+    : [
+        '1. Open the app and go to Sign in → Join a farm',
+        '2. Enter your name (use the same name next time)',
+        `3. Enter this PIN: ${code}`,
+      ];
   return [
     APP_INVITE_SUBJECT,
     '',
-    '1. Open the app and go to Sign in → Join a farm',
-    '2. Enter your name (use the same name next time)',
-    `3. Enter this PIN: ${code}`,
+    ...steps,
     '',
     `Role: ${role}`,
     'Same name + PIN reopens your account on this farm.',
@@ -73,7 +88,7 @@ function ModuleChecklist({
 }
 
 export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
-  const { farmEnabledModules } = useAuth();
+  const { farmEnabledModules, userData } = useAuth();
   const hasWalnutPack = useWalnutPack();
   const packExclude = useMemo(
     () => (hasWalnutPack ? ([] as FarmModuleId[]) : [...WALNUT_PACK_MODULES]),
@@ -205,7 +220,12 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
 
   const copyShare = async () => {
     if (!freshCode) return;
-    await navigator.clipboard.writeText(shareMessage(freshCode, freshRole));
+    await navigator.clipboard.writeText(
+      shareMessage(freshCode, freshRole, {
+        farmId: userData?.farmId,
+        byo: isByoFirebase(),
+      })
+    );
     setCopied('share');
     setTimeout(() => setCopied(null), 2000);
   };
