@@ -74,7 +74,8 @@ Prove pack-contract PUT (then slot PUT/UPDATE) over `ws://127.0.0.1:7509` **with
 | File | Job |
 |------|-----|
 | [`units/mist-freenet/src/freenet02-pack-id.ts`](../units/mist-freenet/src/freenet02-pack-id.ts) | Browser-safe instance id / parameters (no `node:fs`) |
-| [`units/mist-freenet/src/freenet02-native-put.ts`](../units/mist-freenet/src/freenet02-native-put.ts) | Stdlib `PutRequest` + hard timeout |
+| [`units/mist-freenet/src/freenet02-native-bincode.ts`](../units/mist-freenet/src/freenet02-native-bincode.ts) | `fdev` native bincode PUT frame (no `fdev` binary) |
+| [`units/mist-freenet/src/freenet02-native-put.ts`](../units/mist-freenet/src/freenet02-native-put.ts) | Native WS PUT client + leftover stdlib `PutRequest` builder |
 | [`units/mist-freenet/freenet02-native-put.test.ts`](../units/mist-freenet/freenet02-native-put.test.ts) | Hermetic: addressing + request shape |
 | [`units/mist-freenet/freenet02-native-put-live.test.ts`](../units/mist-freenet/freenet02-native-put-live.test.ts) | Opt-in live put→get. Skip unless `FREENET_LIVE_WS=1` |
 
@@ -110,4 +111,8 @@ Crop-pack Install for Freenet · JNI in the WebView · `fdev` in the APK · Play
 
 | Date | Against | Result |
 |------|---------|--------|
-| 2026-08-14 | Hermetic tests + client | Landed. Live put→get not run until `FREENET_LIVE_WS=1` against a node |
+| 2026-08-15 | Hermetic tests | Pass — addressing + PutRequest packs (empty `RelatedContractsT` is required) |
+| 2026-08-15 | Live stdlib PUT · node **0.2.125** on `:7509` | **NO-GO.** Request encodes and is sent. SDK `Request timeout` at 30s. Journal shows no put. Same node: **`fdev` PUT succeeded in 1.5s** (`VUsGp8KZV6J9cPELymfHtXddAHQRRodRWZsH4KEmvpT`). Flatbuffers PUT is still the hang; native WS encoding (what `fdev` speaks) is the next spike, or an upstream SDK fix |
+| 2026-08-15 | Native bincode PUT · node **0.2.125** on `:7509` | **GO.** `encodingProtocol=native` + bincode `ClientRequest::Put` (stdlib 0.8.5 / fdev 0.3.287 fixture). Live put→get in **1.2s**, same bytes back. Packaged WASM header is stripped before send. Slot PUT/UPDATE is the remaining Phase 1 piece before wiring Send |
+
+**Implication:** pack-contract PUT no longer needs `fdev`. Do not wire `BrowserFreenetPutClient` into `publishFarmToFreenet` until slot PUT/UPDATE also passes live. Phases 2–3 (isolated node + Join) can proceed in parallel.

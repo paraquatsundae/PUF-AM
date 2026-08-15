@@ -30,9 +30,29 @@ export {
   blake3Bytes,
   loadPackContractWasm,
   packParametersFromBlob,
+  packInstanceIdBase58,
   FREENET02_MAX_BLOB_BYTES,
   DEFAULT_PACK_CONTRACT_WASM,
 } from './freenet02-pack.ts';
+export {
+  decodeNativeHostResult,
+  encodeNativeAuthenticate,
+  encodeNativeClose,
+  encodeNativePackPut,
+  toNativeFreenetWsUrl,
+} from './freenet02-native-bincode.ts';
+export type { NativeHostPutResult, NativePackPutFrame } from './freenet02-native-bincode.ts';
+export {
+  BrowserFreenetPutClient,
+  FreenetNativePutError,
+  NATIVE_PUT_DEFAULT_TIMEOUT_MS,
+  buildPackPutRequest,
+} from './freenet02-native-put.ts';
+export type {
+  BrowserFreenetPutClientOptions,
+  NativePackPutInput,
+  NativePackPutResult,
+} from './freenet02-native-put.ts';
 export {
   DEFAULT_SLOT_CONTRACT_WASM,
   putJoinSlotViaFdev,
