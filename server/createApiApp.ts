@@ -4,6 +4,7 @@ import express, { Express } from "express";
 import { runBlightModel, defaultCalibration } from "../src/lib/blightModel.ts";
 import { HUB_INFO_PATH, type HubInfo } from "../shared/sync/hubInfo.ts";
 import { registerAccessPinRoutes } from "./accessPinRoutes.ts";
+import { registerAdminOpsRoutes } from "./adminOpsRoutes.ts";
 import { registerWeatherCacheRoutes } from "./weatherCacheRoutes.ts";
 import { registerChillRoutes } from "./chillRoutes.ts";
 import { registerLanSyncRoutes } from "./lanSyncRoutes.ts";
@@ -74,6 +75,7 @@ export function createApiApp(): Express {
   });
 
   registerAccessPinRoutes(app);
+  registerAdminOpsRoutes(app);
   registerWeatherCacheRoutes(app);
   registerChillRoutes(app);
   registerLanSyncRoutes(app);

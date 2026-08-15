@@ -67,8 +67,18 @@ export function enrollmentConfigured(): boolean {
   return configuredCodes().length > 0;
 }
 
-function codeHash(code: string): string {
+export function enrollmentCodeHash(code: string): string {
   return createHash('sha256').update(code).digest('hex');
+}
+
+function codeHash(code: string): string {
+  return enrollmentCodeHash(code);
+}
+
+/** How many configured codes have not been reserved yet. Does not reveal the codes. */
+export function unusedEnrollmentCount(configured: string[], usedHashes: Iterable<string>): number {
+  const used = new Set(usedHashes);
+  return configured.filter((code) => !used.has(enrollmentCodeHash(code))).length;
 }
 
 /** Flat rather than a discriminated union — this tsconfig has no strictNullChecks. */
@@ -136,4 +146,48 @@ export async function markEnrollmentCodeUsed(
     .set({ ...used, usedAt: new Date().toISOString() }, { merge: true })
     .catch(() => undefined);
   console.log(`[auth] enrollment code ${hash.slice(0, 8)}… used for farm ${used.farmId}`);
+}
+
+export type EnrollmentUseRow = {
+  hashPrefix: string;
+  farmId: string | null;
+  farmName: string | null;
+  reservedAt: string | null;
+  usedAt: string | null;
+};
+
+export type EnrollmentInventory = {
+  configuredCount: number;
+  unusedCount: number;
+  uses: EnrollmentUseRow[];
+};
+
+/** Platform-admin audit: how many codes are left, and what the spent ones bought. */
+export async function loadEnrollmentInventory(): Promise<EnrollmentInventory> {
+  const configured = configuredCodes();
+  const snap = await getAdminDb().collection(USED_CODES).get();
+  const usedHashes: string[] = [];
+  const uses: EnrollmentUseRow[] = [];
+  for (const doc of snap.docs) {
+    usedHashes.push(doc.id);
+    const data = doc.data() as {
+      farmId?: unknown;
+      farmName?: unknown;
+      reservedAt?: unknown;
+      usedAt?: unknown;
+    };
+    uses.push({
+      hashPrefix: doc.id.slice(0, 8),
+      farmId: typeof data.farmId === 'string' ? data.farmId : null,
+      farmName: typeof data.farmName === 'string' ? data.farmName : null,
+      reservedAt: typeof data.reservedAt === 'string' ? data.reservedAt : null,
+      usedAt: typeof data.usedAt === 'string' ? data.usedAt : null,
+    });
+  }
+  uses.sort((a, b) => (b.usedAt || b.reservedAt || '').localeCompare(a.usedAt || a.reservedAt || ''));
+  return {
+    configuredCount: configured.length,
+    unusedCount: unusedEnrollmentCount(configured, usedHashes),
+    uses,
+  };
 }

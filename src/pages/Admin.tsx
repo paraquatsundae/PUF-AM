@@ -43,6 +43,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import { OwnerOpsPanel } from '../components/admin/OwnerOpsPanel';
 import { calculateEstimatedCost, COST_ESTIMATES, trackMetric } from '../services/metricsService';
 
 interface AccessList {
@@ -58,7 +59,7 @@ export function Admin() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [activeTab, setActiveTab] = useState<'users' | 'whitelist' | 'blacklist' | 'usage'>('users');
+  const [activeTab, setActiveTab] = useState<'ops' | 'users' | 'whitelist' | 'blacklist' | 'usage'>('ops');
   const [globalMetrics, setGlobalMetrics] = useState<any>(null);
   const [dailyMetrics, setDailyMetrics] = useState<any[]>([]);
   const [userMetrics, setUserMetrics] = useState<Record<string, any>>({});
@@ -239,7 +240,9 @@ export function Admin() {
             <Shield className="w-6 h-6 text-emerald-600" />
             Admin Dashboard
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Manage users and access control</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Farms, enrollment, invite PINs, and access control on this Firebase project
+          </p>
         </div>
         
         <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
@@ -286,7 +289,13 @@ export function Admin() {
 
       {/* Main Content */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex border-b border-slate-200">
+        <div className="flex border-b border-slate-200 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('ops')}
+            className={`px-6 py-4 text-sm font-bold transition-colors border-b-2 whitespace-nowrap ${activeTab === 'ops' ? 'border-emerald-600 text-emerald-600 bg-emerald-50/50' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
+            Ops
+          </button>
           <button
             onClick={() => setActiveTab('users')}
             className={`px-6 py-4 text-sm font-bold transition-colors border-b-2 ${activeTab === 'users' ? 'border-emerald-600 text-emerald-600 bg-emerald-50/50' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
@@ -314,6 +323,8 @@ export function Admin() {
         </div>
 
         <div className="p-6">
+          {activeTab === 'ops' && <OwnerOpsPanel />}
+
           {activeTab === 'usage' && (
             <div className="space-y-8">
               {/* Usage KPIs */}

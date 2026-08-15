@@ -13,7 +13,7 @@ let runtimeApiBase: string | null = null;
  * Everything else — Freenet, LAN sync, presence — is local by design.
  * See `Plans/DESKTOP_FREENET_PLUGIN.md` §6.2.
  */
-const DESKTOP_CLOUD_ONLY_PREFIXES = ['/api/auth/', '/api/weather/'];
+const DESKTOP_CLOUD_ONLY_PREFIXES = ['/api/auth/', '/api/weather/', '/api/admin/'];
 
 function desktopCloudBaseFor(path: string): string {
   const bridge = getDesktopBridge();
@@ -133,7 +133,9 @@ function hubCloudBaseFor(path: string): string {
     // chill/blight quietly die as non-JSON HTML.
     if (
       isPackagedNativeAndroid() &&
-      (path.startsWith('/api/auth/') || path.startsWith('/api/weather/'))
+      (path.startsWith('/api/auth/') ||
+        path.startsWith('/api/weather/') ||
+        path.startsWith('/api/admin/'))
     ) {
       return DEFAULT_CLOUD_API_BASE;
     }

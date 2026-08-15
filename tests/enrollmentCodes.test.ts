@@ -8,7 +8,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { normalizeEnrollmentCode, parseEnrollmentCodes } from '../server/enrollmentCodes.ts';
+import {
+  enrollmentCodeHash,
+  normalizeEnrollmentCode,
+  parseEnrollmentCodes,
+  unusedEnrollmentCount,
+} from '../server/enrollmentCodes.ts';
 
 describe('normalizeEnrollmentCode', () => {
   it('ignores case, spaces and the dashes people add for readability', () => {
@@ -33,5 +38,14 @@ describe('parseEnrollmentCodes', () => {
   it('drops blanks and codes too short to have been issued', () => {
     expect(parseEnrollmentCodes(',, abc ,')).toEqual([]);
     expect(parseEnrollmentCodes('')).toEqual([]);
+  });
+});
+
+describe('unusedEnrollmentCount', () => {
+  it('counts configured codes whose hash is not in the used set', () => {
+    const codes = parseEnrollmentCodes('AB2CD-EF3GH, JK4MN-PQ5RS');
+    expect(unusedEnrollmentCount(codes, [])).toBe(2);
+    expect(unusedEnrollmentCount(codes, [enrollmentCodeHash(codes[0])])).toBe(1);
+    expect(unusedEnrollmentCount(codes, codes.map((code) => enrollmentCodeHash(code)))).toBe(0);
   });
 });

@@ -1173,6 +1173,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // SHA-256 of spent enrollment codes — no plaintext. Platform admin audit only.
+    match /enrollment_code_uses/{hash} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+
     // Seasonal hourly chill series — Admin SDK only (Express chill endpoint).
     match /chill_cache/{docId} {
       allow read, write: if false;

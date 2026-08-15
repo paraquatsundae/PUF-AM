@@ -22,6 +22,11 @@ describe("API health", () => {
     });
   });
 
+  it("GET /api/admin/ops refuses an anonymous caller", async () => {
+    const res = await fetch(`${baseUrl}/api/admin/ops`);
+    expect([401, 503]).toContain(res.status);
+  });
+
   it("GET /api/health returns ok", async () => {
     const res = await fetch(`${baseUrl}/api/health`);
     expect(res.status).toBe(200);
