@@ -22,13 +22,8 @@ import { ContractCodeT } from '@freenetorg/freenet-stdlib/common';
 import bs58 from 'bs58';
 
 import { DEFAULT_LOCAL_FREENET_WS_URL } from './freenet02-browser-get-url.ts';
-import {
-  decodeNativeHostResult,
-  encodeNativeAuthenticate,
-  encodeNativeClose,
-  encodeNativePackPut,
-  toNativeFreenetWsUrl,
-} from './freenet02-native-bincode.ts';
+import { decodeNativeHostResult, encodeNativePackPut, toNativeFreenetWsUrl } from './freenet02-native-bincode.ts';
+import { FreenetNativeWsError, sendNativeRequest } from './freenet02-native-ws.ts';
 import {
   packContractCodeHashBytes,
   packContractInstanceId,
@@ -84,15 +79,6 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
-async function messageBytes(data: unknown): Promise<Uint8Array> {
-  if (data instanceof ArrayBuffer) return new Uint8Array(data);
-  if (data instanceof Uint8Array) return data;
-  if (typeof Blob !== 'undefined' && data instanceof Blob) {
-    return new Uint8Array(await data.arrayBuffer());
-  }
-  throw new FreenetNativePutError('Freenet node sent a non-binary WebSocket frame');
-}
-
 /** Build the stdlib PutRequest the previous spike sent. Exported for hermetic tests. */
 export function buildPackPutRequest(input: NativePackPutInput): {
   request: PutRequest;
@@ -146,13 +132,15 @@ export class BrowserFreenetPutClient {
   async putPackBlob(input: NativePackPutInput): Promise<NativePackPutResult> {
     const frame = encodeNativePackPut(input);
     const startedAt = Date.now();
-    const socket = await this.openSocket();
 
     try {
-      if (this.authToken) socket.send(encodeNativeAuthenticate(this.authToken));
-      socket.send(frame.bytes);
-
-      const reply = await this.readBinary(socket, this.putTimeoutMs);
+      const reply = await sendNativeRequest({
+        wsUrl: this.wsUrl,
+        authToken: this.authToken || undefined,
+        connectTimeoutMs: this.connectTimeoutMs,
+        requestTimeoutMs: this.putTimeoutMs,
+        frame: frame.bytes,
+      });
       const decoded = decodeNativeHostResult(reply);
       if (!decoded.ok) {
         throw new FreenetNativePutError(
@@ -173,129 +161,12 @@ export class BrowserFreenetPutClient {
       };
     } catch (error) {
       if (error instanceof FreenetNativePutError) throw error;
+      const hung = error instanceof FreenetNativeWsError && error.hung;
       const message = error instanceof Error ? error.message : String(error);
-      const hung = /did not settle|request timeout/i.test(message);
       throw new FreenetNativePutError(
         `Freenet native PUT failed (${this.wsUrl}): ${message}`,
         hung,
       );
-    } finally {
-      this.closeSocket(socket);
-    }
-  }
-
-  private openSocket(): Promise<WebSocket> {
-    const Ctor = globalThis.WebSocket;
-    if (!Ctor) {
-      return Promise.reject(new FreenetNativePutError('WebSocket is not available in this runtime'));
-    }
-
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      let socket: WebSocket;
-      try {
-        socket = new Ctor(this.wsUrl);
-      } catch (error) {
-        reject(
-          new FreenetNativePutError(error instanceof Error ? error.message : String(error)),
-        );
-        return;
-      }
-
-      const fail = (reason: string) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        try {
-          socket.close();
-        } catch {
-          /* already gone */
-        }
-        reject(new FreenetNativePutError(reason));
-      };
-
-      const timer = setTimeout(() => {
-        fail(`No Freenet node answered on ${this.wsUrl} within ${this.connectTimeoutMs}ms`);
-      }, this.connectTimeoutMs);
-
-      socket.binaryType = 'arraybuffer';
-      socket.addEventListener('open', () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(socket);
-      });
-      socket.addEventListener('error', () => {
-        fail(`Freenet node WebSocket error (${this.wsUrl})`);
-      });
-      socket.addEventListener('close', (event) => {
-        fail(
-          `Freenet node closed the connection (${event.code}${event.reason ? ` ${event.reason}` : ''})`,
-        );
-      });
-    });
-  }
-
-  private readBinary(socket: WebSocket, timeoutMs: number): Promise<Uint8Array> {
-    return new Promise((resolve, reject) => {
-      let settled = false;
-
-      const finish = (action: () => void) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        socket.removeEventListener('message', onMessage);
-        socket.removeEventListener('error', onError);
-        socket.removeEventListener('close', onClose);
-        action();
-      };
-
-      const timer = setTimeout(() => {
-        finish(() =>
-          reject(
-            new FreenetNativePutError(
-              `native PUT did not settle in ${timeoutMs}ms — this is the 0.2.x hang the spike is measuring`,
-              true,
-            ),
-          ),
-        );
-      }, timeoutMs);
-
-      const onMessage = (event: MessageEvent) => {
-        void messageBytes(event.data).then(
-          (bytes) => finish(() => resolve(bytes)),
-          (error) => finish(() => reject(error)),
-        );
-      };
-      const onError = () => {
-        finish(() =>
-          reject(new FreenetNativePutError(`Freenet node WebSocket error (${this.wsUrl})`)),
-        );
-      };
-      const onClose = (event: CloseEvent) => {
-        finish(() =>
-          reject(
-            new FreenetNativePutError(
-              `Freenet node closed before PUT answered (${event.code}${event.reason ? ` ${event.reason}` : ''})`,
-            ),
-          ),
-        );
-      };
-
-      socket.addEventListener('message', onMessage);
-      socket.addEventListener('error', onError);
-      socket.addEventListener('close', onClose);
-    });
-  }
-
-  private closeSocket(socket: WebSocket): void {
-    try {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(encodeNativeClose());
-      }
-      socket.close();
-    } catch {
-      /* already gone */
     }
   }
 }

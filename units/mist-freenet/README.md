@@ -143,7 +143,7 @@ Pull on laptop B: resolve mist key from local index (or re-publish flow) → `ge
 ### Limitations (phase 3 + ws02)
 
 - No USK/SSK mutable Freenet keys — hot/manifest use replace-pointer-via-local-index.
-- **Freenet 0.2:** pack-contract only (64 KiB single blob); PUT uses native bincode over `encodingProtocol=native` (what `fdev execute put` speaks) — flatbuffers SDK PUT hangs on 0.2.11x; GET uses `@freenetorg/freenet-stdlib` flatbuffers. Desktop publish still goes through Express/`fdev` until slot PUT is ported.
+- **Freenet 0.2:** pack-contract (64 KiB single blob) and join-slot PUT/UPDATE use native bincode over `encodingProtocol=native` (what `fdev execute` speaks) — flatbuffers SDK PUT hangs on 0.2.11x; GET uses `@freenetorg/freenet-stdlib` flatbuffers. Desktop publish still goes through Express until Phase 4 wires the native clients.
 - **FCP vs FN02 URIs are not interchangeable** — index entries from one transport cannot be fetched with the other.
 - No splitfile support for **KiB-class** payloads (workshop frozen ~2026-08-03) — Hot/bones/manifest use single-block blobs. Splitfiles deferred for larger assets (tile packs, multi-MiB archives).
 - No cross-device watch/push — `watch()` is local disk only.

@@ -113,7 +113,7 @@ describe('encodeNativePackPut', () => {
 
   it('refuses empty WASM', () => {
     expect(() => encodeNativePackPut({ data: SAMPLE, wasm: new Uint8Array() })).toThrow(
-      /pack-contract WASM/,
+      /WASM bytes/,
     );
   });
 });

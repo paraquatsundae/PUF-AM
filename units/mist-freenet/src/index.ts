@@ -161,10 +161,24 @@ export {
   decodeNativeHostResult,
   encodeNativeAuthenticate,
   encodeNativeClose,
+  encodeNativeContractPut,
+  encodeNativeContractUpdate,
   encodeNativePackPut,
+  looksLikeAlreadyPublished,
   toNativeFreenetWsUrl,
 } from './freenet02-native-bincode.ts';
 export type { NativeHostPutResult, NativePackPutFrame } from './freenet02-native-bincode.ts';
+
+export {
+  BrowserFreenetSlotClient,
+  FreenetNativeSlotError,
+  NATIVE_SLOT_DEFAULT_TIMEOUT_MS,
+} from './freenet02-native-slot.ts';
+export type {
+  BrowserFreenetSlotClientOptions,
+  NativeSlotPutInput,
+  NativeSlotPutResult,
+} from './freenet02-native-slot.ts';
 
 export {
   BrowserFreenetPutClient,

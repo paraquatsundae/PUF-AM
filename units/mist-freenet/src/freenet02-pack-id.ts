@@ -65,7 +65,7 @@ export function unpackContractWasm(bytes: Uint8Array): {
   codeHash: Uint8Array;
 } {
   if (!bytes.byteLength) {
-    throw new Error('pack PUT needs the pack-contract WASM bytes');
+    throw new Error('contract PUT needs the WASM bytes');
   }
   if (hasWasmMagic(bytes, 0)) {
     return { wasm: bytes, codeHash: blake3Bytes(bytes) };

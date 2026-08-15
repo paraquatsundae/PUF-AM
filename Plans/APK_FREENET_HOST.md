@@ -76,8 +76,11 @@ Prove pack-contract PUT (then slot PUT/UPDATE) over `ws://127.0.0.1:7509` **with
 | [`units/mist-freenet/src/freenet02-pack-id.ts`](../units/mist-freenet/src/freenet02-pack-id.ts) | Browser-safe instance id / parameters (no `node:fs`) |
 | [`units/mist-freenet/src/freenet02-native-bincode.ts`](../units/mist-freenet/src/freenet02-native-bincode.ts) | `fdev` native bincode PUT frame (no `fdev` binary) |
 | [`units/mist-freenet/src/freenet02-native-put.ts`](../units/mist-freenet/src/freenet02-native-put.ts) | Native WS PUT client + leftover stdlib `PutRequest` builder |
+| [`units/mist-freenet/src/freenet02-native-slot.ts`](../units/mist-freenet/src/freenet02-native-slot.ts) | Slot PUT + UPDATE (`--as-state`) over the same native WS |
 | [`units/mist-freenet/freenet02-native-put.test.ts`](../units/mist-freenet/freenet02-native-put.test.ts) | Hermetic: addressing + request shape |
 | [`units/mist-freenet/freenet02-native-put-live.test.ts`](../units/mist-freenet/freenet02-native-put-live.test.ts) | Opt-in live put→get. Skip unless `FREENET_LIVE_WS=1` |
+| [`units/mist-freenet/freenet02-native-slot.test.ts`](../units/mist-freenet/freenet02-native-slot.test.ts) | Hermetic: slot frames + PUFSLOT1 shape |
+| [`units/mist-freenet/freenet02-native-slot-live.test.ts`](../units/mist-freenet/freenet02-native-slot-live.test.ts) | Opt-in live slot put→get and update. Skip unless `FREENET_LIVE_WS=1` |
 
 Try against desktop pin **0.2.119** and, when a tablet node is up, **0.2.123**. If only the newer node answers, pin Android there and schedule the desktop bump separately.
 
@@ -114,5 +117,6 @@ Crop-pack Install for Freenet · JNI in the WebView · `fdev` in the APK · Play
 | 2026-08-15 | Hermetic tests | Pass — addressing + PutRequest packs (empty `RelatedContractsT` is required) |
 | 2026-08-15 | Live stdlib PUT · node **0.2.125** on `:7509` | **NO-GO.** Request encodes and is sent. SDK `Request timeout` at 30s. Journal shows no put. Same node: **`fdev` PUT succeeded in 1.5s** (`VUsGp8KZV6J9cPELymfHtXddAHQRRodRWZsH4KEmvpT`). Flatbuffers PUT is still the hang; native WS encoding (what `fdev` speaks) is the next spike, or an upstream SDK fix |
 | 2026-08-15 | Native bincode PUT · node **0.2.125** on `:7509` | **GO.** `encodingProtocol=native` + bincode `ClientRequest::Put` (stdlib 0.8.5 / fdev 0.3.287 fixture). Live put→get in **1.2s**, same bytes back. Packaged WASM header is stripped before send. Slot PUT/UPDATE is the remaining Phase 1 piece before wiring Send |
+| 2026-08-15 | Native slot PUT/UPDATE · node **0.2.125** on `:7509` | **GO.** First publish + GET in ~3s. Re-publish via `UpdateData::State` with the **real** code hash (a zero hash, which is what `fdev` sends, came back `missing contract`). This node also accepts a second PUT as an upsert, so the already-published fallback may not run. |
 
-**Implication:** pack-contract PUT no longer needs `fdev`. Do not wire `BrowserFreenetPutClient` into `publishFarmToFreenet` until slot PUT/UPDATE also passes live. Phases 2–3 (isolated node + Join) can proceed in parallel.
+**Implication:** pack and slot publish no longer need `fdev` on the wire. Wiring `BrowserFreenetPutClient` / `BrowserFreenetSlotClient` into `publishFarmToFreenet` is Phase 4. Phases 2–3 (isolated node + Join) can proceed in parallel.

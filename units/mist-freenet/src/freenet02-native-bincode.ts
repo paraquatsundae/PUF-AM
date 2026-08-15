@@ -10,6 +10,7 @@
  */
 
 import {
+  blake3Bytes,
   packContractInstanceId,
   packParametersFromBlob,
   unpackContractWasm,
@@ -19,8 +20,10 @@ const CLIENT_REQUEST_CONTRACT_OP = 1;
 const CLIENT_REQUEST_AUTHENTICATE = 3;
 const CLIENT_REQUEST_CLOSE = 5;
 const CONTRACT_REQUEST_PUT = 0;
+const CONTRACT_REQUEST_UPDATE = 1;
 const CONTRACT_CONTAINER_WASM = 0;
 const CONTRACT_WASM_API_V1 = 0;
+const UPDATE_DATA_STATE = 0;
 
 const RESULT_OK = 0;
 const RESULT_ERR = 1;
@@ -152,13 +155,13 @@ export type NativePackPutFrame = {
 };
 
 /** `ClientRequest::ContractOp(ContractRequest::Put { … })` — same bytes as fdev. */
-export function encodeNativePackPut(input: {
-  data: Uint8Array;
+export function encodeNativeContractPut(input: {
   wasm: Uint8Array;
+  parameters: Uint8Array;
+  state: Uint8Array;
 }): NativePackPutFrame {
   const unpacked = unpackContractWasm(input.wasm);
-  const params = packParametersFromBlob(input.data);
-  const instanceId = packContractInstanceId(unpacked.codeHash, params);
+  const instanceId = blake3Concat(unpacked.codeHash, input.parameters);
 
   const w = new BincodeWriter();
   w.u32(CLIENT_REQUEST_CONTRACT_OP);
@@ -167,15 +170,64 @@ export function encodeNativePackPut(input: {
   w.u32(CONTRACT_WASM_API_V1);
   w.bytes(unpacked.wasm);
   w.raw(unpacked.codeHash);
-  w.bytes(params);
+  w.bytes(input.parameters);
   w.raw(instanceId);
   w.raw(unpacked.codeHash);
-  w.bytes(input.data);
+  w.bytes(input.state);
   w.u64(0); // empty RelatedContracts HashMap
   w.bool(false); // subscribe
   w.bool(false); // blocking_subscribe
 
   return { bytes: w.finish(), instanceId, codeHash: unpacked.codeHash };
+}
+
+/** Pack-contract PUT: parameters = BLAKE3-32 of the state. */
+export function encodeNativePackPut(input: {
+  data: Uint8Array;
+  wasm: Uint8Array;
+}): NativePackPutFrame {
+  return encodeNativeContractPut({
+    wasm: input.wasm,
+    parameters: packParametersFromBlob(input.data),
+    state: input.data,
+  });
+}
+
+/**
+ * `fdev execute update --as-state`: `UpdateData::State` and a zero code hash.
+ * The node looks the contract up by instance id.
+ */
+export function encodeNativeContractUpdate(input: {
+  instanceId: Uint8Array;
+  state: Uint8Array;
+  codeHash?: Uint8Array;
+}): Uint8Array {
+  if (input.instanceId.byteLength !== 32) {
+    throw new NativeBincodeError('update instance id must be 32 bytes');
+  }
+  const codeHash = input.codeHash ?? new Uint8Array(32);
+  if (codeHash.byteLength !== 32) {
+    throw new NativeBincodeError('update code hash must be 32 bytes');
+  }
+
+  const w = new BincodeWriter();
+  w.u32(CLIENT_REQUEST_CONTRACT_OP);
+  w.u32(CONTRACT_REQUEST_UPDATE);
+  w.raw(input.instanceId);
+  w.raw(codeHash);
+  w.u32(UPDATE_DATA_STATE);
+  w.bytes(input.state);
+  return w.finish();
+}
+
+function blake3Concat(codeHash: Uint8Array, parameters: Uint8Array): Uint8Array {
+  if (codeHash.byteLength === 32 && parameters.byteLength === 32) {
+    return packContractInstanceId(codeHash, parameters);
+  }
+  const combined = new Uint8Array(codeHash.byteLength + parameters.byteLength);
+  combined.set(codeHash, 0);
+  combined.set(parameters, codeHash.byteLength);
+  return blake3Bytes(combined);
 }
 
 export function encodeNativeAuthenticate(token: string): Uint8Array {
@@ -227,7 +279,7 @@ function decodeErrorKind(r: BincodeReader): string {
       case 9: // OperationError { cause }
         return r.string();
       case 8: // RequestError
-        return `RequestError variant ${r.u32()}`;
+        return decodeRequestError(r);
       case 10:
         return 'operation timed out';
       default:
@@ -237,6 +289,34 @@ function decodeErrorKind(r: BincodeReader): string {
     const message = error instanceof Error ? error.message : String(error);
     return `ErrorKind variant ${kind} (${message})`;
   }
+}
+
+function decodeRequestError(r: BincodeReader): string {
+  const variant = r.u32();
+  if (variant === 3) return 'operation timed out';
+  if (variant !== 0) return `RequestError variant ${variant}`;
+  return decodeContractError(r);
+}
+
+function decodeContractError(r: BincodeReader): string {
+  const variant = r.u32();
+  // Get / Put / Update / Subscribe are { key: ContractKey, cause }.
+  if (variant <= 3) {
+    if (r.remaining() < 64) return `ContractError variant ${variant}`;
+    r.raw(64);
+    return r.string();
+  }
+  // ContractStackOverflow / MissingRelated / MissingContract are { key: InstanceId }.
+  if (variant <= 6 && r.remaining() >= 32) {
+    r.raw(32);
+    return variant === 6 ? 'missing contract' : `ContractError variant ${variant}`;
+  }
+  return `ContractError variant ${variant}`;
+}
+
+/** Same text net as `fdev` slot fallback — the CLI only gives us a string. */
+export function looksLikeAlreadyPublished(message: string): boolean {
+  return /already (exists|published|present)|duplicate contract|contract .* exists/i.test(message);
 }
 
 export function toNativeFreenetWsUrl(url: string): string {
