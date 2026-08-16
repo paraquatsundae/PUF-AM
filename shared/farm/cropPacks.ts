@@ -1,7 +1,7 @@
 /**
  * Crop-pack catalog + pure lifecycle helpers (Plans/CROP_PACK_PLUGIN.md).
  *
- * Catalog metadata and blight engine defaults live in `plugins/walnut_blight/`.
+ * Catalog metadata and engine defaults live in `plugins/<id>/`.
  * React UI still ships in `src/packs/<id>/`. Farm admin Install / Activate /
  * Deactivate / Delete is driven from these defs + `farms/{id}.cropPacks`.
  *
@@ -16,11 +16,18 @@ import {
   withWalnutPackModules,
   withoutWalnutPackModules,
 } from '../auth/farmModules';
-import { farmHasWalnutPack, type FarmProfile } from './farmTypes';
+import { farmHasWalnutPack, farmShowsChillPortions, type FarmProfile } from './farmTypes';
 import {
   resolvePluginCategory,
   type PluginCategoryId,
 } from './pluginCategories';
+import {
+  CHILL_PORTIONS_PACK_ID,
+  CHILL_PORTIONS_PRIMARY_PATH,
+  CHILL_PORTIONS_SETTINGS_OWNED_KEYS,
+  chillPortionsManifest,
+  chillPortionsModules,
+} from './chillPortionsPackage';
 import {
   WALNUT_BLIGHT_PACK_ID,
   WALNUT_BLIGHT_PRIMARY_PATH,
@@ -30,8 +37,9 @@ import {
 } from './walnutBlightPackage';
 
 export { WALNUT_BLIGHT_SETTINGS_OWNED_KEYS } from './walnutBlightPackage';
+export { CHILL_PORTIONS_SETTINGS_OWNED_KEYS } from './chillPortionsPackage';
 
-export const CROP_PACK_IDS = [WALNUT_BLIGHT_PACK_ID] as const;
+export const CROP_PACK_IDS = [WALNUT_BLIGHT_PACK_ID, CHILL_PORTIONS_PACK_ID] as const;
 export type CropPackId = (typeof CROP_PACK_IDS)[number];
 
 export type CropPackStatus = 'active' | 'inactive';
@@ -101,6 +109,28 @@ export const CROP_PACKS: readonly CropPackDef[] = [
       return {
         ok: true,
         hint: 'No walnut areas or walnut orchard default yet — pack will have little orchard data until you add walnuts.',
+        hard: false,
+      };
+    },
+  },
+  {
+    id: CHILL_PORTIONS_PACK_ID,
+    label: chillPortionsManifest.label,
+    blurb: chillPortionsManifest.blurb,
+    category: chillPortionsManifest.category,
+    modules: chillPortionsModules,
+    settingsDocId: chillPortionsManifest.settingsDocId,
+    settingsOwnedKeys: CHILL_PORTIONS_SETTINGS_OWNED_KEYS,
+    primaryPath: CHILL_PORTIONS_PRIMARY_PATH,
+    canInstall: (ctx) => {
+      const eligible = farmShowsChillPortions({
+        profile: ctx.profile,
+        blocks: ctx.blocks,
+      });
+      if (eligible) return { ok: true };
+      return {
+        ok: true,
+        hint: 'No orchard, fruit, or vineyard areas yet — pack will have little chill data until you add tree crops.',
         hard: false,
       };
     },
@@ -316,6 +346,76 @@ export function migrateLegacyWalnutPack(opts: {
     migrated: true,
     cropPacks: nextPacks,
     modules: withWalnutPackModules(modules),
+  };
+}
+
+export type LegacyChillMigration = {
+  migrated: boolean;
+  cropPacks: FarmCropPacksMap;
+  modules: FarmModuleId[];
+};
+
+/**
+ * One-time legacy bridge: if chill_portions is missing from cropPacks but the
+ * farm already showed chill (tree enterprise, species, or walnut pack),
+ * install + activate.
+ */
+export function migrateLegacyChillPack(opts: {
+  cropPacks: unknown;
+  modules: FarmModuleId[];
+  profile?: unknown;
+  blocks?: CropPackBlockLike[];
+  nowIso?: string;
+}): LegacyChillMigration {
+  const cropPacks = resolveFarmCropPacks(opts.cropPacks);
+  const modules = resolveFarmEnabledModules(opts.modules);
+  if (cropPacks.chill_portions) {
+    return {
+      migrated: false,
+      cropPacks,
+      modules: syncModulesWithCropPacks(modules, cropPacks),
+    };
+  }
+
+  const eligible = farmShowsChillPortions({
+    profile: opts.profile,
+    blocks: opts.blocks,
+    walnutPackActive: isPackActive(cropPacks, WALNUT_BLIGHT_PACK_ID),
+  });
+
+  if (!eligible) {
+    return {
+      migrated: false,
+      cropPacks,
+      modules: syncModulesWithCropPacks(modules, cropPacks),
+    };
+  }
+
+  const now = opts.nowIso ?? new Date().toISOString();
+  return {
+    migrated: true,
+    ...planInstallPack(cropPacks, modules, CHILL_PORTIONS_PACK_ID, now, true),
+  };
+}
+
+/** Walnut then chill — one write for farms that already had both in core. */
+export function migrateLegacyPacks(opts: {
+  cropPacks: unknown;
+  modules: FarmModuleId[];
+  profile?: unknown;
+  blocks?: CropPackBlockLike[];
+  nowIso?: string;
+}): LegacyWalnutMigration {
+  const walnut = migrateLegacyWalnutPack(opts);
+  const chill = migrateLegacyChillPack({
+    ...opts,
+    cropPacks: walnut.cropPacks,
+    modules: walnut.modules,
+  });
+  return {
+    migrated: walnut.migrated || chill.migrated,
+    cropPacks: chill.cropPacks,
+    modules: chill.modules,
   };
 }
 

@@ -6,7 +6,7 @@ import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase
 import {
   getCropPack,
   isCropPackId,
-  migrateLegacyWalnutPack,
+  migrateLegacyPacks,
   planActivatePack,
   planDeactivatePack,
   planDeletePack,
@@ -69,8 +69,14 @@ async function wipePackSettings(farmId: string, packId: CropPackId): Promise<voi
 export async function ensureLegacyWalnutPackMigrated(
   ctx: CropPackLifecycleCtx
 ): Promise<CropPackLifecycleResult & { migrated: boolean }> {
+  return ensureLegacyPacksMigrated(ctx);
+}
+
+export async function ensureLegacyPacksMigrated(
+  ctx: CropPackLifecycleCtx
+): Promise<CropPackLifecycleResult & { migrated: boolean }> {
   const state = await readFarmPackState(ctx.farmId);
-  const result = migrateLegacyWalnutPack({
+  const result = migrateLegacyPacks({
     cropPacks: state.cropPacks,
     modules: state.modules,
     profile: ctx.profile,

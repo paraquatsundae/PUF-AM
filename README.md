@@ -106,6 +106,7 @@ Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They
 |-----|-----|
 | [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) | **Developer contract** (D1–D15), farm-admin lifecycle, acceptance checks |
 | [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Reference pack (walnut blight settings home) |
+| [`Plans/CHILL_PORTIONS_PLUGIN.md`](Plans/CHILL_PORTIONS_PLUGIN.md) | Chill portions pack (calculator + DPIRD hourly) |
 | [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md) | PR checklist when adding or changing a pack |
 
 **Minimum wiring for a new pack**

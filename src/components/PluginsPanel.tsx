@@ -127,7 +127,7 @@ export function PluginsPanel({
         if (result.migrated) {
           await refreshFarmModules();
           await refreshFarmCropPacks();
-          setMessage('Walnut blight pack restored from this farm’s existing setup.');
+          setMessage('Crop packs restored from this farm’s existing setup.');
         }
       } catch (e) {
         if (!cancelled) {

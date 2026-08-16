@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "chill_portions",
+  "version": "0.1.0",
+  "label": "Chill portions",
+  "blurb": "Dynamic Model chill portions (Erez & Fishman) — farm DPIRD hourly plus daily Tmax/Tmin calculator.",
+  "category": "crop",
+  "modules": ["chill"],
+  "settingsDocId": "chill_portions",
+  "settingsOwnedKeys": [
+    "weatherSource",
+    "latitude",
+    "seasonStartMonth",
+    "seasonStartDay",
+    "seasonEndMonth",
+    "seasonEndDay"
+  ],
+  "primaryPath": "/weather-events",
+  "author": "PUF-AM",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/paraquatsundae/PUFworks-chill_calculator"
+}

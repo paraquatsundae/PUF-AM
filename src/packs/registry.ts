@@ -15,9 +15,13 @@ import type {
   PackNavRegistration,
   PackRouteRegistration,
 } from './types';
+import { chillPortionsPackUi } from './chill_portions';
 import { walnutBlightPackUi } from './walnut_blight';
 
-export const PACK_UI_REGISTRY: readonly CropPackUiRegistration[] = [walnutBlightPackUi];
+export const PACK_UI_REGISTRY: readonly CropPackUiRegistration[] = [
+  walnutBlightPackUi,
+  chillPortionsPackUi,
+];
 
 export function getPackUi(packId: CropPackId): CropPackUiRegistration | undefined {
   return PACK_UI_REGISTRY.find((p) => p.packId === packId);

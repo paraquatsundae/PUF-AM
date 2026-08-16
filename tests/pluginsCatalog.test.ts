@@ -38,6 +38,7 @@ describe('pluginsCatalog', () => {
     expect(groups.map((g) => g.category)).toContain('network');
     const crop = groups.find((g) => g.category === 'crop')!;
     expect(crop.entries.some((e) => e.id === 'walnut_blight')).toBe(true);
+    expect(crop.entries.some((e) => e.id === 'chill_portions')).toBe(true);
     const network = groups.find((g) => g.category === 'network')!;
     expect(network.entries.some((e) => e.id === 'freenet_host')).toBe(true);
   });

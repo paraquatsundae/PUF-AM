@@ -21,7 +21,8 @@ import { getBlightAggregate, isAggregateFresh, type BlightAggregate, type Blight
 import { bandFromRisk, RISK_BAND_LABEL } from '../lib/jiBlightBands';
 import { useWalnutPack } from '../hooks/useWalnutPack';
 import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
-import { farmShowsChillPortions } from '../../shared/farm/farmTypes';
+import { useChillPack } from '../hooks/useChillPack';
+import { ensureLegacyPacksMigrated } from '../lib/cropPackLifecycle';
 import { cn } from '../lib/utils';
 
 /**
@@ -43,7 +44,7 @@ function riskMeta(agg: BlightAggregate | null) {
 }
 
 export function Dashboard() {
-  const { userData, hasModule } = useAuth();
+  const { userData, hasModule, isAdmin, refreshFarmModules, refreshFarmCropPacks } = useAuth();
   const farmId = userData?.farmId;
   const { blocks, viewport } = useMapStore();
   const fieldIssues = useFieldStore((s) => s.issues);
@@ -51,11 +52,7 @@ export function Dashboard() {
   const { events, settings } = useFarmDiary(getDefaultDiaryStartDate(90));
   const hasWalnutPack = useWalnutPack();
   const showBlight = hasWalnutPack && hasModule('blight');
-  const showChill = farmShowsChillPortions({
-    profile: settings.farmProfile,
-    blocks,
-    walnutPackActive: hasWalnutPack,
-  });
+  const showChill = useChillPack();
   const chill = useFarmChillPortions(
     viewport.lat,
     viewport.lng,
@@ -70,6 +67,25 @@ export function Dashboard() {
   useEffect(() => {
     if (farmId) loadFieldData(farmId);
   }, [farmId, loadFieldData]);
+
+  useEffect(() => {
+    if (!farmId || !isAdmin) return;
+    let cancelled = false;
+    void ensureLegacyPacksMigrated({
+      farmId,
+      profile: settings.farmProfile,
+      blocks,
+    }).then(async (result) => {
+      if (cancelled || !result.migrated) return;
+      await refreshFarmModules();
+      await refreshFarmCropPacks();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // One restore per farm open — pack map is the source of truth after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [farmId, isAdmin]);
 
   useEffect(() => {
     if (!farmId || !showBlight) {

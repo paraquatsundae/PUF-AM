@@ -18,6 +18,7 @@ import {
 } from '../lib/navConfig';
 import { BottomNav } from './BottomNav';
 import { useFarmDiary } from '../lib/farmDiary';
+import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
 import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
 
@@ -25,7 +26,8 @@ import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
 const NAV_DRAWER_MQ = '(max-width: 1279px)';
 
 export function Layout() {
-  const { user, userData, isAdmin, isPlatformAdmin, hasModule, farmEnabledModules, logout } = useAuth();
+  const { user, userData, isAdmin, isPlatformAdmin, hasModule, logout } = useAuth();
+  const offeredModules = useOfferedFarmModules();
   const { settings } = useFarmDiary();
   const mapTitle = mapUiCopy(settings.farmProfile).mapTitle;
   const groups = React.useMemo(() => navGroupsForMapTitle(mapTitle), [mapTitle]);
@@ -142,7 +144,7 @@ export function Layout() {
                   isAdmin,
                   userData?.role,
                   userData?.modules,
-                  farmEnabledModules,
+                  offeredModules,
                   isPlatformAdmin
                 );
                 if (items.length === 0) return null;

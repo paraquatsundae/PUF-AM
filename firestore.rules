@@ -424,6 +424,20 @@ service cloud.firestore {
              (!('orchardInoculumLevel' in data) || data.orchardInoculumLevel in ['low', 'medium', 'high']);
     }
 
+    function isValidChillPortionsSettings(data) {
+      return hasOnlyAllowedFields([
+               'weatherSource', 'latitude',
+               'seasonStartMonth', 'seasonStartDay',
+               'seasonEndMonth', 'seasonEndDay'
+             ]) &&
+             (!('weatherSource' in data) || (data.weatherSource is string && data.weatherSource.size() < 40)) &&
+             (!('latitude' in data) || (data.latitude is number && data.latitude >= -90 && data.latitude <= 90)) &&
+             (!('seasonStartMonth' in data) || (data.seasonStartMonth is number && data.seasonStartMonth >= 1 && data.seasonStartMonth <= 12)) &&
+             (!('seasonStartDay' in data) || (data.seasonStartDay is number && data.seasonStartDay >= 1 && data.seasonStartDay <= 31)) &&
+             (!('seasonEndMonth' in data) || (data.seasonEndMonth is number && data.seasonEndMonth >= 1 && data.seasonEndMonth <= 12)) &&
+             (!('seasonEndDay' in data) || (data.seasonEndDay is number && data.seasonEndDay >= 1 && data.seasonEndDay <= 31));
+    }
+
     function isValidUsageTracking(data) {
       return hasOnlyAllowedFields(['date', 'aiCalls', 'calculations']) &&
              hasRequiredFields(['date']) &&
@@ -921,6 +935,13 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidModelParameters(request.resource.data);
         allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidModelParameters(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
+      }
+
+      match /settings/chill_portions {
+        allow read: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidChillPortionsSettings(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidChillPortionsSettings(request.resource.data);
         allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 

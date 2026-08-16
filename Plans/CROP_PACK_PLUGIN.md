@@ -207,7 +207,7 @@ A pack passes when, on a farm with an admin:
 ```ts
 // shared/farm/cropPacks.ts
 
-export type CropPackId = 'walnut_blight' /* | next… */;
+export type CropPackId = 'walnut_blight' | 'chill_portions' /* | next… */;
 
 export type CropPackLifecycleCtx = {
   farmId: string;

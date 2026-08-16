@@ -5,8 +5,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useMapStore } from '../lib/mapStore';
 import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
-import { useWalnutPack } from '../hooks/useWalnutPack';
-import { farmShowsChillPortions } from '../../shared/farm/farmTypes';
+import { useChillPack } from '../hooks/useChillPack';
+import { ChillCalculatorPanel } from '../components/chill/ChillCalculatorPanel';
+import { ChillEngineSciencePanel } from '../components/chill/ChillEngineScience';
 import {
   WEATHER_STATION_ANCHORS,
   calculateDistance,
@@ -23,20 +24,14 @@ type StationOption = {
 };
 
 /**
- * Working title — rename after workshop.
- * Plain chill portions (last 24h + season to date). Frost/heat later.
+ * Chill portions crop page — farm DPIRD season totals + daily calculator.
  */
 export function WeatherEvents() {
   const { userData } = useAuth();
   const canEdit = userData?.role === 'admin' || userData?.role === 'farmer';
   const { settings, updateSettings } = useFarmDiary();
-  const { blocks, viewport } = useMapStore();
-  const hasWalnutPack = useWalnutPack();
-  const showChill = farmShowsChillPortions({
-    profile: settings.farmProfile,
-    blocks,
-    walnutPackActive: hasWalnutPack,
-  });
+  const { viewport } = useMapStore();
+  const showChill = useChillPack();
 
   const preferredCode = settings.dpirdStationCode?.trim() || '';
   const preferredName = settings.dpirdStationName?.trim() || '';
@@ -135,10 +130,10 @@ export function WeatherEvents() {
     return (
       <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
         <BackLink />
-        <h1 className="text-2xl font-bold text-slate-900">Weather events</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Chill portions</h1>
         <p className="text-sm text-slate-500">
-          Chill portions are shown for orchard, fruit, and vineyard enterprises. Add one in Farm
-          setup to enable this page.
+          Install <strong>Chill portions</strong> under Settings → Plugins, or add an orchard /
+          fruit / vineyard enterprise so the pack can be restored.
         </p>
       </div>
     );
@@ -151,9 +146,10 @@ export function WeatherEvents() {
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
       <div>
         <BackLink />
-        <h1 className="text-2xl font-bold text-slate-900 mt-2">Weather events</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mt-2">Chill portions</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Chill portions for the farm (Dynamic Model). Date range filter coming later.
+          Dynamic Model (Erez & Fishman) — farm season from DPIRD hourly, plus the daily
+          calculator.
         </p>
         {(station || seasonLabel) && (
           <p className="text-xs text-slate-400 mt-1">
@@ -202,20 +198,28 @@ export function WeatherEvents() {
           {chill.error}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <MetricCard
-            label="Last 24 hours"
-            value={chill.data?.portionsLast24h}
-            hint="Portions accumulated in the past day"
-          />
-          <MetricCard
-            label="Season to date"
-            value={chill.data?.totalPortions}
-            hint={seasonLabel}
-            emphasize
-          />
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <MetricCard
+              label="Last 24 hours"
+              value={chill.data?.portionsLast24h}
+              hint="Portions accumulated in the past day"
+            />
+            <MetricCard
+              label="Season to date"
+              value={chill.data?.totalPortions}
+              hint={seasonLabel}
+              emphasize
+            />
+          </div>
+          {chill.data?.chartData && chill.data.chartData.some((p) => p.portions > 0) && (
+            <SeasonMonthChart points={chill.data.chartData} />
+          )}
+        </>
       )}
+
+      <ChillCalculatorPanel />
+      <ChillEngineSciencePanel />
     </div>
   );
 }
@@ -229,6 +233,37 @@ function BackLink() {
       <ArrowLeft className="w-3.5 h-3.5" />
       Farm home
     </Link>
+  );
+}
+
+function SeasonMonthChart({
+  points,
+}: {
+  points: Array<{ month: string; portions: number }>;
+}) {
+  const max = Math.max(...points.map((p) => p.portions), 1);
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4 space-y-3">
+      <h2 className="text-base font-bold text-slate-900">Season by month</h2>
+      <div className="flex items-end gap-2 h-36">
+        {points.map((p) => (
+          <div key={p.month} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+            <span className="text-[10px] font-mono tabular-nums text-slate-600">
+              {p.portions > 0 ? p.portions : ''}
+            </span>
+            <div className="w-full bg-slate-100 rounded-t-md h-24 flex items-end">
+              <div
+                className="w-full rounded-t-md bg-sky-500/80"
+                style={{ height: `${Math.max(4, (p.portions / max) * 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              {p.month}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

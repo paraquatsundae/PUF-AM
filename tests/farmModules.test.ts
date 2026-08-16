@@ -80,6 +80,7 @@ describe('farmModules', () => {
   it('defaults new farms without blight crop pack', () => {
     const mods = defaultModulesWithoutCropPacks();
     expect(mods).not.toContain('blight');
+    expect(mods).not.toContain('chill');
     expect(mods).toContain('map');
     expect(withWalnutPackModules(mods)).toContain('blight');
     expect(withoutWalnutPackModules(withWalnutPackModules(mods))).not.toContain('blight');
@@ -139,6 +140,16 @@ describe('farmShowsChillPortions', () => {
         profile: { enterprises: [], livestockEnabled: false },
         blocks: [],
         walnutPackActive: true,
+      })
+    ).toBe(true);
+  });
+
+  it('follows an active chill pack', () => {
+    expect(
+      farmShowsChillPortions({
+        profile: { enterprises: [], livestockEnabled: false },
+        blocks: [],
+        chillPackActive: true,
       })
     ).toBe(true);
   });

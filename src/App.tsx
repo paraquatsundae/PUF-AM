@@ -39,9 +39,6 @@ const Financials = React.lazy(() => import('./pages/Financials').then(m => ({ de
 const Admin = React.lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 const Settings = React.lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const FarmSetup = React.lazy(() => import('./pages/FarmSetup').then(m => ({ default: m.FarmSetup })));
-const WeatherEvents = React.lazy(() =>
-  import('./pages/WeatherEvents').then((m) => ({ default: m.WeatherEvents }))
-);
 
 function RouteFallback() {
   return (
@@ -133,14 +130,6 @@ export default function App() {
                   element={
                     <ModuleRoute moduleId="dashboard">
                       <Dashboard />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="weather-events"
-                  element={
-                    <ModuleRoute moduleId="dashboard">
-                      <WeatherEvents />
                     </ModuleRoute>
                   }
                 />

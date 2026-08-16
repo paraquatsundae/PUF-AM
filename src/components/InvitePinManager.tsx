@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyRound, Loader2, Plus, Ban, Copy, Check, Share2 } from 'lucide-react';
 import {
   MODULE_LABELS,
+  CHILL_PACK_MODULES,
   WALNUT_PACK_MODULES,
   WORK_MODULES,
   clampModulesToFarm,
@@ -19,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { isByoFirebase } from '../lib/byoFirebaseConfig';
 import { APP_INVITE_SUBJECT } from '../brand';
 import { useWalnutPack } from '../hooks/useWalnutPack';
+import { useChillPack } from '../hooks/useChillPack';
 
 function shareMessage(
   code: string,
@@ -90,9 +92,13 @@ function ModuleChecklist({
 export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const { farmEnabledModules, userData } = useAuth();
   const hasWalnutPack = useWalnutPack();
+  const hasChillPack = useChillPack();
   const packExclude = useMemo(
-    () => (hasWalnutPack ? ([] as FarmModuleId[]) : [...WALNUT_PACK_MODULES]),
-    [hasWalnutPack]
+    () => [
+      ...(hasWalnutPack ? [] : WALNUT_PACK_MODULES),
+      ...(hasChillPack ? [] : CHILL_PACK_MODULES),
+    ],
+    [hasWalnutPack, hasChillPack]
   );
   const grantCatalog = useMemo(
     () => farmEnabledModules.filter((m) => !packExclude.includes(m)),

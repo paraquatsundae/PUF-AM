@@ -1,93 +1,24 @@
 /**
- * Dynamic Model chill portions (Fishman et al. 1987 / Erez) for Southern Hemisphere walnuts.
+ * Dynamic Model chill portions (Fishman et al. 1987 / Erez) for Southern Hemisphere orchards.
  *
- * Cultivar requirements prefer UCANR Dynamic Model table values where published:
- * https://ucanr.edu/site/fruit-nut-research-information-center/fruit-nut-crop-chill-portions-requirements
- * Franquette uses Luedeling et al. (2009) Scharsch Franquette estimate when UCANR has no row.
+ * Cultivar targets and model constants live in `plugins/chill_portions/engine.json`.
+ * Daily Tmax/Tmin synthesis is `chillCalculator.ts` (standalone calculator port).
  */
 
-export type CultivarSourceKind = 'ucanr' | 'luedeling' | 'estimate';
+import {
+  chillCultivars,
+  chillModelConstants,
+  type ChillCultivarTarget,
+  type CultivarSourceKind,
+} from '../farm/chillPortionsPackage';
 
-export type CultivarChillTarget = {
-  id: string;
-  name: string;
-  requiredCP: number;
-  /** Published range when the table gives a band (display / docs). */
-  rangeCP?: { min: number; max: number };
-  sourceKind: CultivarSourceKind;
-  source: string;
-};
+export type { CultivarSourceKind };
+export type CultivarChillTarget = ChillCultivarTarget;
 
-/** Cited cultivar chill-portion targets (Dynamic Model). */
-export const CULTIVARS: readonly CultivarChillTarget[] = [
-  {
-    id: 'chandler',
-    name: 'Chandler',
-    requiredCP: 45,
-    rangeCP: { min: 45, max: 50 },
-    sourceKind: 'ucanr',
-    source: 'UCANR Fruit & Nut Chill Portions (Dynamic Model) — Chandler 45–50 CP',
-  },
-  {
-    id: 'hartley',
-    name: 'Hartley',
-    requiredCP: 54,
-    sourceKind: 'ucanr',
-    source: 'UCANR Fruit & Nut Chill Portions (Dynamic Model) — Hartley 54 CP',
-  },
-  {
-    id: 'payne',
-    name: 'Payne',
-    requiredCP: 38,
-    sourceKind: 'ucanr',
-    source: 'UCANR Fruit & Nut Chill Portions (Dynamic Model) — Payne 38 CP',
-  },
-  {
-    id: 'howard',
-    name: 'Howard',
-    requiredCP: 45,
-    sourceKind: 'estimate',
-    source: 'Estimate: Chandler-class (UCANR Chandler 45–50); no separate UCANR row',
-  },
-  {
-    id: 'tulare',
-    name: 'Tulare',
-    requiredCP: 42,
-    sourceKind: 'estimate',
-    source: 'Estimate: between Payne and Chandler UCANR bands; no separate UCANR row',
-  },
-  {
-    id: 'vina',
-    name: 'Vina',
-    requiredCP: 38,
-    sourceKind: 'estimate',
-    source: 'Estimate: early cultivar aligned with UCANR Payne 38 CP; no separate UCANR row',
-  },
-  {
-    id: 'franquette',
-    name: 'Franquette',
-    requiredCP: 70,
-    sourceKind: 'luedeling',
-    source:
-      'Luedeling et al. (2009) — Scharsch Franquette ~69.7 CP (rounded to 70); not listed in UCANR walnut table',
-  },
-  {
-    id: 'lara',
-    name: 'Lara',
-    requiredCP: 45,
-    sourceKind: 'estimate',
-    source: 'Estimate: Chandler-class pending local calibration; no UCANR row',
-  },
-  {
-    id: 'cisco',
-    name: 'Cisco',
-    requiredCP: 45,
-    sourceKind: 'estimate',
-    source: 'Estimate: Chandler-class pending local calibration; no UCANR row',
-  },
-] as const;
+/** Cited cultivar chill-portion targets (Dynamic Model) — from the chill pack. */
+export const CULTIVARS: readonly CultivarChillTarget[] = chillCultivars;
 
-export type CultivarId = (typeof CULTIVARS)[number]['id'];
+export type CultivarId = string;
 
 export function resolveCultivarTarget(
   cultivarName?: string
@@ -221,12 +152,7 @@ export function calculateChillData(
   const enforceSeason = options?.enforceSeasonWindow !== false;
   const asOf = options?.asOf ?? new Date();
   const cutoffMs = asOf.getTime() - 24 * 60 * 60 * 1000;
-  const e0 = 4153.5;
-  const e1 = 12888.8;
-  const a0 = 139500.0;
-  const a1 = 2.567e18;
-  const slp = 1.6;
-  const tetmlt = 277.0;
+  const { e0, e1, a0, a1, slp, tetmlt, kelvinOffset } = chillModelConstants;
   const aa = a0 / a1;
   const ee = e1 - e0;
 
@@ -273,7 +199,7 @@ export function calculateChillData(
     hoursProcessed += 1;
     const month = monthFmt.format(date);
 
-    const tk = Number(t) + 273.15;
+    const tk = Number(t) + kelvinOffset;
     const ftmprt = (slp * tetmlt * (tk - tetmlt)) / tk;
     const sr = Math.exp(ftmprt);
     const xi = sr / (1.0 + sr);

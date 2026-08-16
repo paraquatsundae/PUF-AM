@@ -353,19 +353,21 @@ export function isTreeCropKind(cropKind?: FarmEnterpriseId | string | null): boo
 }
 
 /**
- * Chill portions UI for orchard / fruit / vineyard farms (not walnut-only).
+ * Eligibility for the chill portions pack (orchard / fruit / vineyard).
  *
- * Also ON when the walnut crop pack is active — About/Dashboard treat chill as
- * part of that pack — and for legacy blocks that only have `species` set
- * (cropKind was added later; gating on cropKind alone hid chill while blight
- * still showed via species / cropPacks).
+ * Also ON when the walnut crop pack is active, and for legacy blocks that only
+ * have `species` set. After `chill_portions` is on the farm, UI should follow
+ * pack active — this helper is for Install hints and legacy migration.
  */
 export function farmShowsChillPortions(opts: {
   profile?: unknown;
   blocks?: Array<{ cropKind?: FarmEnterpriseId | string | null; species?: string | null }>;
-  /** Active walnut_blight pack (includes chill). */
+  /** Active walnut_blight pack (legacy farms treated chill as part of that pack). */
   walnutPackActive?: boolean;
+  /** Active chill_portions pack. */
+  chillPackActive?: boolean;
 }): boolean {
+  if (opts.chillPackActive) return true;
   if (opts.walnutPackActive) return true;
   const p = resolveFarmProfile(opts.profile);
   if (p.enterprises.some((id) => isTreeCropKind(id))) return true;

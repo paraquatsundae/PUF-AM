@@ -154,14 +154,14 @@ export function FarmModulesCard() {
             {!walnutInstalled && (
               <>
                 {' '}
-                Install Walnut blight under{' '}
+                Install a crop pack under{' '}
                 <Link
                   to="/settings?tab=plugins"
                   className="text-emerald-700 underline-offset-2 hover:underline"
                 >
                   Settings → Plugins
                 </Link>{' '}
-                to offer Blight Risk here.
+                to offer blight or chill here.
               </>
             )}
           </p>
@@ -218,7 +218,7 @@ export function FarmModulesCard() {
         )}
         {walnutInstalled && !walnutActive && packRows.length > 0 && (
           <p className="text-[11px] text-slate-500">
-            Blight Risk stays hidden in the nav until Walnut blight is activated.
+            Pack tools stay hidden in the nav until the pack is activated under Settings → Plugins.
           </p>
         )}
       </div>

@@ -6,6 +6,8 @@ import {
   isPackInstalled,
   isPackModuleOffered,
   listCropPacks,
+  migrateLegacyChillPack,
+  migrateLegacyPacks,
   migrateLegacyWalnutPack,
   optionalOpsModules,
   packOwningModule,
@@ -29,6 +31,17 @@ describe('cropPacks catalog', () => {
     expect(walnut.primaryPath).toBe('/blight');
     expect(walnut.settingsOwnedKeys).toContain('orchardInoculumLevel');
     expect(walnut.settingsOwnedKeys).not.toContain('marketPrice');
+  });
+
+  it('registers chill portions with chill module, crop category, and owned settings keys', () => {
+    const packs = listCropPacks();
+    expect(packs.map((p) => p.id)).toContain('chill_portions');
+    const chill = packs.find((p) => p.id === 'chill_portions')!;
+    expect(chill.modules).toEqual(['chill']);
+    expect(chill.category).toBe('crop');
+    expect(chill.settingsDocId).toBe('chill_portions');
+    expect(chill.primaryPath).toBe('/weather-events');
+    expect(chill.settingsOwnedKeys).toContain('weatherSource');
   });
 
   it('resolves and rejects junk cropPacks maps', () => {
@@ -86,9 +99,11 @@ describe('Farm Modules pack labeling helpers (CP-03)', () => {
 
   it('maps blight to walnut blight pack and keeps ops modules unowned', () => {
     expect(packOwningModule('blight')?.id).toBe('walnut_blight');
+    expect(packOwningModule('chill')?.id).toBe('chill_portions');
     expect(packOwningModule('map')).toBeUndefined();
     expect(optionalOpsModules()).toContain('map');
     expect(optionalOpsModules()).not.toContain('blight');
+    expect(optionalOpsModules()).not.toContain('chill');
   });
 
   it('offers pack modules only when pack is active', () => {
@@ -180,5 +195,79 @@ describe('migrateLegacyWalnutPack', () => {
     expect(result.migrated).toBe(false);
     expect(result.cropPacks.walnut_blight).toBeUndefined();
     expect(result.modules).not.toContain('blight');
+  });
+});
+
+describe('migrateLegacyChillPack', () => {
+  it('installs active chill_portions when farm has orchard enterprise', () => {
+    const result = migrateLegacyChillPack({
+      cropPacks: {},
+      modules: defaultModulesWithoutCropPacks(),
+      profile: {
+        enterprises: ['orchard_tree'],
+        livestockEnabled: false,
+        defaultSpeciesId: '',
+      },
+      nowIso: '2026-08-16T12:00:00.000Z',
+    });
+    expect(result.migrated).toBe(true);
+    expect(result.cropPacks.chill_portions?.status).toBe('active');
+    expect(result.modules).toContain('chill');
+  });
+
+  it('installs chill when walnut pack is already active', () => {
+    const result = migrateLegacyChillPack({
+      cropPacks: {
+        walnut_blight: {
+          status: 'active',
+          installedAt: '2026-08-11T12:00:00.000Z',
+          activatedAt: '2026-08-11T12:00:00.000Z',
+        },
+      },
+      modules: [...defaultModulesWithoutCropPacks(), 'blight'],
+      profile: {
+        enterprises: [],
+        livestockEnabled: false,
+        defaultSpeciesId: '',
+      },
+      nowIso: '2026-08-16T12:00:00.000Z',
+    });
+    expect(result.migrated).toBe(true);
+    expect(result.cropPacks.chill_portions?.status).toBe('active');
+  });
+
+  it('leaves broadacre farms alone', () => {
+    const result = migrateLegacyChillPack({
+      cropPacks: {},
+      modules: defaultModulesWithoutCropPacks(),
+      profile: {
+        enterprises: ['broadacre'],
+        livestockEnabled: false,
+        defaultSpeciesId: '',
+      },
+    });
+    expect(result.migrated).toBe(false);
+    expect(result.cropPacks.chill_portions).toBeUndefined();
+    expect(result.modules).not.toContain('chill');
+  });
+});
+
+describe('migrateLegacyPacks', () => {
+  it('restores walnut blight and chill together on a walnut orchard', () => {
+    const result = migrateLegacyPacks({
+      cropPacks: {},
+      modules: defaultModulesWithoutCropPacks(),
+      profile: {
+        enterprises: ['orchard_tree'],
+        livestockEnabled: false,
+        defaultSpeciesId: 'walnut',
+      },
+      nowIso: '2026-08-16T12:00:00.000Z',
+    });
+    expect(result.migrated).toBe(true);
+    expect(result.cropPacks.walnut_blight?.status).toBe('active');
+    expect(result.cropPacks.chill_portions?.status).toBe('active');
+    expect(result.modules).toContain('blight');
+    expect(result.modules).toContain('chill');
   });
 });

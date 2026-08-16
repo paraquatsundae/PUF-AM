@@ -14,7 +14,7 @@ npm run plugins:unpack -- path/to/apple_scab.zip
 
 ```
 plugin.json     # required — see shared/farm/plugin.manifest.v1.schema.json
-engine.json     # optional engine defaults (walnut blight ships this)
+engine.json     # optional engine defaults (walnut blight, chill portions)
 README.md       # optional
 LICENSE         # optional
 assets/         # optional icons / static files
@@ -24,7 +24,7 @@ assets/         # optional icons / static files
 
 1. **`category` is required** — `crop` | `network` | `generic` (use `generic` if unsure).
 2. Manifest **`id`** must match the unpacked folder name and the zip basename (`walnut_blight.zip` → `plugins/walnut_blight/`).
-3. v1: React UI still ships in the app (`src/packs/<id>/`). **Catalog + blight defaults** live here — see [`walnut_blight/`](walnut_blight/). Hot-load of React from a zip is out of scope.
+3. v1: React UI still ships in the app (`src/packs/<id>/`). **Catalog + engine defaults** live here — see [`walnut_blight/`](walnut_blight/) and [`chill_portions/`](chill_portions/). Hot-load of React from a zip is out of scope.
 4. Do **not** put Freenet host binaries here — that is `vendor/freenet/` / the Freenet system plugin.
 
 ```bash

@@ -40,6 +40,7 @@ import { blocksToLeafletBounds } from '../lib/farmBounds';
 import { countOpenIssuesByBlock, issuesForBlock } from '../lib/blockIssueCounts';
 import { CULTIVARS } from '../lib/chillPortions';
 import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
+import { useChillPack } from '../hooks/useChillPack';
 import { useFieldStore, type FieldIssue } from '../lib/fieldStore';
 import { cn } from '../lib/utils';
 import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
@@ -465,10 +466,11 @@ export function OrchardMap() {
     return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
   }, []);
   const { events, settings, getSprayEvents, getIrrigationEvents } = useFarmDiary(diaryDateRange.start, diaryDateRange.end);
+  const showChill = useChillPack();
   const farmChill = useFarmChillPortions(
     viewport.lat,
     viewport.lng,
-    true,
+    showChill,
     settings.dpirdStationCode,
     settings.dpirdStationName
   );

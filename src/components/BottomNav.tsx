@@ -11,10 +11,12 @@ import {
   type NavGroupId,
 } from '../lib/navConfig';
 import { useFarmDiary } from '../lib/farmDiary';
+import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
 
 export function BottomNav() {
-  const { isAdmin, isPlatformAdmin, userData, hasModule, farmEnabledModules } = useAuth();
+  const { isAdmin, isPlatformAdmin, userData, hasModule } = useAuth();
+  const offeredModules = useOfferedFarmModules();
   const { settings } = useFarmDiary();
   const mapTitle = mapUiCopy(settings.farmProfile).mapTitle;
   const navGroups = React.useMemo(() => navGroupsForMapTitle(mapTitle), [mapTitle]);
@@ -32,7 +34,7 @@ export function BottomNav() {
         isAdmin,
         userData?.role,
         userData?.modules,
-        farmEnabledModules,
+        offeredModules,
         isPlatformAdmin
       )
     : [];
@@ -130,7 +132,7 @@ export function BottomNav() {
             isAdmin,
             userData?.role,
             userData?.modules,
-            farmEnabledModules,
+            offeredModules,
             isPlatformAdmin
           );
           if (items.length === 0) return null;
