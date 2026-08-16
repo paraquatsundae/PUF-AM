@@ -77,6 +77,7 @@ export function PluginsPanel({
     ? { farmId, profile, blocks }
     : null;
 
+  const groups = useMemo(() => groupPluginsByCategory(), []);
   const catalogIds = useMemo(() => new Set(groups.flatMap((g) => g.entries.map((e) => e.id))), [groups]);
   const extraDiskPackages = useMemo(
     () => diskPackages.filter((pkg) => !catalogIds.has(pkg.id)),

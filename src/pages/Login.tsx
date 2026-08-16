@@ -44,8 +44,17 @@ import {
 type Mode = 'join' | 'create';
 
 export function Login() {
-  const { user, userData, signInWithInvitePin, createFarm, completeFarmSignIn, error: authError, loading, mistLocked } =
-    useAuth();
+  const {
+    user,
+    userData,
+    signInWithInvitePin,
+    signInWithGoogle,
+    createFarm,
+    completeFarmSignIn,
+    error: authError,
+    loading,
+    mistLocked,
+  } = useAuth();
   const [mode, setMode] = useState<Mode>('join');
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -143,6 +152,22 @@ export function Login() {
       </div>
     );
   }
+
+  const handleGoogleSignIn = async () => {
+    setIsSigningIn(true);
+    setLocalError(null);
+    try {
+      await signInWithGoogle();
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code || '';
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        setLocalError(
+          err instanceof Error ? err.message : 'Google sign-in failed. Try again, or use an invite PIN.',
+        );
+      }
+      setIsSigningIn(false);
+    }
+  };
 
   const handlePinSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -375,10 +400,10 @@ export function Login() {
           }
           subtitle={
             welcomeBack
-              ? 'Enter your farm invite PIN once to restore this device.'
+              ? 'Type the owner recovery PIN from when this farm was created — same name as before. A staff invite PIN works the same way.'
               : byoActive
-                ? 'Create a farm on your project, or join with the farm ID and an invite PIN.'
-                : 'Join with an invite PIN, or create a farm with a one-use enrollment code from PUFworks.'
+                ? 'Create a farm on your project, or sign in with the farm ID and your recovery or invite PIN.'
+                : 'Owners sign back in with the recovery PIN shown at create. Staff use an invite PIN. A new farm needs an enrollment code.'
           }
         />
 
@@ -439,7 +464,8 @@ export function Login() {
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-1">
                 <p className="text-sm font-semibold text-emerald-950">{lastFarm.farmName}</p>
                 <p className="text-xs text-emerald-800">
-                  Signed in before as <strong>{displayName}</strong>
+                  Signed in before as <strong>{displayName}</strong>. Use that exact name with
+                  the owner recovery PIN (or your invite PIN).
                 </p>
                 <button
                   type="button"
@@ -534,7 +560,8 @@ export function Login() {
               )}
               {selectedFarm && (
                 <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-                  Joining <strong>{selectedFarm.name}</strong> — enter the PIN from your manager.
+                  Signing into <strong>{selectedFarm.name}</strong> — owner recovery PIN, or the
+                  invite PIN from your manager.
                 </p>
               )}
                 </>
@@ -563,7 +590,7 @@ export function Login() {
 
             <div className="space-y-2">
               <label htmlFor="pin" className="text-sm font-medium text-slate-700">
-                Invite PIN
+                Farm PIN
               </label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -580,7 +607,9 @@ export function Login() {
                 />
               </div>
               <p className="text-[11px] text-slate-400">
-                You can join with PIN only if location is off — selecting a nearby farm catches wrong-PIN mistakes.
+                This is the box for the <strong>owner recovery PIN</strong> you wrote down when
+                the farm was created, or a staff invite PIN. Same name as before. Nearby farm
+                is optional — it only helps catch a PIN for the wrong farm.
               </p>
             </div>
 
@@ -590,8 +619,24 @@ export function Login() {
               className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-white bg-emerald-600 hover:bg-emerald-700 font-semibold disabled:opacity-60"
             >
               {isSigningIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-5 h-5" />}
-              Join farm
+              Sign in to farm
             </button>
+            {!byoActive && (
+              <div className="pt-1 space-y-1.5 text-center">
+                <button
+                  type="button"
+                  onClick={() => void handleGoogleSignIn()}
+                  disabled={isSigningIn}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-800 underline underline-offset-2 disabled:opacity-60"
+                >
+                  Sign into PUFworks Firebase
+                </button>
+                <p className="text-[11px] text-slate-400">
+                  Only for a Google account on this Firebase project. It does not replace the
+                  owner recovery PIN — that goes in Farm PIN above.
+                </p>
+              </div>
+            )}
           </form>
         ) : (
           <form className="space-y-4" onSubmit={handleCreateFarm}>
@@ -705,7 +750,9 @@ export function Login() {
               Create farm
             </button>
             <p className="text-[11px] text-slate-400 text-center">
-              You become the farm admin and can mint worker invite PINs under Farm Management.
+              You become the farm admin. Write down the owner recovery PIN shown next — that is
+              what you type under Join later if this device is wiped. Then mint staff invite PINs
+              in Farm Management.
             </p>
           </form>
         )}

@@ -38,8 +38,9 @@ export function CloudSyncOptions({
               </span>
             </div>
             <p className="text-sm text-slate-600 mt-1">
-              Join with an invite PIN, or create a farm with a one-use enrollment code from
-              PUFworks. PUFworks pays Google for these farms.
+              Staff join with an invite PIN. A new farm needs a one-use enrollment code.
+              Returning owners can sign into PUFworks Firebase. PUFworks pays Google for these
+              farms.
             </p>
           </div>
           <ChevronRight className="w-5 h-5 text-emerald-700 shrink-0 mt-1" />

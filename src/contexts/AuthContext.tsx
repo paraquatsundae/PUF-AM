@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
+import {
+  GoogleAuthProvider,
+  User,
+  browserPopupRedirectResolver,
+  onAuthStateChanged,
+  signInWithCustomToken,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { trackMetric } from '../services/metricsService';
@@ -163,6 +171,8 @@ interface AuthContextType {
     displayName: string,
     farm?: { farmId?: string; farmName?: string }
   ) => Promise<void>;
+  /** Returning Google / platform-admin accounts on PUFworks cloud. */
+  signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   agreeToTerms: () => Promise<void>;
   hasModule: (moduleId: FarmModuleId) => boolean;
@@ -683,6 +693,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+  };
+
   const logout = async () => {
     try {
       if (isMistFarmSessionActive() || hasMistDeviceSession()) {
@@ -735,6 +751,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithInvitePin,
         createFarm,
         completeFarmSignIn,
+        signInWithGoogle,
         logout,
         agreeToTerms,
         hasModule,
