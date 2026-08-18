@@ -1,4 +1,12 @@
-import type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
+import {
+  defaultCalibrationParams,
+  type CalibrationParams,
+} from './modelParameters';
+
+export type { CalibrationParams } from './modelParameters';
+
+/** Single defaults source: `DEFAULT_MODEL_PARAMS` + `DEFAULT_ENGINE_SESSION`. */
+export const defaultCalibration: CalibrationParams = defaultCalibrationParams();
 
 export type SprayType = 'chem' | 'bio' | 'both';
 export type ApplicationMethod = 'ground' | 'drone' | 'helicopter' | 'aeroplane';
@@ -38,73 +46,6 @@ export type WeatherData = {
   maxHourlyRain: number;
   windSpeed?: number;
   ET0?: number;
-};
-
-export type CalibrationParams = {
-  cdfBaseWeighting: number;
-  cdfExponentialEffect: number;
-  tempOptimumWeight: number;
-  wdCompoundingRate: number;
-  chemBaseDecayRate: number;
-  bioFavorableGrowthRate: number;
-  bioEnvDegradationCoef: number;
-
-  blightSensitivity: number;
-  cropCoefficient: number;
-  gddBaseTemp: number;
-  humidityGradientFactor: number;
-  splashMultiplier: number;
-  chemRainWashoffRate: number;
-  bioColonizationEff: number;
-  /**
-   * Legacy Sandbox-only initial threat floor (unitless). NOT biology — just a
-   * calibration knob for the legacy index. The Ji production path uses
-   * `orchardInoculumLevel` (→ k) for primary inoculum instead.
-   */
-  springStartingInoculum: number;
-  /**
-   * Ji production primary-inoculum level (→ k via `kFromInoculumLevel`).
-   * From prior-season blight / bud CFU. Default 'medium' (k=1).
-   */
-  orchardInoculumLevel: OrchardInoculumLevel;
-  latencyGDDThreshold: number;
-  /** Reserved for future calendar-latency experiments; core uses GDD. */
-  latencyDays: number;
-  secondarySpreadMultiplier: number;
-  chemEfficacy: number;
-  bioEfficacy: number;
-  treeHeight: number;
-  canopyWidth: number;
-  rowSpacing: number;
-};
-
-export const defaultCalibration: CalibrationParams = {
-  cdfBaseWeighting: 0.7,
-  cdfExponentialEffect: 1.0,
-  tempOptimumWeight: 1.2,
-  wdCompoundingRate: 0.1,
-  chemBaseDecayRate: 0.88,
-  bioFavorableGrowthRate: 1.1,
-  bioEnvDegradationCoef: 0.75,
-
-  blightSensitivity: 0.85,
-  cropCoefficient: 1.0,
-  gddBaseTemp: 10.0,
-  humidityGradientFactor: 1.0,
-  splashMultiplier: 1.0,
-  chemRainWashoffRate: 0.05,
-  bioColonizationEff: 1.0,
-  springStartingInoculum: 0.02,
-  orchardInoculumLevel: 'medium',
-  latencyGDDThreshold: 120.0,
-  latencyDays: 18,
-  /** Only used when `useSecondaryLatency` is on; 1.0 = no extra amplification. */
-  secondarySpreadMultiplier: 1.0,
-  chemEfficacy: 95,
-  bioEfficacy: 30,
-  treeHeight: 4.5,
-  canopyWidth: 4.0,
-  rowSpacing: 7.0,
 };
 
 /**

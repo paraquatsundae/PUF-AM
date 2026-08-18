@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { 
   Settings as SettingsIcon, 
@@ -22,6 +22,7 @@ import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
 import { MistWorkshopCard } from '../components/MistWorkshopCard';
+import { PluginsPanel } from '../components/PluginsPanel';
 import { SliderControl } from '../components/blight/BlightEngineSettings';
 import {
   DEFAULT_MODEL_PARAMS,
@@ -37,6 +38,19 @@ import {
   getShareCrewLocation,
   setShareCrewLocation,
 } from '../lib/crewPresence';
+
+type SettingsTab = 'general' | 'plugins' | 'sync' | 'economics';
+
+const SETTINGS_TABS: readonly { id: SettingsTab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'plugins', label: 'Plugins' },
+  { id: 'sync', label: 'Sync' },
+  { id: 'economics', label: 'Economics' },
+];
+
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return Boolean(value && SETTINGS_TABS.some((t) => t.id === value));
+}
 
 function MarketEconomicsCard({
   params,
@@ -104,13 +118,28 @@ function MarketEconomicsCard({
 export function Settings() {
   const navigate = useNavigate();
   const { userData, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'general' | 'sync' | 'economics'>('general');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTabState] = useState<SettingsTab>(() =>
+    isSettingsTab(tabParam) ? tabParam : 'general'
+  );
   const farmPipe = activeFarmPipe();
   const [economics, setEconomics] = useState<EconomicsModelParams>(defaultEconomicsModelParams());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [shareCrewLocation, setShareCrewLocationState] = useState(() => getShareCrewLocation());
+
+  const setActiveTab = (id: SettingsTab) => {
+    setActiveTabState(id);
+    setSearchParams(id === 'general' ? {} : { tab: id }, { replace: true });
+  };
+
+  useEffect(() => {
+    if (isSettingsTab(tabParam) && tabParam !== activeTab) {
+      setActiveTabState(tabParam);
+    }
+  }, [tabParam, activeTab]);
 
   useEffect(() => {
     void ensureShareCrewLocationDefault().then((v) => setShareCrewLocationState(v));
@@ -185,18 +214,12 @@ export function Settings() {
       </header>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200">
-        {(
-          [
-            { id: 'general', label: 'General' },
-            { id: 'sync', label: 'Sync' },
-            { id: 'economics', label: 'Economics' },
-          ] as const
-        ).map((tab) => (
+      <div className="flex border-b border-slate-200 overflow-x-auto">
+        {SETTINGS_TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+            className={`px-6 py-3 text-sm font-medium transition-colors relative shrink-0 ${
               activeTab === tab.id ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
@@ -218,6 +241,8 @@ export function Settings() {
             <FarmSyncCards />
             {isWorkshopDiagnosticsEnabled() && <MistWorkshopCard />}
           </div>
+        ) : activeTab === 'plugins' ? (
+          <PluginsPanel onOpenSync={() => setActiveTab('sync')} />
         ) : activeTab === 'general' ? (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
@@ -264,7 +289,8 @@ export function Settings() {
                   >
                     Sync
                   </button>
-                  , together with the FarmCode and its device PIN. Everyone who has been handed one
+                  , together with the paper FarmCode they already wrote down. A device PIN is only
+                  needed if they set one when they recovered. Everyone who has been handed a ticket
                   is listed under{' '}
                   <Link to="/farm-setup" className="font-semibold text-emerald-700 hover:underline">
                     Farm setup → People
@@ -285,7 +311,9 @@ export function Settings() {
                   <p className="font-medium text-slate-900">Share location with farm crew</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     While the Farm Map is open, other signed-in members see your live GPS marker.
-                    Invite PIN / workshop defaults on; turn off anytime.
+                    {farmPipe === 'freenet'
+                      ? ' On Freenet, only people on the same Wi‑Fi see you — there is no cloud crew list. Defaults on here; turn off anytime.'
+                      : ' Invite PIN / workshop defaults on; turn off anytime.'}
                   </p>
                 </div>
                 <button

@@ -1,5 +1,6 @@
 /**
- * Set Firebase custom claim `admin: true` for a user UID.
+ * Set Firebase custom claims `platformAdmin` + `admin` for a user UID.
+ * Merges with existing farm claims so a rewrite does not drop farmId / role.
  *
  * Usage (requires Firebase service account / GOOGLE_APPLICATION_CREDENTIALS):
  *   npx tsx scripts/setAdminClaim.ts <uid>
@@ -39,10 +40,26 @@ async function main() {
     admin.initializeApp(projectId ? { projectId } : undefined);
   }
 
-  await admin.auth().setCustomUserClaims(uid, revoke ? {} : { admin: true });
   const user = await admin.auth().getUser(uid);
-  console.log(`Custom claims for ${user.email || uid}:`, user.customClaims);
-  console.log(revoke ? 'Admin claim revoked.' : 'Admin claim set. User must re-login to refresh token.');
+  const existing = { ...(user.customClaims || {}) };
+  if (revoke) {
+    delete existing.admin;
+    delete existing.platformAdmin;
+    await admin.auth().setCustomUserClaims(uid, existing);
+  } else {
+    await admin.auth().setCustomUserClaims(uid, {
+      ...existing,
+      admin: true,
+      platformAdmin: true,
+    });
+  }
+  const updated = await admin.auth().getUser(uid);
+  console.log(`Custom claims for ${updated.email || uid}:`, updated.customClaims);
+  console.log(
+    revoke
+      ? 'Platform admin claim revoked. User must re-login to refresh token.'
+      : 'Platform admin claim set. User must re-login to refresh token.'
+  );
 }
 
 main().catch((error) => {

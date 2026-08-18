@@ -7,7 +7,11 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.admin == true;
+      return isAuthenticated() &&
+        (request.auth.token.platformAdmin == true ||
+         (request.auth.token.admin == true &&
+          request.auth.token.pinAuth != true &&
+          !('role' in request.auth.token)));
     }
 
     function isPinForFarm(farmId) {

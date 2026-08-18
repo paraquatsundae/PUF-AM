@@ -31,6 +31,11 @@ import {
   reserveEnrollmentCode,
 } from './enrollmentCodes.ts';
 import { getAdminAuth, getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
+import {
+  claimsForMember,
+  resolvePlatformAdminClaim,
+  type ExistingClaims,
+} from './memberClaims.ts';
 
 const PINS = 'access_pins';
 const FARMS_PUBLIC = 'farms_public';
@@ -78,7 +83,8 @@ async function verifyBearer(req: Request): Promise<{
   const role = typeof decoded.role === 'string' ? decoded.role : undefined;
   const authEpoch = typeof decoded.authEpoch === 'number' ? decoded.authEpoch : undefined;
 
-  let isAdmin = decoded.admin === true || role === 'admin';
+  let isAdmin =
+    decoded.platformAdmin === true || decoded.admin === true || role === 'admin';
   if (!isAdmin) {
     const userSnap = await getAdminDb().collection('users').doc(decoded.uid).get();
     if (userSnap.exists && userSnap.data()?.role === 'admin') isAdmin = true;
@@ -87,23 +93,35 @@ async function verifyBearer(req: Request): Promise<{
   return { uid: decoded.uid, admin: isAdmin, farmId, role, authEpoch };
 }
 
-function claimsForMember(input: {
-  farmId: string;
-  role: AccessPinRole;
-  modules: FarmModuleId[];
-  authEpoch: number;
-  pinAuth?: boolean;
-  farmEnabled?: unknown;
-}) {
+async function existingClaimsFor(uid: string): Promise<ExistingClaims> {
+  const user = await getAdminAuth()
+    .getUser(uid)
+    .catch(() => null);
+  return (user?.customClaims || {}) as ExistingClaims;
+}
+
+function farmMemberClaims(
+  input: {
+    farmId: string;
+    role: AccessPinRole;
+    modules: FarmModuleId[];
+    authEpoch: number;
+    pinAuth?: boolean;
+    farmEnabled?: unknown;
+  },
+  existing?: ExistingClaims | null
+) {
   const modules = effectiveModules(input.role, input.modules, input.farmEnabled);
-  return {
-    pinAuth: input.pinAuth !== false,
-    admin: input.role === 'admin',
-    farmId: input.farmId,
-    role: input.role,
-    modules,
-    authEpoch: input.authEpoch,
-  };
+  return claimsForMember(
+    {
+      farmId: input.farmId,
+      role: input.role,
+      modules,
+      authEpoch: input.authEpoch,
+      pinAuth: input.pinAuth,
+    },
+    existing
+  );
 }
 
 async function loadFarmEnabledModules(farmId: string): Promise<FarmModuleId[]> {
@@ -176,13 +194,16 @@ export function registerAccessPinRoutes(app: Express) {
         disabled: false,
       });
 
-      const claims = claimsForMember({
-        farmId,
-        role: 'admin',
-        modules,
-        authEpoch,
-        farmEnabled: modules,
-      });
+      const claims = farmMemberClaims(
+        {
+          farmId,
+          role: 'admin',
+          modules,
+          authEpoch,
+          farmEnabled: modules,
+        },
+        await existingClaimsFor(uid)
+      );
       await auth.setCustomUserClaims(uid, claims);
 
       const farmDoc: Record<string, unknown> = {
@@ -377,13 +398,16 @@ export function registerAccessPinRoutes(app: Express) {
         await auth.updateUser(uid, { displayName, disabled: false });
       }
 
-      const claims = claimsForMember({
-        farmId: record.farmId,
-        role: record.role,
-        modules,
-        authEpoch,
-        farmEnabled,
-      });
+      const claims = farmMemberClaims(
+        {
+          farmId: record.farmId,
+          role: record.role,
+          modules,
+          authEpoch,
+          farmEnabled,
+        },
+        await existingClaimsFor(uid)
+      );
       await auth.setCustomUserClaims(uid, claims);
 
       const now = new Date().toISOString();
@@ -700,16 +724,19 @@ export function registerAccessPinRoutes(app: Express) {
       );
       await db.collection('users_public').doc(targetUid).set({ role, farmId }, { merge: true });
 
-      const claims = claimsForMember({
-        farmId,
-        role,
-        modules,
-        authEpoch,
-        farmEnabled,
-        pinAuth:
-          targetSnap.data()?.authMethod === 'invite_pin' ||
-          (await getAdminAuth().getUser(targetUid).then((u) => u.customClaims?.pinAuth === true).catch(() => false)),
-      });
+      const existing = await existingClaimsFor(targetUid);
+      const claims = farmMemberClaims(
+        {
+          farmId,
+          role,
+          modules,
+          authEpoch,
+          farmEnabled,
+          pinAuth:
+            targetSnap.data()?.authMethod === 'invite_pin' || existing.pinAuth === true,
+        },
+        existing
+      );
       await getAdminAuth().setCustomUserClaims(targetUid, claims);
 
       return res.json({ ok: true, uid: targetUid, role, modules, authEpoch });
@@ -772,9 +799,12 @@ export function registerAccessPinRoutes(app: Express) {
         { merge: true }
       );
 
+      const existing = await existingClaimsFor(targetUid);
+      const platformAdmin = resolvePlatformAdminClaim(existing);
       await auth.setCustomUserClaims(targetUid, {
         pinAuth: true,
-        admin: false,
+        admin: platformAdmin,
+        platformAdmin,
         farmId: null,
         role: 'viewer',
         modules: [],
@@ -877,19 +907,19 @@ export function registerAccessPinRoutes(app: Express) {
           typeof ownerSnap.data()?.authEpoch === 'number' ? ownerSnap.data()!.authEpoch : 1;
         if (role === 'admin') {
           await db.collection('users').doc(ownerUid).set({ modules: enabledModules }, { merge: true });
-          const claims = claimsForMember({
-            farmId,
-            role: 'admin',
-            modules: enabledModules,
-            authEpoch,
-            farmEnabled: enabledModules,
-            pinAuth:
-              ownerSnap.data()?.authMethod === 'invite_pin' ||
-              (await getAdminAuth()
-                .getUser(ownerUid)
-                .then((u) => u.customClaims?.pinAuth === true)
-                .catch(() => false)),
-          });
+          const existing = await existingClaimsFor(ownerUid);
+          const claims = farmMemberClaims(
+            {
+              farmId,
+              role: 'admin',
+              modules: enabledModules,
+              authEpoch,
+              farmEnabled: enabledModules,
+              pinAuth:
+                ownerSnap.data()?.authMethod === 'invite_pin' || existing.pinAuth === true,
+            },
+            existing
+          );
           await getAdminAuth().setCustomUserClaims(ownerUid, claims);
         }
       }

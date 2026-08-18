@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import { Users } from 'lucide-react';
 
 import { activeFarmPipes, showFreenetFarmTools } from '../../lib/farmPipes';
+import { FreenetHowItWorksButton } from '../FreenetHowItWorks';
 import { MistFarmSyncCard } from '../MistFarmSyncCard';
 import { AutoSyncCard } from './AutoSyncCard';
 import { CloudSyncCard } from './CloudSyncCard';
@@ -39,7 +40,8 @@ function FreenetCrewNote() {
         <Link to="/farm-setup" className="font-semibold text-emerald-700 hover:underline">
           Farm setup → People
         </Link>{' '}
-        shows them.
+        shows them.{' '}
+        <FreenetHowItWorksButton className="inline-flex items-center gap-1 font-semibold text-violet-800 hover:underline border-0 px-0 py-0" />
       </p>
     </div>
   );

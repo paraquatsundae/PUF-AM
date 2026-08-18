@@ -4,10 +4,12 @@ import express, { Express } from "express";
 import { runBlightModel, defaultCalibration } from "../src/lib/blightModel.ts";
 import { HUB_INFO_PATH, type HubInfo } from "../shared/sync/hubInfo.ts";
 import { registerAccessPinRoutes } from "./accessPinRoutes.ts";
+import { registerAdminOpsRoutes } from "./adminOpsRoutes.ts";
 import { registerWeatherCacheRoutes } from "./weatherCacheRoutes.ts";
 import { registerChillRoutes } from "./chillRoutes.ts";
 import { registerLanSyncRoutes } from "./lanSyncRoutes.ts";
 import { registerMistFreenetRoutes } from "./mistFreenetRoutes.ts";
+import { registerPluginPackageRoutes } from "./pluginPackageRoutes.ts";
 import { getDpirdApiKey } from "./envSecrets.ts";
 import {
   fetchDpirdDailySummaries,
@@ -73,10 +75,12 @@ export function createApiApp(): Express {
   });
 
   registerAccessPinRoutes(app);
+  registerAdminOpsRoutes(app);
   registerWeatherCacheRoutes(app);
   registerChillRoutes(app);
   registerLanSyncRoutes(app);
   registerMistFreenetRoutes(app);
+  registerPluginPackageRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });

@@ -16,7 +16,7 @@
 - **Field issues:** open/active `FieldIssue` rows (`issues`) plus optional **`issuesArchive`** (`issues_archive` in IndexedDB / `archived_issues` in Firestore).
 - **Spreadsheet-friendly:** top-level arrays of flat records; one xlsx sheet per array.
 - **Canonical file:** always emit **`farm-export.json`** (pretty-printed UTF-8). xlsx is a **derived** format, never the source of truth.
-- **Production path:** Firebase + local-first IndexedDB — same data operators see in Diary and Field Ops. Not mist-only.
+- **Production path:** Firebase + local-first IndexedDB — same data operators see in Diary and the map issue list. Not mist-only.
 
 ### Non-goals (v1)
 
@@ -310,7 +310,7 @@ No implementation in mist units until production export helper exists and field 
 | **Diary range** | Export **all local diary rows** — no default 90-day window (`getDefaultDiaryStartDate(90)` is UI load only, not export scope). |
 | **Issue photos** | **Sidecar zip after compression** for records-only (`farm-export.json` + `photos/{issueId}.jpg`, or single `farm-export.zip`). JSON/xlsx carry `photoUrl` / `hasPhoto` only — no base64, no hi-res in the export package. Hi-res stays on-device; **Reticulum** handles full-res transfer later (out of farm-export path). |
 | **Block names** | **Resolve display names** at export: emit **`blockId`** and **`blockName`** in JSON diary rows and xlsx `Diary` sheet columns (from local geometry cache). |
-| **Issues archive layout** | **Two sheets:** `Issues` + `IssuesArchive` (mirrors Field Ops / IndexedDB split). No single merged sheet with `isArchived`. |
+| **Issues archive layout** | **Two sheets:** `Issues` + `IssuesArchive` (mirrors the map issue list / IndexedDB split). No single merged sheet with `isArchived`. |
 
 ---
 

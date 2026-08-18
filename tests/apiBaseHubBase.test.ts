@@ -23,6 +23,7 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 import {
+  apiUrl,
   getApiBaseUrl,
   normalizeHubBase,
   setRuntimeApiBaseUrl,
@@ -100,5 +101,22 @@ describe('normalizeHubBase', () => {
     expect(normalizeHubBase('')).toBe('');
     expect(normalizeHubBase('192.168.1.1205:3000')).toBe('');
     expect(normalizeHubBase('not an address')).toBe('');
+  });
+});
+
+describe('packaged tablet with no hub', () => {
+  it('still sends weather and auth to Cloud Run so chill can calculate', () => {
+    // Packaged Capacitor WebView: https://localhost serves bundled assets.
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: new URL('https://localhost/'),
+    });
+    expect(getApiBaseUrl()).toBe('');
+    expect(apiUrl('/api/weather/chill-portions?lat=-33')).toBe(
+      'https://am.pufworks.farm/api/weather/chill-portions?lat=-33',
+    );
+    expect(apiUrl('/api/auth/pins')).toBe('https://am.pufworks.farm/api/auth/pins');
+    // LAN-only families stay relative — there is nowhere honest to send them.
+    expect(apiUrl('/api/sync/self')).toBe('/api/sync/self');
   });
 });

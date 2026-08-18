@@ -79,7 +79,11 @@ export const LAN_SCOPE_PREFIXES: readonly string[] = [
  * these itself instead of collecting 401s from a hub that was never going to
  * answer. Matches `DESKTOP_CLOUD_ONLY_PREFIXES` in `src/lib/apiBase.ts`.
  */
-export const HUB_CLOUD_ONLY_PREFIXES: readonly string[] = ['/api/auth/', '/api/weather/'];
+export const HUB_CLOUD_ONLY_PREFIXES: readonly string[] = [
+  '/api/auth/',
+  '/api/weather/',
+  '/api/admin/',
+];
 
 /** Unambiguous on a whiteboard and over a phone: no I, L, O, U. */
 const PAIRING_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';

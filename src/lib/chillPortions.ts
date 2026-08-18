@@ -14,7 +14,7 @@ export {
   type CultivarId,
 } from '../../shared/weather/chillPortions';
 
-import { apiUrl } from './apiBase';
+import { apiFetch, apiUrl } from './apiBase';
 
 export type FarmChillPortions = {
   totalPortions: number;
@@ -46,7 +46,9 @@ export async function fetchFarmChillPortions(input: {
   if (input.stationCode) params.set('stationCode', input.stationCode);
   if (input.stationName) params.set('stationName', input.stationName);
 
-  const res = await fetch(apiUrl(`/api/weather/chill-portions?${params.toString()}`));
+  const res = await apiFetch(apiUrl(`/api/weather/chill-portions?${params.toString()}`), {
+    timeoutMs: 60000,
+  });
   const text = await res.text();
   let data: Record<string, unknown> = {};
   try {

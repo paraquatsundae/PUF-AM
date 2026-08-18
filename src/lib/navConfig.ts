@@ -3,7 +3,6 @@ import {
   IconLayoutDashboard,
   IconMap,
   IconBook,
-  IconBug,
   IconDroplets,
   IconFlask2,
   IconTractor,
@@ -20,6 +19,7 @@ import {
 } from '@tabler/icons-react';
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import { effectiveModules } from '../../shared/auth/farmModules';
+import { packNavItemsForGroup } from '../packs/registry';
 
 export type NavItem = {
   name: string;
@@ -39,6 +39,19 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+function mergePackNav(groupId: NavGroupId, baseItems: NavItem[]): NavItem[] {
+  const fromPacks = packNavItemsForGroup(groupId).map((item) => ({
+    name: item.name,
+    href: item.href,
+    icon: item.icon,
+    moduleId: item.moduleId,
+    ...(item.adminOnly ? { adminOnly: true } : {}),
+  }));
+  // Pack items first within the group (crop tools ahead of generic water/nutrition).
+  const seen = new Set(fromPacks.map((i) => i.href));
+  return [...fromPacks, ...baseItems.filter((i) => !seen.has(i.href))];
+}
+
 /** Clone nav with farm-type-aware map label (Orchard Map vs Paddock Map). */
 export function navGroupsForMapTitle(mapTitle: string): NavGroup[] {
   return navGroups.map((group) => ({
@@ -56,46 +69,49 @@ export const dashboardItem: NavItem = {
   moduleId: 'dashboard',
 };
 
+/**
+ * Shell nav groups. Crop-pack routes (e.g. Blight Risk) come from
+ * `src/packs/registry` via mergePackNav — do not hardcode pack pages here.
+ */
 export const navGroups: NavGroup[] = [
   {
     id: 'field',
     name: 'Field',
     icon: IconTrees,
-    items: [
+    items: mergePackNav('field', [
       { name: 'Paddock Map', href: '/map', icon: IconMap, moduleId: 'map' },
       { name: 'Farm Diary', href: '/diary', icon: IconBook, moduleId: 'diary' },
-    ],
+    ]),
   },
   {
     id: 'crop',
     name: 'Crop',
     icon: IconPlant,
-    items: [
-      { name: 'Blight Risk', href: '/blight', icon: IconBug, moduleId: 'blight' },
+    items: mergePackNav('crop', [
       { name: 'Water', href: '/water', icon: IconDroplets, moduleId: 'water' },
       { name: 'Nutrition', href: '/nutrition', icon: IconFlask2, moduleId: 'nutrition' },
-    ],
+    ]),
   },
   {
     id: 'records',
     name: 'Records',
     icon: IconClipboardList,
-    items: [
+    items: mergePackNav('records', [
       { name: 'Harvest', href: '/harvest', icon: IconTractor, moduleId: 'harvest' },
       { name: 'Financials', href: '/financials', icon: IconChartLine, moduleId: 'financials' },
       { name: 'Farm Management', href: '/farm-management', icon: IconUsers, moduleId: 'farm_management' },
-    ],
+    ]),
   },
   {
     id: 'system',
     name: 'System',
     icon: IconTool,
-    items: [
+    items: mergePackNav('system', [
       { name: 'Farm Setup', href: '/farm-setup', icon: IconBuildingWarehouse, moduleId: 'farm_setup' },
       { name: 'Settings', href: '/settings', icon: IconSettings, moduleId: 'settings' },
       { name: 'About', href: '/about', icon: IconInfoCircle },
       { name: 'Admin', href: '/admin', icon: IconShieldCheck, adminOnly: true },
-    ],
+    ]),
   },
 ];
 
@@ -105,11 +121,12 @@ export function visibleGroupItems(
   isAdmin: boolean,
   role?: string,
   modules?: unknown,
-  farmEnabled?: unknown
+  farmEnabled?: unknown,
+  isPlatformAdmin = false
 ): NavItem[] {
   const allowed = effectiveModules(role, modules, farmEnabled);
   return group.items.filter((item) => {
-    if (item.adminOnly && !isAdmin) return false;
+    if (item.adminOnly && !isPlatformAdmin) return false;
     if (item.moduleId && !allowed.includes(item.moduleId)) return false;
     return true;
   });

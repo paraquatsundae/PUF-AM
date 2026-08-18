@@ -126,6 +126,11 @@ export function MistNewFarm() {
             <span>I have written this FarmCode down and stored it safely offline</span>
           </label>
 
+          <p className="text-xs text-slate-600 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
+            This farm stays on this computer until Settings → Sync → <strong>Send this farm</strong>.
+            Nobody else can join until you send.
+          </p>
+
           <button
             type="button"
             disabled={!confirmedWritten}
@@ -166,6 +171,11 @@ export function MistNewFarm() {
             />
             <span>Skip PIN — stay logged in on this device (workshop default)</span>
           </label>
+
+          <p className="text-xs text-slate-600 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
+            Next: Farm setup. The farm is still only here. Send it later from Settings → Sync if
+            someone else needs a copy.
+          </p>
 
           {!skipPin && (
             <div className="space-y-2">

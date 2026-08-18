@@ -13,7 +13,7 @@ let runtimeApiBase: string | null = null;
  * Everything else — Freenet, LAN sync, presence — is local by design.
  * See `Plans/DESKTOP_FREENET_PLUGIN.md` §6.2.
  */
-const DESKTOP_CLOUD_ONLY_PREFIXES = ['/api/auth/', '/api/weather/'];
+const DESKTOP_CLOUD_ONLY_PREFIXES = ['/api/auth/', '/api/weather/', '/api/admin/'];
 
 function desktopCloudBaseFor(path: string): string {
   const bridge = getDesktopBridge();
@@ -127,7 +127,20 @@ const DEFAULT_CLOUD_API_BASE = 'https://am.pufworks.farm';
  */
 function hubCloudBaseFor(path: string): string {
   const hub = getApiBaseUrl();
-  if (!hub) return '';
+  if (!hub) {
+    // Packaged tablet with no LAN hub yet: auth + weather still live on Cloud Run.
+    // Without this, relative `/api/weather/*` hits the WebView asset handler and
+    // chill/blight quietly die as non-JSON HTML.
+    if (
+      isPackagedNativeAndroid() &&
+      (path.startsWith('/api/auth/') ||
+        path.startsWith('/api/weather/') ||
+        path.startsWith('/api/admin/'))
+    ) {
+      return DEFAULT_CLOUD_API_BASE;
+    }
+    return '';
+  }
   const info = getHubInfo(hub);
   if (!hubDefersToCloud(info, path)) return '';
   return (info?.cloudApiBase || DEFAULT_CLOUD_API_BASE).replace(/\/$/, '');

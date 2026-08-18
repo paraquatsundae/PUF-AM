@@ -70,6 +70,7 @@ describe('join presets', () => {
     for (const p of presets) expect(p.modules).not.toContain('blight');
     expect(presets.find((p) => p.id === 'crop_scout')?.modules).toEqual([
       'dashboard',
+      'chill',
       'water',
       'nutrition',
     ]);
@@ -91,7 +92,7 @@ describe('buildJoinPermissions', () => {
     );
     expect(parsed?.permissions).toEqual({
       preset: 'crop_scout',
-      modules: 'dashboard,blight,water,nutrition',
+      modules: 'dashboard,blight,chill,water,nutrition',
     });
   });
 });

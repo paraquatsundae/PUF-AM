@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "example_generic",
+  "version": "0.1.0",
+  "label": "Example generic pack",
+  "blurb": "Skeleton only — copy this folder or zip it as example_generic.zip. Replace id/label and set a real category (crop | network | generic).",
+  "category": "generic",
+  "modules": [],
+  "settingsDocId": null,
+  "primaryPath": "/example-generic",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

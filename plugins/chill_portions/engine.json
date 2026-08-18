@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "id": "chill_portions",
+  "modelConstants": {
+    "e0": 4153.5,
+    "e1": 12888.8,
+    "a0": 139500.0,
+    "a1": 2.567e18,
+    "slp": 1.6,
+    "tetmlt": 277.0,
+    "kelvinOffset": 273.0
+  },
+  "seasonDefaults": {
+    "timezone": "Australia/Perth",
+    "startMonth": 3,
+    "startDay": 1,
+    "endMonth": 9,
+    "endDay": 30
+  },
+  "cultivars": [
+    {
+      "id": "chandler",
+      "name": "Chandler",
+      "requiredCP": 45,
+      "rangeCP": { "min": 45, "max": 50 },
+      "sourceKind": "ucanr",
+      "source": "UCANR Fruit & Nut Chill Portions (Dynamic Model) — Chandler 45–50 CP"
+    },
+    {
+      "id": "hartley",
+      "name": "Hartley",
+      "requiredCP": 54,
+      "sourceKind": "ucanr",
+      "source": "UCANR Fruit & Nut Chill Portions (Dynamic Model) — Hartley 54 CP"
+    },
+    {
+      "id": "payne",
+      "name": "Payne",
+      "requiredCP": 38,
+      "sourceKind": "ucanr",
+      "source": "UCANR Fruit & Nut Chill Portions (Dynamic Model) — Payne 38 CP"
+    },
+    {
+      "id": "howard",
+      "name": "Howard",
+      "requiredCP": 45,
+      "sourceKind": "estimate",
+      "source": "Estimate: Chandler-class (UCANR Chandler 45–50); no separate UCANR row"
+    },
+    {
+      "id": "tulare",
+      "name": "Tulare",
+      "requiredCP": 42,
+      "sourceKind": "estimate",
+      "source": "Estimate: between Payne and Chandler UCANR bands; no separate UCANR row"
+    },
+    {
+      "id": "vina",
+      "name": "Vina",
+      "requiredCP": 38,
+      "sourceKind": "estimate",
+      "source": "Estimate: early cultivar aligned with UCANR Payne 38 CP; no separate UCANR row"
+    },
+    {
+      "id": "franquette",
+      "name": "Franquette",
+      "requiredCP": 70,
+      "sourceKind": "luedeling",
+      "source": "Luedeling et al. (2009) — Scharsch Franquette ~69.7 CP (rounded to 70); not listed in UCANR walnut table"
+    },
+    {
+      "id": "lara",
+      "name": "Lara",
+      "requiredCP": 45,
+      "sourceKind": "estimate",
+      "source": "Estimate: Chandler-class pending local calibration; no UCANR row"
+    },
+    {
+      "id": "cisco",
+      "name": "Cisco",
+      "requiredCP": 45,
+      "sourceKind": "estimate",
+      "source": "Estimate: Chandler-class pending local calibration; no UCANR row"
+    }
+  ]
+}

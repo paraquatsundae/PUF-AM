@@ -1,0 +1,13 @@
+# Dropped *.zip archives and unpacked third-party packs stay local.
+*.zip
+*/
+
+# Keep docs, skeleton, and first-party packages in git
+!README.md
+!.gitignore
+!_skeleton/
+!_skeleton/**
+!walnut_blight/
+!walnut_blight/**
+!chill_portions/
+!chill_portions/**

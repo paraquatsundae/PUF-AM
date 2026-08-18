@@ -20,18 +20,31 @@ describe('freenetOptionState', () => {
   it('hides it entirely on web and Capacitor builds', () => {
     expect(freenetOptionState({ mistEnabled: false, desktop: false })).toBe('hidden');
   });
+
+  it('offers it on a workshop hub so a fresh user can start without Firebase', () => {
+    expect(freenetOptionState({ mistEnabled: false, desktop: false, workshopHub: true })).toBe(
+      'available'
+    );
+  });
 });
 
 describe('initialLoginStep', () => {
-  it('keeps production web on the Firebase flow with no chooser', () => {
+  it('keeps production web on cloud options (no Freenet chooser)', () => {
     expect(
       initialLoginStep({ freenet: 'hidden', welcomeBack: false, backend: 'firebase' })
-    ).toBe('firebase');
+    ).toBe('cloud-options');
   });
 
   it('asks first on a fresh device that can reach Freenet', () => {
     expect(
       initialLoginStep({ freenet: 'available', welcomeBack: false, backend: 'firebase' })
+    ).toBe('choose');
+    expect(
+      initialLoginStep({
+        freenet: freenetOptionState({ mistEnabled: false, desktop: false, workshopHub: true }),
+        welcomeBack: false,
+        backend: 'firebase',
+      })
     ).toBe('choose');
     expect(
       initialLoginStep({ freenet: 'needs-setting', welcomeBack: false, backend: 'firebase' })
@@ -48,5 +61,16 @@ describe('initialLoginStep', () => {
     expect(
       initialLoginStep({ freenet: 'available', welcomeBack: true, backend: 'mist' })
     ).toBe('choose');
+  });
+
+  it('opens the Firebase form when this device already pasted a BYO config', () => {
+    expect(
+      initialLoginStep({
+        freenet: 'available',
+        welcomeBack: false,
+        backend: 'firebase',
+        byoConfigured: true,
+      })
+    ).toBe('firebase');
   });
 });

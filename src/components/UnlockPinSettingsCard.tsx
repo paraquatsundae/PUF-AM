@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { KeyRound, Lock, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { isFreenetFarm } from '../lib/farmPipes';
 import { clearUnlockPin, hasUnlockPin, lockSession } from '../lib/unlockPin';
 import { UnlockPinForm } from './AppUnlockGate';
 
 export function UnlockPinSettingsCard() {
   const { user } = useAuth();
   const uid = user?.uid || '';
+  const freenet = isFreenetFarm();
   const [enabled, setEnabled] = useState(() => hasUnlockPin(uid));
   const [mode, setMode] = useState<'idle' | 'set' | 'change'>('idle');
   const [msg, setMsg] = useState<string | null>(null);
@@ -24,12 +26,23 @@ export function UnlockPinSettingsCard() {
           <h2 className="text-lg font-bold text-slate-900">Personal unlock PIN</h2>
           <p className="text-sm text-slate-600 mt-1">
             Optional PIN for this device after you&apos;re already signed in. Locks the app when you
-            step away — not the same as the farm invite code.
+            step away — not the same as{' '}
+            {freenet ? 'the paper FarmCode or a join ticket' : 'the farm invite code'}.
           </p>
           <p className="text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mt-3">
-            <strong>New phone, tablet, or laptop:</strong> use the farm invite PIN (one-time on that
-            device) with your name. Then you can set a personal unlock PIN on that device. Unlock
-            PINs do not sync between devices.
+            {freenet ? (
+              <>
+                <strong>New phone, tablet, or laptop:</strong> recover with the paper FarmCode, then
+                the owner&apos;s join ticket (one-time on that device). Then you can set a personal
+                unlock PIN there. Unlock PINs do not sync between devices.
+              </>
+            ) : (
+              <>
+                <strong>New phone, tablet, or laptop:</strong> use the farm invite PIN (one-time on
+                that device) with your name. Then you can set a personal unlock PIN on that device.
+                Unlock PINs do not sync between devices.
+              </>
+            )}
           </p>
         </div>
       </div>

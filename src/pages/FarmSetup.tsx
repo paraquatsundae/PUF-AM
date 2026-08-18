@@ -5,25 +5,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
 import { useFarmDiary, IrrigationSystemType, resolveFarmProfile } from '../lib/farmDiary';
 import { FarmDryer, getFarmAssets, saveFarmAssets } from '../lib/farmAssets';
-import { updateFarmModules } from '../lib/invitePinAuth';
 import { FarmPeopleCard } from '../components/FarmPeopleCard';
+import { FreenetSendNudge } from '../components/FreenetSendNudge';
+import { CropPacksCard } from '../components/CropPacksCard';
 import { cn } from '../lib/utils';
 import {
   HIGHLIGHT_DEFAULT_SECONDS,
   HIGHLIGHT_DURATION_PRESETS_SEC,
 } from '../lib/mapHighlights';
 import {
-  farmHasWalnutPack,
   FARM_ENTERPRISES,
   TREE_SPECIES,
   type FarmEnterpriseId,
   type FarmProfile,
   type TreeSpeciesId,
 } from '../../shared/farm/farmTypes';
-import {
-  withWalnutPackModules,
-  withoutWalnutPackModules,
-} from '../../shared/auth/farmModules';
 
 const IRRIGATION_OPTIONS: { value: IrrigationSystemType; label: string }[] = [
   { value: 'micro', label: 'Micro-sprinkler' },
@@ -39,7 +35,7 @@ const EMPTY_PROFILE: FarmProfile = {
 };
 
 export function FarmSetup() {
-  const { userData, farmEnabledModules, refreshFarmModules } = useAuth();
+  const { userData } = useAuth();
   const farmId = userData?.farmId;
   const { blocks, loadData, isLoaded, totalAreaHa } = useMapStore();
   const { settings, updateSettings, canEdit } = useFarmDiary();
@@ -186,15 +182,8 @@ export function FarmSetup() {
         ),
       });
 
-      // Keep blight module aligned with walnut crop pack.
-      const hasWalnut = farmHasWalnutPack({ profile, blocks });
-      const nextModules = hasWalnut
-        ? withWalnutPackModules(farmEnabledModules)
-        : withoutWalnutPackModules(farmEnabledModules);
-      if (nextModules.join(',') !== farmEnabledModules.join(',')) {
-        await updateFarmModules(nextModules);
-        await refreshFarmModules();
-      }
+      // Crop packs (blight, …) are Install / Activate / Deactivate / Delete
+      // via CropPacksCard — Farm type save no longer auto-toggles modules.
 
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 2000);
@@ -232,6 +221,8 @@ export function FarmSetup() {
           )}
         </div>
       </div>
+
+      <FreenetSendNudge />
 
       {/* Farm type / enterprises */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -347,6 +338,8 @@ export function FarmSetup() {
         and dryers it has, and on a Freenet farm there was previously nowhere at
         all to see it — see Plans/SETTINGS_SYNC_AND_CREW.md §4a.
       */}
+      <CropPacksCard />
+
       <FarmPeopleCard />
 
       {/* Blocks from map */}
