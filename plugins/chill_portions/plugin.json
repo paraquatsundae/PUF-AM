@@ -18,6 +18,6 @@
   ],
   "primaryPath": "/weather-events",
   "author": "PUF-AM",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "homepage": "https://github.com/paraquatsundae/PUFworks-chill_calculator"
 }

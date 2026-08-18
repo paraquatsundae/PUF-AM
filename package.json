@@ -2,6 +2,7 @@
   "name": "walnut-farm-manager",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "description": "PUFAM — Ag Manager. Mixed-farm tools: mapping, diary, blight risk, and team coordination.",
   "type": "module",
   "//desktop": "Electron/electron-builder fields. Unused by Vite, Vitest, and Capacitor. productName drives ~/.config/PUF-AM and %APPDATA%\\PUF-AM — see Plans/NAMING.md §2; changing it strands operator data.",

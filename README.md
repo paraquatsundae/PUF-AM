@@ -31,7 +31,7 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 * **Farm map** — Areas (blocks / paddocks), pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
 * **Farm diary** — Spray, water, nutrition, and work plans with filters and CSV export.
-* **Crop packs** — Optional tools installed by farm admins under **Settings → Plugins** (Install / Activate / Deactivate / Delete; grouped by category). **Walnut blight** is the first pack (Ji et al. 2025 + chill). Freenet is listed there under Network & storage. See [adding a crop pack](#adding-a-crop-pack) for developers.
+* **Crop packs** — Optional tools installed by farm admins under **Settings → Plugins** (Install / Activate / Deactivate / Delete; grouped by category). **Walnut blight** and **Chill portions** ship first. Freenet is listed there under Network & storage. See [adding a crop pack](#adding-a-crop-pack) for developers.
 * **Water** — Irrigation logging + seasonal ML budget from Farm setup.
 * **Nutrition** — Application diary (product, rate, N/P/K); soil lab XLSX import deferred.
 * **Harvest & drying** — Per-block harvest folders; exponential-decay dryer moisture prediction.
@@ -58,8 +58,8 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd <repository-directory>
+   git clone https://github.com/paraquatsundae/PUF-AM.git
+   cd PUF-AM
    ```
 
 2. **Install dependencies**
@@ -163,6 +163,14 @@ Grant admin access:
 ```bash
 npx tsx scripts/setAdminClaim.ts <firebase-auth-uid>
 ```
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Same terms as [PUF-mobile](https://github.com/paraquatsundae/PUF-mobile).
+
+Secrets (`.env`, `firebase-applet-config.json`, `secrets/`) are gitignored. How to keep them off GitHub: [`SECURITY.md`](SECURITY.md).
+
+Standalone chill engine (source): [PUFworks-chill_calculator](https://github.com/paraquatsundae/PUFworks-chill_calculator).
 
 ---
 
