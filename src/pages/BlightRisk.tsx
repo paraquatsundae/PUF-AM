@@ -12,6 +12,10 @@ import html2canvas from 'html2canvas';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { OperationType, handleFirestoreError } from '../contexts/AuthContext';
+import { BlightOrchardInoculumPanel } from '../components/blight/BlightOrchardInoculumPanel';
+import { BlightResearchModifiersPanel } from '../components/blight/BlightResearchModifiersPanel';
+import { BlightEngineSciencePanel } from '../components/blight/BlightEngineScience';
+import type { OrchardInoculumLevel } from '../lib/modelParameters';
 import {
   runBlightModel,
   resolveCanopyGeometry,
@@ -27,7 +31,7 @@ import {
   defaultCalibration,
 } from '../lib/blightModel';
 import { runJiBlightSeries } from '../lib/runJiBlightSeries';
-import { kFromInoculumLevel, type OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
+import { kFromInoculumLevel } from '../../shared/weather/jiBlightModel';
 import {
   JI_ACTION_THRESHOLD,
   JI_HIGH_RISK_THRESHOLD,
@@ -158,7 +162,7 @@ export function BlightRisk() {
   const day = String(todayDate.getDate()).padStart(2, '0');
   const todayStr = `${year}-${month}-${day}`;
 
-  const { userData } = useAuth();
+  const { userData, isAdmin } = useAuth();
   const farmId = userData?.farmId;
   const { checkLimit, recordUsage, loading: usageLoading } = useUsageTracking();
   const { events, getSprayEvents, getIrrigationEvents, settings } = useFarmDiary();
@@ -1415,6 +1419,15 @@ export function BlightRisk() {
             </span>
           )}
         </div>
+
+        <BlightOrchardInoculumPanel
+          farmId={farmId}
+          level={(calib.orchardInoculumLevel ?? 'medium') as OrchardInoculumLevel}
+          canEdit={Boolean(isAdmin && farmId)}
+          onLevelChange={(next) => setCalib((prev) => ({ ...prev, orchardInoculumLevel: next }))}
+        />
+
+        <BlightEngineSciencePanel />
       </div>
 
       {/* Compact status strip — one row */}
@@ -2102,6 +2115,14 @@ export function BlightRisk() {
             What-if sprays and hypothetical chem/bio efficacy — not used on Forecast or Historical.
             Optional “Latency / secondary” is experimental and also sandbox-only.
           </p>
+
+          {isAdmin && (
+            <BlightResearchModifiersPanel
+              farmId={farmId}
+              calib={calib}
+              onCalibChange={setCalib}
+            />
+          )}
 
           <div className="flex items-center justify-between">
             <div className="flex bg-slate-100 p-1 rounded-lg w-fit">

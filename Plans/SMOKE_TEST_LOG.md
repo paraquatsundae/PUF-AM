@@ -35,7 +35,7 @@ Update this file each time Step 3 (or a re-verification) is run.
 | Farm Diary CRUD | | | **Manual** — requires signed-in user |
 | Harvest + drying | | | **Manual** — requires signed-in user |
 | Financials load | | | **Manual** — requires signed-in user |
-| Field Ops | | | **Manual** — requires signed-in user |
+| Map issue list | | | **Manual** — requires signed-in user (Field Ops page removed 2026-08-13; `/field-ops` → `/map`) |
 | Offline indicator | | | **Manual** — requires browser |
 
 **Overall:** **PARTIAL PASS** — server and build pipeline verified; live API keys and browser auth flows pending user configuration.
@@ -72,7 +72,7 @@ Update this file each time Step 3 (or a re-verification) is run.
 | Farm Diary CRUD | | | |
 | Harvest + drying | | | |
 | Financials load | | | |
-| Field Ops | | | |
+| Map issue list | | | |
 | Offline indicator | | | |
 | `GET /api/health` | | | |
 

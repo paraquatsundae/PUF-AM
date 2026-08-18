@@ -1,6 +1,6 @@
 # Farm Map overlays — highlights, bread trails, paddock names
 
-**Status:** implemented 2026-07-28 (cloud + LAN for highlights/trails; PathTrace remains separate)  
+**Status:** implemented 2026-07-28 (cloud + LAN for highlights/trails). FieldOps PathTrace removed 2026-08-13.  
 **Related:** `CREW_PRESENCE.md`, Farm Map operate mode
 
 ---
@@ -52,7 +52,7 @@ Presence publish keeps a ring buffer of `{ lat, lng, t }` for the last **120 s**
 | Machines | ON | everyone (vehicle stub: `kind === 'vehicle'` or `speedMps >= 4`) |
 | Everyone | OFF | **admin only** to enable |
 
-Vehicle trails use double stroke width. FieldMode `PathTrace` is unrelated — do not conflate.
+Vehicle trails use double stroke width. FieldMode PathTrace was removed with FieldOps (2026-08-13) — do not conflate with these trails.
 
 ---
 

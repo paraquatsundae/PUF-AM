@@ -1,10 +1,14 @@
+import { isByoFirebase } from './byoFirebaseConfig';
+
 /**
  * Resolve a usable Maps JS key. Placeholder / empty → treat as absent so Esri can load.
+ * Bring-your-own Firebase never uses the PUFworks Maps key (that would be George's bill).
  */
 export function resolveGoogleMapsApiKey(
-  raw: string | undefined = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  raw: string | undefined = undefined
 ): string | undefined {
-  const key = (raw || '').trim();
+  if (raw === undefined && isByoFirebase()) return undefined;
+  const key = (raw ?? import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '').trim();
   if (!key) return undefined;
   if (key === 'YOUR_GOOGLE_MAPS_API_KEY') return undefined;
   if (/^your[_-]?/i.test(key)) return undefined;

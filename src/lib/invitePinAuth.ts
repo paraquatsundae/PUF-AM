@@ -2,8 +2,20 @@
  * Client helpers for invite-PIN authentication (no Google OAuth).
  */
 import type { FarmModuleId, FarmRole } from '../../shared/auth/farmModules';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { apiUrl } from './apiBase';
+import { isByoFirebase } from './byoFirebaseConfig';
+import {
+  createByoFarmAccount,
+  createByoInvitePin,
+  listByoFarmMembers,
+  listByoInvitePins,
+  redeemByoInvitePin,
+  removeByoFarmMember,
+  revokeByoInvitePin,
+  updateByoFarmMember,
+} from './byoFirebaseAuth';
 
 export type PinRole = FarmRole;
 
@@ -50,6 +62,9 @@ export async function createFarmAccount(
   authEpoch: number;
   recoveryPin: string;
 }> {
+  if (isByoFirebase()) {
+    return createByoFarmAccount(farmName, displayName);
+  }
   const res = await fetch(apiUrl('/api/auth/create-farm'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,6 +98,7 @@ export async function fetchNearbyFarms(
   lng: number,
   radiusKm = 3
 ): Promise<NearbyFarm[]> {
+  if (isByoFirebase()) return [];
   const qs = new URLSearchParams({
     lat: String(lat),
     lng: String(lng),
@@ -99,6 +115,11 @@ export async function updateFarmDiscovery(input: {
   lng?: number;
   showNearby?: boolean;
 }): Promise<void> {
+  if (isByoFirebase()) {
+    throw new Error(
+      'Nearby discovery is per Firebase project and is not offered on your own project. Share the farm ID and an invite PIN instead.'
+    );
+  }
   const res = await fetch(apiUrl('/api/auth/update-farm-discovery'), {
     method: 'POST',
     headers: await authHeaders(),
@@ -110,6 +131,15 @@ export async function updateFarmDiscovery(input: {
 
 /** Owner sets which modules this farm offers (worker grants are a subset). */
 export async function updateFarmModules(modules: FarmModuleId[]): Promise<FarmModuleId[]> {
+  if (isByoFirebase()) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    const farmId = snap.data()?.farmId;
+    if (typeof farmId !== 'string' || !farmId) throw new Error('No farm on this account.');
+    await updateDoc(doc(db, 'farms', farmId), { enabledModules: modules });
+    return modules;
+  }
   const res = await fetch(apiUrl('/api/auth/update-farm-modules'), {
     method: 'POST',
     headers: await authHeaders(),
@@ -132,6 +162,9 @@ export async function redeemInvitePin(
   modules?: FarmModuleId[];
   authEpoch?: number;
 }> {
+  if (isByoFirebase()) {
+    return redeemByoInvitePin(pin, displayName, expectedFarmId);
+  }
   const res = await fetch(apiUrl('/api/auth/redeem-pin'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -175,6 +208,7 @@ export async function createInvitePin(input: {
   modules: FarmModuleId[];
   expiresAt: string | null;
 }> {
+  if (isByoFirebase()) return createByoInvitePin(input);
   const res = await fetch(apiUrl('/api/auth/create-pin'), {
     method: 'POST',
     headers: await authHeaders(),
@@ -208,6 +242,7 @@ export async function listInvitePins(): Promise<
     lastRedeemedDisplayName: string | null;
   }>
 > {
+  if (isByoFirebase()) return listByoInvitePins();
   const res = await fetch(apiUrl('/api/auth/pins'), { headers: await authHeaders() });
   const data = await readJsonResponse(res);
   if (!res.ok) throw new Error(String(data.error || 'Failed to list PINs'));
@@ -215,6 +250,7 @@ export async function listInvitePins(): Promise<
 }
 
 export async function revokeInvitePin(pinId: string): Promise<void> {
+  if (isByoFirebase()) return revokeByoInvitePin(pinId);
   const res = await fetch(apiUrl('/api/auth/revoke-pin'), {
     method: 'POST',
     headers: await authHeaders(),
@@ -238,6 +274,7 @@ export type FarmMember = {
 };
 
 export async function listFarmMembers(): Promise<FarmMember[]> {
+  if (isByoFirebase()) return listByoFarmMembers();
   const res = await fetch(apiUrl('/api/auth/members'), { headers: await authHeaders() });
   const data = await readJsonResponse(res);
   if (!res.ok) throw new Error(String(data.error || 'Failed to list members'));
@@ -248,6 +285,7 @@ export async function updateFarmMember(
   uid: string,
   input: { role?: PinRole; modules?: FarmModuleId[] }
 ): Promise<void> {
+  if (isByoFirebase()) return updateByoFarmMember(uid, input);
   const res = await fetch(apiUrl('/api/auth/update-member'), {
     method: 'POST',
     headers: await authHeaders(),
@@ -257,12 +295,8 @@ export async function updateFarmMember(
   if (!res.ok) throw new Error(String(data.error || 'Failed to update member'));
 }
 
-/** @deprecated use updateFarmMember */
-export async function updateFarmMemberRole(uid: string, role: PinRole): Promise<void> {
-  return updateFarmMember(uid, { role });
-}
-
 export async function removeFarmMember(uid: string): Promise<void> {
+  if (isByoFirebase()) return removeByoFarmMember(uid);
   const res = await fetch(apiUrl('/api/auth/remove-member'), {
     method: 'POST',
     headers: await authHeaders(),

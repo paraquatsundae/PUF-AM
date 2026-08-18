@@ -8,6 +8,7 @@ export const FARM_MODULE_IDS = [
   'map',
   'diary',
   'blight',
+  'chill',
   'water',
   'nutrition',
   'harvest',
@@ -26,6 +27,7 @@ export const MODULE_LABELS: Record<FarmModuleId, string> = {
   map: 'Farm Map',
   diary: 'Farm Diary',
   blight: 'Blight Risk',
+  chill: 'Chill portions',
   water: 'Water',
   nutrition: 'Nutrition',
   harvest: 'Harvest',
@@ -37,10 +39,12 @@ export const MODULE_LABELS: Record<FarmModuleId, string> = {
 
 /** Crop-specific modules — only offer when the matching crop pack is on. */
 export const WALNUT_PACK_MODULES: FarmModuleId[] = ['blight'];
+export const CHILL_PACK_MODULES: FarmModuleId[] = ['chill'];
+const PACK_OWNED_MODULES: FarmModuleId[] = [...WALNUT_PACK_MODULES, ...CHILL_PACK_MODULES];
 
 /** Default catalog for a new farm (no crop packs assumed). */
 export function defaultModulesWithoutCropPacks(): FarmModuleId[] {
-  return FARM_MODULE_IDS.filter((id) => !WALNUT_PACK_MODULES.includes(id));
+  return FARM_MODULE_IDS.filter((id) => !PACK_OWNED_MODULES.includes(id));
 }
 
 /** Merge walnut pack modules into a catalog when the farm has walnuts. */
@@ -73,6 +77,7 @@ export const MODULE_BLURBS: Record<FarmModuleId, string> = {
   map: 'Areas, pins, field issues',
   diary: 'Spray, water, nutrition, work plans',
   blight: 'Walnut blight risk (walnut crop pack only)',
+  chill: 'Dynamic Model chill portions (chill pack)',
   water: 'Irrigation logging & budget',
   nutrition: 'Fertiliser diary',
   harvest: 'Harvest & drying',
@@ -88,6 +93,7 @@ export const WORK_MODULES: FarmModuleId[] = [
   'map',
   'diary',
   'blight',
+  'chill',
   'water',
   'nutrition',
   'harvest',
@@ -98,6 +104,7 @@ export const FIELD_ONLY_MODULES: FarmModuleId[] = ['dashboard', 'map', 'diary'];
 export const CROP_SCOUT_MODULES: FarmModuleId[] = [
   'dashboard',
   'blight',
+  'chill',
   'water',
   'nutrition',
 ];

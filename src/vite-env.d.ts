@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+declare module '*.rules?raw' {
+  const src: string;
+  export default src;
+}
+
 interface ImportMetaEnv {
   /** Maps JS API — client-visible; restrict in Google Cloud (see Plans/API_KEY_SECURITY.md) */
   readonly VITE_GOOGLE_MAPS_API_KEY?: string

@@ -50,6 +50,8 @@ ON when any mapped area has `species === 'walnut'`, or profile is `orchard_tree`
 
 New farms: empty `enterprises`, modules from `defaultModulesWithoutCropPacks()` (no blight). Saving Farm setup with walnuts calls `withWalnutPackModules`; without walnuts calls `withoutWalnutPackModules`.
 
+General pack seam (gates, modules, settings surface for the next packs): [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md). Blight settings home: [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md).
+
 ## Default for existing farms
 
 No `enterprises` on profile → not forced to walnut; blight stays visible only while still in the farm module catalog (legacy).

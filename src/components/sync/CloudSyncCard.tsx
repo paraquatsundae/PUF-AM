@@ -12,6 +12,7 @@
 import React from 'react';
 import { Cloud, Loader2, RefreshCw } from 'lucide-react';
 
+import { byoProjectId, isByoFirebase } from '../../lib/byoFirebaseConfig';
 import { SyncNote } from './SyncNote';
 import type { FarmSync } from './useFarmSync';
 
@@ -71,6 +72,13 @@ export function CloudSyncCard({ sync }: { sync: FarmSync }) {
         This happens by itself when the app is online. The button is for when you want to watch it
         happen before driving out of range.
       </p>
+      {isByoFirebase() ? (
+        <p className="text-[11px] text-slate-500">
+          This farm is on your Firebase project{' '}
+          <span className="font-mono text-slate-800">{byoProjectId()}</span>. Google bills that
+          project — PUFworks does not.
+        </p>
+      ) : null}
     </div>
   );
 }

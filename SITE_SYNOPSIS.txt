@@ -3,19 +3,18 @@ ROLE: Multi-enterprise farm / paddock management web app
 STATUS: app (live on Cloud Run; Capacitor Android)
 
 ONE-LINER
-Multi-user Ag Manager for mixed farms — map paddocks and issues, farm diary, seasonal records, and optional crop packs (walnut blight first).
+Paddock-first Ag Manager for mixed farms — map areas and issues, farm diary, seasonal records, and optional crop packs (walnut blight first).
 
 SYNOPSIS
-- Ag Manager — multi-user farm management (public name PUFAM; repo folder still Walnut_farm_manager).
-- Brand: PUFAM = PUF (Prototype Until Failure) + AM (Ag Manager). Formerly PUFOM / Orchard Manager.
-- Supports orchard/tree, broadacre, hort, station/dairy/grazing, aquaculture (marron), and livestock overlay — skeleton expanding from walnut-first tools.
-- Walnut crop pack (blight / chill / Ji methodology) is gated: only when farm profile or map areas include walnuts. New farms omit blight from default modules.
-- Blight (when pack on): weather-driven infection-risk modelling tied to the farm diary and spray records; Ji et al. 2025 on a proxy wetness input — not LLM/AI predictions.
-- Farm map: draw areas, pin field issues, optional offline basemap packs; issues feed into diary plans (Capacitor mobile path supported).
-- Farm diary is system of record for sprays, irrigation, nutrition, and work.
-- Also covers harvest/drying (dryer performance model), water budget from farm setup allocation, nutrition logging, financials, invite-PIN team auth.
-- Stack: React/Vite/TypeScript, Firebase Firestore + Auth, DPIRD weather via server cache/Cloud Functions; deployed to Google Cloud Run (australia-southeast1).
-- Does NOT control sprayers, ISOBUS, or vision — separate from the PUFworks cab stack (companion farm ops product under same PUF workshop brand).
+- Ag Manager — multi-user farm ops (public name PUFAM; repo PUF-AM). Formerly PUFOM / Orchard Manager.
+- Brand: PUFAM = PUF (Prototype Until Failure workshop) + AM (Ag Manager); in-app PUF emu mark, green farm icon on Android.
+- Mixed enterprises: orchard/tree, fruit, vineyard, broadacre, hort, station/grazing, aquaculture (marron), livestock overlay.
+- Farm map: draw areas, pin issues, infrastructure (dams, irrigation, tracks); optional offline basemap packs. Diary is the system of record for sprays, irrigation, nutrition, and work.
+- Crop packs are optional — farm admins install them under Settings → Plugins. Walnut blight (Ji et al. 2025 on proxy wetness, not LLM) is the first pack and only shows when that pack is on.
+- Also: seasonal water budget, harvest/drying (dryer moisture model), invite-PIN team auth (admin / farmer / viewer).
+- Workshop path: local-first records plus optional Freenet/mist so sealed copies can live across farms and devices — share the load, less locked to a rented data centre. Cloud PIN login at am.pufworks.farm remains the simple path today.
+- Web at am.pufworks.farm; Android APK via GitHub Releases. Standalone Dynamic chill calculator at pufworks.farm/chill/.
+- Does NOT control sprayers, ISOBUS, or vision — companion farm ops product under the same PUF workshop brand.
 
 SOURCES
 - README.md
@@ -24,9 +23,14 @@ SOURCES
 - Plans/RENAME_TO_PUFAM.md
 - Plans/ROADMAP.md (status header)
 - Plans/FARM_TYPES.md
+- Plans/CROP_PACK_PLUGIN.md
+- Plans/FREENET_CONTRIBUTE_AND_STORAGE.md
+- Plans/MIST_NETWORK_STORAGE.md
 
 NOTES FOR EDITOR
+- Do **not** link the public site card or /pufam/ showcase at github.com/paraquatsundae/PUF-AM (repo stays private / workshop). APK CTA may still use GitHub Releases.
 - Repo folder is Walnut_farm_manager; public name is PUFAM — use PUFAM / Ag Manager on the website card.
-- Live URL may still be https://pufom-quby5ye5pa-ts.a.run.app until Cloud Run rename (Phase B).
+- Canonical live URL is https://am.pufworks.farm (Cloud Run service still named pufom until Phase B).
 - Generative AI features were removed; do not imply AI forecasting on the site.
 - Walnut blight / chill are a crop pack — do not describe the product as walnut-only.
+- Freenet / mist may be described on /pufam/#network as a workshop path. Do not claim it has replaced Cloud Run, or that phones host a node, or that “contribute” already replicates other farms’ data.

@@ -100,8 +100,8 @@ sudo dnf install ./release/puf-am-0.1.0.x86_64.rpm
 
 | `release/` artifact | Size | Use |
 |---------------------|------|-----|
-| `PUF-AM 0.1.0.exe` | ~107 MB | Portable. Copy the one file to the Windows PC and double-click. No install, no admin |
-| `PUF-AM-0.1.0-win.zip` | ~169 MB | Same app, unzipped instead of self-extracting. Run `PUF-AM.exe` inside |
+| `PUF-AM 0.1.0.exe` | ~103 MB | Portable. Copy the one file to the Windows PC and double-click. No install, no admin |
+| `PUF-AM-0.1.0-win.zip` | ~163 MB | Same app, unzipped instead of self-extracting. Run `PUF-AM.exe` inside |
 | `win-unpacked/` | ~440 MB | The tree both are built from |
 
 `release/` is gitignored, so these are copied off the build box by hand (USB, share, `scp`).

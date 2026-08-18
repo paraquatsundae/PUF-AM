@@ -214,7 +214,7 @@ Shelf files persist under `tmp/lan-sync/` (gitignored) while the PC is the hub.
 
 | Piece | Path |
 |-------|------|
-| Photo outbox (Storage) | `src/lib/photoOutbox.ts`, `flushPhotoOutbox.ts`, FieldMode enqueue + preview `photoData` |
+| Photo outbox (Storage) | `src/lib/photoOutbox.ts`, `flushPhotoOutbox.ts`; FieldMode enqueue removed 2026-08-13 — operate-mode ReportIssueSheet does not attach photos yet |
 | Storage rules | `storage.rules` (wired in `firebase.json`) — deploy with `firebase deploy --only storage` |
 | Weather IDB | `src/lib/weatherCacheIdb.ts`; `weatherService` mirrors + offline read; Offline & sync **Cache weather** |
 | Native NSD | `android/.../PufomNsdPlugin.java` + `src/lib/nsdPeers.ts`; Offline & sync **Scan for hubs** |

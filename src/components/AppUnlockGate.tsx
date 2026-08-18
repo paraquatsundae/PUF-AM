@@ -16,11 +16,13 @@ import {
   verifyUnlockPin,
 } from '../lib/unlockPin';
 import { APP_NAME } from '../brand';
+import { isFreenetFarm } from '../lib/farmPipes';
 import { Link } from 'react-router-dom';
 
 export function AppUnlockGate({ children }: { children: React.ReactNode }) {
   const { user, userData, logout } = useAuth();
   const uid = user?.uid || '';
+  const freenet = isFreenetFarm();
   const [locked, setLocked] = useState(() => needsUnlockGate(uid));
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +143,9 @@ export function AppUnlockGate({ children }: { children: React.ReactNode }) {
             onClick={() => void logout()}
             className="w-full text-xs text-slate-500 hover:text-slate-800"
           >
-            Sign out — next time you&apos;ll need the farm invite PIN on this device
+            {freenet
+              ? 'Sign out — next time you\'ll need the paper FarmCode on this device'
+              : 'Sign out — next time you\'ll need the farm invite PIN on this device'}
           </button>
         </div>
       </div>
@@ -157,11 +161,21 @@ export function AppUnlockGate({ children }: { children: React.ReactNode }) {
             <h2 className="text-lg font-bold text-slate-900">Set a personal unlock PIN?</h2>
             <p className="text-sm text-slate-600">
               Optional 4–8 digit PIN for this phone/tablet/laptop. It keeps the cab private when you
-              step away — it does <strong>not</strong> replace the farm invite code.
+              step away — it does <strong>not</strong> replace{' '}
+              {freenet ? 'the paper FarmCode' : 'the farm invite code'}.
             </p>
             <p className="text-xs text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-              Each <strong>new device</strong> still needs the farm invite PIN (one-time per device)
-              with your name. Unlock PIN is local to this device only.
+              {freenet ? (
+                <>
+                  Each <strong>new device</strong> still needs the paper FarmCode and a join ticket
+                  (one-time). Unlock PIN is local to this device only.
+                </>
+              ) : (
+                <>
+                  Each <strong>new device</strong> still needs the farm invite PIN (one-time per
+                  device) with your name. Unlock PIN is local to this device only.
+                </>
+              )}
             </p>
             <UnlockPinForm
               uid={uid}

@@ -1,6 +1,6 @@
 # Freenet on the PUF-AM tablet APK
 
-**Status:** §8 Phase 4's *reader* half is **built and running on a tablet** (§3b). Everything else here — a Freenet host in the APK, publishing from Android — remains plan only.
+**Status:** §8 Phase 4's *reader* half is **built and running on a tablet** (§3b). **Host-in-APK (option C / §8 phase 4c) is reopened** — implementation plan: [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) (network pack, isolated process, Join + Send). This file stays the two-app reader / hub / gateway history.
 **Date:** 2026-08-05
 **Update ~2026-08-07:** the *desktop* side of Option A landed — a packaged AppImage can now be the tablet's LAN hub, behind a pairing code, with `/api/mist/freenet/*` in the LAN allowlist (§4, §8a; design in desktop plan §6.4). Nothing in the APK changed: there is still no Freenet host on Android, and `detectFreenetRuntime()` does not yet count a *paired* hub as `android-hub` (§8 phase 2).
 **Update ~2026-08-09:** the join-slot contract (§7a) makes a short ticket resolve **off the owner's Wi-Fi** — on a device with a Freenet node. That is still not a tablet. §7a records what a tablet can and cannot do with it, and the two tablet-side bugs found while establishing that.
@@ -51,7 +51,7 @@ Size is worth stating even though it is not the blocker: `freenet` + `fdev` are 
 |--------|---------------|------------------|------|---------|
 | **A. Shed / LAN hub** | A PUF-AM desktop (or Pi/NUC) on the farm LAN runs the node and the Express routes. The tablet is an HTTP client of that machine — it never touches Freenet itself | **Yes.** Both halves exist: the hub is field-proven, and the packaged app now serves the LAN behind a pairing code (§4) | Landed — LAN-bound listener + per-device tokens | **Recommended for Phase 1** |
 | **B. Companion Freenet app** | A separate Android app hosts the node; PUF-AM attaches to it, the way the desktop host attaches to a workshop node | **Partly — see §3a.** Upstream still publishes no Android build, but a third party now sideloads one that binds the standard WS API on `127.0.0.1:7509` | We write no Rust; the cost moves to a browser-side client and to depending on someone else's alpha | Re-open as the POC route |
-| **C. Freenet Android peer inside the APK** | Cross-compile `freenet-core` for `aarch64-linux-android`, ship as `libfreenet.so`, drive it from a Capacitor native plugin | **No** | We would own a Rust Android toolchain, an unsupported target, `fdev`'s replacement, Doze/background-execution work, and battery behaviour | Not before upstream ships an Android target |
+| **C. Freenet Android peer inside the APK** | Isolated `:freenet` process + `libfreenet.so`, loopback WS — see [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | **Reopened** | Native PUT first; then JNI in a sibling process, not the WebView | Active — E-08 |
 | **D. WASM peer in the WebView** | The peer compiles to WASM and runs in the page | **No** | Freenet transport is UDP; browsers have no UDP. Not on the upstream 0.2 roadmap | Watch only |
 
 ### Recommendation for Phase 1 tablets: **Option A, hub — and in Phase 1 the tablet does not use Freenet at all**
@@ -314,7 +314,7 @@ For an off-Wi-Fi POC on a tablet *without* the node app the honest shape is ther
 | **3** | `RemoteFreenetHost` implementing `FreenetHostPlugin` against a hub, so the tablet reports `attached` through the same interface | Phase 2 |
 | **4a (done)** | **Reader beside a sideloaded node** — browser-side GET client, `android-local-node` runtime, slot resolve and Hot/bones pull off `127.0.0.1:7509`. Join with no hub | — · built and device-verified, §3b |
 | **4b** | **Publishing from a tablet** | `fdev` removal — native-protocol PUT in TypeScript, the same item as desktop plan §4.3. Until then a tablet reads and a laptop sends |
-| **4c** | On-device peer inside our APK (option C) | **Still rejected**, now on AGPL linkage as much as toolchain cost. §3b's two-app shape is what made it unnecessary |
+| **4c** | On-device peer inside our APK (option C) | **Reopened 2026-08-14** — isolated `:freenet` process + native PUT, not in-process JNI. See [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) |
 | **5 (done)** | **Farm gateway** — the paired hub at a remembered non-LAN address, so a tablet joins and syncs with **no node app on it and no laptop on its Wi‑Fi** | — · built, §8d. Makes phase 4a's sideloaded node the power-user option rather than the requirement |
 | **6** | TLS a farmer can complete, then (later) a hosted relay for farms with no always-on machine | §8d Phase 2 / Phase 3 |
 
@@ -500,7 +500,7 @@ Two things that bite on a laptop with more than one interface up:
 
 ## 9. Out of scope
 
-Freenet host on Android · bundling `freenet` / `fdev` in the APK · linking `freenet-core` into `com.sentinut.farm` (§3a, §8 phase 4c) · **publishing from a tablet** (§8 phase 4b) · shipping or endorsing the third-party node app, which the operator sideloads themselves · `contribute_storage` on mobile (frozen off — [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy) · Play Store distribution or signing · renaming `com.sentinut.farm` · Reticulum on Android · changing the `FreenetHostPlugin` interface.
+~~Freenet host on Android~~ (reopened — [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md)) · bundling `fdev` in the APK · linking `freenet-core` into the WebView process · **publishing from a tablet** until native PUT lands (§8 phase 4b) · shipping or endorsing the third-party node app, which the operator sideloads themselves · `contribute_storage` on mobile (frozen off — [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy) · Play Store distribution or signing · renaming `com.sentinut.farm` · Reticulum on Android · changing the `FreenetHostPlugin` interface.
 
 §3b deliberately does **not** implement `FreenetHostPlugin`. The browser GET client is a reader, not a host: it cannot `start`, `stop` or `putCiphertext`, and pretending otherwise would put a `managed`-shaped object in front of a node PUF-AM does not own. Phase 3's `RemoteFreenetHost` is still the place that interface gets an Android implementation.
 

@@ -3,6 +3,7 @@ import {
   getAuth,
   indexedDBLocalPersistence,
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   initializeAuth,
 } from 'firebase/auth';
 import {
@@ -14,9 +15,13 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { Capacitor } from '@capacitor/core';
-import firebaseConfig from '../firebase-applet-config.json';
+import { resolveFirebaseWebConfig } from './lib/byoFirebaseConfig';
+
+const { config: firebaseConfig, byo: usingByoFirebase } = resolveFirebaseWebConfig();
 
 const app = initializeApp(firebaseConfig);
+
+export { usingByoFirebase };
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -33,7 +38,7 @@ export const db = initializeFirestore(
     }),
     ...(isNative ? { experimentalForceLongPolling: true } : {}),
   },
-  firebaseConfig.firestoreDatabaseId
+  usingByoFirebase ? undefined : firebaseConfig.firestoreDatabaseId
 );
 
 /**
@@ -44,6 +49,7 @@ function createAuth() {
   try {
     return initializeAuth(app, {
       persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+      popupRedirectResolver: browserPopupRedirectResolver,
     });
   } catch {
     // HMR / second init — reuse existing Auth instance

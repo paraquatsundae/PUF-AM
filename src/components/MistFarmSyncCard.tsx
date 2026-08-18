@@ -28,6 +28,7 @@ import {
   Wifi,
 } from 'lucide-react';
 
+import { FreenetHowItWorksButton } from './FreenetHowItWorks';
 import { useAuth } from '../contexts/AuthContext';
 import { APP_NAME } from '../brand';
 import { getDesktopBridge, isDesktopShell } from '../lib/desktopBridge.ts';
@@ -48,10 +49,12 @@ import {
 } from '../../shared/sync/joinGrant.ts';
 import {
   MODULE_LABELS,
+  CHILL_PACK_MODULES,
   WALNUT_PACK_MODULES,
   type FarmModuleId,
 } from '../../shared/auth/farmModules.ts';
 import { useWalnutPack } from '../hooks/useWalnutPack';
+import { useChillPack } from '../hooks/useChillPack';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import {
   FREENET_NO_HOST_DETAIL,
@@ -204,6 +207,7 @@ export function MistFarmSyncCard() {
   const farmId = userData?.farmId;
   const desktop = getDesktopBridge();
   const hasWalnutPack = useWalnutPack();
+  const hasChillPack = useChillPack();
 
   /**
    * Same filter the invite-PIN screen uses, so a farm with no walnut pack is
@@ -212,9 +216,12 @@ export function MistFarmSyncCard() {
   const presets = useMemo(
     () =>
       joinPresetsForFarm(farmEnabledModules, {
-        excludeModules: hasWalnutPack ? [] : WALNUT_PACK_MODULES,
+        excludeModules: [
+          ...(hasWalnutPack ? [] : WALNUT_PACK_MODULES),
+          ...(hasChillPack ? [] : CHILL_PACK_MODULES),
+        ],
       }),
-    [farmEnabledModules, hasWalnutPack],
+    [farmEnabledModules, hasWalnutPack, hasChillPack],
   );
 
   /**
@@ -530,8 +537,11 @@ export function MistFarmSyncCard() {
         <div className="p-2 bg-emerald-50 rounded-xl text-emerald-700">
           <Share2 className="w-5 h-5" />
         </div>
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">Send or join a farm over Freenet</h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900">Send or join a farm over Freenet</h2>
+            <FreenetHowItWorksButton />
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Move a whole farm — diary, issues, boundaries — to a device that is not on this Wi‑Fi.
             Everything is encrypted here before it leaves. Experimental.
@@ -744,6 +754,10 @@ export function MistFarmSyncCard() {
                       ? ` Stops working ${new Date(sentTicket.expires).toLocaleDateString()}.`
                       : null}
                   </p>
+                  <p className="text-[11px] font-semibold text-emerald-950 bg-white/70 border border-emerald-200 rounded-lg px-2 py-1.5">
+                    Give them the paper FarmCode <strong>and</strong> this ticket. The ticket by
+                    itself will not open the farm.
+                  </p>
                 </div>
               ) : null}
 
@@ -757,21 +771,27 @@ export function MistFarmSyncCard() {
               <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 space-y-1.5">
                 <p className="font-semibold text-slate-900 flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5" />
-                  The joining device needs three things
+                  Give them two things
+                </p>
+                <p className="text-[11px] text-slate-600">
+                  The ticket by itself will not open the farm. They must already have the paper
+                  FarmCode.
                 </p>
                 <ol className="list-decimal ml-4 space-y-1 text-slate-600">
                   <li>
-                    <strong>The FarmCode</strong> — the words written down when this farm was
-                    created. It is not stored anywhere PUF-AM can show you again.
-                  </li>
-                  <li>
-                    <strong>The device PIN</strong> for that FarmCode.
+                    <strong>The paper FarmCode</strong> — written down when this farm was created.
+                    The app cannot show it again.
                   </li>
                   <li>
                     <strong>This join ticket</strong>. A new one is issued every time you send, so
                     use the latest.
                   </li>
                 </ol>
+                <p className="text-[11px] text-slate-500">
+                  If they set a device PIN when they recovered, they type that on their device. If
+                  they skipped it, they leave that field blank. That PIN is not the one that unlocks
+                  Send on this laptop.
+                </p>
                 <p className="text-[11px] text-slate-500 flex items-start gap-1.5">
                   <Wifi className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>

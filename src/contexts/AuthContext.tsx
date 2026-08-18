@@ -1,9 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import {
+  GoogleAuthProvider,
+  User,
+  browserPopupRedirectResolver,
+  onAuthStateChanged,
+  signInWithCustomToken,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { trackMetric } from '../services/metricsService';
-import { resolveIsAdmin } from '../lib/adminAuth';
+import { resolveIsAdmin, resolveIsPlatformAdmin } from '../lib/adminAuth';
 import { isWorkshopMode, WORKSHOP_USER_DATA } from '../lib/workshopMode';
 import { isMistFarmSessionActive, tryLoadMistFarmSession } from '../mist/mistFarmSession.ts';
 import {
@@ -14,6 +22,9 @@ import {
 import { ensureBrowserMistStore, resetBrowserMistStore } from '../mist/createFarmStore.ts';
 import { setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
 import { createFarmAccount, redeemInvitePin } from '../lib/invitePinAuth';
+import { isByoFirebase } from '../lib/byoFirebaseConfig';
+import { BYO_SESSION_TOKEN } from '../lib/byoFirebaseAuth';
+import { isByoAuthEmail } from '../../shared/auth/byoPin';
 import {
   clearDeviceRememberedFlag,
   getLastDisplayName,
@@ -28,6 +39,10 @@ import {
   resolveFarmEnabledModules,
   sanitizeModules,
 } from '../../shared/auth/farmModules';
+import {
+  resolveFarmCropPacks,
+  type FarmCropPacksMap,
+} from '../../shared/farm/cropPacks';
 
 export enum OperationType {
   CREATE = 'create',
@@ -123,18 +138,23 @@ export interface Farm {
   ownerUid: string;
   createdAt: string;
   enabledModules?: FarmModuleId[];
+  cropPacks?: FarmCropPacksMap;
 }
 
 interface AuthContextType {
   user: User | null;
   userData: UserData | null;
   isAdmin: boolean;
+  /** Platform claim only — whitelist / Admin page. Not farm-role admin. */
+  isPlatformAdmin: boolean;
   loading: boolean;
   error: string | null;
-  pendingInvite: any | null;
   /** Modules this farm offers (owner catalog). */
   farmEnabledModules: FarmModuleId[];
   refreshFarmModules: () => Promise<void>;
+  /** Installed crop packs on this farm (Plans/CROP_PACK_PLUGIN.md). */
+  farmCropPacks: FarmCropPacksMap;
+  refreshFarmCropPacks: () => Promise<void>;
   signInWithInvitePin: (
     pin: string,
     displayName: string,
@@ -151,9 +171,9 @@ interface AuthContextType {
     displayName: string,
     farm?: { farmId?: string; farmName?: string }
   ) => Promise<void>;
+  /** Returning Google / platform-admin accounts on PUFworks cloud. */
+  signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
-  acceptInvite: () => Promise<void>;
-  declineInvite: () => Promise<void>;
   agreeToTerms: () => Promise<void>;
   hasModule: (moduleId: FarmModuleId) => boolean;
   /** True when mist session exists but device PIN unlock is pending. */
@@ -168,11 +188,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [pendingInvite, setPendingInvite] = useState<any | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [farmEnabledModules, setFarmEnabledModules] =
     useState<FarmModuleId[]>(allFarmModules());
+  const [farmCropPacks, setFarmCropPacks] = useState<FarmCropPacksMap>({});
   const [mistLocked, setMistLocked] = useState(false);
 
   const applyMistSession = async (devicePin?: string): Promise<boolean> => {
@@ -186,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // owner or admin still resolves to `admin`, and a device with no recorded
     // role predates join tickets, so it minted this farm and is one.
     setIsAdmin(loaded.userData.role === 'admin');
-    setPendingInvite(null);
+    setIsPlatformAdmin(false);
     setError(null);
     setFarmEnabledModules(allFarmModules());
     setMistLocked(false);
@@ -198,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setUserData(WORKSHOP_USER_DATA as UserData);
       setIsAdmin(true);
-      setPendingInvite(null);
+      setIsPlatformAdmin(true);
       setError(null);
       setFarmEnabledModules(allFarmModules());
       setLoading(false);
@@ -265,12 +286,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Error reading token claims:', e);
           }
 
-          // Invite-PIN users are pre-vetted; skip email whitelist/Google invite flow
-          if (email && !pinAuth && !email.endsWith('@sentinut.local')) {
+          // Invite-PIN and BYO email users are pre-vetted; skip email whitelist
+          if (
+            email &&
+            !pinAuth &&
+            !email.endsWith('@sentinut.local') &&
+            !isByoAuthEmail(email) &&
+            !isByoFirebase()
+          ) {
             const lowerEmail = email.toLowerCase();
             try {
-              // Track reads for access control
-              trackMetric('read', 3).catch(console.error); // blacklist, config, whitelist/invite
+              trackMetric('read', 3).catch(console.error); // blacklist, config, whitelist
 
               // Check blacklist/whitelist
               let blacklistDoc;
@@ -321,23 +347,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   return;
                 }
               }
-
-              // Check for invitations
-              let inviteSnap;
-              try {
-                inviteSnap = await getDoc(doc(db, 'invitations', email.toLowerCase()));
-              } catch (e) {
-                console.error("Error checking invitations:", e);
-              }
-
-              if (inviteSnap?.exists()) {
-                const inviteData = inviteSnap.data();
-                if ((window as any)._lastAuthId === currentAuthId) {
-                  setPendingInvite(inviteData);
-                }
-              }
             } catch (error) {
-              console.error("Error checking access control/invitations:", error);
+              console.error("Error checking access control:", error);
             }
           }
 
@@ -382,9 +393,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           
           if (!userSnap.exists()) {
-            // Invite-PIN / create-farm paths write users/{uid} server-side.
-            // Do not auto-create a personal farm for PIN users.
-            if (pinAuth) {
+            // Invite-PIN / create-farm / BYO paths write users/{uid} themselves.
+            // Do not auto-create a personal farm for those users.
+            if (pinAuth || isByoFirebase() || isByoAuthEmail(currentUser.email)) {
               if ((window as any)._lastAuthId === currentAuthId) {
                 setError('Your account profile is missing. Sign in again with your invite PIN, or ask a farm admin for a new PIN.');
                 setLoading(false);
@@ -474,6 +485,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!snap.exists()) {
               setUserData(null);
               setIsAdmin(false);
+              setIsPlatformAdmin(false);
               setLoading(false);
               return;
             }
@@ -490,6 +502,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setError('Access removed — ask a farm admin for a new invite PIN.');
               setUserData(null);
               setIsAdmin(false);
+              setIsPlatformAdmin(false);
               setLoading(false);
               try {
                 await signOut(auth);
@@ -515,6 +528,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               });
             }
             resolveIsAdmin(data.role).then(setIsAdmin).catch(() => setIsAdmin(data.role === 'admin'));
+            resolveIsPlatformAdmin().then(setIsPlatformAdmin).catch(() => setIsPlatformAdmin(false));
             setLoading(false);
           }, (err) => {
             console.error("Firestore Error in onSnapshot:", err);
@@ -528,6 +542,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if ((window as any)._lastAuthId === currentAuthId) {
             setUserData(null);
             setIsAdmin(false);
+            setIsPlatformAdmin(false);
             setLoading(false);
             if (loadingTimeout) clearTimeout(loadingTimeout);
           }
@@ -555,6 +570,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     farmName?: string
   ) => {
     const { token, farmId } = await redeemInvitePin(pin, displayName, expectedFarmId);
+    if (token === BYO_SESSION_TOKEN || isByoFirebase()) {
+      markDeviceRemembered(displayName, {
+        farmId,
+        farmName: farmName || getLastFarm()?.farmName,
+      });
+      return;
+    }
     try {
       await signInWithCustomToken(auth, token);
       markDeviceRemembered(displayName, {
@@ -586,6 +608,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     displayName: string,
     farm?: { farmId?: string; farmName?: string }
   ) => {
+    if (token === BYO_SESSION_TOKEN || isByoFirebase()) {
+      markDeviceRemembered(displayName, farm);
+      return;
+    }
     try {
       await signInWithCustomToken(auth, token);
       markDeviceRemembered(displayName, farm);
@@ -600,23 +626,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Farm-level module catalog (owner toggles).
+  // Farm-level module catalog + crop packs (owner toggles).
   useEffect(() => {
     if (isWorkshopMode() || isMistFarmSessionActive()) return;
     const farmId = userData?.farmId;
     if (!farmId) {
       setFarmEnabledModules(allFarmModules());
+      setFarmCropPacks({});
       return;
     }
     const farmRef = doc(db, 'farms', farmId);
     const unsub = onSnapshot(
       farmRef,
       (snap) => {
-        setFarmEnabledModules(resolveFarmEnabledModules(snap.data()?.enabledModules));
+        const data = snap.data();
+        setFarmEnabledModules(resolveFarmEnabledModules(data?.enabledModules));
+        setFarmCropPacks(resolveFarmCropPacks(data?.cropPacks));
       },
       (err) => {
         console.warn('[Auth] farm modules listen failed:', err);
         setFarmEnabledModules(allFarmModules());
+        setFarmCropPacks({});
       }
     );
     return () => unsub();
@@ -636,6 +666,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshFarmCropPacks = async () => {
+    const farmId = userData?.farmId;
+    if (!farmId || isWorkshopMode() || isMistFarmSessionActive()) {
+      setFarmCropPacks({});
+      return;
+    }
+    try {
+      const snap = await getDoc(doc(db, 'farms', farmId));
+      setFarmCropPacks(resolveFarmCropPacks(snap.data()?.cropPacks));
+    } catch (e) {
+      console.warn('[Auth] refreshFarmCropPacks failed:', e);
+    }
+  };
+
   const hasModule = (moduleId: FarmModuleId) => {
     if (!userData) return false;
     return effectiveModules(userData.role, userData.modules, farmEnabledModules).includes(
@@ -649,6 +693,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+  };
+
   const logout = async () => {
     try {
       if (isMistFarmSessionActive() || hasMistDeviceSession()) {
@@ -658,6 +708,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setUserData(null);
         setIsAdmin(false);
+        setIsPlatformAdmin(false);
         setMistLocked(false);
         clearSessionUnlock();
         return;
@@ -667,44 +718,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signOut(auth);
     } catch (error) {
       console.error('Error signing out', error);
-      throw error;
-    }
-  };
-
-  const acceptInvite = async () => {
-    if (!user || !pendingInvite) return;
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      const publicRef = doc(db, 'users_public', user.uid);
-      
-      // Update both in parallel
-      await Promise.all([
-        setDoc(userRef, { 
-          farmId: pendingInvite.farmId, 
-          role: pendingInvite.role 
-        }, { merge: true }),
-        setDoc(publicRef, {
-          farmId: pendingInvite.farmId,
-          role: pendingInvite.role
-        }, { merge: true })
-      ]);
-      
-      // Delete the invitation
-      await deleteDoc(doc(db, 'invitations', user.email!.toLowerCase()));
-      setPendingInvite(null);
-    } catch (error) {
-      console.error("Error accepting invite:", error);
-      throw error;
-    }
-  };
-
-  const declineInvite = async () => {
-    if (!user || !pendingInvite) return;
-    try {
-      await deleteDoc(doc(db, 'invitations', user.email!.toLowerCase()));
-      setPendingInvite(null);
-    } catch (error) {
-      console.error("Error declining invite:", error);
       throw error;
     }
   };
@@ -728,17 +741,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         userData,
         isAdmin,
+        isPlatformAdmin,
         loading,
         error,
-        pendingInvite,
         farmEnabledModules,
         refreshFarmModules,
+        farmCropPacks,
+        refreshFarmCropPacks,
         signInWithInvitePin,
         createFarm,
         completeFarmSignIn,
+        signInWithGoogle,
         logout,
-        acceptInvite,
-        declineInvite,
         agreeToTerms,
         hasModule,
         mistLocked,

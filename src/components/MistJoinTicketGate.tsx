@@ -14,6 +14,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDownToLine, Loader2, Ticket, Wifi } from 'lucide-react';
 
+import { FreenetHowItWorksButton } from './FreenetHowItWorks';
 import { useAuth } from '../contexts/AuthContext';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import { isMistFarmSessionActive } from '../mist/mistFarmSession.ts';
@@ -180,9 +181,13 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
             )}
           </p>
           <p className="text-xs text-slate-500">
-            Ask the farm owner for the short ticket from their <strong>Send this farm</strong>{' '}
-            screen. It looks like <code className="font-mono">{JOIN_TICKET_PREFIX}-K7M2-9Q4X</code>.
+            You already typed the paper FarmCode. This ticket is the second piece — ask the farm
+            owner for the short code from their <strong>Send this farm</strong> screen. It looks
+            like <code className="font-mono">{JOIN_TICKET_PREFIX}-K7M2-9Q4X</code>.
           </p>
+          <div className="pt-1">
+            <FreenetHowItWorksButton />
+          </div>
         </div>
 
         {error && (

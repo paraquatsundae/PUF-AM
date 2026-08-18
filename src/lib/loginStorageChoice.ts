@@ -6,7 +6,8 @@
  * to one of the two backends. Keeping that decision here (rather than inline in
  * `Login.tsx`) means the routing can be tested without standing up Firebase.
  *
- * See `Plans/MIST_NETWORK_STORAGE.md` and `Plans/DESKTOP_FREENET_PLUGIN.md` §8.3.
+ * See `Plans/MIST_NETWORK_STORAGE.md`, `Plans/FIREBASE_BILLING.md` §2–§4,
+ * `Plans/DESKTOP_FREENET_PLUGIN.md` §8.3.
  */
 
 import type { FarmStoreBackendPreference } from '../mist/farmStoreBackend.ts';
@@ -24,13 +25,28 @@ export type FreenetOptionState =
   /** Plain web / Capacitor build: Firebase is the only path, as in production. */
   | 'hidden';
 
-export type LoginStep = 'choose' | 'firebase' | 'freenet';
+export type LoginStep =
+  | 'choose'
+  | 'cloud-options'
+  | 'cloud-byo'
+  | 'cloud-byo-setup'
+  | 'cloud-byo-config'
+  | 'cloud-byo-rules'
+  | 'cloud-subscribe'
+  | 'firebase'
+  | 'freenet-explain';
 
 export function freenetOptionState(input: {
   mistEnabled: boolean;
   desktop: boolean;
+  /**
+   * `npm run dev` on this laptop. A fresh operator must be able to start a
+   * farm with no Firebase and no enrollment code — the production web build
+   * still hides Freenet unless the mist flag is baked in.
+   */
+  workshopHub?: boolean;
 }): FreenetOptionState {
-  if (input.mistEnabled) return 'available';
+  if (input.mistEnabled || input.workshopHub) return 'available';
   return input.desktop ? 'needs-setting' : 'hidden';
 }
 
@@ -43,8 +59,11 @@ export function initialLoginStep(input: {
   freenet: FreenetOptionState;
   welcomeBack: boolean;
   backend: FarmStoreBackendPreference;
+  /** This device already pasted a bring-your-own Firebase config. */
+  byoConfigured?: boolean;
 }): LoginStep {
-  if (input.freenet === 'hidden') return 'firebase';
+  if (input.byoConfigured) return 'firebase';
   if (input.welcomeBack && input.backend === 'firebase') return 'firebase';
+  if (input.freenet === 'hidden') return 'cloud-options';
   return 'choose';
 }

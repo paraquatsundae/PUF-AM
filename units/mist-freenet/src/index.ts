@@ -144,3 +144,50 @@ export type { FreenetPeerStatus } from './freenet-peer.ts';
 
 export { isMistAeadEnvelope, assertCiphertextForFreenet } from './ciphertext-guard.ts';
 export type { AssertCiphertextOptions } from './ciphertext-guard.ts';
+
+export {
+  FREENET02_MAX_BLOB_BYTES,
+  PACK_CONTRACT_CODE_HASH_B58,
+  assertBlobSize,
+  blake3Bytes,
+  packContractCodeHashBytes,
+  packContractInstanceId,
+  packInstanceIdBase58,
+  packParametersFromBlob,
+  unpackContractWasm,
+} from './freenet02-pack-id.ts';
+
+export {
+  decodeNativeHostResult,
+  encodeNativeAuthenticate,
+  encodeNativeClose,
+  encodeNativeContractPut,
+  encodeNativeContractUpdate,
+  encodeNativePackPut,
+  looksLikeAlreadyPublished,
+  toNativeFreenetWsUrl,
+} from './freenet02-native-bincode.ts';
+export type { NativeHostPutResult, NativePackPutFrame } from './freenet02-native-bincode.ts';
+
+export {
+  BrowserFreenetSlotClient,
+  FreenetNativeSlotError,
+  NATIVE_SLOT_DEFAULT_TIMEOUT_MS,
+} from './freenet02-native-slot.ts';
+export type {
+  BrowserFreenetSlotClientOptions,
+  NativeSlotPutInput,
+  NativeSlotPutResult,
+} from './freenet02-native-slot.ts';
+
+export {
+  BrowserFreenetPutClient,
+  FreenetNativePutError,
+  NATIVE_PUT_DEFAULT_TIMEOUT_MS,
+  buildPackPutRequest,
+} from './freenet02-native-put.ts';
+export type {
+  BrowserFreenetPutClientOptions,
+  NativePackPutInput,
+  NativePackPutResult,
+} from './freenet02-native-put.ts';

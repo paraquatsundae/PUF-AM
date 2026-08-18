@@ -12,7 +12,6 @@ import { Login } from './pages/Login';
 import { MistNewFarm } from './pages/MistNewFarm';
 import { MistRecoverFarm } from './pages/MistRecoverFarm';
 import { Dashboard } from './pages/Dashboard';
-import { InvitationOverlay } from './components/InvitationOverlay';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
 import { PrivacyGate } from './components/PrivacyGate';
@@ -23,12 +22,12 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { WorkshopModeBanner } from './components/WorkshopModeBanner';
 import { isWorkshopMode } from './lib/workshopMode';
 import { ModuleRoute } from './components/ModuleRoute';
+import { allPackRoutes } from './packs/registry';
 import { startFarmOutboxFlushListener } from './lib/flushFarmOutbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 startFarmOutboxFlushListener();
 
-const BlightRisk = React.lazy(() => import('./pages/BlightRisk').then(m => ({ default: m.BlightRisk })));
 const WaterMonitoring = React.lazy(() => import('./pages/WaterMonitoring').then(m => ({ default: m.WaterMonitoring })));
 const FarmManagement = React.lazy(() => import('./pages/FarmManagement').then(m => ({ default: m.FarmManagement })));
 const FarmDiary = React.lazy(() => import('./pages/FarmDiary').then(m => ({ default: m.FarmDiary })));
@@ -40,9 +39,6 @@ const Financials = React.lazy(() => import('./pages/Financials').then(m => ({ de
 const Admin = React.lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 const Settings = React.lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
 const FarmSetup = React.lazy(() => import('./pages/FarmSetup').then(m => ({ default: m.FarmSetup })));
-const WeatherEvents = React.lazy(() =>
-  import('./pages/WeatherEvents').then((m) => ({ default: m.WeatherEvents }))
-);
 
 function RouteFallback() {
   return (
@@ -116,7 +112,6 @@ export default function App() {
       <AuthProvider>
         <WorkshopModeBanner />
         <OfflineIndicator />
-        <InvitationOverlay />
         <BrowserRouter>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
@@ -138,22 +133,20 @@ export default function App() {
                     </ModuleRoute>
                   }
                 />
-                <Route
-                  path="weather-events"
-                  element={
-                    <ModuleRoute moduleId="dashboard">
-                      <WeatherEvents />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="blight"
-                  element={
-                    <ModuleRoute moduleId="blight">
-                      <BlightRisk />
-                    </ModuleRoute>
-                  }
-                />
+                {allPackRoutes().map((packRoute) => {
+                  const PackPage = packRoute.Page;
+                  return (
+                    <Route
+                      key={`pack:${packRoute.path}`}
+                      path={packRoute.path}
+                      element={
+                        <ModuleRoute moduleId={packRoute.moduleId}>
+                          <PackPage />
+                        </ModuleRoute>
+                      }
+                    />
+                  );
+                })}
                 <Route
                   path="water"
                   element={
