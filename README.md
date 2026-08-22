@@ -14,7 +14,6 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 
 **Local:** [http://localhost:3000](http://localhost:3000) via `npm run dev`.
 
-**AI Studio share link** (project collaborators): [https://ai.studio/apps/143a17d7-b431-4490-8302-3a5ff176bb96](https://ai.studio/apps/143a17d7-b431-4490-8302-3a5ff176bb96)
 
 ## Paddock workflow
 
