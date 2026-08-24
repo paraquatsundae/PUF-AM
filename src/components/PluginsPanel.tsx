@@ -172,9 +172,9 @@ export function PluginsPanel({
           Plugins
         </h2>
         <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
-          Install optional tools for this farm — crop packs (for example walnut blight today; apple
-          and other packs later) and network plugins such as Freenet. Grouped by category so an
-          orchardist only opens what they need. Fine-grained nav toggles stay under{' '}
+          Install optional tools for this farm — crop packs (blight, chill, drying) and general
+          packs (water, nutrition, harvest). Freenet is under Network & storage. Fine-grained nav
+          toggles stay under{' '}
           <Link to="/farm-management" className="text-emerald-700 font-semibold hover:underline">
             Farm management → Modules
           </Link>

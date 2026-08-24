@@ -2,14 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyRound, Loader2, Plus, Ban, Copy, Check, Share2 } from 'lucide-react';
 import {
   MODULE_LABELS,
-  CHILL_PACK_MODULES,
-  WALNUT_PACK_MODULES,
   WORK_MODULES,
   clampModulesToFarm,
   presetsForFarm,
   type FarmModuleId,
   type ModulePreset,
 } from '../../shared/auth/farmModules';
+import { packModulesToExclude } from '../../shared/farm/cropPacks';
 import {
   createInvitePin,
   listInvitePins,
@@ -90,15 +89,20 @@ function ModuleChecklist({
 }
 
 export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
-  const { farmEnabledModules, userData } = useAuth();
+  const { farmEnabledModules, farmCropPacks, userData } = useAuth();
   const hasWalnutPack = useWalnutPack();
   const hasChillPack = useChillPack();
   const packExclude = useMemo(
-    () => [
-      ...(hasWalnutPack ? [] : WALNUT_PACK_MODULES),
-      ...(hasChillPack ? [] : CHILL_PACK_MODULES),
-    ],
-    [hasWalnutPack, hasChillPack]
+    () =>
+      packModulesToExclude(
+        farmCropPacks,
+        {
+          walnut_blight: hasWalnutPack,
+          chill_portions: hasChillPack,
+        },
+        farmEnabledModules
+      ),
+    [farmCropPacks, farmEnabledModules, hasWalnutPack, hasChillPack]
   );
   const grantCatalog = useMemo(
     () => farmEnabledModules.filter((m) => !packExclude.includes(m)),

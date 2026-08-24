@@ -17,12 +17,12 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 
 ## Paddock workflow
 
-1. **Farm setup** — enterprises, dryers, seasonal water allocation (ML), irrigation method (rarely changes).
+1. **Farm setup** — enterprises, people, mapped blocks (rarely changes).
 2. **Farm map** — draw paddocks/blocks, drop issue pins, optional offline basemap pack.
 3. **Farm diary** — plans, sprays, irrigation, nutrition applications, and work (system of record).
 4. **Blight risk** *(walnut blight pack)* — weather-linked infection risk when that crop pack is active.
-5. **Water & nutrition** — log applications to the diary; water budget uses Farm setup allocation.
-6. **Harvest & drying** — yield by area folder; drying sessions use configured dryers.
+5. **Water & nutrition** — log applications to the diary; water budget lives on the Water page.
+6. **Harvest / drying** — yield under Records; dryer sessions under Crop.
 
 Home shows open issues and plans (plus a blight snapshot when the walnut pack is on). Financials and team tools remain under Records / System.
 
@@ -30,11 +30,12 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 * **Farm map** — Areas (blocks / paddocks), pins, tracks; issue → diary plan loop; offline map packs (Capacitor).
 * **Farm diary** — Spray, water, nutrition, and work plans with filters and CSV export.
-* **Crop packs** — Optional tools installed by farm admins under **Settings → Plugins** (Install / Activate / Deactivate / Delete; grouped by category). **Walnut blight** and **Chill portions** ship first. Freenet is listed there under Network & storage. See [adding a crop pack](#adding-a-crop-pack) for developers.
-* **Water** — Irrigation logging + seasonal ML budget from Farm setup.
-* **Nutrition** — Application diary (product, rate, N/P/K); soil lab XLSX import deferred.
-* **Harvest & drying** — Per-block harvest folders; exponential-decay dryer moisture prediction.
-* **Farm setup** — One-time infrastructure (dryers, water right, irrigation method).
+* **Crop packs** — Optional tools installed by farm admins under **Settings → Plugins**. Crop tools: walnut blight, chill portions, drying. General: water, nutrition, harvest. Freenet is listed under Network & storage. See [adding a crop pack](#adding-a-crop-pack) for developers.
+* **Water** *(water pack)* — Irrigation logging + seasonal ML budget on the Water page.
+* **Nutrition** *(nutrition pack)* — Application diary (product, rate, N/P/K); soil lab XLSX import deferred.
+* **Harvest** *(harvest pack)* — Per-block yield folders under Records.
+* **Drying** *(drying pack)* — Dryer list and moisture sessions under Crop.
+* **Farm setup** — Farm type, people, mapped blocks, map highlights.
 * **Team** — Invite PIN auth, roles (admin / farmer / viewer); PIN presets clamp to farm modules and crop packs.
 
 ## Tech stack
@@ -99,25 +100,19 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 ## Adding a crop pack
 
-Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They are **not** Freenet host plugins ([`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md)).
+Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They are **not** Freenet host plugins ([`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md)). Unpacking a zip does not register a pack.
+
+**How-to (file list):** [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) — copy **chill portions**, not walnut blight.
 
 | Doc | Use |
 |-----|-----|
-| [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) | **Developer contract** (D1–D15), farm-admin lifecycle, acceptance checks |
-| [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Reference pack (walnut blight settings home) |
-| [`Plans/CHILL_PORTIONS_PLUGIN.md`](Plans/CHILL_PORTIONS_PLUGIN.md) | Chill portions pack (calculator + DPIRD hourly) |
-| [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md) | PR checklist when adding or changing a pack |
+| [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) | **Start here** — files to add, `plugin.json`, what Install already does |
+| [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) | Contract (D1–D15), farm-admin lifecycle, acceptance checks |
+| [`Plans/CHILL_PORTIONS_PLUGIN.md`](Plans/CHILL_PORTIONS_PLUGIN.md) | Template pack (dedicated settings doc) |
+| [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Walnut blight (legacy shared `model_params`) |
+| [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md) | PR checklist |
 
-**Minimum wiring for a new pack**
-
-1. Copy [`plugins/walnut_blight/`](plugins/walnut_blight/) (reference zip package: `plugin.json` + `engine.json`). Catalog in `shared/farm/cropPacks.ts` should **read** that package, not duplicate label/modules/defaults.
-2. UI registration in `src/packs/<id>/index.ts` + append to `PACK_UI_REGISTRY` in `src/packs/registry.ts` (routes, nav, surfaces).
-3. Pack surface (production knobs on the pack page — not Settings → Advanced).
-4. Firestore rules for pack settings fields; tests for lifecycle + registry.
-5. Pack a zip: `npm run plugins:pack -- plugins/<id>` → `plugins/<id>.zip` (gitignored). Verify with `npm run plugins:verify`.
-6. Open the PR with the [crop-pack template](.github/PULL_REQUEST_TEMPLATE/crop-pack.md).
-
-Categories live in `shared/farm/pluginCategories.ts`. Settings → Plugins groups crop packs and Freenet by category (`shared/farm/pluginsCatalog.ts`). On-disk packages: [`plugins/README.md`](plugins/README.md).
+On-disk packages: [`plugins/README.md`](plugins/README.md).
 
 ## Development roadmap
 

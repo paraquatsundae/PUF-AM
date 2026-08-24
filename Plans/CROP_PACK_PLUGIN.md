@@ -3,6 +3,7 @@
 **Product:** PUF-AM — Ag Manager  
 **Status:** Active — CP-00–CP-05 done (contract through developer PR checklist); first consumer walnut blight ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md))  
 **Date:** 2026-08-11  
+**Authors start here:** [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) (file list). This file is the contract, lifecycle, and history.  
 **Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet is a **network pack** ([`APK_FREENET_HOST.md`](APK_FREENET_HOST.md), [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md)) — a **different** word. Do not conflate.
 
 ---
@@ -161,7 +162,7 @@ A pack is **not loaded** until it is registered in the app catalog. For v1, regi
 | D3 | **`settingsDocId`** (`string \| null`) | Delete knows what to wipe; Deploy knows where to write |
 | D4 | **Primary route(s)** registered in the pack route table, wrapped in `ModuleRoute` | Nav only appears when module + pack active |
 | D5 | **Pack surface** for production knobs (not Settings → Advanced) | Admin finds controls next to the tool |
-| D6 | **Lifecycle hooks** (may be no-ops): `onInstall`, `onActivate`, `onDeactivate`, `onDelete` | System calls these so packs can seed defaults / clean up |
+| D6 | **Wipe list** on the def: `settingsDocId` + optional `settingsOwnedKeys` | Delete is declarative (`cropPackLifecycle.wipePackSettings`). No `onInstall` / `onDelete` hooks in v1 — seed defaults on first read of the pack page |
 | D7 | **Firestore rules** for any pack settings fields (`isValid…`) | Client writes stay legal |
 | D8 | **Tests**: catalog entry, activate adds modules, deactivate strips them, delete removes settings doc | Regressions break every pack |
 
@@ -180,14 +181,14 @@ A pack is **not loaded** until it is registered in the app catalog. For v1, regi
 |---|-------------|-------|
 | D13 | Engine under `shared/` + CF mirror + parity test | Only if Dashboard aggregates |
 | D14 | Research / sandbox subsection | Must not affect production path without an explicit label |
-| D15 | Seed defaults in `onInstall` / `onActivate` | e.g. write default settings doc |
+| D15 | Seed defaults on first read of the pack page | Do not add lifecycle hooks just to write a settings doc |
 
 ### Must not
 
 - Write farm-wide Settings dump for pack knobs  
 - Auto-enable always-on modules (`dashboard`, `farm_setup`, …)  
 - Bypass invite / role checks  
-- Delete non-pack diary or map data in `onDelete`  
+- Delete non-pack diary or map data when the pack is deleted  
 - Call itself a Freenet plugin in UI copy  
 
 ### Acceptance — “works with the rest of the system”
@@ -223,12 +224,9 @@ export type CropPackDef = {
   category: 'crop' | 'network' | 'generic';
   modules: FarmModuleId[];
   settingsDocId: string | null;
+  settingsOwnedKeys?: readonly string[];
   /** Soft/hard eligibility for Install button. */
   canInstall?: (ctx: CropPackLifecycleCtx) => { ok: boolean; hint?: string; hard?: boolean };
-  onInstall?: (ctx: CropPackLifecycleCtx) => Promise<void>;
-  onActivate?: (ctx: CropPackLifecycleCtx) => Promise<void>;
-  onDeactivate?: (ctx: CropPackLifecycleCtx) => Promise<void>;
-  onDelete?: (ctx: CropPackLifecycleCtx) => Promise<void>;
 };
 
 /** System helpers used by Settings → Plugins UI */
@@ -293,9 +291,9 @@ Route/panel registry (CP-04): each pack exports `{ path, Page, moduleId }` + nav
 
 **PR template (use when opening the PR):** [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](../.github/PULL_REQUEST_TEMPLATE/crop-pack.md)
 
-**Onboarding links:** [`README.md` → Adding a crop pack](../README.md#adding-a-crop-pack) · [`NAMING.md`](NAMING.md) §1 (crop pack ≠ Freenet) · [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) §0
+**Onboarding links:** [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) · [`README.md` → Adding a crop pack](../README.md#adding-a-crop-pack) · [`NAMING.md`](NAMING.md) §1 (crop pack ≠ Freenet) · [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) §0
 
-- [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (D1–D3, D6)  
+- [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (D1–D3, D6 wipe list)  
 - [ ] Modules + labels/blurbs  
 - [ ] `src/packs/<id>/index.ts` UI registration + entry in `PACK_UI_REGISTRY` (routes, nav, surfaces)  
 - [ ] Pack surface + production knobs (D5)  
@@ -347,6 +345,8 @@ Route/panel registry (CP-04): each pack exports `{ path, Page, moduleId }` + nav
 
 | Date | Slice | Notes |
 |------|-------|-------|
+| 2026-08-24 | Drying split | `harvest_drying` split: harvest (generic, Records) + drying (crop menu) |
+| 2026-08-24 | Ops packs | Water, nutrition, harvest extracted from core; Farm setup no longer hosts water/dryers |
 | 2026-08-13 | Zip | First-party `plugins/walnut_blight/` is catalog + engine defaults source; `npm run plugins:pack` |
 | 2026-08-12 | CP-02 | Settings → Plugins (categories); Farm Setup teaser; was Farm Setup Crop packs card |
 | 2026-08-11 | CP-05 | Developer onboarding: README section, NAMING terms, GitHub crop-pack PR template, DEVELOPER_NOTES link |

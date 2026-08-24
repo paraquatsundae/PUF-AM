@@ -15,7 +15,7 @@ export function About() {
         to: '/farm-setup',
         icon: Warehouse,
         title: '1. Farm setup',
-        blurb: 'Once: dryers, water allocation (ML), irrigation method. Areas come from the map.',
+        blurb: 'Once: farm type, people, mapped areas. Water and dryers live on their packs.',
         walnutOnly: false,
       },
       {
@@ -44,14 +44,14 @@ export function About() {
         to: '/water',
         icon: Droplets,
         title: hasWalnutPack ? '5. Water & nutrition' : '4. Water & nutrition',
-        blurb: 'Log irrigation and fertiliser applications to the diary. Budget uses Farm setup allocation.',
+        blurb: 'Log irrigation and fertiliser. Seasonal allocation lives on the Water page.',
         walnutOnly: false,
       },
       {
         to: '/harvest',
         icon: Tractor,
-        title: hasWalnutPack ? '6. Harvest & drying' : '5. Harvest & drying',
-        blurb: 'Yield by area folder; drying sessions pick configured dryers and source area.',
+        title: hasWalnutPack ? '6. Harvest' : '5. Harvest',
+        blurb: 'Yield by area folder. Drying is a separate crop pack under Crop.',
         walnutOnly: false,
       },
     ] as const

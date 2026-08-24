@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "water",
+  "version": "0.1.0",
+  "label": "Water",
+  "blurb": "Irrigation logging and seasonal water budget. Allocation and method live on the Water page.",
+  "category": "generic",
+  "modules": ["water"],
+  "settingsDocId": null,
+  "primaryPath": "/water",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

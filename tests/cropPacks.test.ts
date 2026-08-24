@@ -5,11 +5,16 @@ import {
   isPackActive,
   isPackInstalled,
   isPackModuleOffered,
+  allPackModuleIds,
+  defaultModulesWithoutCropPacks,
   listCropPacks,
   migrateLegacyChillPack,
   migrateLegacyPacks,
   migrateLegacyWalnutPack,
+  moduleListEquals,
+  offeredFarmModules,
   optionalOpsModules,
+  packModulesToExclude,
   packOwningModule,
   planActivatePack,
   planDeactivatePack,
@@ -17,8 +22,10 @@ import {
   planInstallPack,
   resolveFarmCropPacks,
   syncModulesWithCropPacks,
+  withPackModules,
+  withoutPackModules,
 } from '../shared/farm/cropPacks';
-import { defaultModulesWithoutCropPacks, resolveFarmEnabledModules } from '../shared/auth/farmModules';
+import { resolveFarmEnabledModules } from '../shared/auth/farmModules';
 
 describe('cropPacks catalog', () => {
   it('registers walnut blight with blight module, crop category, and owned settings keys', () => {
@@ -42,6 +49,69 @@ describe('cropPacks catalog', () => {
     expect(chill.settingsDocId).toBe('chill_portions');
     expect(chill.primaryPath).toBe('/weather-events');
     expect(chill.settingsOwnedKeys).toContain('weatherSource');
+  });
+
+  it('registers water, nutrition, and harvest as generic ops packs', () => {
+    const packs = listCropPacks();
+    const water = packs.find((p) => p.id === 'water')!;
+    const nutrition = packs.find((p) => p.id === 'nutrition')!;
+    const harvest = packs.find((p) => p.id === 'harvest')!;
+    const drying = packs.find((p) => p.id === 'drying')!;
+    expect(water.modules).toEqual(['water']);
+    expect(water.category).toBe('generic');
+    expect(water.settingsDocId).toBeNull();
+    expect(water.primaryPath).toBe('/water');
+    expect(nutrition.modules).toEqual(['nutrition']);
+    expect(nutrition.settingsDocId).toBeNull();
+    expect(harvest.modules).toEqual(['harvest']);
+    expect(harvest.category).toBe('generic');
+    expect(harvest.settingsDocId).toBeNull();
+    expect(harvest.primaryPath).toBe('/harvest');
+    expect(drying.modules).toEqual(['drying']);
+    expect(drying.category).toBe('crop');
+    expect(drying.settingsDocId).toBe('assets');
+    expect(drying.settingsOwnedKeys).toEqual(['dryers']);
+    expect(drying.primaryPath).toBe('/drying');
+  });
+
+  it('derives pack-owned modules from CROP_PACKS', () => {
+    const owned = allPackModuleIds();
+    expect(owned).toEqual(
+      expect.arrayContaining(['blight', 'chill', 'water', 'nutrition', 'harvest', 'drying'])
+    );
+    expect(owned).toHaveLength(
+      new Set(listCropPacks().flatMap((p) => p.modules)).size
+    );
+
+    const mods = defaultModulesWithoutCropPacks();
+    expect(mods).not.toContain('blight');
+    expect(mods).not.toContain('chill');
+    expect(mods).not.toContain('water');
+    expect(mods).not.toContain('nutrition');
+    expect(mods).not.toContain('harvest');
+    expect(mods).not.toContain('drying');
+    expect(mods).toContain('map');
+    expect(withPackModules(mods, 'walnut_blight')).toContain('blight');
+    expect(withoutPackModules(withPackModules(mods, 'walnut_blight'), 'walnut_blight')).not.toContain(
+      'blight'
+    );
+  });
+
+  it('excludes pack modules from PIN/join presets when the pack is not offered', () => {
+    expect(packModulesToExclude({})).toEqual(
+      expect.arrayContaining(['blight', 'chill', 'water', 'nutrition', 'harvest', 'drying'])
+    );
+    expect(
+      packModulesToExclude(
+        {
+          walnut_blight: { status: 'active', installedAt: '2026-01-01T00:00:00.000Z' },
+        },
+        { walnut_blight: true, chill_portions: false }
+      )
+    ).toEqual(expect.arrayContaining(['chill', 'water', 'nutrition', 'harvest', 'drying']));
+    expect(
+      packModulesToExclude({}, undefined, ['dashboard', 'map', 'water'])
+    ).not.toContain('water');
   });
 
   it('resolves and rejects junk cropPacks maps', () => {
@@ -92,6 +162,20 @@ describe('cropPack lifecycle plans', () => {
     );
     expect(synced).not.toContain('blight');
   });
+
+  it('offers active pack modules even when enabledModules omitted them', () => {
+    const packs = {
+      drying: { status: 'active' as const, installedAt: now, activatedAt: now },
+      harvest: { status: 'active' as const, installedAt: now, activatedAt: now },
+    };
+    const catalog = resolveFarmEnabledModules([...baseMods, 'harvest']);
+    expect(catalog).not.toContain('drying');
+    const offered = offeredFarmModules(catalog, packs);
+    expect(offered).toContain('drying');
+    expect(offered).toContain('harvest');
+    expect(offered).not.toContain('water');
+    expect(moduleListEquals(offered, offeredFarmModules(catalog, packs))).toBe(true);
+  });
 });
 
 describe('Farm Modules pack labeling helpers (CP-03)', () => {
@@ -104,6 +188,10 @@ describe('Farm Modules pack labeling helpers (CP-03)', () => {
     expect(optionalOpsModules()).toContain('map');
     expect(optionalOpsModules()).not.toContain('blight');
     expect(optionalOpsModules()).not.toContain('chill');
+    expect(optionalOpsModules()).not.toContain('water');
+    expect(optionalOpsModules()).not.toContain('nutrition');
+    expect(optionalOpsModules()).not.toContain('harvest');
+    expect(optionalOpsModules()).not.toContain('drying');
   });
 
   it('offers pack modules only when pack is active', () => {
@@ -269,5 +357,63 @@ describe('migrateLegacyPacks', () => {
     expect(result.cropPacks.chill_portions?.status).toBe('active');
     expect(result.modules).toContain('blight');
     expect(result.modules).toContain('chill');
+    expect(result.cropPacks.water).toBeUndefined();
+  });
+
+  it('installs water, nutrition, and harvest when those modules were already on the farm', () => {
+    const result = migrateLegacyPacks({
+      cropPacks: {},
+      modules: [...defaultModulesWithoutCropPacks(), 'water', 'nutrition', 'harvest'],
+      profile: {
+        enterprises: ['broadacre'],
+        livestockEnabled: false,
+        defaultSpeciesId: '',
+      },
+      nowIso: '2026-08-24T12:00:00.000Z',
+    });
+    expect(result.migrated).toBe(true);
+    expect(result.cropPacks.water?.status).toBe('active');
+    expect(result.cropPacks.nutrition?.status).toBe('active');
+    expect(result.cropPacks.harvest?.status).toBe('active');
+    expect(result.cropPacks.drying?.status).toBe('active');
+    expect(result.modules).toEqual(expect.arrayContaining(['water', 'nutrition', 'harvest', 'drying']));
+  });
+
+  it('splits a legacy harvest_drying pack into harvest + drying', () => {
+    const result = migrateLegacyPacks({
+      cropPacks: {
+        harvest_drying: {
+          status: 'active',
+          installedAt: '2026-08-24T00:00:00.000Z',
+          activatedAt: '2026-08-24T00:00:00.000Z',
+        },
+      },
+      modules: [...defaultModulesWithoutCropPacks(), 'harvest'],
+      nowIso: '2026-08-24T13:00:00.000Z',
+    });
+    expect(result.migrated).toBe(true);
+    expect(result.cropPacks.harvest?.status).toBe('active');
+    expect(result.cropPacks.drying?.status).toBe('active');
+    expect('harvest_drying' in result.cropPacks).toBe(false);
+    expect(result.modules).toContain('harvest');
+    expect(result.modules).toContain('drying');
+  });
+
+  it('installs drying when harvest pack is already present and drying is not', () => {
+    const result = migrateLegacyPacks({
+      cropPacks: {
+        harvest: {
+          status: 'active',
+          installedAt: '2026-08-24T00:00:00.000Z',
+          activatedAt: '2026-08-24T00:00:00.000Z',
+        },
+      },
+      modules: [...defaultModulesWithoutCropPacks(), 'harvest'],
+      nowIso: '2026-08-24T14:00:00.000Z',
+    });
+    expect(result.migrated).toBe(true);
+    expect(result.cropPacks.harvest?.status).toBe('active');
+    expect(result.cropPacks.drying?.status).toBe('active');
+    expect(result.modules).toContain('drying');
   });
 });

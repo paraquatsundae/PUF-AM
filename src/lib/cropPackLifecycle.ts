@@ -7,11 +7,13 @@ import {
   getCropPack,
   isCropPackId,
   migrateLegacyPacks,
+  moduleListEquals,
   planActivatePack,
   planDeactivatePack,
   planDeletePack,
   planInstallPack,
   resolveFarmCropPacks,
+  syncModulesWithCropPacks,
   type CropPackId,
   type CropPackLifecycleCtx,
   type FarmCropPacksMap,
@@ -26,12 +28,15 @@ export type CropPackLifecycleResult = {
 };
 
 async function readFarmPackState(farmId: string): Promise<{
+  /** Raw map — migrate must see dropped ids such as harvest_drying. */
+  cropPacksRaw: unknown;
   cropPacks: FarmCropPacksMap;
   modules: FarmModuleId[];
 }> {
   const snap = await getDoc(doc(db, 'farms', farmId));
   const data = snap.data() || {};
   return {
+    cropPacksRaw: data.cropPacks,
     cropPacks: resolveFarmCropPacks(data.cropPacks),
     modules: resolveFarmEnabledModules(data.enabledModules),
   };
@@ -77,17 +82,21 @@ export async function ensureLegacyPacksMigrated(
 ): Promise<CropPackLifecycleResult & { migrated: boolean }> {
   const state = await readFarmPackState(ctx.farmId);
   const result = migrateLegacyPacks({
-    cropPacks: state.cropPacks,
+    cropPacks: state.cropPacksRaw,
     modules: state.modules,
     profile: ctx.profile,
     blocks: ctx.blocks,
   });
-  if (!result.migrated) {
-    return { ...result, migrated: false };
+  const modules = syncModulesWithCropPacks(result.modules, result.cropPacks);
+  const modulesChanged = !moduleListEquals(state.modules, modules);
+  if (!result.migrated && !modulesChanged) {
+    return { cropPacks: result.cropPacks, modules, migrated: false };
   }
-  await writeCropPacks(ctx.farmId, result.cropPacks);
-  const modules = await updateFarmModules(result.modules);
-  return { cropPacks: result.cropPacks, modules, migrated: true };
+  if (result.migrated) {
+    await writeCropPacks(ctx.farmId, result.cropPacks);
+  }
+  const written = await updateFarmModules(modules);
+  return { cropPacks: result.cropPacks, modules: written, migrated: true };
 }
 
 export async function installCropPack(

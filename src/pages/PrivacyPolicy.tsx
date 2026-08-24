@@ -48,7 +48,7 @@ export function PrivacyPolicy() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-800">Farm Data</h3>
-                  <p className="text-slate-600">We store orchard data you enter: block boundaries, issue pins, Farm Diary events (sprays, irrigation, nutrition applications, work plans), harvest and drying records, and Farm setup values (dryers, water allocation, irrigation method).</p>
+                  <p className="text-slate-600">We store orchard data you enter: block boundaries, issue pins, Farm Diary events (sprays, irrigation, nutrition applications, work plans), harvest and drying records, water allocation and irrigation method, dryer list, and Farm setup values (farm type, people, map highlights).</p>
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-800">Location Data</h3>

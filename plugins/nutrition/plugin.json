@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "nutrition",
+  "version": "0.1.0",
+  "label": "Nutrition",
+  "blurb": "Fertiliser application diary. Lab import stays deferred.",
+  "category": "generic",
+  "modules": ["nutrition"],
+  "settingsDocId": null,
+  "primaryPath": "/nutrition",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

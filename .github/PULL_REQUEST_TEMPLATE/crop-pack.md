@@ -2,8 +2,9 @@
 
 Use this template when adding or changing a **crop pack** (not a Freenet host plugin).
 
+**How-to:** [`Plans/PLUGIN_AUTHORING.md`](../../Plans/PLUGIN_AUTHORING.md)  
 **Contract:** [`Plans/CROP_PACK_PLUGIN.md`](../../Plans/CROP_PACK_PLUGIN.md)  
-**Reference pack:** [`Plans/BLIGHT_ENGINE_PLUGIN.md`](../../Plans/BLIGHT_ENGINE_PLUGIN.md) · `src/packs/walnut_blight/`  
+**Template pack:** chill portions (`plugins/chill_portions/`, `src/packs/chill_portions/`) — not walnut blight  
 **Naming:** crop pack ≠ Freenet plugin — [`Plans/NAMING.md`](../../Plans/NAMING.md) §1
 
 ### Checklist

@@ -10,7 +10,7 @@
 ### Adding or changing a crop pack?
 
 Use the dedicated template: [crop-pack.md](PULL_REQUEST_TEMPLATE/crop-pack.md)  
-(Contract: [`Plans/CROP_PACK_PLUGIN.md`](../Plans/CROP_PACK_PLUGIN.md) — not a Freenet plugin.)
+(How-to: [`Plans/PLUGIN_AUTHORING.md`](../Plans/PLUGIN_AUTHORING.md). Not a Freenet plugin.)
 
 ## Test plan
 

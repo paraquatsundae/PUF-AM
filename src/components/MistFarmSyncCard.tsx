@@ -47,12 +47,8 @@ import {
   type JoinPreset,
   type JoinPresetId,
 } from '../../shared/sync/joinGrant.ts';
-import {
-  MODULE_LABELS,
-  CHILL_PACK_MODULES,
-  WALNUT_PACK_MODULES,
-  type FarmModuleId,
-} from '../../shared/auth/farmModules.ts';
+import { MODULE_LABELS, type FarmModuleId } from '../../shared/auth/farmModules.ts';
+import { packModulesToExclude } from '../../shared/farm/cropPacks.ts';
 import { useWalnutPack } from '../hooks/useWalnutPack';
 import { useChillPack } from '../hooks/useChillPack';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
@@ -203,7 +199,7 @@ const TONE_CLASS: Record<Readiness['tone'], string> = {
 };
 
 export function MistFarmSyncCard() {
-  const { userData, farmEnabledModules } = useAuth();
+  const { userData, farmEnabledModules, farmCropPacks } = useAuth();
   const farmId = userData?.farmId;
   const desktop = getDesktopBridge();
   const hasWalnutPack = useWalnutPack();
@@ -216,12 +212,16 @@ export function MistFarmSyncCard() {
   const presets = useMemo(
     () =>
       joinPresetsForFarm(farmEnabledModules, {
-        excludeModules: [
-          ...(hasWalnutPack ? [] : WALNUT_PACK_MODULES),
-          ...(hasChillPack ? [] : CHILL_PACK_MODULES),
-        ],
+        excludeModules: packModulesToExclude(
+          farmCropPacks,
+          {
+            walnut_blight: hasWalnutPack,
+            chill_portions: hasChillPack,
+          },
+          farmEnabledModules
+        ),
       }),
-    [farmEnabledModules, hasWalnutPack, hasChillPack],
+    [farmEnabledModules, farmCropPacks, hasWalnutPack, hasChillPack],
   );
 
   /**

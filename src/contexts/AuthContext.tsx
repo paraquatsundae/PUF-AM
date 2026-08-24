@@ -40,6 +40,7 @@ import {
   sanitizeModules,
 } from '../../shared/auth/farmModules';
 import {
+  offeredFarmModules,
   resolveFarmCropPacks,
   type FarmCropPacksMap,
 } from '../../shared/farm/cropPacks';
@@ -682,9 +683,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasModule = (moduleId: FarmModuleId) => {
     if (!userData) return false;
-    return effectiveModules(userData.role, userData.modules, farmEnabledModules).includes(
-      moduleId
-    );
+    const offered = offeredFarmModules(farmEnabledModules, farmCropPacks);
+    return effectiveModules(userData.role, userData.modules, offered).includes(moduleId);
   };
 
   const unlockMistSession = async (devicePin: string): Promise<boolean> => {

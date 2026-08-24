@@ -2,12 +2,12 @@ import type { Express, Request, Response } from 'express';
 import {
   allFarmModules,
   clampModulesToFarm,
-  defaultModulesWithoutCropPacks,
   effectiveModules,
   resolveFarmEnabledModules,
   sanitizeModules,
   type FarmModuleId,
 } from '../shared/auth/farmModules.ts';
+import { defaultModulesWithoutCropPacks } from '../shared/farm/cropPacks.ts';
 import {
   encodeGeohash,
   geohashNeighbors,

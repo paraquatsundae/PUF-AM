@@ -15,7 +15,8 @@ Related plans (not duplicated here):
 | [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers; Freenet as an in-app plugin (Electron frozen) |
 | [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) | Android/Capacitor: two-app reader, hub, gateway (history). Host-in-APK is [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) |
 | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | Freenet **network pack** inside the APK — isolated process, Join + Send; native PUT spike |
-| [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Crop-pack UI/settings seam (not Freenet) — gates, modules, pack surfaces for other developers |
+| [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | How to add a crop pack (file list). Start here; contract is `CROP_PACK_PLUGIN.md` |
+| [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Crop-pack UI/settings seam (not Freenet) — gates, modules, pack surfaces |
 | [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) | Walnut blight pack settings home (reference crop pack) |
 | [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) | Contribute vs communicate, what is published, what is sealed, what is not on Freenet |
 | [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Start / send / join / People as the code stands (experimental) |

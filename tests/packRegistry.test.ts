@@ -43,7 +43,16 @@ describe('pack UI registry (CP-04)', () => {
     expect(allPackNavItems().some((i) => i.href === '/blight')).toBe(true);
     expect(packRouteModuleIds()).toContain('blight');
     expect(packRouteModuleIds()).toContain('chill');
+    expect(packRouteModuleIds()).toContain('water');
+    expect(packRouteModuleIds()).toContain('nutrition');
+    expect(packRouteModuleIds()).toContain('harvest');
+    expect(packRouteModuleIds()).toContain('drying');
     expect(allPackNavItems().some((i) => i.href === '/weather-events')).toBe(true);
+    expect(allPackNavItems().some((i) => i.href === '/water')).toBe(true);
+    expect(allPackNavItems().some((i) => i.href === '/harvest' && i.groupId === 'records')).toBe(
+      true
+    );
+    expect(allPackNavItems().some((i) => i.href === '/drying' && i.groupId === 'crop')).toBe(true);
     expect(allPackRoutes().length).toBe(PACK_UI_REGISTRY.flatMap((p) => p.routes).length);
   });
 });

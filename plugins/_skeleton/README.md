@@ -1,8 +1,13 @@
 # Example plugin package (skeleton)
 
-Copy this folder, rename the directory and `id` in `plugin.json`, then either:
+This folder is **`plugin.json` only**. It does not wire catalog, modules, routes, or Firestore.
 
-- Zip the **contents** (so `plugin.json` is at the zip root), name the file `{id}.zip`, and place it in `plugins/`, or
-- Run `npm run plugins:verify -- plugins/_skeleton`
+**To add a working pack:** [`Plans/PLUGIN_AUTHORING.md`](../../Plans/PLUGIN_AUTHORING.md) — copy `plugins/chill_portions/` and `src/packs/chill_portions/`.
 
-`category` is required. Use `generic` when nothing more specific fits.
+To check this skeleton as a package:
+
+```bash
+npm run plugins:verify -- plugins/_skeleton
+```
+
+`category` is required. Use `generic` when nothing more specific fits. Do not use `network` (Freenet).

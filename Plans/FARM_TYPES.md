@@ -48,7 +48,7 @@ Status: **structure in place** (catalog + Farm Setup + naming sheet). Map infras
 
 ON when any mapped area has `species === 'walnut'`, or profile is `orchard_tree` + `defaultSpeciesId === 'walnut'`, or (legacy) no `enterprises` array yet and blight is still in `enabledModules`.
 
-New farms: empty `enterprises`, modules from `defaultModulesWithoutCropPacks()` (no blight). Saving Farm setup with walnuts calls `withWalnutPackModules`; without walnuts calls `withoutWalnutPackModules`.
+New farms: empty `enterprises`, modules from `defaultModulesWithoutCropPacks()` in `cropPacks.ts` (strips every `CROP_PACKS` module). Pack modules are added only by Install / Activate (or one-time legacy migrate).
 
 General pack seam (gates, modules, settings surface for the next packs): [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md). Blight settings home: [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md).
 

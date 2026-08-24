@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Tractor, Plus, Trash2, X, ChevronDown, ChevronRight, Weight, Thermometer } from 'lucide-react';
+import { Plus, Trash2, X, ChevronDown, ChevronRight, Weight } from 'lucide-react';
 import { useAuth, OperationType, handleFirestoreError } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import {
@@ -14,8 +14,6 @@ import {
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useMapStore } from '../lib/mapStore';
-import { DryerPerformance } from '../components/DryerPerformance';
-import { cn } from '../lib/utils';
 
 interface HarvestRecord {
   id: string;
@@ -36,7 +34,6 @@ export function Harvest() {
   const { blocks, loadData, isLoaded } = useMapStore();
   const [records, setRecords] = useState<HarvestRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'records' | 'dryer'>('records');
   const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null);
   const [logForBlockId, setLogForBlockId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -163,13 +160,9 @@ export function Harvest() {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4 pb-24 lg:pb-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Harvest & drying</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Harvest</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Log yield by block. Dryers are configured in{' '}
-            <Link to="/farm-setup" className="text-emerald-700 font-medium hover:underline">
-              Farm setup
-            </Link>
-            .
+            Log yield by block. Dryer sessions live under Drying in Crop.
           </p>
         </div>
         <div className="text-right">
@@ -180,30 +173,7 @@ export function Harvest() {
         </div>
       </div>
 
-      <div className="inline-flex w-full sm:w-auto items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg">
-        {(
-          [
-            { id: 'records' as const, icon: Tractor, title: 'Harvest' },
-            { id: 'dryer' as const, icon: Thermometer, title: 'Drying' },
-          ] as const
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
-              activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-            )}
-          >
-            <tab.icon className={cn('w-3.5 h-3.5', activeTab === tab.id ? 'text-emerald-600' : 'text-slate-400')} />
-            {tab.title}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'records' ? (
-        <div className="space-y-2">
+      <div className="space-y-2">
           {loading ? (
             <p className="text-xs text-slate-400 py-8 text-center">Loading harvests…</p>
           ) : blockList.length === 0 ? (
@@ -340,11 +310,6 @@ export function Harvest() {
               );
             })}
         </div>
-      ) : (
-        <DryerPerformance
-          blocks={blocks.map((b) => ({ id: b.id, name: b.name, cultivar: b.cultivar || '' }))}
-        />
-      )}
 
       {logForBlockId && (
         <div className="fixed inset-0 z-[6000] flex items-end sm:items-center justify-center p-0 sm:p-4">

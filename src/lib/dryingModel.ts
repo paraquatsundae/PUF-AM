@@ -13,7 +13,7 @@ export interface TempReading {
 export interface DryingSession {
   id: string;
   binNumber: string;
-  /** Farm setup dryer id when chosen from configured dryers. */
+  /** Drying pack dryer id when chosen from configured dryers. */
   dryerId?: string;
   blockId?: string;
   harvestRecordId?: string;

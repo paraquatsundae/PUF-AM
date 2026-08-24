@@ -12,7 +12,7 @@ Packaging sizes as of 12 Aug 2026: AppImage **~157 MB**, Windows portable **~103
 
 Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** (`.pufom`, `pufom_*`, `_pufom-sync._tcp`); Android **`com.sentinut.farm`** and **`sentinut_*`** storage are frozen for continuity. Rebrand checklist: [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md).
 
-**Crop packs / Plugins** (Settings → Plugins; Install / Activate / Deactivate / Delete; developer contract): [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) · categories `shared/farm/pluginCategories.ts` · catalog `shared/farm/cropPacks.ts` (reads [`plugins/walnut_blight/`](plugins/walnut_blight/)) · **zip drop folder** `plugins/` (`plugin.json` + optional `engine.json`, `npm run plugins:verify|unpack|pack|list`) · UI `src/components/PluginsPanel.tsx` · PR checklist [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md). Freenet is listed under Network & storage (not a crop-pack Install).
+**Crop packs / Plugins** (Settings → Plugins; Install / Activate / Deactivate / Delete): **how-to** [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) · contract [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) · catalog `shared/farm/cropPacks.ts` (reads `plugins/<id>/`) · zip drop `plugins/` (`npm run plugins:verify|unpack|pack|list`) · UI `src/components/PluginsPanel.tsx` · PR [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md). Freenet is listed under Network & storage (not a crop-pack Install).
 
 ### Mist network & storage (experimental)
 

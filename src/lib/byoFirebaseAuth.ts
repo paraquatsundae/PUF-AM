@@ -25,11 +25,8 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import {
-  defaultModulesWithoutCropPacks,
-  type FarmModuleId,
-  type FarmRole,
-} from '../../shared/auth/farmModules';
+import { type FarmModuleId, type FarmRole } from '../../shared/auth/farmModules';
+import { defaultModulesWithoutCropPacks } from '../../shared/farm/cropPacks';
 import {
   BYO_JOIN_TICKETS,
   byoAuthCredentials,

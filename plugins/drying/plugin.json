@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "drying",
+  "version": "0.1.0",
+  "label": "Drying",
+  "blurb": "Dryer list and moisture sessions. Crop menu — not Farm setup.",
+  "category": "crop",
+  "modules": ["drying"],
+  "settingsDocId": "assets",
+  "settingsOwnedKeys": ["dryers"],
+  "primaryPath": "/drying",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

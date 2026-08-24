@@ -15,11 +15,8 @@ import {
   readJoinGrant,
 } from '../shared/sync/joinGrant.ts';
 import { parseJoinManifestV2 } from '../shared/sync/joinTicket.ts';
-import {
-  WALNUT_PACK_MODULES,
-  allFarmModules,
-  effectiveModules,
-} from '../shared/auth/farmModules.ts';
+import { allFarmModules, effectiveModules } from '../shared/auth/farmModules.ts';
+import { getCropPack } from '../shared/farm/cropPacks.ts';
 
 const preset = (id: string) => {
   const found = findJoinPreset(id);
@@ -65,7 +62,7 @@ describe('join presets', () => {
 
   it('drops walnut-pack presets and modules on a farm without the pack', () => {
     const presets = joinPresetsForFarm(allFarmModules(), {
-      excludeModules: WALNUT_PACK_MODULES,
+      excludeModules: getCropPack('walnut_blight').modules,
     });
     for (const p of presets) expect(p.modules).not.toContain('blight');
     expect(presets.find((p) => p.id === 'crop_scout')?.modules).toEqual([
@@ -73,6 +70,7 @@ describe('join presets', () => {
       'chill',
       'water',
       'nutrition',
+      'drying',
     ]);
   });
 });
@@ -92,7 +90,7 @@ describe('buildJoinPermissions', () => {
     );
     expect(parsed?.permissions).toEqual({
       preset: 'crop_scout',
-      modules: 'dashboard,blight,chill,water,nutrition',
+      modules: 'dashboard,blight,chill,water,nutrition,drying',
     });
   });
 });

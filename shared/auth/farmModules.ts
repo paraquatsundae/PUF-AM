@@ -12,6 +12,7 @@ export const FARM_MODULE_IDS = [
   'water',
   'nutrition',
   'harvest',
+  'drying',
   'financials',
   'farm_management',
   'farm_setup',
@@ -31,33 +32,18 @@ export const MODULE_LABELS: Record<FarmModuleId, string> = {
   water: 'Water',
   nutrition: 'Nutrition',
   harvest: 'Harvest',
+  drying: 'Drying',
   financials: 'Financials',
   farm_management: 'Farm Management',
   farm_setup: 'Farm Setup',
   settings: 'Settings',
 };
 
-/** Crop-specific modules — only offer when the matching crop pack is on. */
-export const WALNUT_PACK_MODULES: FarmModuleId[] = ['blight'];
-export const CHILL_PACK_MODULES: FarmModuleId[] = ['chill'];
-const PACK_OWNED_MODULES: FarmModuleId[] = [...WALNUT_PACK_MODULES, ...CHILL_PACK_MODULES];
-
-/** Default catalog for a new farm (no crop packs assumed). */
-export function defaultModulesWithoutCropPacks(): FarmModuleId[] {
-  return FARM_MODULE_IDS.filter((id) => !PACK_OWNED_MODULES.includes(id));
-}
-
-/** Merge walnut pack modules into a catalog when the farm has walnuts. */
-export function withWalnutPackModules(modules: FarmModuleId[]): FarmModuleId[] {
-  const set = new Set<FarmModuleId>([...modules, ...WALNUT_PACK_MODULES]);
-  return FARM_MODULE_IDS.filter((id) => set.has(id));
-}
-
-/** Drop walnut pack modules when the farm has no walnuts. */
-export function withoutWalnutPackModules(modules: FarmModuleId[]): FarmModuleId[] {
-  const ban = new Set<FarmModuleId>(WALNUT_PACK_MODULES);
-  return resolveFarmEnabledModules(modules.filter((id) => !ban.has(id)));
-}
+/**
+ * Pack-owned modules (blight, chill, …) live on `CROP_PACKS` in
+ * `shared/farm/cropPacks.ts` (`allPackModuleIds`, `defaultModulesWithoutCropPacks`).
+ * Do not add a second owner list here.
+ */
 
 /** Always available for a farm (shell + team). Not toggleable off. */
 export const ALWAYS_ON_MODULES: FarmModuleId[] = [
@@ -78,12 +64,13 @@ export const MODULE_BLURBS: Record<FarmModuleId, string> = {
   diary: 'Spray, water, nutrition, work plans',
   blight: 'Walnut blight risk (walnut crop pack only)',
   chill: 'Dynamic Model chill portions (chill pack)',
-  water: 'Irrigation logging & budget',
-  nutrition: 'Fertiliser diary',
-  harvest: 'Harvest & drying',
+  water: 'Irrigation logging & budget (water pack)',
+  nutrition: 'Fertiliser diary (nutrition pack)',
+  harvest: 'Yield by block (harvest pack)',
+  drying: 'Dryer list and moisture sessions (drying pack)',
   financials: 'Costs & records',
   farm_management: 'Team, PINs, discovery',
-  farm_setup: 'Dryers, water right, infrastructure',
+  farm_setup: 'Farm type, people, map highlights',
   settings: 'Account & farm preferences',
 };
 
@@ -97,6 +84,7 @@ export const WORK_MODULES: FarmModuleId[] = [
   'water',
   'nutrition',
   'harvest',
+  'drying',
 ];
 
 export const FIELD_ONLY_MODULES: FarmModuleId[] = ['dashboard', 'map', 'diary'];
@@ -107,6 +95,7 @@ export const CROP_SCOUT_MODULES: FarmModuleId[] = [
   'chill',
   'water',
   'nutrition',
+  'drying',
 ];
 
 export const RECORDS_MODULES: FarmModuleId[] = [

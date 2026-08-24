@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "harvest",
+  "version": "0.1.0",
+  "label": "Harvest",
+  "blurb": "Yield by block. Dryers live on the Drying crop pack.",
+  "category": "generic",
+  "modules": ["harvest"],
+  "settingsDocId": null,
+  "primaryPath": "/harvest",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

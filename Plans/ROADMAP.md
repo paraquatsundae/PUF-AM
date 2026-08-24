@@ -668,6 +668,7 @@ Record every status change here (newest first).
 | [Plans/FREENET_OPERATOR_FLOW.md](./FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands |
 | [Plans/FREENET_HOLES.md](./FREENET_HOLES.md) | E-07 — how we address the seven known Freenet holes |
 | [Plans/APK_FREENET_HOST.md](./APK_FREENET_HOST.md) | E-08 — Freenet network pack inside the APK |
+| [Plans/PLUGIN_AUTHORING.md](./PLUGIN_AUTHORING.md) | How to add a crop pack (file list) |
 | [Plans/CROP_PACK_PLUGIN.md](./CROP_PACK_PLUGIN.md) | Crop-pack contract, Settings → Plugins, zip drop folder |
 | [Plans/SMOKE_TEST_LOG.md](./SMOKE_TEST_LOG.md) | Step 3 manual test results (create when running) |
 | [Plans/AUDIT_LOG.md](./AUDIT_LOG.md) | Step 8 npm audit output (create when running) |

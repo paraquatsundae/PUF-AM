@@ -1,5 +1,7 @@
 # PUF-AM local plugin packages
 
+**Adding a pack to the app:** [`Plans/PLUGIN_AUTHORING.md`](../Plans/PLUGIN_AUTHORING.md). A zip here is catalog + optional engine defaults. It does **not** register routes or appear under Settings → Plugins until `cropPacks.ts` lists the id.
+
 Drop **`{packId}.zip`** files here. Each zip must contain a root **`plugin.json`** (or one top-level folder `{packId}/plugin.json`).
 
 ```bash
@@ -24,7 +26,7 @@ assets/         # optional icons / static files
 
 1. **`category` is required** — `crop` | `network` | `generic` (use `generic` if unsure).
 2. Manifest **`id`** must match the unpacked folder name and the zip basename (`walnut_blight.zip` → `plugins/walnut_blight/`).
-3. v1: React UI still ships in the app (`src/packs/<id>/`). **Catalog + engine defaults** live here — see [`walnut_blight/`](walnut_blight/) and [`chill_portions/`](chill_portions/). Hot-load of React from a zip is out of scope.
+3. v1: React UI still ships in the app (`src/packs/<id>/`). **Catalog + engine defaults** live here — copy [`water/`](water/) for a thin ops pack, [`chill_portions/`](chill_portions/) for an engine pack. [`walnut_blight/`](walnut_blight/) is the legacy shared-doc pack. Hot-load of React from a zip is out of scope.
 4. Do **not** put Freenet host binaries here — that is `vendor/freenet/` / the Freenet system plugin.
 
 ```bash

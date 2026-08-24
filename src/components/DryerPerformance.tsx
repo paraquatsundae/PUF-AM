@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Maximize2, X, Save, TrendingDown, Clock, CheckCircle2, AlertCircle, Download, Thermometer } from 'lucide-react';
 import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Scatter, ResponsiveContainer, ReferenceLine } from 'recharts';
@@ -411,9 +410,9 @@ export function DryerPerformance({ blocks }: DryerPerformanceProps) {
           {dryers.length === 0 && (
             <>
               {' '}
-              <Link to="/farm-setup" className="text-emerald-700 font-medium hover:underline">
-                Add dryers in Farm setup
-              </Link>
+              <span className="text-emerald-800 font-medium">
+                Add dryers in the list above
+              </span>
               .
             </>
           )}
@@ -434,7 +433,7 @@ export function DryerPerformance({ blocks }: DryerPerformanceProps) {
           <h3 className="text-sm font-bold text-slate-900 mb-1">No drying sessions</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             {dryers.length === 0
-              ? 'Configure dryers once under Farm setup, then start a session here.'
+              ? 'Add dryers in the list above, then start a session here.'
               : 'Start a session to log moisture readings and predict target time.'}
           </p>
         </div>
@@ -605,8 +604,7 @@ export function DryerPerformance({ blocks }: DryerPerformanceProps) {
                    </select>
                    {dryers.length === 0 && (
                      <p className="text-[11px] text-slate-500">
-                       <Link to="/farm-setup" className="text-emerald-700 font-medium hover:underline">Farm setup</Link>
-                       {' '}→ add dryers first.
+                       Add dryers in the list above first.
                      </p>
                    )}
                  </div>

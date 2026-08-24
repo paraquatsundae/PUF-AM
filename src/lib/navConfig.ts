@@ -3,9 +3,6 @@ import {
   IconLayoutDashboard,
   IconMap,
   IconBook,
-  IconDroplets,
-  IconFlask2,
-  IconTractor,
   IconChartLine,
   IconUsers,
   IconSettings,
@@ -87,17 +84,13 @@ export const navGroups: NavGroup[] = [
     id: 'crop',
     name: 'Crop',
     icon: IconPlant,
-    items: mergePackNav('crop', [
-      { name: 'Water', href: '/water', icon: IconDroplets, moduleId: 'water' },
-      { name: 'Nutrition', href: '/nutrition', icon: IconFlask2, moduleId: 'nutrition' },
-    ]),
+    items: mergePackNav('crop', []),
   },
   {
     id: 'records',
     name: 'Records',
     icon: IconClipboardList,
     items: mergePackNav('records', [
-      { name: 'Harvest', href: '/harvest', icon: IconTractor, moduleId: 'harvest' },
       { name: 'Financials', href: '/financials', icon: IconChartLine, moduleId: 'financials' },
       { name: 'Farm Management', href: '/farm-management', icon: IconUsers, moduleId: 'farm_management' },
     ]),

@@ -24,6 +24,7 @@ import {
 import { cn } from '../lib/utils';
 import { WALNUT_DISTRICTS, SEASONS } from '../constants';
 import { fetchWithTimeout } from '../lib/weatherService';
+import { WaterAllocationPanel } from '../components/water/WaterAllocationPanel';
 
 interface Scenario {
   id: string;
@@ -451,12 +452,7 @@ export function WaterMonitoring() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Water</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Log irrigation and track seasonal use.
-            {' '}
-            <Link to="/farm-setup" className="text-sky-700 font-medium hover:underline">
-              Farm setup
-            </Link>
-            {' '}sets allocation & method.
+            Log irrigation and track seasonal use. Allocation and method are on this page.
           </p>
         </div>
         <button
@@ -529,12 +525,9 @@ export function WaterMonitoring() {
                     : 'Micro-sprinkler'}
           </strong>
         </span>
-        {(allocation <= 0 || farmSize <= 0) && (
-          <Link to="/farm-setup" className="text-sky-700 font-semibold hover:underline">
-            Configure in Farm setup
-          </Link>
-        )}
       </div>
+
+      <WaterAllocationPanel />
 
       {/* Log irrigation — diary only */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">

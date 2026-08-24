@@ -3,15 +3,12 @@ import {
   allFarmModules,
   ALWAYS_ON_MODULES,
   clampModulesToFarm,
-  defaultModulesWithoutCropPacks,
   effectiveModules,
   sanitizeModules,
   canWriteFarmData,
   hasModuleAccess,
   resolveFarmEnabledModules,
   presetsForFarm,
-  withWalnutPackModules,
-  withoutWalnutPackModules,
 } from '../shared/auth/farmModules';
 import { farmHasWalnutPack, farmShowsChillPortions } from '../shared/farm/farmTypes';
 
@@ -77,14 +74,6 @@ describe('farmModules', () => {
     expect(canWriteFarmData('farmer')).toBe(true);
   });
 
-  it('defaults new farms without blight crop pack', () => {
-    const mods = defaultModulesWithoutCropPacks();
-    expect(mods).not.toContain('blight');
-    expect(mods).not.toContain('chill');
-    expect(mods).toContain('map');
-    expect(withWalnutPackModules(mods)).toContain('blight');
-    expect(withoutWalnutPackModules(withWalnutPackModules(mods))).not.toContain('blight');
-  });
 });
 
 describe('farmHasWalnutPack', () => {

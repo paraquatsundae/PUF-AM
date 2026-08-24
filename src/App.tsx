@@ -28,11 +28,8 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 
 startFarmOutboxFlushListener();
 
-const WaterMonitoring = React.lazy(() => import('./pages/WaterMonitoring').then(m => ({ default: m.WaterMonitoring })));
 const FarmManagement = React.lazy(() => import('./pages/FarmManagement').then(m => ({ default: m.FarmManagement })));
 const FarmDiary = React.lazy(() => import('./pages/FarmDiary').then(m => ({ default: m.FarmDiary })));
-const Nutrition = React.lazy(() => import('./pages/Nutrition').then(m => ({ default: m.Nutrition })));
-const Harvest = React.lazy(() => import('./pages/Harvest').then(m => ({ default: m.Harvest })));
 const About = React.lazy(() => import('./pages/About').then(m => ({ default: m.About })));
 const OrchardMap = React.lazy(() => import('./pages/OrchardMap').then(m => ({ default: m.OrchardMap })));
 const Financials = React.lazy(() => import('./pages/Financials').then(m => ({ default: m.Financials })));
@@ -148,22 +145,6 @@ export default function App() {
                   );
                 })}
                 <Route
-                  path="water"
-                  element={
-                    <ModuleRoute moduleId="water">
-                      <WaterMonitoring />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="nutrition"
-                  element={
-                    <ModuleRoute moduleId="nutrition">
-                      <Nutrition />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
                   path="farm-management"
                   element={
                     <ModuleRoute moduleId="farm_management">
@@ -176,14 +157,6 @@ export default function App() {
                   element={
                     <ModuleRoute moduleId="diary">
                       <FarmDiary />
-                    </ModuleRoute>
-                  }
-                />
-                <Route
-                  path="harvest"
-                  element={
-                    <ModuleRoute moduleId="harvest">
-                      <Harvest />
                     </ModuleRoute>
                   }
                 />
