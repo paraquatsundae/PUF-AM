@@ -156,14 +156,8 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       }
     };
 
-    fetchIssues();
-
-    // Poll every 30 seconds
-    const intervalId = setInterval(() => {
-      fetchIssues();
-    }, 30000);
-
-    unsubscribeIssues = () => clearInterval(intervalId);
+    void fetchIssues();
+    unsubscribeIssues = null;
   },
 
   loadArchive: (farmId: string) => {
@@ -207,8 +201,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       }
     };
     void fetchArchive();
-    const intervalId = setInterval(() => void fetchArchive(), 60000);
-    unsubscribeArchive = () => clearInterval(intervalId);
+    unsubscribeArchive = null;
   },
 
   addIssue: async (farmId, issue) => {
@@ -292,7 +285,11 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       const archiveRef = doc(db, `farms/${farmId}/archived_issues`, id);
       
       const issueSnap = await getDoc(issueRef);
-      if (!issueSnap.exists()) return;
+      if (!issueSnap.exists()) {
+        const { open, archived } = localFieldIssues.archive(farmId, id, archivedBy);
+        set({ issues: open, archivedIssues: archived });
+        return;
+      }
       
       const issueData = issueSnap.data() as FieldIssue;
       const archivedData: FieldIssue = {
@@ -306,6 +303,8 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       batch.set(archiveRef, archivedData);
       batch.delete(issueRef);
       await batch.commit();
+      const { open, archived } = localFieldIssues.archive(farmId, id, archivedBy);
+      set({ issues: open, archivedIssues: archived });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `farms/${farmId}/issues`);
       throw error;
@@ -327,6 +326,8 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       batch.delete(issueRef);
       batch.delete(archiveRef);
       await batch.commit();
+      const { open, archived } = localFieldIssues.delete(farmId, id);
+      set({ issues: open, archivedIssues: archived });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `farms/${farmId}/issues`);
       throw error;

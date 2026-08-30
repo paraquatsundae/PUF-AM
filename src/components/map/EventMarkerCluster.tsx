@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import { escapeHtml } from '../../lib/escapeHtml';
 
 type ClusterEvent = {
   id: string;
@@ -49,9 +50,11 @@ export function EventMarkerCluster({ events, blockCenters }: EventMarkerClusterP
 
       const lines = [
         `<strong>${event.type === 'spray' ? 'Spray' : 'Irrigation'}</strong>`,
-        event.type === 'spray' && event.sprayType ? `Type: ${event.sprayType}` : '',
-        event.type === 'irrigation' && event.irrigationAmount != null ? `Amount: ${event.irrigationAmount}mm` : '',
-        event.notes ? `<em>${event.notes}</em>` : '',
+        event.type === 'spray' && event.sprayType ? `Type: ${escapeHtml(event.sprayType)}` : '',
+        event.type === 'irrigation' && event.irrigationAmount != null
+          ? `Amount: ${escapeHtml(String(event.irrigationAmount))}mm`
+          : '',
+        event.notes ? `<em>${escapeHtml(event.notes)}</em>` : '',
       ].filter(Boolean);
 
       marker.bindTooltip(lines.join('<br/>'), { direction: 'top', offset: [0, -16] });

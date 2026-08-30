@@ -91,69 +91,6 @@ export function EditInfraSidebar({
             <div className="text-xs text-slate-400 font-mono">
               {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
             </div>
-
-            {/* Phase 3.3: Live Telemetry Mock — sensors only */}
-            {pin.status === 'active' &&
-              (pin.type === 'weather' ||
-                pin.type === 'soil' ||
-                pin.type === 'irrigation') && (
-                <div className="mt-2 pt-2 border-t border-slate-100 flex gap-4">
-                  {pin.type === 'weather' && (
-                    <>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold">
-                          Temp
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">24.5°C</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold">
-                          Humidity
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">62%</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold">
-                          Wind
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">12 km/h</span>
-                      </div>
-                    </>
-                  )}
-                  {pin.type === 'soil' && (
-                    <>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold">
-                          Moisture
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">32% VWC</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold">
-                          Temp
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">18.2°C</span>
-                      </div>
-                    </>
-                  )}
-                  {pin.type === 'irrigation' && (
-                    <>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold">
-                          Flow Rate
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">45 L/h</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold">
-                          Pressure
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">2.1 bar</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
           </div>
         ))
       ) : (

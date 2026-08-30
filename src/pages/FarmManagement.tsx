@@ -9,7 +9,6 @@ import {
   Database,
   ShieldCheck,
   Building2,
-  Settings2,
   KeyRound,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -35,7 +34,7 @@ export function FarmManagement() {
   const farmId = userData?.farmId;
   const isAdmin = userData?.role === 'admin';
   
-  const [activeTab, setActiveTab] = useState<'team' | 'integrations' | 'settings' | 'safety'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'integrations' | 'safety'>('team');
   const {
     farm,
     members,
@@ -127,7 +126,6 @@ export function FarmManagement() {
           {[ 
             { id: 'team', label: 'Team & Access', icon: Users },
             { id: 'integrations', label: 'Data Integrations', icon: Database },
-            { id: 'settings', label: 'Farm Settings', icon: Settings2 },
             { id: 'safety', label: 'Safety', icon: ShieldCheck }
           ].map((tab) => (
             <button 
@@ -311,53 +309,6 @@ export function FarmManagement() {
               <p className="text-slate-500 max-w-md mx-auto font-medium leading-relaxed">
                 The DPIRD weather API integration is active. Other external API integrations (BOM, FarmBot) have been removed.
               </p>
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === 'settings' && (
-          <motion.div 
-            key="settings"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-10"
-          >
-            <div className="lg:col-span-8 space-y-8">
-              <div className="bg-white rounded-[40px] shadow-sm border border-slate-200 p-10">
-                <div className="flex items-center gap-4 mb-10">
-                  <div className="w-2 h-2 rounded-full bg-amber-500" />
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">General Farm Settings</h2>
-                </div>
-                
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between p-8 rounded-[32px] border border-slate-100 bg-slate-50/30 group hover:border-amber-500/30 transition-all">
-                    <div className="flex items-center gap-6">
-                      <div className="w-14 h-14 bg-white rounded-[20px] border border-slate-100 flex items-center justify-center shadow-sm">
-                        <ShieldCheck className="w-7 h-7 text-amber-500" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 text-lg">Subscription Plan</p>
-                        <p className="text-sm text-slate-400 font-medium">Current tier: <span className="text-amber-600 font-bold">{userData?.subscriptionTier || 'Free'}</span></p>
-                      </div>
-                    </div>
-                    <button className="text-amber-600 font-black text-xs uppercase tracking-widest hover:bg-amber-50 px-6 py-3 rounded-[18px] transition-all border border-transparent hover:border-amber-100">Upgrade Plan</button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-8 rounded-[32px] border border-slate-100 bg-slate-50/30 group hover:border-slate-300 transition-all">
-                    <div className="flex items-center gap-6">
-                      <div className="w-14 h-14 bg-white rounded-[20px] border border-slate-100 flex items-center justify-center shadow-sm">
-                        <Database className="w-7 h-7 text-slate-400" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900 text-lg">Data Governance</p>
-                        <p className="text-sm text-slate-400 font-medium">Download all farm records in CSV or JSON format.</p>
-                      </div>
-                    </div>
-                    <button className="bg-slate-900 text-white px-8 py-4 rounded-[20px] text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg">Export Data</button>
-                  </div>
-                </div>
-              </div>
             </div>
           </motion.div>
         )}

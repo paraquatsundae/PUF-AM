@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -94,17 +95,24 @@ export function useAdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'usage' && users.length > 0) {
-      const unsubscribes = users.map((u) =>
-        onSnapshot(doc(db, 'metrics_users', u.uid), (snap) => {
-          if (snap.exists()) {
-            setUserMetrics((prev) => ({ ...prev, [u.uid]: snap.data() }));
-          }
-        })
-      );
-      return () => unsubscribes.forEach((unsub) => unsub());
-    }
-  }, [activeTab, users]);
+    if (activeTab !== 'usage') return;
+    let cancelled = false;
+    void getDocs(collection(db, 'metrics_users'))
+      .then((snap) => {
+        if (cancelled) return;
+        const next: Record<string, unknown> = {};
+        snap.docs.forEach((d) => {
+          next[d.id] = d.data();
+        });
+        setUserMetrics(next);
+      })
+      .catch((error) => {
+        console.error('Error loading user metrics:', error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   const toggleWhitelistMode = async () => {
     try {

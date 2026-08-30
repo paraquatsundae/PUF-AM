@@ -28,4 +28,17 @@ describe('getPinTooltipHtml', () => {
     expect(html).toContain('Unnamed asset');
     expect(html).toContain('offline');
   });
+
+  it('escapes user-authored name', () => {
+    const html = getPinTooltipHtml({
+      id: 'p3',
+      name: '<b>x</b>',
+      type: 'dam',
+      status: 'active',
+      lat: 0,
+      lng: 0,
+    });
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(html).not.toContain('<b>x</b>');
+  });
 });
