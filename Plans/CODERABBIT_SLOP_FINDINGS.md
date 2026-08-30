@@ -1,7 +1,28 @@
 # CodeRabbit slop-hunt findings
 
 **Brief:** [`CODERABBIT_SLOP_HUNT.md`](CODERABBIT_SLOP_HUNT.md)  
-**Not a Procedure A gate.** Second model: verify takes against current code; prefer delete/stop over wrapping slop.
+**Not a Procedure A gate.** Prefer delete/stop over wrapping slop.
+
+---
+
+## Second-model verdict — 2026-08-30
+
+Checked the take list against current `master` (`c91bd4e` + this note). CodeRabbit’s 207 nits stay dismissed unless listed here.
+
+**Do next (first cleanup), in this order:**
+
+1. **Delete** the seven unimported cards: `EnergyManager`, `LabourManager`, `MachineryManager`, `MarketingManager`, `ProductionManager`, `RDManager`, `BudgetManager`. No importer in `src/`. Do not apply CR’s timezone / `writeBatch` / z-index patches.
+2. **Remove** the “Phase 3.3: Live Telemetry Mock” block in `EditInfraSidebar.tsx` (hardcoded 24.5°C / 32% VWC / 45 L/h). Do not label it “sample data”.
+3. **Remove** the inert Farm management “Upgrade Plan” and “Export Data” buttons (and the Subscription / Data Governance rows if that is all they do). Export already lives on Diary and `FilesBackupCard`. There is no upgrade product. Do not add a third export path.
+4. **Escape** user text in Leaflet HTML: `EventMarkerCluster.tsx` (`sprayType`, `notes`) and `mapPinTooltip.ts` (`name`, label, `status`). Reuse one helper; do not invent a second tooltip stack.
+5. **`fieldStore`:** cloud `archiveIssue` / `deleteIssue` never update `localFieldIssues` or Zustand, so the 30s poll merges the row back. Drop the local row after a successful cloud write. Then stop or narrow the poll (client lng filter + full `getDocs` every 30s is the lazy-hot). No new `onSnapshot`.
+6. **`useAdminDashboard`:** six collection snapshots on mount plus **one `onSnapshot` per user** on the usage tab. Cap or one-shot `getDoc` on that tab. Do not add more listeners.
+
+**Later (real, not first cut):** `Layout.tsx` / `Admin.tsx` send `user.email` to ui-avatars.com; `weatherCacheRoutes` / `weatherScheduler` merge map fields; unauthenticated chill/DPIRD/cache routes — confirm before locking.
+
+**Still dismiss:** empty-catalog “simplify”; `x-forwarded-for` without a trusted-proxy decision; `ai-studio-…` Firestore default; dryer sorted-index; `React.memo` / `strict` / `useOrchardMapPage`; AuthContext “missing role = admin” without a Mist migrate.
+
+---
 
 CLI cannot review an empty tree. Local graft: empty commit `aaa60e34654172a9da041ddefe548328ffd6e551` as parent of `db522df` (`git replace --graft`). Remove after the hunt: `git replace -d db522df727f26bbf8606d2a0d84dccecd9ca6c45`. Whole-tree (804 files) dropped the WebSocket; slices by `--dir`.
 
