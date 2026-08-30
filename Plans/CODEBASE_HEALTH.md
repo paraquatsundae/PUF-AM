@@ -37,7 +37,9 @@ Leaflet / react-leaflet → map components + map hooks only
 src/lib → must not import src/components
 ```
 
-- **Page** = route, compose, pass callbacks. No new Leaflet, turf, or Firestore in a page on the next peel.
+`npm run audit:codebase` greps import specifiers only (comments do not count): `src/lib` ↛ `src/components`; `src/pages` ↛ Leaflet / react-leaflet / turf / `firebase/firestore`.
+
+- **Page** = route, compose, pass callbacks. No Leaflet, turf, or Firestore on a page.
 - **Hook** = one job. Do not merge viewport + analytics + clicks again. Do not add a `useOrchardMapPage` that re-owns everything.
 - **Lib** = pure helpers + tests. No React. No Leaflet unless the file is already a map-lib (`leaflet-setup`, layer sync/paint). Tests must not import modules that touch `window` / Leaflet (same lesson as pin tooltip).
 - **JSX** = chrome vs canvas vs sheets stay split. Do not grow [`orchardMapPaneTypes.ts`](../src/components/map/orchardMapPaneTypes.ts) into a second page.
@@ -98,7 +100,7 @@ Peel order (move-first, same operator UI). One job per new file. No `useOrchardM
 3. Settings / Harvest / Financials — Firestore off the page into existing or new one-job hooks. **Done.**
 4. OrchardMap → ≤600 (leave `KNOWN_OVERSIZE`). **Done** (530; left allowlist).
 5. Login, `BlightEngineSettings`, AuthContext (never import pack hooks), Admin (move snapshots), `api.ts`, `accessPinRoutes` (when grants next touched). **Done.** Farm Management fetch also moved (`useFarmManagementOrg`).
-6. Optional later: thin audit greps. Procedure A stays the same four commands.
+6. Thin SoC greps in `audit:codebase` (`src/lib` ↛ `src/components`; pages ↛ Leaflet / turf / Firestore). **Done.** Procedure A stays the same four commands.
 
 In-scope `KNOWN_OVERSIZE` is empty. Freenet cards stay out.
 
@@ -175,6 +177,12 @@ If pack is `active` and menu is empty: catalog/grant bug, not a missing route. I
 ## Size appendix
 
 Newest first. Short table here; full command output in [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md).
+
+### 2026-08-30
+
+Thin SoC greps in `audit:codebase` (import specifiers only). `src/lib` ↛ `src/components`; pages ↛ Leaflet / turf / Firestore. No page peel. Procedure A green. Tests 859 passed.
+
+`KNOWN_OVERSIZE` is Freenet only. Full log: [thin SoC greps](CODEBASE_HEALTH_CHECK.md#2026-08-30--thin-soc-greps).
 
 ### 2026-08-29
 

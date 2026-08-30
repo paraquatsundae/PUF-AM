@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { FARM_MODULE_IDS, allFarmModules, resolveFarmEnabledModules } from '../shared/auth/farmModules';
@@ -12,6 +12,20 @@ import { defaultModulesWithoutCropPacks } from '../shared/farm/cropPacks';
 import { PACK_UI_REGISTRY, getPackUi } from '../src/packs/registry';
 
 const ROOT = join(__dirname, '..');
+
+function walkTs(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, encoding: 'utf8' })
+    .filter((n): n is string => typeof n === 'string' && /\.(ts|tsx)$/.test(n) && !n.includes('.test.'))
+    .map((n) => join(dir, n));
+}
+
+function importSpecifiers(text: string): string[] {
+  const specs: string[] = [];
+  const re = /(?:\bfrom\s+|import\s*\(\s*|require\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) specs.push(m[1]);
+  return specs;
+}
 
 describe('pack golden set', () => {
   it('every catalog pack has plugin.json, UI registry, modules, and matching primaryPath', () => {
@@ -79,6 +93,31 @@ describe('layering', () => {
   it('AuthContext does not import pack hooks', () => {
     const src = readFileSync(join(ROOT, 'src/contexts/AuthContext.tsx'), 'utf8');
     expect(src).not.toMatch(/from ['"].*\/hooks\//);
+  });
+
+  it('src/lib does not import src/components', () => {
+    const hits: string[] = [];
+    for (const abs of walkTs(join(ROOT, 'src/lib'))) {
+      for (const spec of importSpecifiers(readFileSync(abs, 'utf8'))) {
+        const fromRel = spec.startsWith('.') && /(^|\/)components(\/|$)/.test(spec);
+        const fromAlias = spec === 'src/components' || spec.startsWith('src/components/');
+        if (fromRel || fromAlias) hits.push(`${abs} → ${spec}`);
+      }
+    }
+    expect(hits).toEqual([]);
+    const autoSync = readFileSync(join(ROOT, 'src/lib/autoSync.ts'), 'utf8');
+    expect(autoSync).toMatch(/components\/sync\/useAutoSync/);
+  });
+
+  it('pages do not import Leaflet, turf, or Firestore', () => {
+    const forbidden = /^(?:leaflet(?:[/.].*)?|leaflet[-.].+|react-leaflet(?:\/.*)?|@turf(?:\/.*)?|turf(?:\/.*)?|firebase\/firestore(?:\/.*)?)$/;
+    const hits: string[] = [];
+    for (const abs of walkTs(join(ROOT, 'src/pages'))) {
+      for (const spec of importSpecifiers(readFileSync(abs, 'utf8'))) {
+        if (forbidden.test(spec)) hits.push(`${abs} → ${spec}`);
+      }
+    }
+    expect(hits).toEqual([]);
   });
 });
 

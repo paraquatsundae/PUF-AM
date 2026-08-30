@@ -61,5 +61,6 @@ knowledge_base:
     enabled: true
     filePatterns:
       - Plans/CODEBASE_HEALTH.md
+      - Plans/CODERABBIT_SLOP_HUNT.md
       - Plans/NAMING.md
       - Plans/PLUGIN_AUTHORING.md

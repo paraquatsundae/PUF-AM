@@ -10,7 +10,43 @@ Command (procedure A):
 npm test && npm run lint && npm run plugins:verify && npm run audit:codebase
 ```
 
-`npm run lint` is `tsc --noEmit`. Procedure A is green as of the 2026-08-29 in-scope compliance peel.
+`npm run lint` is `tsc --noEmit`. Procedure A is green as of the 2026-08-30 thin SoC greps.
+
+---
+
+## 2026-08-30 — Thin SoC greps
+
+**Host:** Linux (Fedora), repo `Walnut_farm_manager`  
+**Why:** Lock the in-scope peel. Pages stay compose-only; lib stays off components. Import specifiers only — comments do not count (`autoSync` mentions `components/sync/useAutoSync.ts`).
+
+### Change
+
+- [`scripts/audit-codebase.mjs`](../scripts/audit-codebase.mjs) — `== SoC greps ==`: `src/lib` ↛ `src/components`; `src/pages` ↛ `leaflet` / `react-leaflet` / turf / `firebase/firestore`
+- [`tests/codebaseHealth.test.ts`](../tests/codebaseHealth.test.ts) — same walk
+- Procedure A stays the four commands. No page peel. Freenet cards still out.
+
+### Verdict
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Pass** — 859 passed, 10 skipped. 17.0 s |
+| `npm run lint` (`tsc --noEmit`) | **Pass** |
+| `npm run plugins:verify` | **Pass** — 6 first-party crop packs |
+| `npm run audit:codebase` | **Pass** — SoC greps OK; Freenet WARN only |
+
+Chained procedure A: **pass**.
+
+### Size table (files ≥ 800)
+
+| Lines | File | Limit |
+|------:|------|--------|
+| 1103 | `src/components/MistWorkshopCard.tsx` | Freenet — out of this pass |
+| 1014 | `src/components/MistFarmSyncCard.tsx` | Freenet — out of this pass |
+
+### Next implementation slice
+
+1. Freenet cards / Desktop / APK when that pass opens. No map redesign.
+2. Parked CodeRabbit nits (a11y, CSV quotes, `x-forwarded-for`) — not this gate.
 
 ---
 

@@ -5,6 +5,7 @@
  *
  * Allowed import edges: farmModules → cropPacks → pack UI → nav/App.
  * farmModules must never import cropPacks. AuthContext must never import hooks.
+ * Thin SoC greps: src/lib ↛ src/components; pages ↛ Leaflet / turf / Firestore.
  *
  * harvest_drying is only allowed in cropPackMigrate.ts (and tests / health docs).
  */
@@ -173,6 +174,66 @@ function auditPackFolders() {
   return failed;
 }
 
+function importSpecifiers(text) {
+  const specs = [];
+  const re = /(?:\bfrom\s+|import\s*\(\s*|require\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm;
+  let m;
+  while ((m = re.exec(text))) specs.push(m[1]);
+  return specs;
+}
+
+function importsSrcComponents(spec) {
+  if (spec.startsWith('.') && /(^|\/)components(\/|$)/.test(spec)) return true;
+  if (spec === 'src/components' || spec.startsWith('src/components/')) return true;
+  if (spec.startsWith('@/') && spec.slice(2).startsWith('components')) return true;
+  return false;
+}
+
+function isForbiddenPageImport(spec) {
+  if (spec === 'leaflet' || spec.startsWith('leaflet/') || spec.startsWith('leaflet-') || spec.startsWith('leaflet.')) {
+    return 'Leaflet';
+  }
+  if (spec === 'react-leaflet' || spec.startsWith('react-leaflet/')) return 'Leaflet';
+  if (spec === '@turf' || spec.startsWith('@turf/') || spec === 'turf' || spec.startsWith('turf/')) {
+    return 'turf';
+  }
+  if (spec === 'firebase/firestore' || spec.startsWith('firebase/firestore/')) return 'Firestore';
+  return null;
+}
+
+function auditSocGreps() {
+  console.log('\n== SoC greps ==');
+  let failed = 0;
+
+  const libFiles = walk(join(ROOT, 'src', 'lib'));
+  for (const abs of libFiles) {
+    const rel = relative(ROOT, abs).replace(/\\/g, '/');
+    const specs = importSpecifiers(readFileSync(abs, 'utf8'));
+    for (const spec of specs) {
+      if (importsSrcComponents(spec)) {
+        fail(`${rel} imports ${spec} — src/lib must not import src/components`);
+        failed += 1;
+      }
+    }
+  }
+
+  const pageFiles = walk(join(ROOT, 'src', 'pages'));
+  for (const abs of pageFiles) {
+    const rel = relative(ROOT, abs).replace(/\\/g, '/');
+    const specs = importSpecifiers(readFileSync(abs, 'utf8'));
+    for (const spec of specs) {
+      const kind = isForbiddenPageImport(spec);
+      if (kind) {
+        fail(`${rel} imports ${spec} — page is compose only (no ${kind})`);
+        failed += 1;
+      }
+    }
+  }
+
+  if (failed === 0) ok('src/lib ↛ src/components; pages ↛ Leaflet / turf / Firestore');
+  return failed;
+}
+
 function auditLayering() {
   console.log('\n== Layering ==');
   let failed = 0;
@@ -226,6 +287,7 @@ async function main() {
   failed += auditHarvestDrying();
   failed += auditPackFolders();
   failed += auditLayering();
+  failed += auditSocGreps();
   failed += await auditCycles();
   console.log('');
   if (failed > 0) {
