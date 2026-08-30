@@ -64,6 +64,13 @@ export type PluginPackageValidationResult =
   | { ok: true; manifest: PluginPackageManifestV1 }
   | { ok: false; issues: PluginPackageValidationIssue[] };
 
+/** `tsconfig` has no strictNullChecks — `!result.ok` does not narrow this union. */
+export function pluginPackageIssues(
+  result: PluginPackageValidationResult
+): PluginPackageValidationIssue[] {
+  return 'issues' in result ? result.issues : [];
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

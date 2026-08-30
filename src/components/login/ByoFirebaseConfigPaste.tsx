@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
+  parseByoConfigError,
   parseByoFirebaseConfig,
   type ByoFirebaseWebConfig,
 } from '../../lib/byoFirebaseConfig';
@@ -26,7 +27,7 @@ export function ByoFirebaseConfigPaste({
     setNote(null);
     const parsed = parseByoFirebaseConfig(raw);
     if (!parsed.ok) {
-      setError(parsed.error);
+      setError(parseByoConfigError(parsed) ?? 'Could not parse that config.');
       return;
     }
     if (parsed.namedDatabaseDropped) {
@@ -38,7 +39,7 @@ export function ByoFirebaseConfigPaste({
     try {
       const probe = await probeByoFirebase(parsed.config);
       if (!probe.ok) {
-        setError(probe.error);
+        setError('error' in probe ? probe.error : 'Could not reach that project.');
         return;
       }
       onValid(parsed.config);

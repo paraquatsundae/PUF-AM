@@ -119,7 +119,7 @@ nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
 We have made some smart decisions that buy us time and performance:
 *   **Decoupled UI (The Temporal Slider):** By ensuring the time-scrubbing slider only filters pre-loaded data, we prevented a catastrophic scenario where sliding the timeline would trigger hundreds of database queries per second.
 *   **Aggressive Memoization:** We recently wrapped our heavy calculations (like `blockAnalytics` and `blockSprayEventsCache`) in React `useMemo`. This stops the app from recalculating the entire farm's risk profile every time a user clicks a button or opens a menu.
-*   **Basic Caching & Normalization:** We implemented a cache for DPIRD weather data in Firestore and standardized station code logic (e.g., mapping Manjimup to the stable 'MA002' code). This prevents external API churn and ensures reliability for regional anchors.
+*   **Basic Caching & Normalization:** We implemented a cache for DPIRD weather data in Firestore and standardized station code logic (e.g., mapping Manjimup to the stable 'MA002' code). This prevents external API churn and ensures reliability for regional anchors. Remaining overcall (workshop `ensure-cache`, dryer hourly proxy, chill completed-season): [`Plans/DPIRD_CACHE_FRESHNESS.md`](Plans/DPIRD_CACHE_FRESHNESS.md).
 *   **Traceability & Operator Context:** Added operator notation fields to Drying Bin readings and temperature logs, allowing non-numerical data (vent adjustments, visual observations) to be persisted alongside statistical curves.
 
 ## 2. The Danger Zones: Where We Will Break at Scale
@@ -248,7 +248,7 @@ classDiagram
 
 ### Key module explanations
 *   **Paddock loop:** Map (blocks + issue pins) → Diary (plans / sprays / water / nutrition) → Blight (protection vs threat). Home surfaces open issues and plans.
-*   **Farm setup:** Dryers, water allocation (ML), irrigation method — rare edits; Water and drying read these.
+*   **Farm setup:** Farm type, people, mapped blocks, map highlights. Water allocation and dryers live on the Water and Drying pack pages.
 *   **Blight risk engine:** Migrating to **Ji et al. 2025** process model (see §4.2). Legacy PUFOM multiplicative index remains for Research / what-if until cut over is complete.
 *   **Dryer engine:** Exponential decay fit on moisture readings for configured dryers.
 *   **Nutrition / water pages:** Application diaries writing `DiaryEvent` records (soil lab XLSX deferred; `nutritionService` retained for later).

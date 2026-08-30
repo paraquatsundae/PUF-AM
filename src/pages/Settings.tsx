@@ -13,24 +13,17 @@ import {
   DollarSign,
   Zap,
 } from 'lucide-react';
-import { useAuth, OperationType, handleFirestoreError } from '../contexts/AuthContext';
-import { db } from '../firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 import { InvitePinManager } from '../components/InvitePinManager';
+import { useFarmEconomicsSettings } from '../hooks/useFarmEconomicsSettings';
 import { FarmSyncCards } from '../components/sync/FarmSyncCards';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
 import { MistWorkshopCard } from '../components/MistWorkshopCard';
 import { PluginsPanel } from '../components/PluginsPanel';
-import { SliderControl } from '../components/blight/BlightEngineSettings';
-import {
-  DEFAULT_MODEL_PARAMS,
-  defaultEconomicsModelParams,
-  pickEconomicsModelParams,
-  type EconomicsModelParams,
-  type ModelParameters,
-} from '../lib/modelParameters';
+import { SliderControl } from '../components/blight/SliderControl';
+import { type EconomicsModelParams } from '../lib/modelParameters';
 import { activeFarmPipe } from '../lib/farmPipes';
 import { isWorkshopDiagnosticsEnabled } from '../lib/workshopMode';
 import {
@@ -124,10 +117,10 @@ export function Settings() {
     isSettingsTab(tabParam) ? tabParam : 'general'
   );
   const farmPipe = activeFarmPipe();
-  const [economics, setEconomics] = useState<EconomicsModelParams>(defaultEconomicsModelParams());
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const { economics, setEconomics, loading, saving, message, saveEconomics } = useFarmEconomicsSettings(
+    userData?.farmId,
+    isAdmin
+  );
   const [shareCrewLocation, setShareCrewLocationState] = useState(() => getShareCrewLocation());
 
   const setActiveTab = (id: SettingsTab) => {
@@ -144,58 +137,6 @@ export function Settings() {
   useEffect(() => {
     void ensureShareCrewLocationDefault().then((v) => setShareCrewLocationState(v));
   }, [userData?.uid]);
-
-  useEffect(() => {
-    if (!userData?.farmId) return;
-
-    const docRef = doc(db, 'farms', userData.farmId, 'settings', 'model_params');
-    
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const merged = {
-          ...DEFAULT_MODEL_PARAMS,
-          ...docSnap.data(),
-        } as ModelParameters;
-        setEconomics(pickEconomicsModelParams(merged));
-      } else {
-        setEconomics(defaultEconomicsModelParams());
-      }
-      setLoading(false);
-    }, (error) => {
-      setLoading(false);
-      try {
-        handleFirestoreError(error, OperationType.GET, `farms/${userData.farmId}/settings/model_params`);
-      } catch (e) {
-        // Error is already logged by handleFirestoreError
-      }
-    });
-
-    return () => unsubscribe();
-  }, [userData?.farmId]);
-
-  const handleSaveEconomics = async () => {
-    if (!userData?.farmId || !isAdmin) return;
-    
-    setSaving(true);
-    setMessage(null);
-
-    try {
-      const docRef = doc(db, 'farms', userData.farmId, 'settings', 'model_params');
-      await setDoc(docRef, pickEconomicsModelParams({ ...DEFAULT_MODEL_PARAMS, ...economics }), {
-        merge: true,
-      });
-      setMessage({ type: 'success', text: 'Market & economics saved.' });
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save. Check permissions.' });
-      try {
-        handleFirestoreError(error, OperationType.WRITE, `farms/${userData.farmId}/settings/model_params`);
-      } catch (e) {
-        // Error is already logged by handleFirestoreError
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
 
   if (loading) {
     return <div className="p-8 text-center text-slate-500 font-mono">Loading settings…</div>;
@@ -403,7 +344,7 @@ export function Settings() {
 
                 <button
                   type="button"
-                  onClick={handleSaveEconomics}
+                  onClick={() => void saveEconomics()}
                   disabled={saving}
                   className="w-full sm:w-auto px-8 bg-[#141414] text-[#E4E3E0] py-4 rounded-xl font-mono text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:opacity-50"
                 >

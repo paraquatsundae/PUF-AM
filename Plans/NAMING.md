@@ -22,6 +22,7 @@ Related plans (not duplicated here):
 | [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Start / send / join / People as the code stands (experimental) |
 | [`FREENET_HOLES.md`](FREENET_HOLES.md) | Plan for the seven known Freenet operator holes |
 | [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Operational inventory of every local store — contents, authority, how it is cleared |
+| [`DPIRD_CACHE_FRESHNESS.md`](DPIRD_CACHE_FRESHNESS.md) | DPIRD freshness gates: ensure-cache, chill, dryer hourly (design; blight daily already cached) |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Human-readable `farm-export.json` sketch |
 | [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) | Architecture audit, roadmap checklist, mist phase log |
 

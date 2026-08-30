@@ -404,7 +404,7 @@ export function patchLeafletDrawTouchGuards(): void {
         disableNewMarkers?.call(this);
         startPoint?.call(this, startX, startY);
 
-        const map = this._map as
+        const map = this._map as unknown as
           | {
               mouseEventToContainerPoint: (el: { clientX: number; clientY: number }) => unknown;
               containerPointToLayerPoint: (p: unknown) => unknown;

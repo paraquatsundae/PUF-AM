@@ -1,17 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  deleteDoc, 
-  setDoc, 
-  getDoc,
-  query,
-  orderBy,
-  onSnapshot
-} from 'firebase/firestore';
-import { db } from '../firebase';
-import { useAuth, UserData } from '../contexts/AuthContext';
+import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useAdminDashboard } from '../hooks/useAdminDashboard';
 import { 
   Shield, 
   Users, 
@@ -44,181 +33,34 @@ import {
   Cell
 } from 'recharts';
 import { OwnerOpsPanel } from '../components/admin/OwnerOpsPanel';
-import { calculateEstimatedCost, COST_ESTIMATES, trackMetric } from '../services/metricsService';
-
-interface AccessList {
-  [email: string]: boolean;
-}
+import { calculateEstimatedCost, COST_ESTIMATES } from '../services/metricsService';
 
 export function Admin() {
-  const { user, userData, isPlatformAdmin } = useAuth();
-  const [users, setUsers] = useState<UserData[]>([]);
-  const [whitelist, setWhitelist] = useState<AccessList>({});
-  const [blacklist, setBlacklist] = useState<AccessList>({});
-  const [whitelistEnabled, setWhitelistEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [activeTab, setActiveTab] = useState<'ops' | 'users' | 'whitelist' | 'blacklist' | 'usage'>('ops');
-  const [globalMetrics, setGlobalMetrics] = useState<any>(null);
-  const [dailyMetrics, setDailyMetrics] = useState<any[]>([]);
-  const [userMetrics, setUserMetrics] = useState<Record<string, any>>({});
-
-  useEffect(() => {
-    // Track initial reads for Admin dashboard
-    trackMetric('read', 4).catch(console.error); // 4 initial listeners/gets
-
-    // Real-time Users
-    const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snap) => {
-      const usersList = snap.docs.map(doc => doc.data() as UserData);
-      setUsers(usersList);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error listening to users:", error);
-      setLoading(false);
-    });
-
-    // Real-time Whitelist
-    const unsubscribeWhitelist = onSnapshot(collection(db, 'whitelist'), (snap) => {
-      const whitelistMap: AccessList = {};
-      snap.docs.forEach(doc => { whitelistMap[doc.id] = true; });
-      setWhitelist(whitelistMap);
-    });
-
-    // Real-time Blacklist
-    const unsubscribeBlacklist = onSnapshot(collection(db, 'blacklist'), (snap) => {
-      const blacklistMap: AccessList = {};
-      snap.docs.forEach(doc => { blacklistMap[doc.id] = true; });
-      setBlacklist(blacklistMap);
-    });
-
-    // Real-time Config
-    const unsubscribeConfig = onSnapshot(doc(db, 'config', 'accessControl'), (snap) => {
-      if (snap.exists()) {
-        setWhitelistEnabled(snap.data().whitelistEnabled);
-      }
-    });
-
-    // Real-time Global Metrics
-    const unsubscribeGlobal = onSnapshot(doc(db, 'metrics_global', 'all'), (snap) => {
-      if (snap.exists()) {
-        setGlobalMetrics(snap.data());
-      }
-    });
-
-    // Real-time Daily Metrics (Last 14 days)
-    const dailyQuery = query(collection(db, 'metrics_daily'), orderBy('__name__', 'desc'));
-    const unsubscribeDaily = onSnapshot(dailyQuery, (snap) => {
-      const dailyList = snap.docs.map(doc => ({
-        date: doc.id,
-        ...doc.data()
-      })).reverse();
-      setDailyMetrics(dailyList);
-    });
-
-    return () => {
-      unsubscribeUsers();
-      unsubscribeWhitelist();
-      unsubscribeBlacklist();
-      unsubscribeConfig();
-      unsubscribeGlobal();
-      unsubscribeDaily();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'usage' && users.length > 0) {
-      const unsubscribes = users.map(u => 
-        onSnapshot(doc(db, 'metrics_users', u.uid), (snap) => {
-          if (snap.exists()) {
-            setUserMetrics(prev => ({ ...prev, [u.uid]: snap.data() }));
-          }
-        })
-      );
-      return () => unsubscribes.forEach(unsub => unsub());
-    }
-  }, [activeTab, users]);
-
-  const toggleWhitelistMode = async () => {
-    try {
-      const newValue = !whitelistEnabled;
-      await setDoc(doc(db, 'config', 'accessControl'), { whitelistEnabled: newValue }, { merge: true });
-    } catch (error) {
-      console.error("Error toggling whitelist mode:", error);
-    }
-  };
-
-  const addToWhitelist = async (email: string) => {
-    if (!email) return;
-    const lowerEmail = email.toLowerCase();
-    try {
-      // If blacklisted, remove from blacklist first
-      if (blacklist[lowerEmail]) {
-        await deleteDoc(doc(db, 'blacklist', lowerEmail));
-      }
-      await setDoc(doc(db, 'whitelist', lowerEmail), { addedAt: new Date().toISOString() });
-      setNewEmail('');
-    } catch (error) {
-      console.error("Error adding to whitelist:", error);
-    }
-  };
-
-  const removeFromWhitelist = async (email: string) => {
-    try {
-      await deleteDoc(doc(db, 'whitelist', email.toLowerCase()));
-    } catch (error) {
-      console.error("Error removing from whitelist:", error);
-    }
-  };
-
-  const addToBlacklist = async (email: string) => {
-    if (!email) return;
-    const lowerEmail = email.toLowerCase();
-    try {
-      // If whitelisted, remove from whitelist first
-      if (whitelist[lowerEmail]) {
-        await deleteDoc(doc(db, 'whitelist', lowerEmail));
-      }
-      await setDoc(doc(db, 'blacklist', lowerEmail), { addedAt: new Date().toISOString() });
-      setNewEmail('');
-    } catch (error) {
-      console.error("Error adding to blacklist:", error);
-    }
-  };
-
-  const removeFromBlacklist = async (email: string) => {
-    try {
-      await deleteDoc(doc(db, 'blacklist', email.toLowerCase()));
-    } catch (error) {
-      console.error("Error removing from blacklist:", error);
-    }
-  };
-
-  const deleteUser = async (uid: string) => {
-    if (!window.confirm("Are you sure you want to delete this user's data? This will not delete their Google account, but they will lose all farm data.")) return;
-    try {
-      await deleteDoc(doc(db, 'users', uid));
-      setUsers(prev => prev.filter(u => u.uid !== uid));
-    } catch (error) {
-      console.error("Error deleting user:", error);
-    }
-  };
-
-  const updateUserRole = async (uid: string, newRole: 'admin' | 'farmer' | 'viewer') => {
-    try {
-      await setDoc(doc(db, 'users', uid), { role: newRole }, { merge: true });
-      setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole } : u));
-    } catch (error) {
-      console.error("Error updating user role:", error);
-    }
-  };
-
-  const filteredUsers = users.filter(u => 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
+  const { userData, isPlatformAdmin } = useAuth();
+  const {
+    users,
+    whitelist,
+    blacklist,
+    whitelistEnabled,
+    loading,
+    searchTerm,
+    setSearchTerm,
+    newEmail,
+    setNewEmail,
+    activeTab,
+    setActiveTab,
+    globalMetrics,
+    dailyMetrics,
+    userMetrics,
+    filteredUsers,
+    toggleWhitelistMode,
+    addToWhitelist,
+    removeFromWhitelist,
+    addToBlacklist,
+    removeFromBlacklist,
+    deleteUser,
+    updateUserRole,
+  } = useAdminDashboard();
 
   if (!isPlatformAdmin) {
     return (

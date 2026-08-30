@@ -27,10 +27,11 @@ export function Drying() {
         </p>
       </div>
       <FarmDryersPanel onSaved={() => setDryerRev((n) => n + 1)} />
-      <DryerPerformance
-        key={dryerRev}
-        blocks={blocks.map((b) => ({ id: b.id, name: b.name, cultivar: b.cultivar || '' }))}
-      />
+      <React.Fragment key={dryerRev}>
+        <DryerPerformance
+          blocks={blocks.map((b) => ({ id: b.id, name: b.name, cultivar: b.cultivar || '' }))}
+        />
+      </React.Fragment>
     </div>
   );
 }

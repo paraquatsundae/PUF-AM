@@ -18,6 +18,7 @@ export type ExistingClaims = {
   platformAdmin?: unknown;
   pinAuth?: unknown;
   role?: unknown;
+  farmId?: unknown;
 };
 
 /**
@@ -26,11 +27,12 @@ export type ExistingClaims = {
  * Pre-F2 `setAdminClaim` wrote only `{ admin: true }` (no `role`, no `pinAuth`).
  * Farm-role claims always carry `role`.
  */
-export function resolvePlatformAdminClaim(existing?: ExistingClaims | null): boolean {
+export function resolvePlatformAdminClaim(existing?: object | null): boolean {
   if (!existing) return false;
-  if (existing.platformAdmin === true) return true;
+  const claims = existing as ExistingClaims;
+  if (claims.platformAdmin === true) return true;
   return (
-    existing.admin === true && existing.pinAuth !== true && existing.role == null
+    claims.admin === true && claims.pinAuth !== true && claims.role == null
   );
 }
 

@@ -1,0 +1,65 @@
+# PUF-AM CodeRabbit config. Judgment pass only — not a Procedure A gate.
+# Rules: Plans/CODEBASE_HEALTH.md
+language: en-US
+reviews:
+  profile: chill
+  poem: false
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  review_details: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!src/components/MistWorkshopCard.tsx"
+    - "!src/components/MistFarmSyncCard.tsx"
+    - "!src/mist/**"
+    - "!desktop/**"
+    - "!android/**"
+    - "!units/mist-freenet/**"
+    - "!package-lock.json"
+    - "!**/node_modules/**"
+    - "!dist/**"
+    - "!release/**"
+  path_instructions:
+    - path: "src/pages/**"
+      instructions: |
+        Page = compose only. Flag Leaflet, turf, Firestore (onSnapshot/getDoc/getDocs),
+        or fetch that belongs in a hook. Do not suggest useOrchardMapPage or growing
+        orchardMapPaneTypes.ts into a second page. Do not suggest remounting MapContainer.
+    - path: "src/lib/**"
+      instructions: |
+        Lib is types, pure helpers, or an existing store. No React except an existing
+        store (mapStore). Flag imports from src/components. Tests must not import
+        modules that touch window or Leaflet unless the file is already a map-lib.
+    - path: "src/hooks/**"
+      instructions: |
+        One job per hook. Do not merge viewport + analytics + clicks. Do not add
+        useOrchardMapPage. Do not add a second onSnapshot on OrchardMap or FarmDiary.
+        No new setInterval without a stated period and teardown.
+    - path: "src/contexts/AuthContext.tsx"
+      instructions: |
+        Must never import pack hooks or any src/hooks module. Session listen stays
+        in src/lib/authSessionListen.ts. Do not move that listen into a hook.
+    - path: "shared/auth/farmModules.ts"
+      instructions: |
+        Must never import cropPacks. Empty enabledModules still means every module
+        (old-doc fallback). Do not "simplify" empty to mean no packs.
+    - path: "src/components/map/**"
+      instructions: |
+        Leaflet stays here and in map hooks. Mutate FeatureGroup in place. Do not
+        remount MapContainer, rebuild GeoJSON on pan/zoom, or turf-on-pan.
+        Do not start a React.memo / object-identity campaign.
+    - path: "shared/farm/cropPacks.ts"
+      instructions: |
+        Installing a pack updates farm enabledModules and the owner admin grant only.
+        Do not silently expand existing farmer/viewer PIN grants.
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - Plans/CODEBASE_HEALTH.md
+      - Plans/NAMING.md
+      - Plans/PLUGIN_AUTHORING.md

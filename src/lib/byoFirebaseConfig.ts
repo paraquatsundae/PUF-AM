@@ -41,6 +41,11 @@ export type ParseByoConfigResult =
   | { ok: true; config: ByoFirebaseWebConfig; namedDatabaseDropped: boolean }
   | { ok: false; error: string };
 
+/** `tsconfig` has no strictNullChecks — `!result.ok` does not narrow this union. */
+export function parseByoConfigError(result: ParseByoConfigResult): string | null {
+  return 'error' in result ? result.error : null;
+}
+
 function asNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();

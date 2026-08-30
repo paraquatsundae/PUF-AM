@@ -7,7 +7,7 @@ import { clsx } from 'clsx';
 import { Loader2 } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { handleFirestoreError, OperationType } from '../../contexts/AuthContext';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreErrors';
 import { kFromInoculumLevel } from '../../../shared/weather/jiBlightModel';
 import type { OrchardInoculumLevel } from '../../lib/modelParameters';
 

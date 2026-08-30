@@ -83,7 +83,8 @@ export function FarmModulesCard() {
           <h2 className="text-lg font-bold text-slate-900">Farm modules</h2>
           <p className="text-sm text-slate-500">
             Choose tools this farm uses. Worker invite PINs can only grant modules you enable here.
-            Crop-pack modules are labelled below and stay off until the pack is active in{' '}
+            Installing a pack does not rewrite existing farmer grants — turn the module on here
+            (or mint a new PIN) after{' '}
             <Link to="/settings?tab=plugins" className="text-emerald-700 underline-offset-2 hover:underline">
               Settings → Plugins
             </Link>

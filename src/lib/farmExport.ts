@@ -98,7 +98,7 @@ export function enrichDiaryForExport(
     const blockName = resolveBlockName(event.blockId, blockNames);
     if (blockName) row.blockName = blockName;
   }
-  return omitUndefined(row) as FarmExportDiaryEvent;
+  return omitUndefined(row) as unknown as FarmExportDiaryEvent;
 }
 
 export function sortDiaryForExport(events: FarmExportDiaryEvent[]): FarmExportDiaryEvent[] {

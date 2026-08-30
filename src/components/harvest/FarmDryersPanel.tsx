@@ -7,7 +7,7 @@ import { FarmDryer, getFarmAssets, saveFarmAssets } from '../../lib/farmAssets';
 const fieldClass =
   'bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400 w-full';
 
-/** Dryer list — was Farm setup; now the harvest pack surface. */
+/** Dryer list — drying pack surface (not Farm setup, not harvest). */
 export function FarmDryersPanel({ onSaved }: { onSaved?: () => void }) {
   const { userData } = useAuth();
   const farmId = userData?.farmId;

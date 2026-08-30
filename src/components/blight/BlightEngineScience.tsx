@@ -70,8 +70,8 @@ function AssumptionsAndLimitsBox() {
                   <h3 className="font-bold text-slate-900">Admin settings</h3>
                   <p>
                     <strong>Blight risk</strong> (admin): set orchard inoculum (Ji k); Sandbox holds research
-                    modifiers. Market costs live under <strong>Settings → Economics</strong>. Farm dryers / water
-                    allocation live under <strong>Water</strong>. Changing production inoculum changes curves
+                    modifiers. Market costs live under <strong>Settings → Economics</strong>. Dryers live under
+                    <strong> Drying</strong>; water allocation under <strong>Water</strong>. Changing production inoculum changes curves
                     for everyone on the farm.
                   </p>
                 </div>

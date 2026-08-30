@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { db } from '../firebase';
 import { collection, query, doc, setDoc, deleteDoc, updateDoc, getDoc, writeBatch, where, getDocs, getDocsFromCache } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../contexts/AuthContext';
+import { handleFirestoreError, OperationType } from './firestoreErrors';
 import { isLocalOnlyFarmSession } from './workshopMode';
 import { localFieldIssues } from './localFieldIssues';
 

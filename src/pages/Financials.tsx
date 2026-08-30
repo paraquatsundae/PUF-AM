@@ -1,221 +1,45 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  collection,
-  query,
-  orderBy,
-  getDocs,
-  limit,
-  doc,
-  writeBatch,
-  increment,
-} from 'firebase/firestore';
-import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
 import { AddTransactionModal } from '../components/AddTransactionModal';
 import { DollarSign, Plus, Trash2, TrendingDown, TrendingUp, Map as MapIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
-
-type FinancialTx = {
-  id: string;
-  date: string;
-  type: 'income' | 'expense';
-  category: string;
-  amount: number;
-  description: string;
-  blockId?: string;
-  createdAt?: string;
-  createdBy?: string;
-};
-
-function money(n: number) {
-  return n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 });
-}
-
-function moneyExact(n: number) {
-  return n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 });
-}
+import { useFinancialTransactions } from '../hooks/useFinancialTransactions';
+import {
+  financialBlockRows,
+  financialsForYear,
+  financialTotals,
+  financialYearOptions,
+  money,
+  moneyExact,
+} from '../lib/financialsView';
 
 export function Financials() {
   const { user, userData } = useAuth();
   const { blocks } = useMapStore();
   const farmId = userData?.farmId;
+  const { transactions, loading, addTransaction, deleteTransaction } = useFinancialTransactions(
+    farmId,
+    user?.uid
+  );
 
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
-  const [transactions, setTransactions] = useState<FinancialTx[]>([]);
-  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<'expense' | 'income'>('expense');
 
-  const yearOptions = useMemo(() => {
-    const ys = new Set<number>([currentYear, currentYear - 1, currentYear - 2]);
-    transactions.forEach((t) => {
-      const y = Number(t.date?.slice(0, 4));
-      if (y) ys.add(y);
-    });
-    return Array.from(ys).sort((a, b) => b - a);
-  }, [transactions, currentYear]);
-
-  const loadTransactions = useCallback(async () => {
-    if (!farmId) return;
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, `farms/${farmId}/financial_transactions`),
-        orderBy('date', 'desc'),
-        limit(500)
-      );
-      const snap = await getDocs(q);
-      setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() } as FinancialTx)));
-    } catch (err) {
-      console.error('Failed to load financial transactions', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [farmId]);
-
-  useEffect(() => {
-    void loadTransactions();
-  }, [loadTransactions]);
-
-  const yearTxs = useMemo(
-    () => transactions.filter((t) => t.date?.startsWith(String(year))),
-    [transactions, year]
+  const yearOptions = useMemo(
+    () => financialYearOptions(transactions, currentYear),
+    [transactions, currentYear]
   );
+  const yearTxs = useMemo(() => financialsForYear(transactions, year), [transactions, year]);
+  const blockRows = useMemo(() => financialBlockRows(yearTxs, blocks), [blocks, yearTxs]);
+  const totals = useMemo(() => financialTotals(yearTxs), [yearTxs]);
 
-  const blockName = useCallback(
-    (blockId?: string) => {
-      if (!blockId) return 'Whole farm';
-      return blocks.find((b) => b.id === blockId)?.name || 'Unknown block';
-    },
-    [blocks]
-  );
-
-  const blockRows = useMemo(() => {
-    const map = new Map<
-      string,
-      { key: string; name: string; areaHa: number; inputs: number; revenue: number }
-    >();
-
-    for (const b of blocks) {
-      map.set(b.id, {
-        key: b.id,
-        name: b.name || b.id,
-        areaHa: b.areaHa || 0,
-        inputs: 0,
-        revenue: 0,
-      });
-    }
-    map.set('__unallocated__', {
-      key: '__unallocated__',
-      name: 'Whole farm / unallocated',
-      areaHa: 0,
-      inputs: 0,
-      revenue: 0,
-    });
-
-    for (const t of yearTxs) {
-      const key = t.blockId && map.has(t.blockId) ? t.blockId : '__unallocated__';
-      const row = map.get(key)!;
-      const amt = Number(t.amount) || 0;
-      if (t.type === 'income') row.revenue += amt;
-      else row.inputs += amt;
-    }
-
-    return Array.from(map.values())
-      .filter((r) => r.key !== '__unallocated__' || r.inputs > 0 || r.revenue > 0 || blocks.length === 0)
-      .sort((a, b) => {
-        if (a.key === '__unallocated__') return 1;
-        if (b.key === '__unallocated__') return -1;
-        return a.name.localeCompare(b.name);
-      });
-  }, [blocks, yearTxs]);
-
-  const totals = useMemo(() => {
-    let inputs = 0;
-    let revenue = 0;
-    for (const t of yearTxs) {
-      const amt = Number(t.amount) || 0;
-      if (t.type === 'income') revenue += amt;
-      else inputs += amt;
-    }
-    return { inputs, revenue, margin: revenue - inputs };
-  }, [yearTxs]);
-
-  const handleAddTransaction = async (data: {
-    date: string;
-    type: 'expense' | 'income';
-    category: string;
-    amount: number;
-    description: string;
-    blockId?: string;
-  }) => {
-    if (!farmId || !user) return;
-
-    const batch = writeBatch(db);
-    const txRef = doc(collection(db, `farms/${farmId}/financial_transactions`));
-    const payload: Record<string, unknown> = {
-      id: txRef.id,
-      date: data.date,
-      type: data.type,
-      category: data.category,
-      amount: data.amount,
-      description: data.description,
-      createdAt: new Date().toISOString(),
-      createdBy: user.uid,
-    };
-    if (data.blockId) payload.blockId = data.blockId;
-    batch.set(txRef, payload);
-
-    if (import.meta.env.DEV) {
-      const aggRef = doc(db, `farms/${farmId}/aggregates/financials`);
-      const amount = Number(data.amount) || 0;
-      const isIncome = data.type === 'income';
-      const monthKey = data.date.slice(0, 7);
-      const updates: Record<string, ReturnType<typeof increment>> = {
-        totalIncome: isIncome ? increment(amount) : increment(0),
-        totalExpense: !isIncome ? increment(amount) : increment(0),
-        [`monthly_${monthKey}_income`]: isIncome ? increment(amount) : increment(0),
-        [`monthly_${monthKey}_expense`]: !isIncome ? increment(amount) : increment(0),
-      };
-      if (!isIncome && data.category) {
-        updates[`category_${data.category}`] = increment(amount);
-      }
-      batch.set(aggRef, updates, { merge: true });
-    }
-
-    await batch.commit();
-    await loadTransactions();
-  };
-
-  const handleDeleteTransaction = async (tx: FinancialTx) => {
-    if (!farmId) return;
-    if (!window.confirm('Delete this entry?')) return;
-
-    const batch = writeBatch(db);
-    batch.delete(doc(db, `farms/${farmId}/financial_transactions`, tx.id));
-
-    if (import.meta.env.DEV) {
-      const aggRef = doc(db, `farms/${farmId}/aggregates/financials`);
-      const amount = Number(tx.amount) || 0;
-      const isIncome = tx.type === 'income';
-      const monthKey = tx.date.slice(0, 7);
-      const updates: Record<string, ReturnType<typeof increment>> = {
-        totalIncome: isIncome ? increment(-amount) : increment(0),
-        totalExpense: !isIncome ? increment(-amount) : increment(0),
-        [`monthly_${monthKey}_income`]: isIncome ? increment(-amount) : increment(0),
-        [`monthly_${monthKey}_expense`]: !isIncome ? increment(-amount) : increment(0),
-      };
-      if (!isIncome && tx.category) {
-        updates[`category_${tx.category}`] = increment(-amount);
-      }
-      batch.set(aggRef, updates, { merge: true });
-    }
-
-    await batch.commit();
-    await loadTransactions();
+  const blockName = (blockId?: string) => {
+    if (!blockId) return 'Whole farm';
+    return blocks.find((b) => b.id === blockId)?.name || 'Unknown block';
   };
 
   if (!farmId) {
@@ -432,7 +256,7 @@ export function Financials() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => void handleDeleteTransaction(tx)}
+                  onClick={() => void deleteTransaction(tx)}
                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shrink-0"
                   title="Delete"
                 >
@@ -449,7 +273,7 @@ export function Financials() {
         onClose={() => setModalOpen(false)}
         initialType={modalType}
         blocks={blocks.map((b) => ({ id: b.id, name: b.name || b.id }))}
-        onAdd={handleAddTransaction}
+        onAdd={addTransaction}
       />
     </div>
   );

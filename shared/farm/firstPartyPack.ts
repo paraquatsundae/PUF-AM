@@ -5,6 +5,7 @@
 import { FARM_MODULE_IDS, type FarmModuleId } from '../auth/farmModules';
 import {
   parsePluginPackageManifestJson,
+  pluginPackageIssues,
   type PluginPackageManifestV1,
 } from './pluginPackage';
 
@@ -15,7 +16,7 @@ export function loadFirstPartyPackManifest(
   const parsed = parsePluginPackageManifestJson(JSON.stringify(pluginJson));
   if (!parsed.ok) {
     throw new Error(
-      `[${expectedId} package] ${parsed.issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`
+      `[${expectedId} package] ${pluginPackageIssues(parsed).map((i) => `${i.path}: ${i.message}`).join('; ')}`
     );
   }
   if (parsed.manifest.id !== expectedId) {

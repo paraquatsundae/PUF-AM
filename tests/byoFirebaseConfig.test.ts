@@ -5,6 +5,7 @@ import {
   BYO_STORAGE_KEY,
   PUFWORKS_PROJECT_ID,
   clearByoFirebase,
+  parseByoConfigError,
   parseByoFirebaseConfig,
   persistByoFirebase,
   readStoredByoFirebase,
@@ -61,9 +62,7 @@ describe('parseByoFirebaseConfig', () => {
       })
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error).toMatch(/PUFworks project/);
-    }
+    expect(parseByoConfigError(result)).toMatch(/PUFworks project/);
   });
 
   it('rejects empty or incomplete pastes', () => {

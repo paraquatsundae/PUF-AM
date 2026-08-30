@@ -7,7 +7,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { handleFirestoreError, OperationType } from '../../contexts/AuthContext';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreErrors';
 import type { CalibrationParams } from '../../lib/blightModel';
 import {
   applyResearchToCalibration,

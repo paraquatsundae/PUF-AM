@@ -134,7 +134,6 @@ export default function App() {
                   const PackPage = packRoute.Page;
                   return (
                     <Route
-                      key={`pack:${packRoute.path}`}
                       path={packRoute.path}
                       element={
                         <ModuleRoute moduleId={packRoute.moduleId}>

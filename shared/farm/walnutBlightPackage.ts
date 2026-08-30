@@ -10,6 +10,7 @@ import { FARM_MODULE_IDS, type FarmModuleId } from '../auth/farmModules';
 import type { OrchardInoculumLevel } from '../weather/jiBlightModel';
 import {
   parsePluginPackageManifestJson,
+  pluginPackageIssues,
   type PluginPackageManifestV1,
 } from './pluginPackage';
 
@@ -84,7 +85,7 @@ function fail(message: string): never {
 function loadManifest(): PluginPackageManifestV1 {
   const parsed = parsePluginPackageManifestJson(JSON.stringify(pluginJson));
   if (!parsed.ok) {
-    fail(parsed.issues.map((i) => `${i.path}: ${i.message}`).join('; '));
+    fail(pluginPackageIssues(parsed).map((i) => `${i.path}: ${i.message}`).join('; '));
   }
   if (parsed.manifest.id !== WALNUT_BLIGHT_PACK_ID) {
     fail(`plugin.json id must be ${WALNUT_BLIGHT_PACK_ID}`);

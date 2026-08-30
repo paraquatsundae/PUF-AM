@@ -223,7 +223,7 @@ export async function redeemByoInvitePin(
   const ticket = snap.data() as JoinTicketDoc;
   const allowed = canRedeemJoinTicket(ticket);
   if (!allowed.ok) {
-    throw new Error(allowed.reason);
+    throw new Error('reason' in allowed ? allowed.reason : 'This invite PIN cannot be used.');
   }
 
   const user = await signInByoAccount(pin, person);

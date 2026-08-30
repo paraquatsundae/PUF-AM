@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PLUGIN_PACKAGE_SCHEMA_VERSION,
   parsePluginPackageManifestJson,
+  pluginPackageIssues,
   validatePluginPackageManifest,
 } from '../shared/farm/pluginPackage';
 
@@ -32,9 +33,7 @@ describe('pluginPackage manifest', () => {
     const { category: _c, ...rest } = valid;
     const result = validatePluginPackageManifest(rest);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.issues.some((i) => i.path === 'category')).toBe(true);
-    }
+    expect(pluginPackageIssues(result).some((i) => i.path === 'category')).toBe(true);
     expect(validatePluginPackageManifest({ ...valid, category: 'generic' }).ok).toBe(true);
   });
 

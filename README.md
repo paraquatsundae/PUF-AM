@@ -135,6 +135,7 @@ On-disk packages: [`plugins/README.md`](plugins/README.md).
 | [`Plans/FREENET_OPERATOR_FLOW.md`](Plans/FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands today. In-app **How this works** uses the same story. |
 | [`Plans/FREENET_HOLES.md`](Plans/FREENET_HOLES.md) | How we will address the seven known Freenet operator holes (copy first, then UX, then product). |
 | [`Plans/LOCAL_DATA_STORAGE.md`](Plans/LOCAL_DATA_STORAGE.md) | Every local store — IndexedDB, localStorage, Firestore paths, Android sandbox, Electron `userData`, LAN shelves — and which are authoritative rather than cache. |
+| [`Plans/DPIRD_CACHE_FRESHNESS.md`](Plans/DPIRD_CACHE_FRESHNESS.md) | DPIRD overcall leftovers: `ensure-cache` 2-hour skip, dryer hourly proxy, chill completed-season freeze. Blight daily is already hourly / 4-station cached. |
 
 ### Tests
 

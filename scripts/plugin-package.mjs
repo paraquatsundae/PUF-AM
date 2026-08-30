@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 /**
  * Verify or unpack a PUF-AM plugin package zip / folder.
  *
+ *   npm run plugins:verify                 # all first-party folders in plugins/
  *   npm run plugins:verify -- path/to/pack.zip
  *   npm run plugins:unpack -- path/to/pack.zip
  *   npm run plugins:pack -- plugins/walnut_blight
@@ -27,6 +28,7 @@ async function loadShared() {
 
 function usage() {
   console.log(`Usage:
+  npm run plugins:verify                      # all first-party folders
   npm run plugins:verify -- <path-to.zip|path-to-folder>
   npm run plugins:unpack -- <path-to.zip> [--force]
   npm run plugins:pack -- <path-to-folder>   # → plugins/<id>.zip
@@ -227,8 +229,26 @@ async function main() {
   if (cmd === 'verify' || cmd === '--verify') {
     const target = argv[1];
     if (!target) {
-      usage();
-      process.exit(1);
+      const names = existsSync(PLUGINS_DIR) ? readdirSync(PLUGINS_DIR) : [];
+      const dirs = names
+        .filter((name) => !name.startsWith('.') && name !== '_skeleton')
+        .map((name) => join(PLUGINS_DIR, name))
+        .filter((abs) => statSync(abs).isDirectory() && existsSync(join(abs, shared.PLUGIN_MANIFEST_FILENAME)));
+      if (!dirs.length) {
+        throw new Error('No plugin folders with plugin.json under plugins/');
+      }
+      let failed = 0;
+      for (const dir of dirs) {
+        try {
+          const v = await verifyPath(dir, shared);
+          console.log(`OK  ${v.manifest.id}@${v.manifest.version}  (${v.manifest.category}, ${v.manifest.kind})`);
+        } catch (err) {
+          failed += 1;
+          console.error(`FAIL  ${dir}: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      if (failed > 0) process.exit(1);
+      return;
     }
     const v = await verifyPath(target, shared);
     console.log(`OK  ${v.manifest.id}@${v.manifest.version}  (${v.manifest.category}, ${v.manifest.kind})`);

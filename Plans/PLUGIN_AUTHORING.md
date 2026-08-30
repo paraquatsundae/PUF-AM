@@ -4,6 +4,7 @@
 **Status:** Active — how-to for adding a crop pack  
 **Date:** 2026-08-23  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)  
+**Limits / debug / audit:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
 **Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1)
 
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.
@@ -61,12 +62,13 @@ Replace `<id>` with a snake_case pack id (`apple_scab`). Module id can match the
 }
 ```
 
-- `category`: `crop` \| `network` \| `generic`. Use `generic` if unsure. Do **not** use `network` — that row is Freenet.
+- `category`: `crop` \| `network` \| `generic`. Use `generic` if unsure. Do **not** use `network` — that row is Freenet. Category is Settings → Plugins grouping only — shell menu is `navItems.groupId` ([`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)).
 - `settingsDocId`: dedicated doc id for new packs (`<id>`). Use `null` if there are no farm knobs.
 - `settingsOwnedKeys`: list every field Delete may wipe. Required when sharing a doc (legacy blight only).
 - `modules`: must already exist on `FARM_MODULE_IDS` after step 3, or the adapter must fail closed.
 
 ```bash
+npm run plugins:verify                 # all first-party folders (health gate)
 npm run plugins:verify -- plugins/<id>
 ```
 
@@ -207,7 +209,7 @@ You do not implement lifecycle I/O. `src/lib/cropPackLifecycle.ts` already:
 | **Activate** | status `active` + add pack modules | Kept |
 | **Delete** | drop `cropPacks[<id>]` + strip modules | Wipe owned keys or whole `settingsDocId` |
 
-Nav and routes follow `enabledModules` ∩ member grant ∩ pack active. PIN presets still clamp to the farm catalog.
+Nav and routes follow `enabledModules` ∩ member grant ∩ pack active. PIN presets still clamp to the farm catalog. Install does **not** rewrite existing farmer PIN grants — the owner adds the module under Farm management or mints a new PIN.
 
 ---
 

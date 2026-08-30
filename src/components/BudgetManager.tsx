@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, doc, setDoc, deleteDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useAuth, handleFirestoreError, OperationType } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
 import { Target, Plus, Trash2, Edit2, DollarSign, PieChart as PieChartIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 

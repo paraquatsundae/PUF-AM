@@ -117,17 +117,17 @@ export function About() {
           <h2 className="text-lg font-bold text-slate-900">Optional crop packs</h2>
           <p className="text-sm text-slate-600 leading-relaxed">
             The first deep pack is <strong>walnut</strong>: blight risk, winter chill targets, and Ji-model
-            methodology under Blight risk. It unlocks when Farm setup has orchard/tree + walnut, or a map area
-            is marked walnut. Until then, invite PIN presets and Farm modules hide blight so workers never see
-            walnut-only tools.
+            methodology under Blight risk. Install it under Settings → Plugins. Farm setup (orchard/tree +
+            walnut) or a walnut paddock on the map is an eligibility hint, not an auto-install. Invite PIN
+            presets and Farm modules hide blight until the pack is installed so workers never see walnut-only
+            tools.
           </p>
           <p className="text-sm text-slate-600 leading-relaxed">
             Turn it on in{' '}
-            <Link to="/farm-setup" className="font-semibold text-emerald-700 hover:underline">
-              Farm setup
+            <Link to="/settings?tab=plugins" className="font-semibold text-emerald-700 hover:underline">
+              Settings → Plugins
             </Link>
-            {' '}
-            (enterprises / default species) or when naming a paddock as walnut on the map.
+            . Farm type and paddock species live under Farm setup.
           </p>
         </section>
       )}

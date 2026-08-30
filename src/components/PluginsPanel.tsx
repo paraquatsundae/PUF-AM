@@ -173,12 +173,13 @@ export function PluginsPanel({
         </h2>
         <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
           Install optional tools for this farm — crop packs (blight, chill, drying) and general
-          packs (water, nutrition, harvest). Freenet is under Network & storage. Fine-grained nav
-          toggles stay under{' '}
+          packs (water, nutrition, harvest). Freenet is under Network & storage. Install updates
+          the farm catalog; existing farmer PINs do not get the new page until you grant the
+          module under{' '}
           <Link to="/farm-management" className="text-emerald-700 font-semibold hover:underline">
             Farm management → Modules
-          </Link>
-          .
+          </Link>{' '}
+          or mint a new PIN.
         </p>
         {!isAdmin && (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
@@ -348,6 +349,13 @@ function CropPackPluginRow({
         </p>
       )}
 
+      {installed && active && (
+        <p className="text-[10px] text-slate-500">
+          Farm admins see this in the menu now. Farmer PINs minted before Install need the
+          module granted under Farm management — they are not updated automatically.
+        </p>
+      )}
+
       {installed &&
         active &&
         entry.primaryPath &&
@@ -360,7 +368,7 @@ function CropPackPluginRow({
           >
             {entry.label}
           </Link>{' '}
-          for orchard inoculum and engine settings.
+          to open the pack page.
         </p>
       )}
 
