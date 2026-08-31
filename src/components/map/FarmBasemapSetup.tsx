@@ -117,7 +117,7 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
     [deviceStats, farmId]
   );
 
-  const useExistingPack = async (pack: BasemapPack) => {
+  const adoptExistingPack = async (pack: BasemapPack) => {
     setAdoptingId(pack.farmId);
     setError(null);
     try {
@@ -327,7 +327,7 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                               <button
                                 type="button"
                                 disabled={adoptingId === pack.farmId}
-                                onClick={() => void useExistingPack(pack)}
+                                onClick={() => void adoptExistingPack(pack)}
                                 className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 disabled:opacity-50"
                               >
                                 {adoptingId === pack.farmId ? 'Linking…' : 'Use for this farm'}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { downloadFarmExportJson, downloadFarmExportXlsx } from '../lib/farmExport';
+import { downloadFarmExportJson } from '../lib/farmExport';
+import { downloadFarmExportDiaryCsv } from '../lib/farmExportSheets';
 import type { DiaryEvent } from '../lib/farmDiary';
 import { getLastFarm } from '../lib/deviceSession';
 import type { OrchardBlock } from '../lib/mapStore';
@@ -26,7 +27,7 @@ export function useFarmDiaryPage(
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [safetyForEventId, setSafetyForEventId] = useState<string | null>(null);
-  const [exportBusy, setExportBusy] = useState<'json' | 'xlsx' | null>(null);
+  const [exportBusy, setExportBusy] = useState<'json' | 'csv' | null>(null);
 
   const setPageMode = (mode: DiaryPageMode) => {
     const next = new URLSearchParams(searchParams);
@@ -90,15 +91,13 @@ export function useFarmDiaryPage(
     })();
   };
 
-  const exportFarmXlsx = () => {
+  const exportDiaryCsv = () => {
     if (!farmId) return;
     void (async () => {
-      setExportBusy('xlsx');
+      setExportBusy('csv');
       try {
-        await downloadFarmExportXlsx(farmId, {
+        await downloadFarmExportDiaryCsv(farmId, {
           farmName: getLastFarm()?.farmName || farmName,
-          includeIssues: false,
-          includeIssuesArchive: false,
         });
       } finally {
         setExportBusy(null);
@@ -123,7 +122,7 @@ export function useFarmDiaryPage(
     handleExport,
     exportBusy,
     exportFarmJson,
-    exportFarmXlsx,
+    exportDiaryCsv,
     deleteConfirmId,
     setDeleteConfirmId,
     safetyForEventId,

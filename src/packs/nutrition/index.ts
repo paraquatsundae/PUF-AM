@@ -1,9 +1,9 @@
-import React from 'react';
 import { IconFlask2 } from '@tabler/icons-react';
 import type { CropPackUiRegistration } from '../types';
 import { NUTRITION_PACK_ID, NUTRITION_PRIMARY_PATH } from '../../../shared/farm/nutritionPackage';
+import { lazyWithRetry } from '../../lib/lazyWithRetry';
 
-const NutritionPage = React.lazy(() =>
+const NutritionPage = lazyWithRetry(() =>
   import('../../pages/Nutrition').then((m) => ({ default: m.Nutrition }))
 );
 

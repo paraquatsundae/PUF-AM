@@ -45,7 +45,7 @@ function shelfDir(): string {
 }
 
 function shelfPath(farmId: string): string {
-  const safe = farmId.replace(/[^\w\-]+/g, '_');
+  const safe = farmId.replace(/[^\w-]+/g, '_');
   return join(shelfDir(), `${safe}.pufom`);
 }
 

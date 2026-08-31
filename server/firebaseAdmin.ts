@@ -119,6 +119,12 @@ export function getAdminDb() {
   return getFirestore(app);
 }
 
+/** `FieldValue` through the lazy loader, so sentinels stay off the static import path. */
+export function getAdminFieldValue() {
+  getAdminApp();
+  return loadAdminModules().firestore.FieldValue;
+}
+
 export function isAdminSdkReady(): boolean {
   try {
     getAdminApp();

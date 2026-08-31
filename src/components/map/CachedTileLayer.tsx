@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMap } from 'react-leaflet';
-import L from 'leaflet';
+import L from '../../lib/leaflet-setup';
 import {
   ESRI_ATTRIBUTION,
   ESRI_IMAGERY_URL,

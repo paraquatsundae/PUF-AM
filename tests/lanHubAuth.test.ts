@@ -229,7 +229,7 @@ describe('pairing throttle', () => {
   });
 
   it('throttles per client, so one bad tablet cannot lock out the shed', () => {
-    let now = 0;
+    const now = 0;
     const throttle = new PairingThrottle(1, 60_000, () => now);
     throttle.recordFailure('a');
     expect(throttle.retryAfterMs('a')).toBeGreaterThan(0);

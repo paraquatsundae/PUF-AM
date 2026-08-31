@@ -330,7 +330,7 @@ export type FarmGatewayResult = {
  *    should go there. The ladder decides again on the next resolve, and will
  *    prefer the shed Wi‑Fi when the tablet is on it.
  */
-export async function useFarmGateway(input: string): Promise<FarmGatewayResult> {
+export async function resolveFarmGateway(input: string): Promise<FarmGatewayResult> {
   const verdict = classifyGatewayAddress(input);
   if (!verdict.ok) throw new Error(verdict.reason);
 
@@ -411,7 +411,7 @@ export function clearFarmGateway(): void {
 }
 
 /** Operator typed an address. Probe before accepting so the error is immediate. */
-export async function useManualHub(input: string): Promise<SyncHubResolution> {
+export async function resolveManualHub(input: string): Promise<SyncHubResolution> {
   const base = normalizeHubBase(input);
   if (!base) {
     throw new Error('That does not look like an address — try 192.168.1.20:3000.');

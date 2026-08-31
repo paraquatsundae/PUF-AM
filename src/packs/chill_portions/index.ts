@@ -4,18 +4,27 @@
  * Page stays in `src/pages/WeatherEvents`; calculator + science panels live
  * under `src/components/chill/`.
  */
-import React from 'react';
 import { IconSnowflake } from '@tabler/icons-react';
-import { ChillEngineSciencePanel } from '../../components/chill/ChillEngineScience';
-import { ChillCalculatorPanel } from '../../components/chill/ChillCalculatorPanel';
 import type { CropPackUiRegistration } from '../types';
 import {
   CHILL_PORTIONS_PACK_ID,
   CHILL_PORTIONS_PRIMARY_PATH,
 } from '../../../shared/farm/chillPortionsPackage';
+import { lazyWithRetry } from '../../lib/lazyWithRetry';
 
-const WeatherEventsPage = React.lazy(() =>
+const WeatherEventsPage = lazyWithRetry(() =>
   import('../../pages/WeatherEvents').then((m) => ({ default: m.WeatherEvents }))
+);
+
+const ChillCalculatorPanel = lazyWithRetry(() =>
+  import('../../components/chill/ChillCalculatorPanel').then((m) => ({
+    default: m.ChillCalculatorPanel,
+  }))
+);
+const ChillEngineSciencePanel = lazyWithRetry(() =>
+  import('../../components/chill/ChillEngineScience').then((m) => ({
+    default: m.ChillEngineSciencePanel,
+  }))
 );
 
 const chillPath = CHILL_PORTIONS_PRIMARY_PATH.replace(/^\//, '');

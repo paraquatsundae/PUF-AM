@@ -1,11 +1,16 @@
-import React from 'react';
 import { IconDroplets } from '@tabler/icons-react';
-import { WaterAllocationPanel } from '../../components/water/WaterAllocationPanel';
 import type { CropPackUiRegistration } from '../types';
 import { WATER_PACK_ID, WATER_PRIMARY_PATH } from '../../../shared/farm/waterPackage';
+import { lazyWithRetry } from '../../lib/lazyWithRetry';
 
-const WaterPage = React.lazy(() =>
+const WaterPage = lazyWithRetry(() =>
   import('../../pages/WaterMonitoring').then((m) => ({ default: m.WaterMonitoring }))
+);
+
+const WaterAllocationPanel = lazyWithRetry(() =>
+  import('../../components/water/WaterAllocationPanel').then((m) => ({
+    default: m.WaterAllocationPanel,
+  }))
 );
 
 export const waterPackUi: CropPackUiRegistration = {

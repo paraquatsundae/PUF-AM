@@ -118,6 +118,42 @@ Use one of these paths instead of (or after) native mapping:
 
 Prefer **A′** for workshop cutover unless you already want an LB.
 
+> **Client IP for rate limiting — verify `TRUSTED_PROXY_CIDRS` after any change here.**
+>
+> Rate limits on `redeem-pin`, `create-farm` and `nearby-farms` key off the caller's
+> address, which `server/clientIp.ts` reads from the **right** of `X-Forwarded-For`
+> — the left of that list is written by the caller and is worthless.
+>
+> Which entry is the caller cannot be settled by counting hops on this deployment.
+> A′ puts two hops in front (Hosting edge, then Cloud Run) while the `run.app`
+> origin stays reachable at one hop, and Hosting **cannot** use restricted ingress —
+> it proxies over the public internet, so the service must stay
+> `--allow-unauthenticated` with ingress `all`
+> ([Firebase](https://stackoverflow.com/questions/70510668/)). A fixed count of 2
+> would therefore be forgeable by anyone calling `run.app` directly.
+>
+> So the proxy is recognised by **address** instead: walk from the right, skip
+> entries in `server/trustedProxyRanges.ts`, take the first that is not one. Both
+> shapes resolve correctly at once and no configuration is required.
+>
+> **The one thing to check.** That range list is Fastly's published list, but
+> Hosting also fronts on Google-owned addresses (`199.36.158.100`), so the hop that
+> actually reaches Cloud Run may not be in it. Confirm once, signed in as a platform
+> admin:
+>
+> ```bash
+> curl -H "Authorization: Bearer $ID_TOKEN" https://am.pufworks.farm/api/admin/client-ip
+> ```
+>
+> If the **last** `forwarded` entry comes back `"trusted": false`, that address is
+> the edge: add its range to `TRUSTED_PROXY_CIDRS` (comma-separated, additive) and
+> redeploy. Until then it is being used as the rate-limit key, so everyone behind
+> that edge shares a bucket — coarse, but never forgeable.
+>
+> `TRUSTED_PROXY_HOPS` overrides all of the above with a plain count. Only use it on
+> B′, where ingress *can* be restricted to internal + load balancer: close ingress
+> first, then set it to 2. See `tests/api/clientIp.test.ts`.
+
 #### A′) Firebase Hosting → `pufom` (recommended while service stays in Sydney)
 
 In a **separate** hosting config folder (not required to live inside the Vite app root), use a rewrite to Cloud Run, then attach `am.pufworks.farm` as a Firebase Hosting custom domain (Firebase will give its own DNS instructions — still **DNS only** in Cloudflare while certs provision).
@@ -229,6 +265,7 @@ npx wrangler login   # or export CLOUDFLARE_API_TOKEN=...
 - [ ] `gcloud auth login` (and wrangler/firebase login if using CLIs)
 - [ ] `pufworks.farm` verified in Search Console for the gcloud account (`gcloud domains list-user-verified`)
 - [ ] Custom hostname path chosen: Firebase Hosting rewrite **or** HTTPS LB (native domain-mappings **not** in `australia-southeast1`)
+- [ ] `GET /api/admin/client-ip` through the custom domain: last forwarded entry reads `"trusted": true`, else add its range to `TRUSTED_PROXY_CIDRS`
 - [ ] Cloudflare DNS for `am` → target from that path (**DNS only**, not proxied) — leave `puf.works` redirect alone
 - [ ] HTTPS loads on `https://am.pufworks.farm` (not 525)
 - [ ] `APP_URL` / `VITE_APP_URL` set; service redeployed via `npm run deploy:cloudrun`

@@ -23,7 +23,11 @@ import { BlightDevCalibPanel } from '../components/blight/BlightDevCalibPanel';
 const availableSeasons = SEASONS;
 
 export function BlightRisk() {
-  const todayDate = new Date();
+  // Memoised because it is a dependency of the model-series memos below, and a
+  // fresh Date on every render makes every one of them recompute — a full
+  // season of blight rows rebuilt on each slider tick. The page is remounted
+  // daily in practice; it does not need to notice midnight.
+  const todayDate = useMemo(() => new Date(), []);
   const todayStr = todayDateStr(todayDate);
 
   const { userData, isAdmin } = useAuth();

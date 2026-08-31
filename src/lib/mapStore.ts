@@ -189,9 +189,9 @@ export const useMapStoreInternal = create<MapState>((set, get) => ({
       const bundle = await loadFarmGeometryLocalFirst(farmId);
       if (gen !== loadGeneration || get().currentFarmId !== farmId) return;
 
-      let blocks = bundle.blocks || [];
+      const blocks = bundle.blocks || [];
       let pins = bundle.pins || [];
-      let tracks = bundle.tracks || [];
+      const tracks = bundle.tracks || [];
 
       if (bounds) {
         pins = filterByBounds(pins, bounds, 'point');
@@ -368,6 +368,108 @@ export const useMapStoreInternal = create<MapState>((set, get) => ({
   },
 }));
 
+const GEOMETRY_REFRESH_MS = 30_000;
+
+/**
+ * Farm-wide upkeep: hydrate, re-hydrate on focus/online, poll for pins drawn on
+ * another device, and persist the viewport.
+ *
+ * This belongs to the farm, not to whichever component rendered first.
+ * `useMapStore` has sixteen call sites and they mount together — Dashboard
+ * alone reaches it three times, directly and through `useWalnutPack` and
+ * `useChillPack` — so running this per caller meant three refresh timers, three
+ * focus listeners and three writes of the same viewport, all reloading one
+ * farm's geometry. Refcounted so it runs once while anything is mounted.
+ */
+let upkeepFarmId: string | null = null;
+let upkeepRefs = 0;
+let stopUpkeep: (() => void) | null = null;
+
+function startFarmUpkeep(farmId: string): () => void {
+  const state = () => useMapStoreInternal.getState();
+
+  const refresh = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    void state().loadData(farmId);
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible') refresh();
+  };
+  // Flush queued cloud writes before re-reading, not in parallel with it.
+  const onOnline = () => {
+    void (async () => {
+      await state().flushSync(farmId);
+      // Removing the listener does not cancel a chain already inside it, and a
+      // flush over a shed uplink can take minutes. `loadData` asserts
+      // `currentFarmId` on entry, so without this an operator who switched farms
+      // mid-flush gets the *old* farm's blocks back under the new farm's name.
+      if (upkeepFarmId !== farmId) return;
+      await state().loadData(farmId);
+    })();
+  };
+
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('focus', refresh);
+  window.addEventListener('online', onOnline);
+  const intervalId = window.setInterval(refresh, GEOMETRY_REFRESH_MS);
+
+  // Outside React: one writer for the viewport, whatever moved the map.
+  //
+  // Compared by value, not identity: every `loadData` sets a fresh viewport
+  // object out of IndexedDB, so an identity check fires on each poll and an idle
+  // tablet writes — and syncs — a viewport it never moved every 30 seconds.
+  const sameViewport = (a: MapViewport, b: MapViewport) =>
+    a.lat === b.lat && a.lng === b.lng && a.zoom === b.zoom;
+  const unsubscribeViewport = useMapStoreInternal.subscribe((next, prev) => {
+    if (!next.isLoaded || sameViewport(next.viewport, prev.viewport)) return;
+    persistViewport(farmId, next.viewport).catch((err) =>
+      console.error('Failed to save viewport:', err)
+    );
+  });
+
+  void state().loadData(farmId);
+
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('focus', refresh);
+    window.removeEventListener('online', onOnline);
+    window.clearInterval(intervalId);
+    unsubscribeViewport();
+  };
+}
+
+function useFarmUpkeep(farmId: string | undefined): void {
+  useEffect(() => {
+    if (!farmId) return;
+
+    // Counted before anything else and never reset, so the tally cannot drift
+    // below the number of mounted consumers. Resetting it when the farm changes
+    // would only be safe while React runs every cleanup before every setup; if
+    // one component's setup ran between another's cleanup and setup, the count
+    // would land low and the next unmount would tear down upkeep that the
+    // components still on screen depend on.
+    upkeepRefs += 1;
+
+    if (upkeepFarmId !== farmId) {
+      // Switching farms restarts upkeep rather than sharing the old farm's.
+      stopUpkeep?.();
+      upkeepFarmId = farmId;
+      stopUpkeep = startFarmUpkeep(farmId);
+    } else if (!stopUpkeep) {
+      stopUpkeep = startFarmUpkeep(farmId);
+    }
+
+    return () => {
+      upkeepRefs -= 1;
+      if (upkeepRefs > 0) return;
+      stopUpkeep?.();
+      stopUpkeep = null;
+      upkeepFarmId = null;
+      upkeepRefs = 0;
+    };
+  }, [farmId]);
+}
+
 export function useMapStore() {
   const { userData } = useAuth();
   const farmId = userData?.farmId;
@@ -375,53 +477,7 @@ export function useMapStore() {
 
   const store = useMapStoreInternal();
 
-  useEffect(() => {
-    if (farmId) {
-      store.loadData(farmId);
-    }
-  }, [farmId]);
-
-  useEffect(() => {
-    if (store.isLoaded && farmId) {
-      persistViewport(farmId, store.viewport).catch((err) =>
-        console.error('Failed to save viewport:', err)
-      );
-    }
-  }, [store.viewport, store.isLoaded, farmId]);
-
-  // Flush pending cloud sync when connectivity returns (flush-then-reload, not in parallel)
-  useEffect(() => {
-    if (!farmId) return;
-    const onOnline = () => {
-      void (async () => {
-        await store.flushSync(farmId);
-        await store.loadData(farmId);
-      })();
-    };
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-  }, [farmId]);
-
-  // Multi-device: geometry is local-first + one-shot hydrate (no onSnapshot).
-  // Re-hydrate on focus and poll so tablet picks up browser-drawn pins.
-  useEffect(() => {
-    if (!farmId) return;
-    const refresh = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      void store.loadData(farmId);
-    };
-    const onVis = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-    document.addEventListener('visibilitychange', onVis);
-    window.addEventListener('focus', refresh);
-    const intervalId = window.setInterval(refresh, 30000);
-    return () => {
-      document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener('focus', refresh);
-      window.clearInterval(intervalId);
-    };
-  }, [farmId]);
+  useFarmUpkeep(farmId);
 
   const addBlock = useCallback(
     async (block: OrchardBlock) => {

@@ -14,6 +14,7 @@ import {
   encodeNativeContractPut,
   encodeNativeContractUpdate,
   looksLikeAlreadyPublished,
+  nativeHostPutErrorMessage,
 } from './src/freenet02-native-bincode.ts';
 import { BrowserFreenetSlotClient } from './src/freenet02-native-slot.ts';
 import {
@@ -82,9 +83,8 @@ describe('decodeNativeHostResult (slot)', () => {
   it('reads an already-published Put error', () => {
     const decoded = decodeNativeHostResult(fromHex(ALREADY_HEX));
     expect(decoded.ok).toBe(false);
-    if (decoded.ok) return;
-    expect(decoded.message).toBe('contract already exists');
-    expect(looksLikeAlreadyPublished(decoded.message)).toBe(true);
+    expect(nativeHostPutErrorMessage(decoded)).toBe('contract already exists');
+    expect(looksLikeAlreadyPublished(nativeHostPutErrorMessage(decoded))).toBe(true);
   });
 
   it('reads an UpdateResponse key', () => {

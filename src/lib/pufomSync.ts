@@ -136,7 +136,7 @@ export async function exportPufomFile(
   const bundle = await buildPufomBundle(farmId, opts);
   const bytes = await encodePufomBundle(bundle);
   const day = bundle.exportedAt.slice(0, 10);
-  const safeName = (opts?.farmName || farmId).replace(/[^\w\-]+/g, '_').slice(0, 40);
+  const safeName = (opts?.farmName || farmId).replace(/[^\w-]+/g, '_').slice(0, 40);
   return {
     bytes,
     filename: `${safeName}_${day}.pufom`,

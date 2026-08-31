@@ -47,7 +47,7 @@ import { apiFetch, apiHubMissing, mistFreenetApiUrl, NO_API_HUB_MESSAGE } from '
 import {
   localFreenetSearchBudgetMs,
   readLocalFreenetBlob,
-  useLocalFreenetForReads,
+  shouldUseLocalFreenetForReads,
 } from './freenetLocalNode.ts';
 import { loadMistDeviceSession } from './mistDeviceSession.ts';
 
@@ -134,7 +134,7 @@ async function readJoinSlotState(
   const hubAvailable = !apiHubMissing();
   let localReason: string | null = null;
 
-  if (await useLocalFreenetForReads()) {
+  if (await shouldUseLocalFreenetForReads()) {
     try {
       const bytes = await readLocalFreenetBlob(encodeFreenet02Uri(instanceIdBase58), {
         deadlineMs: localFreenetSearchBudgetMs(hubAvailable),

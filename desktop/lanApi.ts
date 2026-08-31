@@ -29,6 +29,7 @@ import { hostname as osHostname } from 'node:os';
 
 import express from 'express';
 
+import { socketPeerIp } from '../server/clientIp.ts';
 import { apiCorsMiddleware, createApiApp } from '../server/createApiApp.ts';
 import { HUB_INFO_PATH, HUB_PAIR_PATH, type HubInfo } from '../shared/sync/hubInfo.ts';
 import {
@@ -83,8 +84,13 @@ export type LanApiOptions = {
   hubId?(): string;
 };
 
+/**
+ * The socket peer, never `X-Forwarded-For`. Nothing proxies this hub — it is an
+ * Express server on a laptop on the shed Wi‑Fi — so the header here could only
+ * have come from the tablet being limited.
+ */
 function clientKey(req: express.Request): string {
-  return String(req.ip || req.socket.remoteAddress || 'unknown');
+  return socketPeerIp(req);
 }
 
 function hubName(): string {

@@ -20,7 +20,7 @@ Checked the take list against current `master` (`c91bd4e` + this note). CodeRabb
 
 **Later (real, not first cut):** `Layout.tsx` / `Admin.tsx` send `user.email` to ui-avatars.com; `weatherCacheRoutes` / `weatherScheduler` merge map fields; unauthenticated chill/DPIRD/cache routes — confirm before locking.
 
-**Still dismiss:** empty-catalog “simplify”; `x-forwarded-for` without a trusted-proxy decision; `ai-studio-…` Firestore default; dryer sorted-index; `React.memo` / `strict` / `useOrchardMapPage`; AuthContext “missing role = admin” without a Mist migrate.
+**Still dismiss:** empty-catalog “simplify”; `ai-studio-…` Firestore default; dryer sorted-index; `React.memo` / `strict` / `useOrchardMapPage`; AuthContext “missing role = admin” without a Mist migrate.
 
 ---
 
@@ -124,7 +124,7 @@ CodeRabbit **did not** call out the 30s full-collection poll + client-side lng f
 |---------|-----|------|------|
 | **Take later** | critical | `weatherCacheRoutes.ts` | `ref.set` merges `weatherData` / `forecastData` maps — stale keys survive. Same class as functions scheduler. |
 | **Take later** | major | `chillRoutes.ts` / `createApiApp.ts` / `weatherCacheRoutes.ts` | Chill `force`, DPIRD proxy, cache POST look unauthenticated. Confirm before locking. |
-| **Dismiss** | major | `accessPinAuth.ts` `x-forwarded-for` | Already parked; needs a trusted-proxy decision. |
+| **Taken 2026-08-30** | major | `accessPinAuth.ts` `x-forwarded-for` | Trusted-proxy decision made: `server/clientIp.ts` counts from the right, 1 hop on Cloud Run, 0 elsewhere. |
 | **Freenet later** | major | `mistLanShelfRoutes.ts` / `freenetPeerHost.ts` | Out of the in-scope peel. |
 
 ## `shared` — 2026-08-30

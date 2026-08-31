@@ -31,8 +31,8 @@ import {
   clearFarmGateway,
   ensureSyncHub,
   rememberGatewayIdentity,
-  useFarmGateway,
-  useManualHub,
+  resolveFarmGateway,
+  resolveManualHub,
   type SyncHubResolution,
 } from '../../lib/syncHub';
 import { readFarmGateway, sameHubBase, type FarmGateway } from '../../lib/farmGateway';
@@ -54,11 +54,8 @@ import {
   pushLanBundle,
   type SyncPendingCounts,
 } from '../../lib/pufomSync';
-import {
-  downloadFarmExportJson,
-  downloadFarmExportXlsx,
-  downloadFarmExportZip,
-} from '../../lib/farmExport';
+import { downloadFarmExportJson, downloadFarmExportZip } from '../../lib/farmExport';
+import { downloadFarmExportSheets } from '../../lib/farmExportSheets';
 import { useMapStoreInternal } from '../../lib/mapStore';
 import { getLastFarm } from '../../lib/deviceSession';
 
@@ -228,7 +225,7 @@ export function useFarmSync() {
 
   const setManualHubAddress = (address: string) =>
     void run('lan', 'hub', async () => {
-      const res = await useManualHub(address);
+      const res = await resolveManualHub(address);
       applyResolution(res);
       return res.needsPairing
         ? `Found ${res.baseUrl} — now enter its pairing code below.`
@@ -248,7 +245,7 @@ export function useFarmSync() {
 
   const setGatewayAddress = (address: string) =>
     void run('gateway', 'gateway', async () => {
-      const result = await useFarmGateway(address);
+      const result = await resolveFarmGateway(address);
       applyResolution(result.resolution);
       setGateway(result.gateway);
       const where = result.gateway.hubName || result.gateway.base;
@@ -345,10 +342,10 @@ export function useFarmSync() {
       return `Saved ${filename}`;
     });
 
-  const exportXlsx = () =>
-    void run('files', 'export-xlsx', async () => {
+  const exportSheets = () =>
+    void run('files', 'export-sheets', async () => {
       const farmName = getLastFarm()?.farmName;
-      const { filename } = await downloadFarmExportXlsx(farmId, { farmName });
+      const { filename } = await downloadFarmExportSheets(farmId, { farmName });
       return `Saved ${filename}`;
     });
 
@@ -405,7 +402,7 @@ export function useFarmSync() {
     exportPack,
     importPack,
     exportJson,
-    exportXlsx,
+    exportSheets,
     exportZip,
     cacheWeather,
   };

@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { getDpirdApiKey } from './envSecrets.ts';
 import { getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
+import { requireAuthedUser } from './requireAuthedUser.ts';
 import {
   resolveWeatherStation,
   fetchDpirdHourlyTemps,
@@ -100,6 +101,9 @@ function mergeHourly(base: HourlyTempPoint[], extra: HourlyTempPoint[]): HourlyT
  */
 export function registerChillRoutes(app: Express) {
   app.get('/api/weather/chill-portions', async (req: Request, res: Response) => {
+    const caller = await requireAuthedUser(req, res);
+    if (!caller) return;
+
     try {
       const apiKey = getDpirdApiKey();
       if (!apiKey) {

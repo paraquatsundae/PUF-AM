@@ -29,14 +29,24 @@ export type PackNavRegistration = {
 };
 
 /**
+ * A pack surface, lazy or eager. Register these lazily: `registry.ts` is pulled
+ * in eagerly by App and navConfig for routes and nav, so a statically imported
+ * surface drags its whole component tree into the first paint — and these are
+ * settings and science panels that only open from deep in the UI.
+ *
+ * Whatever renders one needs a Suspense boundary.
+ */
+export type PackSurface = ComponentType<any> | LazyExoticComponent<ComponentType<any>>;
+
+/**
  * Named pack surfaces (settings / honesty panels).
  * Walnut keeps implementations under `src/components/blight/`; packs re-export.
  */
 export type PackSurfaceComponents = {
-  productionSettings?: ComponentType<any>;
-  researchSettings?: ComponentType<any>;
-  science?: ComponentType<any>;
-  engineSettings?: ComponentType<any>;
+  productionSettings?: PackSurface;
+  researchSettings?: PackSurface;
+  science?: PackSurface;
+  engineSettings?: PackSurface;
 };
 
 export type CropPackUiRegistration = {

@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import type { UserData } from '../contexts/AuthContext';
 import { db } from '../firebase';
-import { trackMetric } from '../services/metricsService';
+import { trackMetric, type UsageMetrics } from '../services/metricsService';
 
 export type AdminAccessList = Record<string, boolean>;
 export type AdminTab = 'ops' | 'users' | 'whitelist' | 'blacklist' | 'usage';
@@ -25,9 +25,9 @@ export function useAdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [activeTab, setActiveTab] = useState<AdminTab>('ops');
-  const [globalMetrics, setGlobalMetrics] = useState<Record<string, unknown> | null>(null);
+  const [globalMetrics, setGlobalMetrics] = useState<UsageMetrics | null>(null);
   const [dailyMetrics, setDailyMetrics] = useState<Array<Record<string, unknown> & { date: string }>>([]);
-  const [userMetrics, setUserMetrics] = useState<Record<string, unknown>>({});
+  const [userMetrics, setUserMetrics] = useState<Record<string, UsageMetrics>>({});
 
   useEffect(() => {
     trackMetric('read', 4).catch(console.error);
@@ -69,7 +69,7 @@ export function useAdminDashboard() {
 
     const unsubscribeGlobal = onSnapshot(doc(db, 'metrics_global', 'all'), (snap) => {
       if (snap.exists()) {
-        setGlobalMetrics(snap.data() as Record<string, unknown>);
+        setGlobalMetrics(snap.data() as UsageMetrics);
       }
     });
 
@@ -100,9 +100,9 @@ export function useAdminDashboard() {
     void getDocs(collection(db, 'metrics_users'))
       .then((snap) => {
         if (cancelled) return;
-        const next: Record<string, unknown> = {};
+        const next: Record<string, UsageMetrics> = {};
         snap.docs.forEach((d) => {
-          next[d.id] = d.data();
+          next[d.id] = d.data() as UsageMetrics;
         });
         setUserMetrics(next);
       })

@@ -14,6 +14,39 @@ npm test && npm run lint && npm run plugins:verify && npm run audit:codebase
 
 ---
 
+## 2026-08-30 — Chunk resilience, Leaflet entry point, diary CSV
+
+**Host:** Linux (Fedora), repo `Walnut_farm_manager`
+**Why:** Three findings from the line-by-line review. A rejected `import()` took down the whole session; three modules reached Leaflet without the setup module that registers its plugins; the diary's "CSV" button handed back a zip.
+
+### Change
+
+- [`src/lib/lazyWithRetry.ts`](../src/lib/lazyWithRetry.ts) — new. Three attempts with backoff, parking on the `online` event rather than spending a retry offline (10 s cap). All 22 `React.lazy` sites in `src/App.tsx` and `src/packs/*/index.ts` now go through it.
+- [`src/components/RouteErrorBoundary.tsx`](../src/components/RouteErrorBoundary.tsx) — new, inside the router, `resetKeys={[pathname]}`, Suspense folded in so the pair nests in the only order that works. Handles **only** an unreachable chunk; everything else is rethrown to the app-level boundary, which is where the Firestore cache-clear recovery lives.
+- `StableEditControl` / `EventMarkerCluster` / `CachedTileLayer` — import `L` from `src/lib/leaflet-setup` instead of `leaflet` plus a bare plugin import. `leaflet-draw` and `leaflet.markercluster` read a global `L` they never import, so the ordering was left to the bundler once `main.tsx` stopped importing the setup module eagerly.
+- [`eslint.config.js`](../eslint.config.js) — `no-restricted-imports` on `leaflet`, `leaflet-draw`, `leaflet.markercluster` under `src/**`, with `allowTypeImports` (the ~12 `import type { Map }` sites are erased before anything runs). Verified by reinstating a raw import and watching it fail.
+- [`src/lib/farmExportSheets.ts`](../src/lib/farmExportSheets.ts) — `downloadFarmExportDiaryCsv`. The diary page passes `includeIssues: false`, so the zip held one real file, and a zip does not open in Sheets on the tablet. The full farm export still zips, because it genuinely has several sheets.
+- [`vitest.config.ts`](../vitest.config.ts) — include `.tsx` tests; a component whose job is what it renders can only be tested by rendering it.
+
+### Verdict
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Pass** — 941 passed, 10 skipped (was 929). 12.3 s |
+| `npm run lint` (`tsc --noEmit`) | **Pass** |
+| `npm run lint:eslint` | **Pass** — 0 errors |
+| `npm run plugins:verify` | **Pass** — 6 first-party crop packs |
+| `npm run audit:codebase` | **Pass** |
+| `npm run build` | **Pass** — no circular-import warnings; `vendor-leaflet` still out of the eager preload set |
+
+Chained procedure A: **pass**.
+
+### Tests are load-bearing
+
+Reverted each fix in turn (`RETRIES = 0`, `chunkFailed = false`, diary back to the zip) and confirmed 9 of the 12 new assertions fail before passing.
+
+---
+
 ## 2026-08-30 — Thin SoC greps
 
 **Host:** Linux (Fedora), repo `Walnut_farm_manager`  
@@ -46,7 +79,7 @@ Chained procedure A: **pass**.
 ### Next implementation slice
 
 1. Freenet cards / Desktop / APK when that pass opens. No map redesign.
-2. Parked CodeRabbit nits (a11y, CSV quotes, `x-forwarded-for`) — not this gate.
+2. Parked CodeRabbit nits (a11y, CSV quotes) — not this gate. (`x-forwarded-for` taken 2026-08-30.)
 
 ---
 
@@ -69,7 +102,7 @@ Chained procedure A: **pass**.
 - `leaflet-draw-window-type` import-time `window.type` — keep at map-lib boundary; do not invent a second init
 - Enable-`strict` / `React.memo` / `useOrchardMapPage` — none offered; still dismiss if they appear
 - Prototype-pollution `constructor` key, a11y nits, date-overflow, CSV quotes — later, not this health peel
-- `x-forwarded-for` rate-limit key — only change with a stated trusted-proxy setup
+- `x-forwarded-for` rate-limit key — **done 2026-08-30**, the trusted-proxy setup is now stated: `server/clientIp.ts`, hops from `TRUSTED_PROXY_HOPS` / `K_SERVICE`
 
 ---
 

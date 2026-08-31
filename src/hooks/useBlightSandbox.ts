@@ -159,7 +159,7 @@ export function useBlightSandbox() {
       cropCoefficient: 0.2 + 0.8 * canopyCoverage,
     };
 
-    let currentSprays = { ...activeScenario.sprays };
+    const currentSprays = { ...activeScenario.sprays };
     let iterations = 0;
     const maxIterations = isHistorical ? 100 : 30;
     const threshold = 0.8;

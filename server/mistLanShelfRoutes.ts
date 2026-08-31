@@ -71,7 +71,7 @@ function shelfDir(): string {
 }
 
 function shelfPath(farmId: string): string {
-  return join(shelfDir(), `${farmId.replace(/[^\w\-]+/g, '_')}.sealed`);
+  return join(shelfDir(), `${farmId.replace(/[^\w-]+/g, '_')}.sealed`);
 }
 
 function metaPath(farmId: string): string {

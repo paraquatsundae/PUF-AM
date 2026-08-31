@@ -13,7 +13,13 @@ import { fetchEnvironmentalData } from '../lib/weatherService';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import type { MapMode, MapSubTab } from '../components/map/editMapTypes';
 
-export function useOrchardMapAnalytics({
+/**
+ * Generic over the event row so `dailyEvents` comes back as whatever was passed
+ * in. This hook only reads `date`, but its output is handed to the marker
+ * cluster, which needs the whole row — pinning the parameter to `{ date }` threw
+ * the rest of the shape away on the way through.
+ */
+export function useOrchardMapAnalytics<EventRow extends { date: string }>({
   farmId,
   mapMode,
   activeTab,
@@ -29,7 +35,7 @@ export function useOrchardMapAnalytics({
   activeTab: MapSubTab;
   blocks: OrchardBlock[];
   viewport: { lat: number; lng: number };
-  events: Array<{ date: string }>;
+  events: EventRow[];
   getSprayEvents: (blockId?: string) => Record<string, unknown>;
   getIrrigationEvents: (blockId?: string) => Record<string, number>;
   irrigationSystemType?: string;

@@ -4,17 +4,34 @@
  * Page + panels stay in `src/pages/BlightRisk` and `src/components/blight/`
  * for now; this module is the seam new packs should copy.
  */
-import React from 'react';
 import { IconBug } from '@tabler/icons-react';
-import { BlightOrchardInoculumPanel } from '../../components/blight/BlightOrchardInoculumPanel';
-import { BlightResearchModifiersPanel } from '../../components/blight/BlightResearchModifiersPanel';
-import { BlightEngineSciencePanel } from '../../components/blight/BlightEngineScience';
-import { BlightEngineSettings } from '../../components/blight/BlightEngineSettings';
 import type { CropPackUiRegistration } from '../types';
 import { WALNUT_BLIGHT_PACK_ID, WALNUT_BLIGHT_PRIMARY_PATH } from '../../../shared/farm/walnutBlightPackage';
+import { lazyWithRetry } from '../../lib/lazyWithRetry';
 
-const BlightRiskPage = React.lazy(() =>
+const BlightRiskPage = lazyWithRetry(() =>
   import('../../pages/BlightRisk').then((m) => ({ default: m.BlightRisk }))
+);
+
+const BlightOrchardInoculumPanel = lazyWithRetry(() =>
+  import('../../components/blight/BlightOrchardInoculumPanel').then((m) => ({
+    default: m.BlightOrchardInoculumPanel,
+  }))
+);
+const BlightResearchModifiersPanel = lazyWithRetry(() =>
+  import('../../components/blight/BlightResearchModifiersPanel').then((m) => ({
+    default: m.BlightResearchModifiersPanel,
+  }))
+);
+const BlightEngineSciencePanel = lazyWithRetry(() =>
+  import('../../components/blight/BlightEngineScience').then((m) => ({
+    default: m.BlightEngineSciencePanel,
+  }))
+);
+const BlightEngineSettings = lazyWithRetry(() =>
+  import('../../components/blight/BlightEngineSettings').then((m) => ({
+    default: m.BlightEngineSettings,
+  }))
 );
 
 const blightPath = WALNUT_BLIGHT_PRIMARY_PATH.replace(/^\//, '');

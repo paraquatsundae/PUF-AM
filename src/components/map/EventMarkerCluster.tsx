@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet.markercluster';
+// `leaflet-setup` rather than `leaflet` + a bare `import 'leaflet.markercluster'`:
+// the plugin reads a global `L` and never imports leaflet, so it needs
+// `leaflet-window` to have run first, which only `leaflet-setup` guarantees.
+import L from '../../lib/leaflet-setup';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { escapeHtml } from '../../lib/escapeHtml';

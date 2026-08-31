@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { Suspense } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary';
+import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { MistNewFarm } from './pages/MistNewFarm';
@@ -28,25 +30,14 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 
 startFarmOutboxFlushListener();
 
-const FarmManagement = React.lazy(() => import('./pages/FarmManagement').then(m => ({ default: m.FarmManagement })));
-const FarmDiary = React.lazy(() => import('./pages/FarmDiary').then(m => ({ default: m.FarmDiary })));
-const About = React.lazy(() => import('./pages/About').then(m => ({ default: m.About })));
-const OrchardMap = React.lazy(() => import('./pages/OrchardMap').then(m => ({ default: m.OrchardMap })));
-const Financials = React.lazy(() => import('./pages/Financials').then(m => ({ default: m.Financials })));
-const Admin = React.lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
-const Settings = React.lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
-const FarmSetup = React.lazy(() => import('./pages/FarmSetup').then(m => ({ default: m.FarmSetup })));
-
-function RouteFallback() {
-  return (
-    <div className="min-h-[50vh] flex items-center justify-center bg-slate-50">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-        <p className="text-slate-500 font-medium">Loading...</p>
-      </div>
-    </div>
-  );
-}
+const FarmManagement = lazyWithRetry(() => import('./pages/FarmManagement').then(m => ({ default: m.FarmManagement })));
+const FarmDiary = lazyWithRetry(() => import('./pages/FarmDiary').then(m => ({ default: m.FarmDiary })));
+const About = lazyWithRetry(() => import('./pages/About').then(m => ({ default: m.About })));
+const OrchardMap = lazyWithRetry(() => import('./pages/OrchardMap').then(m => ({ default: m.OrchardMap })));
+const Financials = lazyWithRetry(() => import('./pages/Financials').then(m => ({ default: m.Financials })));
+const Admin = lazyWithRetry(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
+const Settings = lazyWithRetry(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const FarmSetup = lazyWithRetry(() => import('./pages/FarmSetup').then(m => ({ default: m.FarmSetup })));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, userData, loading, error, mistLocked } = useAuth();
@@ -110,7 +101,8 @@ export default function App() {
         <WorkshopModeBanner />
         <OfflineIndicator />
         <BrowserRouter>
-          <Suspense fallback={<RouteFallback />}>
+          {/* Error boundary + Suspense for the routes; keyed on the pathname. */}
+          <RouteErrorBoundary>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/login/mist-new-farm" element={<MistNewFarm />} />
@@ -196,7 +188,7 @@ export default function App() {
                 <Route path="admin" element={<Admin />} />
               </Route>
             </Routes>
-          </Suspense>
+          </RouteErrorBoundary>
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

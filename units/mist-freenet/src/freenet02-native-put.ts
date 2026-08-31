@@ -22,7 +22,12 @@ import { ContractCodeT } from '@freenetorg/freenet-stdlib/common';
 import bs58 from 'bs58';
 
 import { DEFAULT_LOCAL_FREENET_WS_URL } from './freenet02-browser-get-url.ts';
-import { decodeNativeHostResult, encodeNativePackPut, toNativeFreenetWsUrl } from './freenet02-native-bincode.ts';
+import {
+  decodeNativeHostResult,
+  encodeNativePackPut,
+  nativeHostPutErrorMessage,
+  toNativeFreenetWsUrl,
+} from './freenet02-native-bincode.ts';
 import { FreenetNativeWsError, sendNativeRequest } from './freenet02-native-ws.ts';
 import {
   packContractCodeHashBytes,
@@ -144,7 +149,7 @@ export class BrowserFreenetPutClient {
       const decoded = decodeNativeHostResult(reply);
       if (!decoded.ok) {
         throw new FreenetNativePutError(
-          `Freenet native PUT failed (${this.wsUrl}): ${decoded.message}`,
+          `Freenet native PUT failed (${this.wsUrl}): ${nativeHostPutErrorMessage(decoded)}`,
         );
       }
       if (!bytesEqual(decoded.instanceId, frame.instanceId)) {

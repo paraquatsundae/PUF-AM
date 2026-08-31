@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SEASONS, WALNUT_DISTRICTS } from '../constants';
+import { debugLog } from '../lib/debugLog';
 import type { WeatherData } from '../lib/blightModel';
 import {
   calculateDistance,
@@ -173,7 +174,7 @@ export function useBlightWeather({
             cacheSource: result.cacheSource,
           });
           if (result.cacheSource) {
-            console.log(
+            debugLog(
               `[Blight] Weather loaded: ${keys.length} days via ${result.cacheSource}` +
                 (result.isStale ? ' (stale)' : '')
             );

@@ -30,7 +30,7 @@ export function SandboxMatrix({ season, type, data, onChange }: SandboxMatrixPro
 
     const grid: { date: string | null; month: number | null; day: number | null }[][] = Array.from({ length: 7 }, () => []);
     
-    let currentDate = new Date(startDate);
+    const currentDate = new Date(startDate);
     const startDayIndex = getDayIndex(currentDate);
 
     // Fill initial empty days

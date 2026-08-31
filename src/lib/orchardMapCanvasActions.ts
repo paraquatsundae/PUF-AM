@@ -1,5 +1,5 @@
 import type { Map as LeafletMap } from 'leaflet';
-import { setBasemapSkipped } from './basemapPack';
+import { setBasemapSkipped, type BasemapPack } from './basemapPack';
 import { deleteSelectedVertex } from './boundaryEditSession';
 import type { FieldIssue } from './fieldStore';
 import type { MapHighlightDoc } from './mapHighlights';
@@ -11,7 +11,8 @@ type HighlightDraft = GeoJSON.Feature | GeoJSON.Geometry | null;
 
 type Deps = {
   farmId: string;
-  basemapPack: { id?: string } | null;
+  /** Only tested for presence here; the pack itself is the map layer's business. */
+  basemapPack: BasemapPack | null;
   setBasemapSkippedState: (skipped: boolean) => void;
   setShowBasemapSetup: (open: boolean) => void;
   refreshBasemapPack: () => Promise<void>;

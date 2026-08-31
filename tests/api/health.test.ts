@@ -33,36 +33,21 @@ describe("API health", () => {
     expect(await res.json()).toEqual({ status: "ok" });
   });
 
-  it("POST /api/weather/blight-risk validates required fields", async () => {
+  /**
+   * `blight-risk` used to answer anonymously, so these asserted the payload
+   * shape over HTTP. It runs `runBlightModel` over every block on a caller's
+   * say-so, so it verifies a bearer now and the model itself is covered
+   * directly by `tests/jiBlightModel.test.ts`.
+   *
+   * 401 or 503 depending on whether this tree has Firebase Admin credentials —
+   * same pairing as the `/api/admin/ops` case above.
+   */
+  it("POST /api/weather/blight-risk refuses an anonymous caller before validating", async () => {
     const res = await fetch(`${baseUrl}/api/weather/blight-risk`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ farmId: "test" }),
     });
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "Missing required parameters" });
-  });
-
-  it("POST /api/weather/blight-risk returns blight payload with fallback weather", async () => {
-    const res = await fetch(`${baseUrl}/api/weather/blight-risk`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        farmId: "test-farm",
-        lat: -34.25,
-        lng: 116.15,
-        startDate: "2026-03-01",
-        endDate: "2026-03-05",
-        sprayEvents: {},
-        irrigationEvents: {},
-        blocks: [],
-      }),
-    });
-
-    expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.currentRiskScore).toBeTypeOf("number");
-    expect(data.blightResults.length).toBeGreaterThan(0);
-    expect(Object.keys(data.weatherData).length).toBeGreaterThan(0);
+    expect([401, 503]).toContain(res.status);
   });
 });

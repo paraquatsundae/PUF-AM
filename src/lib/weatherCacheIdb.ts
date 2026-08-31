@@ -9,7 +9,7 @@ import {
   toLocalISOString,
 } from '../../shared/weather/dpirdClient';
 import { db } from '../firebase';
-import { apiUrl } from './apiBase';
+import { apiFetch, apiUrl } from './apiBase';
 
 const DB_NAME = 'pufom_weather_cache';
 const DB_VERSION = 1;
@@ -117,10 +117,11 @@ export async function cacheWeatherForOffline(opts?: {
   const endDate = toLocalISOString(end);
 
   try {
-    await fetch(apiUrl('/api/weather/ensure-cache'), {
+    await apiFetch(apiUrl('/api/weather/ensure-cache'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stationCode, startDate, endDate }),
+      timeoutMs: 60000,
     });
   } catch (err) {
     console.warn('[weatherCacheIdb] ensure-cache failed', err);

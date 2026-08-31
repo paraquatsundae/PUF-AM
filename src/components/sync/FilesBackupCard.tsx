@@ -127,15 +127,15 @@ export function FilesBackupCard({ sync }: { sync: FarmSync }) {
               <button
                 type="button"
                 disabled={!!busy}
-                onClick={() => sync.exportXlsx()}
+                onClick={() => sync.exportSheets()}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
               >
-                {busy === 'export-xlsx' ? (
+                {busy === 'export-sheets' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                Download Excel
+                Download CSV
               </button>
               <button
                 type="button"

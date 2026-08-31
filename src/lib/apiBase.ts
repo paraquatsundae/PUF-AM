@@ -172,6 +172,92 @@ export function hubAuthHeaders(url: string): Record<string, string> {
   return token ? { [HUB_TOKEN_HEADER]: token } : {};
 }
 
+type IdTokenProvider = () => Promise<string | null>;
+
+let idTokenProvider: IdTokenProvider | null = null;
+
+/**
+ * Registered by `src/firebase.ts` at startup rather than imported here.
+ *
+ * `apiBase` is unit-tested on its own (`tests/apiBaseDesktop.test.ts`,
+ * `tests/apiBaseHubBase.test.ts`), and a static `../firebase` import would drag
+ * `initializeApp` and its connection probe into those tests for a token they
+ * never use.
+ */
+export function setApiIdTokenProvider(provider: IdTokenProvider | null): void {
+  idTokenProvider = provider;
+}
+
+function requestPath(url: string): string {
+  if (url.startsWith('/')) return url;
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Origins allowed to receive a Firebase ID token, as an allowlist.
+ *
+ * It has to be an allowlist. `apiUrl()` sends the cloud-only families to
+ * `cloudApiBase`, and on a tablet that value arrives in `/api/hub/info` from
+ * whatever answered the LAN scan — so "anywhere except the hub's own base" is
+ * not a boundary at all. A rogue responder on shed Wi-Fi that claims
+ * `cloudApiBase: 'https://evil.tld'` would be handed the operator's token and
+ * could replay it against the real API for the farm.
+ *
+ * The desktop bridge's base is trusted because it comes from this machine's own
+ * Electron config, not off the network.
+ */
+function isCloudTokenOrigin(url: string): boolean {
+  // Same-origin: the dev server or the desktop shell's own Express, both ours.
+  if (url.startsWith('/')) return true;
+  try {
+    const target = new URL(url).origin;
+    const allowed = [DEFAULT_CLOUD_API_BASE, getDesktopBridge()?.cloudApiBase]
+      .filter((base): base is string => Boolean(base))
+      .map((base) => {
+        try {
+          return new URL(base).origin;
+        } catch {
+          return '';
+        }
+      });
+    return allowed.includes(target);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The bearer for the cloud-only families. Those routes spend a server-held
+ * secret — the DPIRD key, an Admin SDK write — rather than acting on one farm's
+ * own data, so the server verifies a Firebase ID token before running them.
+ *
+ * Attached centrally for the same reason the hub token is: a weather route
+ * added later is authorised without anyone remembering to.
+ */
+async function cloudAuthHeaders(
+  url: string,
+  callerSetAuth: boolean
+): Promise<Record<string, string>> {
+  if (!idTokenProvider || callerSetAuth) return {};
+
+  const path = requestPath(url);
+  if (!DESKTOP_CLOUD_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix))) return {};
+  if (!isCloudTokenOrigin(url)) return {};
+
+  try {
+    const token = await idTokenProvider();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    // Signed out, or the refresh failed offline. The route answers 401 and the
+    // caller's existing fallback handles it — better than throwing from here.
+    return {};
+  }
+}
+
 const LOCAL_FREENET_SIDECAR_DEFAULT = 'http://127.0.0.1:3000';
 
 function isLoopbackBase(base: string): boolean {
@@ -311,11 +397,15 @@ export async function apiFetch(
   // Merged here rather than at ~40 call sites, the same reasoning the desktop
   // shell uses for its own loopback token: a route added later is authorised
   // without anyone remembering to.
-  const authHeaders = hubAuthHeaders(url);
+  const callerHeaders = new Headers(headers ?? {});
+  const extraHeaders = {
+    ...hubAuthHeaders(url),
+    ...(await cloudAuthHeaders(url, callerHeaders.has('authorization'))),
+  };
   const mergedHeaders =
-    Object.keys(authHeaders).length === 0
+    Object.keys(extraHeaders).length === 0
       ? headers
-      : { ...Object.fromEntries(new Headers(headers ?? {}).entries()), ...authHeaders };
+      : { ...Object.fromEntries(callerHeaders.entries()), ...extraHeaders };
 
   // Hand-rolled rather than `AbortSignal.timeout`/`any`: the oldest WebView this
   // APK targets predates both, and an exception from the timeout plumbing would

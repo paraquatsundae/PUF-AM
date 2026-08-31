@@ -29,6 +29,7 @@ import {
 } from '../shared/sync/joinTicket.ts';
 import { readJoinGrant } from '../shared/sync/joinGrant.ts';
 import type { JoinTicketLedgerRow } from '../shared/sync/joinLedger.ts';
+import { clientIp, socketPeerIp } from './clientIp.ts';
 import {
   clearJoinLookupMisses,
   countJoinManifests,
@@ -47,10 +48,6 @@ import { listLanIpv4, listPufomPeers, refreshPufomMdnsBrowse } from './mdnsHub.t
 
 const PEER_FETCH_TIMEOUT_MS = 4000;
 const PEER_BROWSE_MS = 2500;
-
-function clientKey(req: Request): string {
-  return String(req.ip || req.socket.remoteAddress || 'unknown');
-}
 
 function isPrivateHost(hostname: string): boolean {
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
@@ -243,7 +240,7 @@ export function registerJoinTicketRoutes(app: Express): void {
    * to `0.0.0.0` cannot be filled from elsewhere.
    */
   app.post('/api/sync/join-ticket', (req: Request, res: Response) => {
-    if (!isPrivateHost(String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) {
+    if (!isPrivateHost(socketPeerIp(req))) {
       return res.status(403).json({ error: 'Join tickets may only be registered from this LAN' });
     }
 
@@ -266,7 +263,7 @@ export function registerJoinTicketRoutes(app: Express): void {
     // The label is the owner's private note ("Dave — spray ute"), so it is read
     // off the body here rather than through `parseJoinManifestV2`, which drops
     // it — a manifest is what the joiner receives and stays minimal.
-    const entry = putJoinManifest(manifest, clientKey(req), String(body.label ?? ''));
+    const entry = putJoinManifest(manifest, clientIp(req), String(body.label ?? ''));
     // Which shelf a ticket landed on is the first thing to check when a joiner
     // cannot resolve it, so say so where the operator will already be looking.
     console.log(
@@ -285,7 +282,7 @@ export function registerJoinTicketRoutes(app: Express): void {
 
   /** Peer-facing lookup — this hub's own shelf only, no fan-out (avoids loops). */
   app.get('/api/sync/join-ticket/:ticket', (req: Request, res: Response) => {
-    const key = clientKey(req);
+    const key = clientIp(req);
     if (isJoinLookupThrottled(key)) {
       return res.status(429).json({ error: 'Too many join ticket lookups — wait a few minutes' });
     }
@@ -319,7 +316,7 @@ export function registerJoinTicketRoutes(app: Express): void {
    * against — the same honest limit the rest of this file works under.
    */
   app.get('/api/sync/join-tickets', (req: Request, res: Response) => {
-    if (!isPrivateHost(String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) {
+    if (!isPrivateHost(socketPeerIp(req))) {
       return res.status(403).json({ error: 'Join tickets may only be listed from this LAN' });
     }
 
@@ -341,7 +338,7 @@ export function registerJoinTicketRoutes(app: Express): void {
    * device that already pulled the farm — see the §4 known limit.
    */
   app.delete('/api/sync/join-tickets/:id', (req: Request, res: Response) => {
-    if (!isPrivateHost(String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) {
+    if (!isPrivateHost(socketPeerIp(req))) {
       return res.status(403).json({ error: 'Join tickets may only be revoked from this LAN' });
     }
     const revoked = deleteJoinManifestById(String(req.params.id || ''));
@@ -353,7 +350,7 @@ export function registerJoinTicketRoutes(app: Express): void {
    * then mDNS peers.
    */
   app.get('/api/sync/join-ticket/:ticket/resolve', async (req: Request, res: Response) => {
-    const key = clientKey(req);
+    const key = clientIp(req);
     if (isJoinLookupThrottled(key)) {
       return res.status(429).json({ error: 'Too many join ticket lookups — wait a few minutes' });
     }
@@ -407,7 +404,7 @@ export function registerJoinTicketRoutes(app: Express): void {
 
   /** Owner revokes a ticket (new send, wrong person, lost phone). */
   app.delete('/api/sync/join-ticket/:ticket', (req: Request, res: Response) => {
-    if (!isPrivateHost(String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) {
+    if (!isPrivateHost(socketPeerIp(req))) {
       return res.status(403).json({ error: 'Join tickets may only be revoked from this LAN' });
     }
     const removed = deleteJoinManifest(String(req.params.ticket || ''));

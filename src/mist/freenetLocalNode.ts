@@ -205,7 +205,7 @@ export async function readLocalFreenetBlob(
 }
 
 /** True when reads should go to this device's own node instead of a hub. */
-export async function useLocalFreenetForReads(): Promise<boolean> {
+export async function shouldUseLocalFreenetForReads(): Promise<boolean> {
   if (!localFreenetNodeEligible()) return false;
   return probeLocalFreenetNode();
 }

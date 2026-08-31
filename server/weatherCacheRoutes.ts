@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { getAdminDb } from './firebaseAdmin.ts';
+import { requireAuthedUser } from './requireAuthedUser.ts';
 import { getDpirdApiKey } from './envSecrets.ts';
 import {
   WEATHER_HISTORIC_KEEP_DAYS,
@@ -36,6 +37,9 @@ function resolveStationMeta(stationCode: string) {
  */
 export function registerWeatherCacheRoutes(app: Express) {
   app.post('/api/weather/ensure-cache', async (req: Request, res: Response) => {
+    const caller = await requireAuthedUser(req, res);
+    if (!caller) return;
+
     try {
       const apiKey = getDpirdApiKey();
       if (!apiKey) {
@@ -129,6 +133,9 @@ export function registerWeatherCacheRoutes(app: Express) {
    * body: { stationCode, lat?, lng?, force? }
    */
   app.post('/api/weather/ensure-forecast', async (req: Request, res: Response) => {
+    const caller = await requireAuthedUser(req, res);
+    if (!caller) return;
+
     try {
       const stationCode = String(req.body?.stationCode || '').trim();
       if (!stationCode) {

@@ -55,6 +55,25 @@ export function BlightSandboxChart({
   setSandboxSprays: (sprays: SandboxScenario['sprays']) => void;
   setSandboxIrrigation: (irrigation: SandboxScenario['irrigation']) => void;
 }) {
+  /**
+   * Chart-level data, needed only by the eruption bars.
+   *
+   * Every other series carries its own `data`, which recharts honours on Line
+   * and Area but not on Bar — its Bar reads the chart's data or nothing. So the
+   * bars need a dataset here, and the active scenario is the one to use: when
+   * comparing scenarios the lines fan out but the eruption bars stay pinned to
+   * the scenario being edited, which is what the spray controls act on.
+   */
+  const activeScenarioData = React.useMemo(
+    () =>
+      filterSandboxScenarioDays(sandboxScenariosData[activeScenarioId] || [], {
+        sandboxView,
+        todayStr,
+        selectedSeason,
+      }),
+    [sandboxScenariosData, activeScenarioId, sandboxView, todayStr, selectedSeason]
+  );
+
   return (
             <div className="lg:col-span-8">
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -90,7 +109,10 @@ export function BlightSandboxChart({
 
                 <div className="w-full h-[500px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
+                    <ComposedChart
+                      data={activeScenarioData}
+                      margin={{ top: 20, right: 20, bottom: 20, left: 0 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis 
                         dataKey="timestamp" 
@@ -110,8 +132,17 @@ export function BlightSandboxChart({
                         tickLine={false} 
                         tick={{ fill: '#64748b', fontSize: 12 }} 
                       />
-                      <Tooltip content={<BlightChartTooltip />} />
-                      <ReferenceLine y={1.0} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Critical Threshold', fill: '#ef4444', fontSize: 10 }} />
+                      {/*
+                        Both pinned to `baseline`, the axis every series uses.
+                        Unpinned they bind to the implicit axis 0, which had no
+                        scale while the chart carried no data of its own. Now
+                        that it does, the tooltip would slice each series'
+                        payload to the active scenario's row count — reporting
+                        one date's threat under another's — and the threshold
+                        line would appear and vanish with the scenario.
+                      */}
+                      <Tooltip content={<BlightChartTooltip />} axisId="baseline" />
+                      <ReferenceLine y={1.0} xAxisId="baseline" stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Critical Threshold', fill: '#ef4444', fontSize: 10 }} />
                       
                         <Line 
                           type="monotone" 
@@ -186,8 +217,12 @@ export function BlightSandboxChart({
                                       strokeWidth={1}
                                       strokeDasharray="5 5"
                                     />
+                                    {/*
+                                      Reads the chart's `data`, not this
+                                      scenario's: recharts ignores `data` on Bar.
+                                      See `activeScenarioData` above.
+                                    */}
                                     <Bar
-                                      data={filteredData}
                                       dataKey="eruptingThreat"
                                       xAxisId="baseline"
                                       name="Eruptions (exp.)"
@@ -287,7 +322,9 @@ export function BlightSandboxChart({
                         Hypothetical Sprays
                       </h3>
                       <button 
-                        onClick={handleAutoDistribute}
+                        // Arg-less on purpose: passing this straight to onClick
+                        // feeds a MouseEvent to its `type` parameter.
+                        onClick={() => handleAutoDistribute()}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-100"
                         title="Auto-plan sprays to keep risk below 0.8"
                       >

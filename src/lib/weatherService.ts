@@ -2,7 +2,8 @@ import { doc, getDoc, getDocFromCache } from 'firebase/firestore';
 import { db } from '../firebase';
 import { WeatherData } from './blightModel';
 import { trackMetric } from '../services/metricsService';
-import { apiUrl } from './apiBase';
+import { apiFetch, apiUrl } from './apiBase';
+import { debugLog } from './debugLog';
 import {
   WEATHER_CACHE_MAX_AGE_HOURS,
   WEATHER_STATION_ANCHORS,
@@ -88,7 +89,7 @@ export async function readSharedWeatherCache(
   try {
     const idb = await readWeatherFromIdb(stationCode);
     if (idb?.weatherData && Object.keys(idb.weatherData).length > 0) {
-      console.log(`[Weather] Using IndexedDB pack for ${stationCode}`);
+      debugLog(`[Weather] Using IndexedDB pack for ${stationCode}`);
       return wrap(idb);
     }
   } catch (err) {
@@ -107,17 +108,18 @@ async function ensureSharedCache(
   endDate: string
 ): Promise<boolean> {
   try {
-    const res = await fetch(apiUrl('/api/weather/ensure-cache'), {
+    const res = await apiFetch(apiUrl('/api/weather/ensure-cache'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stationCode, startDate, endDate }),
+      timeoutMs: 60000,
     });
     if (!res.ok) {
       console.warn('[Weather] ensure-cache failed:', res.status, await res.text());
       return false;
     }
     const body = await res.json();
-    console.log(
+    debugLog(
       `[Weather] ensure-cache ${stationCode}: ${body.mode}, ${body.dayCount} days ` +
         `(${body.startDate} → ${body.endDate})`
     );
@@ -134,17 +136,18 @@ async function ensureSharedCache(
  */
 async function ensureForecast(stationCode: string, lat: number, lng: number): Promise<void> {
   try {
-    const res = await fetch(apiUrl('/api/weather/ensure-forecast'), {
+    const res = await apiFetch(apiUrl('/api/weather/ensure-forecast'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stationCode, lat, lng }),
+      timeoutMs: 30000,
     });
     if (!res.ok) {
       console.warn('[Weather] ensure-forecast failed:', res.status, await res.text());
       return;
     }
     const body = await res.json();
-    console.log(`[Weather] ensure-forecast ${stationCode}: ${body.mode}`);
+    debugLog(`[Weather] ensure-forecast ${stationCode}: ${body.mode}`);
   } catch (err) {
     console.warn('[Weather] ensure-forecast error:', err);
   }
@@ -210,7 +213,7 @@ export async function fetchEnvironmentalData(
     if (nowCovered || Object.keys(data).length > 30) {
       // Prefer cache even if slightly gappy — blight can tolerate a few missing days
       if (!sharedCache.isStale || !isDev) {
-        console.log(
+        debugLog(
           `[Weather] Using shared cache for ${resolvedStation}` +
             (sharedCache.isStale ? ' (stale)' : '')
         );
@@ -247,7 +250,7 @@ export async function fetchEnvironmentalData(
         isCacheFresh(cacheDataFarm.lastUpdated, WEATHER_CACHE_MAX_AGE_HOURS) &&
         cacheDataFarm.weatherData
       ) {
-        console.log('[Weather] Using per-farm environmental cache');
+        debugLog('[Weather] Using per-farm environmental cache');
         return {
           weatherData: cacheDataFarm.weatherData as Record<string, WeatherData>,
           lastUpdated: cacheDataFarm.lastUpdated,
@@ -262,11 +265,12 @@ export async function fetchEnvironmentalData(
 
   // 4. Dev-only: server blight-risk (also hits DPIRD; prefer ensure-cache above)
   if (isDev) {
-    console.log('[Weather] Dev fallback: calling backend blight-risk endpoint');
+    debugLog('[Weather] Dev fallback: calling backend blight-risk endpoint');
     try {
-      const response = await fetch(apiUrl('/api/weather/blight-risk'), {
+      const response = await apiFetch(apiUrl('/api/weather/blight-risk'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        timeoutMs: 60000,
         body: JSON.stringify({
           farmId,
           lat: defaultLat,
@@ -339,7 +343,10 @@ export async function fetchAllDPIRDStations(): Promise<unknown[]> {
   try {
     trackMetric('weather').catch(console.error);
     const url = apiUrl('/api/weather/dpird/stations?limit=500');
-    const response = await fetchWithTimeout(url);
+    // apiFetch, not fetchWithTimeout: the proxy verifies a bearer now, and only
+    // apiFetch attaches it. fetchWithTimeout stays for the Open-Meteo calls in
+    // useWaterRecentStats / WaterSeasonPlanner, which are not our API.
+    const response = await apiFetch(url, { timeoutMs: 60000 });
     if (!response.ok) {
       return WEATHER_STATION_ANCHORS.map((s) => ({
         stationCode: s.stationCode,

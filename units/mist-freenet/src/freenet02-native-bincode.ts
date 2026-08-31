@@ -247,6 +247,11 @@ export type NativeHostPutResult =
   | { ok: true; instanceId: Uint8Array; codeHash: Uint8Array }
   | { ok: false; message: string };
 
+/** `tsconfig` has no strictNullChecks — `!result.ok` does not narrow this union. */
+export function nativeHostPutErrorMessage(result: NativeHostPutResult): string {
+  return 'message' in result ? result.message : '';
+}
+
 export function decodeNativeHostResult(bytes: Uint8Array): NativeHostPutResult {
   const r = new BincodeReader(bytes);
   const tag = r.u32();

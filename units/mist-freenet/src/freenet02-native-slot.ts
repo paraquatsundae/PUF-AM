@@ -20,6 +20,7 @@ import {
   encodeNativeContractPut,
   encodeNativeContractUpdate,
   looksLikeAlreadyPublished,
+  nativeHostPutErrorMessage,
   toNativeFreenetWsUrl,
 } from './freenet02-native-bincode.ts';
 import { FreenetNativeWsError, sendNativeRequest } from './freenet02-native-ws.ts';
@@ -152,7 +153,7 @@ export class BrowserFreenetSlotClient {
       const decoded = decodeNativeHostResult(reply);
       if (!decoded.ok) {
         throw new FreenetNativeSlotError(
-          `Freenet native slot UPDATE failed (${this.wsUrl}): ${decoded.message}`,
+          `Freenet native slot UPDATE failed (${this.wsUrl}): ${nativeHostPutErrorMessage(decoded)}`,
         );
       }
       return {
@@ -202,9 +203,10 @@ export class BrowserFreenetSlotClient {
           mode: 'put',
         };
       }
-      if (!looksLikeAlreadyPublished(putDecoded.message)) {
+      const putMessage = nativeHostPutErrorMessage(putDecoded);
+      if (!looksLikeAlreadyPublished(putMessage)) {
         throw new FreenetNativeSlotError(
-          `Freenet native slot PUT failed (${this.wsUrl}): ${putDecoded.message}`,
+          `Freenet native slot PUT failed (${this.wsUrl}): ${putMessage}`,
         );
       }
 

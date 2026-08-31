@@ -1,9 +1,11 @@
 /**
- * Human-readable farm-export.json (+ optional xlsx + photo sidecar zip).
+ * Human-readable farm-export.json (+ photo sidecar zip).
  * Local-first from IndexedDB — parallel to Firestore / .pufom sync.
+ *
+ * The spreadsheet face of the same envelope lives in `farmExportSheets.ts`,
+ * which imports from here. Keep the dependency one way.
  */
 import { zipSync } from 'fflate';
-import * as XLSX from 'xlsx';
 import type { DiaryEvent } from './farmDiary';
 import type { FieldIssue } from './fieldStore';
 import { getFarmGeometry } from './farmGeometryIdb';
@@ -49,7 +51,10 @@ export type BuildFarmExportOpts = {
 
 export type FarmExportDownloadFiles = {
   jsonFilename: string;
-  xlsxFilename: string;
+  /** Zip of one CSV per sheet. */
+  sheetsFilename: string;
+  /** The diary sheet on its own, for the diary page's single-sheet export. */
+  diaryCsvFilename: string;
   zipFilename: string;
   basename: string;
 };
@@ -117,7 +122,7 @@ export function diaryStatusForExport(event: DiaryEvent): string {
 
 export function farmExportBasename(farmName: string | undefined, farmId: string, exportedAt: string): string {
   const day = exportedAt.slice(0, 10);
-  const safeName = (farmName || farmId).replace(/[^\w\-]+/g, '_').slice(0, 40);
+  const safeName = (farmName || farmId).replace(/[^\w-]+/g, '_').slice(0, 40);
   return `${safeName}_${day}`;
 }
 
@@ -130,7 +135,8 @@ export function farmExportFilenames(
   return {
     basename,
     jsonFilename: `${basename}_farm-export.json`,
-    xlsxFilename: `${basename}_farm-export.xlsx`,
+    sheetsFilename: `${basename}_farm-export-sheets.zip`,
+    diaryCsvFilename: `${basename}_diary.csv`,
     zipFilename: `${basename}_farm-export.zip`,
   };
 }
@@ -207,182 +213,6 @@ export async function buildFarmExportJson(
 
 export function farmExportJsonString(bundle: FarmExportV1): string {
   return JSON.stringify(bundle, null, 2);
-}
-
-/** Diary sheet columns (xlsx layer). */
-export const DIARY_XLSX_COLUMNS = [
-  'id',
-  'date',
-  'type',
-  'status',
-  'blockId',
-  'blockName',
-  'title',
-  'productName',
-  'agentName',
-  'sprayType',
-  'applicationMethod',
-  'carrier',
-  'adjuvant',
-  'irrigationAmount',
-  'durationMinutes',
-  'rate',
-  'rateUnit',
-  'nRate',
-  'pRate',
-  'kRate',
-  'nutritionMethod',
-  'assignedTo',
-  'assignedToName',
-  'priority',
-  'safetyChecklistAccepted',
-  'acceptedAt',
-  'completedAt',
-  'linkedIssueId',
-  'notes',
-  'updatedAt',
-  'npkSummary',
-] as const;
-
-export const ISSUES_XLSX_COLUMNS = [
-  'id',
-  'lat',
-  'lng',
-  'category',
-  'priority',
-  'status',
-  'note',
-  'hasPhoto',
-  'photoUrl',
-  'isMistake',
-  'reportedBy',
-  'reportedAt',
-  'resolvedAt',
-  'updatedAt',
-] as const;
-
-export const ISSUES_ARCHIVE_XLSX_COLUMNS = [
-  ...ISSUES_XLSX_COLUMNS,
-  'archivedAt',
-  'archivedBy',
-] as const;
-
-function npkSummary(event: FarmExportDiaryEvent): string {
-  return [
-    event.nRate != null ? `N${event.nRate}` : '',
-    event.pRate != null ? `P${event.pRate}` : '',
-    event.kRate != null ? `K${event.kRate}` : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-}
-
-function diaryRowForXlsx(event: FarmExportDiaryEvent): Record<string, unknown> {
-  return {
-    id: event.id,
-    date: event.date,
-    type: event.type,
-    status: diaryStatusForExport(event),
-    blockId: event.blockId || '',
-    blockName: event.blockName || '',
-    title: event.title || '',
-    productName: event.productName || '',
-    agentName: event.agentName || '',
-    sprayType: event.sprayType || '',
-    applicationMethod: event.applicationMethod || '',
-    carrier: event.carrier || '',
-    adjuvant: event.adjuvant || '',
-    irrigationAmount: event.irrigationAmount ?? '',
-    durationMinutes: event.durationMinutes ?? '',
-    rate: event.rate ?? '',
-    rateUnit: event.rateUnit || '',
-    nRate: event.nRate ?? '',
-    pRate: event.pRate ?? '',
-    kRate: event.kRate ?? '',
-    nutritionMethod: event.nutritionMethod || '',
-    assignedTo: event.assignedTo || '',
-    assignedToName: event.assignedToName || '',
-    priority: event.priority || '',
-    safetyChecklistAccepted: event.safetyChecklistAccepted ?? '',
-    acceptedAt: event.acceptedAt || '',
-    completedAt: event.completedAt || '',
-    linkedIssueId: event.linkedIssueId || '',
-    notes: event.notes || '',
-    updatedAt: event.updatedAt || '',
-    npkSummary: npkSummary(event),
-  };
-}
-
-function issueRowForXlsx(issue: FarmExportIssue, archive: boolean): Record<string, unknown> {
-  const row: Record<string, unknown> = {
-    id: issue.id,
-    lat: issue.lat,
-    lng: issue.lng,
-    category: issue.category,
-    priority: issue.priority,
-    status: issue.status,
-    note: issue.note || '',
-    hasPhoto: issue.hasPhoto,
-    photoUrl: issue.photoUrl || '',
-    isMistake: issue.isMistake ?? '',
-    reportedBy: issue.reportedBy,
-    reportedAt: issue.reportedAt,
-    resolvedAt: issue.resolvedAt || '',
-    updatedAt: issue.updatedAt || '',
-  };
-  if (archive) {
-    row.archivedAt = issue.archivedAt || '';
-    row.archivedBy = issue.archivedBy || '';
-  }
-  return row;
-}
-
-function sheetFromRows(rows: Record<string, unknown>[]): XLSX.WorkSheet {
-  return XLSX.utils.json_to_sheet(rows.length ? rows : [{}]);
-}
-
-/** Convert a farm-export envelope to an xlsx workbook (Uint8Array). */
-export function farmExportToXlsx(bundle: FarmExportV1): Uint8Array {
-  const wb = XLSX.utils.book_new();
-
-  const diaryRows = bundle.diary.map(diaryRowForXlsx);
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(diaryRows), 'Diary');
-
-  if (bundle.exportScope.issues && bundle.issues.length > 0) {
-    const issueRows = bundle.issues.map((i) => issueRowForXlsx(i, false));
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(issueRows), 'Issues');
-  }
-
-  if (bundle.exportScope.issuesArchive && bundle.issuesArchive.length > 0) {
-    const archiveRows = bundle.issuesArchive.map((i) => issueRowForXlsx(i, true));
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(archiveRows), 'IssuesArchive');
-  }
-
-  const metaRows = [
-    { key: 'format', value: bundle.format },
-    { key: 'v', value: String(bundle.v) },
-    { key: 'exportedAt', value: bundle.exportedAt },
-    { key: 'farmId', value: bundle.farmId },
-    { key: 'farmName', value: bundle.farmName || '' },
-    { key: 'source', value: bundle.source },
-    { key: 'exportScope', value: JSON.stringify(bundle.exportScope) },
-    { key: 'diaryCount', value: String(bundle.diary.length) },
-    { key: 'issuesCount', value: String(bundle.issues.length) },
-    { key: 'issuesArchiveCount', value: String(bundle.issuesArchive.length) },
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(metaRows), '_Meta');
-
-  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as Uint8Array;
-  return out instanceof Uint8Array ? out : new Uint8Array(out);
-}
-
-/** Return xlsx sheet names present in a workbook built from bundle (for tests). */
-export function farmExportXlsxSheetNames(bundle: FarmExportV1): string[] {
-  const names = ['Diary'];
-  if (bundle.exportScope.issues && bundle.issues.length > 0) names.push('Issues');
-  if (bundle.exportScope.issuesArchive && bundle.issuesArchive.length > 0) names.push('IssuesArchive');
-  names.push('_Meta');
-  return names;
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array | null {
@@ -534,21 +364,6 @@ export async function downloadFarmExportJson(
   const json = farmExportJsonString(bundle);
   downloadBlob(new Blob([json], { type: 'application/json;charset=utf-8' }), jsonFilename);
   return { bundle, filename: jsonFilename };
-}
-
-export async function downloadFarmExportXlsx(
-  farmId: string,
-  opts?: BuildFarmExportOpts
-): Promise<{ bundle: FarmExportV1; filename: string; bytes: Uint8Array }> {
-  const bundle = await buildFarmExportJson(farmId, opts);
-  const bytes = farmExportToXlsx(bundle);
-  const { xlsxFilename } = farmExportFilenames(opts?.farmName, farmId, bundle.exportedAt);
-  downloadBytes(
-    bytes,
-    xlsxFilename,
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  );
-  return { bundle, filename: xlsxFilename, bytes };
 }
 
 export async function downloadFarmExportZip(

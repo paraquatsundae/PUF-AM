@@ -110,7 +110,7 @@ export function FarmDiary() {
                 onExportCsv={page.handleExport}
                 exportBusy={page.exportBusy}
                 onExportJson={page.exportFarmJson}
-                onExportXlsx={page.exportFarmXlsx}
+                onExportAllCsv={page.exportDiaryCsv}
                 canEdit={canEdit}
                 deleteConfirmId={page.deleteConfirmId}
                 onAskDelete={page.setDeleteConfirmId}

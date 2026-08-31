@@ -15,6 +15,8 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { Capacitor } from '@capacitor/core';
+import { setApiIdTokenProvider } from './lib/apiBase';
+import { debugLog } from './lib/debugLog';
 import { resolveFirebaseWebConfig } from './lib/byoFirebaseConfig';
 
 const { config: firebaseConfig, byo: usingByoFirebase } = resolveFirebaseWebConfig();
@@ -59,6 +61,17 @@ function createAuth() {
 
 export const auth = createAuth();
 
+/**
+ * Hand `apiFetch` a way to mint the bearer for `/api/auth/*`, `/api/weather/*`
+ * and `/api/admin/*` without `apiBase` importing this module. `getIdToken()`
+ * serves a cached token until it is close to expiry, so this is not a network
+ * call per request.
+ */
+setApiIdTokenProvider(async () => {
+  const user = auth.currentUser;
+  return user ? await user.getIdToken() : null;
+});
+
 export const storage = getStorage(app);
 
 /**
@@ -92,7 +105,7 @@ export async function clearFirestoreIndexedDb(): Promise<void> {
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Firestore connection successful.');
+    debugLog('Firestore connection successful.');
   } catch (error) {
     // Expected offline / missing doc / permission — never throw into the app shell
     if (error instanceof Error && error.message.includes('the client is offline')) {

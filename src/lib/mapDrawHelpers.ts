@@ -268,6 +268,9 @@ export function patchLeafletDrawTouchGuards(): void {
 
   const origEnable = proto.enable as (this: LeafletDrawHandler, ...a: unknown[]) => void;
   proto.enable = function (this: LeafletDrawHandler, ...args: unknown[]) {
+    // Publishing the handler, not aliasing it for convenience: leaflet-draw
+    // exposes no accessor for the active handler, and the action bar needs it.
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     currentDrawHandler = this;
     const result = origEnable.apply(this, args as []);
     attachPanGuards(this);

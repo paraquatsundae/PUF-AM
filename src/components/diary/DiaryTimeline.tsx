@@ -18,10 +18,12 @@ type Props = {
   sortedBlockIds: string[];
   focusBlockId: string | null;
   onFocusBlock: (blockId: string | null) => void;
+  /** The filtered view on screen. */
   onExportCsv: () => void;
-  exportBusy: 'json' | 'xlsx' | null;
+  exportBusy: 'json' | 'csv' | null;
   onExportJson: () => void;
-  onExportXlsx: () => void;
+  /** Every diary row held on this device, unfiltered. */
+  onExportAllCsv: () => void;
   canEdit: boolean;
   deleteConfirmId: string | null;
   onAskDelete: (id: string) => void;
@@ -51,7 +53,7 @@ export function DiaryTimeline({
   onExportCsv,
   exportBusy,
   onExportJson,
-  onExportXlsx,
+  onExportAllCsv,
   canEdit,
   deleteConfirmId,
   onAskDelete,
@@ -125,11 +127,11 @@ export function DiaryTimeline({
           <button
             type="button"
             disabled={!farmId || !!exportBusy}
-            title="Export Excel (local) — all diary rows on device"
-            onClick={onExportXlsx}
+            title="Export CSV (local) — all diary rows on device, opens in Excel or Sheets"
+            onClick={onExportAllCsv}
             className="px-2 py-2 bg-white border border-slate-200 text-[10px] font-semibold uppercase tracking-wide text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40"
           >
-            {exportBusy === 'xlsx' ? '…' : 'Excel'}
+            {exportBusy === 'csv' ? '…' : 'CSV'}
           </button>
         </div>
       </div>

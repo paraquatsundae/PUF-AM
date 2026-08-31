@@ -25,7 +25,7 @@ import { BONES_FARM_GEOMETRY_ASSET_ID } from './bonesGeometry.ts';
 import {
   localFreenetSearchBudgetMs,
   readLocalFreenetBlob,
-  useLocalFreenetForReads,
+  shouldUseLocalFreenetForReads,
 } from './freenetLocalNode.ts';
 import { publishLocalGeometryToMistBones, readLocalBonesCiphertext } from './mistBonesBridge.ts';
 import { getMistStoreForHotBridge, publishLocalFarmToMistHot } from './mistHotBridge.ts';
@@ -181,7 +181,7 @@ async function readFarmBlobFromLocalNode(
   freenetUri: string,
   contentHash?: string,
 ): Promise<{ ciphertext: Uint8Array; contentHash: string } | null> {
-  if (!(await useLocalFreenetForReads())) return null;
+  if (!(await shouldUseLocalFreenetForReads())) return null;
 
   let bytes: Uint8Array | null;
   try {

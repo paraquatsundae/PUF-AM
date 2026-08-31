@@ -78,7 +78,12 @@ export function PluginsPanel({
     : null;
 
   const groups = useMemo(() => groupPluginsByCategory(), []);
-  const catalogIds = useMemo(() => new Set(groups.flatMap((g) => g.entries.map((e) => e.id))), [groups]);
+  const catalogIds = useMemo(
+    // Widened to string: this is tested against ids read off disk, which are
+    // arbitrary until a package is matched to the catalogue.
+    () => new Set<string>(groups.flatMap((g) => g.entries.map((e) => e.id))),
+    [groups]
+  );
   const extraDiskPackages = useMemo(
     () => diskPackages.filter((pkg) => !catalogIds.has(pkg.id)),
     [diskPackages, catalogIds]

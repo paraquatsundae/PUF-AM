@@ -4,11 +4,16 @@
  * an in-progress polygon/polyline. This wrapper keeps propsRef in sync.
  */
 import { PropTypes } from 'prop-types';
-import 'leaflet-draw'; // side-effect: registers L.Control.Draw
 import isEqual from 'fast-deep-equal';
 import React, { useRef } from 'react';
 import { useLeafletContext } from '@react-leaflet/core';
-import leaflet, { Map } from 'leaflet';
+// Through `leaflet-setup`, never `leaflet` plus a bare `import 'leaflet-draw'`.
+// leaflet-draw is a plain script that reads a global `L` and never imports
+// leaflet itself, so it only works if `leaflet-window` has run first —
+// `leaflet-setup` is what guarantees that ordering. Importing the plugin
+// directly here left it up to whichever module the bundler happened to
+// evaluate first.
+import leaflet from '../../lib/leaflet-setup';
 
 const eventHandlers = {
   onEdited: 'draw:edited',
@@ -70,7 +75,7 @@ function createDrawElement(props: Props, context: ReturnType<typeof useLeafletCo
 
 export function StableEditControl(props: Props) {
   const context = useLeafletContext();
-  const drawRef = useRef<any>();
+  const drawRef = useRef<any>(undefined);
   const propsRef = useRef(props);
 
   const onDrawCreate = (e: any) => {
@@ -164,7 +169,7 @@ StableEditControl.propTypes = {
     'bottomleft',
   ]),
   leaflet: PropTypes.shape({
-    map: PropTypes.instanceOf(Map),
+    map: PropTypes.instanceOf(leaflet.Map),
     layerContainer: PropTypes.shape({
       addLayer: PropTypes.func.isRequired,
       removeLayer: PropTypes.func.isRequired,

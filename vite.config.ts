@@ -21,6 +21,11 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              // Before the chart rule: the app shell's `cn()` uses clsx, and so
+              // does recharts. Left unassigned, Rollup folds clsx into
+              // vendor-charts, so the entry's one clsx import drags all of
+              // recharts (~118 kB gzipped) into the first paint.
+              if (id.includes('/clsx/') || id.includes('/tailwind-merge/')) return 'vendor-utils';
               if (id.includes('firebase')) return 'vendor-firebase';
               if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-leaflet';
               if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';

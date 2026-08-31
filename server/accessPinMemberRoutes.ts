@@ -16,7 +16,12 @@ import {
   type AccessPinRecord,
   type AccessPinRole,
 } from './accessPinCrypto.ts';
-import { getAdminAuth, getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
+import {
+  getAdminAuth,
+  getAdminDb,
+  getAdminFieldValue,
+  isAdminSdkReady,
+} from './firebaseAdmin.ts';
 import { resolvePlatformAdminClaim } from './memberClaims.ts';
 import {
   PINS,
@@ -28,8 +33,24 @@ import {
   verifyBearer,
 } from './accessPinAuth.ts';
 
+/**
+ * One shape rather than a discriminated union: `strictNullChecks` is off in this
+ * repo, so `if (result.ok)` would not narrow and every field access would need
+ * an `in` guard. See `Plans/CODEBASE_HEALTH.md` — Layering.
+ */
+type PinReservation = {
+  status?: number;
+  message?: string;
+  record?: AccessPinRecord;
+};
+
 export function registerAccessPinMemberRoutes(app: Express) {
   app.post('/api/auth/redeem-pin', async (req: Request, res: Response) => {
+    // A closure rather than the ref itself: the Firestore types come from a
+    // lazily-required SDK, so there is no static handle to annotate here.
+    let releaseReservation: (() => Promise<void>) | null = null;
+    let redeemed = false;
+
     try {
       if (!isAdminSdkReady()) {
         return res.status(503).json({
@@ -55,23 +76,52 @@ export function registerAccessPinMemberRoutes(app: Express) {
       const auth = getAdminAuth();
       const docId = pinDocId(pin);
       const ref = db.collection(PINS).doc(docId);
-      const snap = await ref.get();
 
-      if (!snap.exists) {
-        return res.status(404).json({ error: 'Invite PIN not found.' });
+      /**
+       * Claim the use before doing any account work.
+       *
+       * `canRedeemPin` used to read `useCount` here while the increment landed
+       * ninety lines further down, after `createUser`, `setCustomUserClaims`
+       * and two user writes. Two tablets redeeming the same single-use PIN both
+       * passed the check inside that window and both wrote `useCount: 1`, so
+       * `maxUses` was advisory. Checking and claiming have to be one step.
+       */
+      const reservation = await db.runTransaction(async (tx): Promise<PinReservation> => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) {
+          return { status: 404, message: 'Invite PIN not found.' };
+        }
+
+        const pinRecord = snap.data() as AccessPinRecord;
+        const check = canRedeemPin(pinRecord);
+        if (check.ok === false) {
+          return { status: 403, message: check.reason };
+        }
+        if (expectedFarmId && pinRecord.farmId !== expectedFarmId) {
+          return {
+            status: 403,
+            message:
+              'That PIN is not for the farm you selected. Pick the right farm or ask for a new PIN.',
+          };
+        }
+
+        tx.set(ref, { useCount: (pinRecord.useCount || 0) + 1 }, { merge: true });
+        return { record: pinRecord };
+      });
+
+      if (reservation.status) {
+        return res.status(reservation.status).json({ error: reservation.message });
       }
 
-      const record = snap.data() as AccessPinRecord;
-      const check = canRedeemPin(record);
-      if (check.ok === false) {
-        return res.status(403).json({ error: check.reason });
-      }
-
-      if (expectedFarmId && record.farmId !== expectedFarmId) {
-        return res.status(403).json({
-          error: 'That PIN is not for the farm you selected. Pick the right farm or ask for a new PIN.',
-        });
-      }
+      const record = reservation.record;
+      releaseReservation = async () => {
+        // `increment` rather than a re-read: the compensation must not race the
+        // next redeem the way the original increment did.
+        await ref.set(
+          { useCount: getAdminFieldValue().increment(-1) },
+          { merge: true }
+        );
+      };
 
       const farmRef = db.collection('farms').doc(record.farmId);
       const farmSnap = await farmRef.get();
@@ -148,9 +198,10 @@ export function registerAccessPinMemberRoutes(app: Express) {
         { merge: true }
       );
 
+      // `useCount` was already claimed by the reservation above; this is the
+      // audit trail, which no longer needs to be atomic with the check.
       await ref.set(
         {
-          useCount: (record.useCount || 0) + 1,
           lastRedeemedAt: now,
           lastRedeemedBy: uid,
           lastRedeemedDisplayName: displayName,
@@ -160,6 +211,7 @@ export function registerAccessPinMemberRoutes(app: Express) {
 
       const customToken = await auth.createCustomToken(uid, claims);
 
+      redeemed = true;
       return res.json({
         token: customToken,
         farmId: record.farmId,
@@ -174,6 +226,16 @@ export function registerAccessPinMemberRoutes(app: Express) {
       return res.status(500).json({
         error: error instanceof Error ? error.message : 'Failed to redeem invite PIN',
       });
+    } finally {
+      // The use is claimed up front, so *any* exit short of handing back a token
+      // would otherwise burn one of a limited-use PIN for a member who never got
+      // in. In `finally` rather than `catch` because the early returns — a farm
+      // that no longer exists, most of all — are not throws.
+      if (releaseReservation && !redeemed) {
+        await releaseReservation().catch((releaseError) => {
+          console.error('[auth] redeem-pin could not release the reserved use:', releaseError);
+        });
+      }
     }
   });
 

@@ -6,10 +6,12 @@
 
 import type { Express, Request, Response } from 'express';
 
+import { verifyBearer } from './accessPinAuth.ts';
 import type { AccessPinRecord } from './accessPinCrypto.ts';
+import { clientIp, forwardedChain, socketPeerIp } from './clientIp.ts';
 import { loadEnrollmentInventory } from './enrollmentCodes.ts';
-import { getAdminAuth, getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
-import { resolvePlatformAdminClaim } from './memberClaims.ts';
+import { getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
+import { isTrustedProxyAddress } from './trustedProxyRanges.ts';
 
 const PINS = 'access_pins';
 
@@ -36,19 +38,61 @@ export type AdminOpsPin = {
   lastRedeemedDisplayName: string | null;
 };
 
+/**
+ * Through `verifyBearer` rather than `verifyIdToken` directly, so that a
+ * revoked account loses the admin console at once instead of keeping it for the
+ * remaining life of an ID token. These are the highest-value routes on the
+ * service — every farm, every invite PIN, the whole enrollment inventory — and
+ * a platform admin's token carries no `authEpoch`, so `accessRevoked` is the
+ * only lever there is.
+ */
 async function requirePlatformAdmin(req: Request): Promise<void> {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  if (!token) {
-    throw Object.assign(new Error('Missing Authorization bearer token'), { status: 401 });
-  }
-  const decoded = await getAdminAuth().verifyIdToken(token);
-  if (!resolvePlatformAdminClaim(decoded)) {
+  const caller = await verifyBearer(req);
+  if (!caller.platformAdmin) {
     throw Object.assign(new Error('Platform admin only'), { status: 403 });
   }
 }
 
 export function registerAdminOpsRoutes(app: Express): void {
+  /**
+   * What the proxy chain actually looks like on this deployment.
+   *
+   * The trusted-proxy ranges in `trustedProxyRanges.ts` are a published list,
+   * not an observation — Firebase Hosting fronts on Google-owned addresses as
+   * well as Fastly ones, so the hop that reaches Cloud Run may not be in it.
+   * When `trusted` comes back `false` for the last entry on a request made
+   * through `am.pufworks.farm`, that address is the edge and belongs in
+   * `TRUSTED_PROXY_CIDRS`; until then it is being used as the rate-limit key
+   * and everyone behind that edge shares a bucket.
+   *
+   * Platform-admin gated because the chain includes the caller's own address.
+   */
+  app.get('/api/admin/client-ip', async (req: Request, res: Response) => {
+    try {
+      if (!isAdminSdkReady()) {
+        return res.status(503).json({ error: 'Firebase Admin is not configured on this server.' });
+      }
+      await requirePlatformAdmin(req);
+
+      return res.json({
+        resolved: clientIp(req),
+        socketPeer: socketPeerIp(req),
+        forwarded: forwardedChain(req).map((address) => ({
+          address,
+          trusted: isTrustedProxyAddress(address),
+        })),
+        onCloudRun: Boolean(process.env.K_SERVICE),
+        trustedProxyHops: process.env.TRUSTED_PROXY_HOPS || null,
+        trustedProxyCidrs: process.env.TRUSTED_PROXY_CIDRS || null,
+      });
+    } catch (error) {
+      const status = (error as { status?: number })?.status;
+      return res.status(typeof status === 'number' ? status : 500).json({
+        error: error instanceof Error ? error.message : 'Failed to read client IP',
+      });
+    }
+  });
+
   app.get('/api/admin/ops', async (req: Request, res: Response) => {
     try {
       if (!isAdminSdkReady()) {

@@ -10,10 +10,27 @@ import { registerChillRoutes } from "./chillRoutes.ts";
 import { registerLanSyncRoutes } from "./lanSyncRoutes.ts";
 import { registerMistFreenetRoutes } from "./mistFreenetRoutes.ts";
 import { registerPluginPackageRoutes } from "./pluginPackageRoutes.ts";
+import { rateLimit } from "./accessPinAuth.ts";
+import { requireAuthedUser } from "./requireAuthedUser.ts";
 import { getDpirdApiKey } from "./envSecrets.ts";
 import {
   fetchDpirdDailySummaries,
 } from "../shared/weather/dpirdClient.ts";
+
+/**
+ * The DPIRD paths this app actually asks for — the station directory
+ * (`weatherService.fetchAllDPIRDStations`) and hourly ambient temperature
+ * (`useDryerSessionActions`).
+ *
+ * The proxy spends this server's `DPIRD_API_KEY`, so it forwards a fixed set
+ * rather than whatever `req.params[0]` holds. Concatenating the caller's path
+ * onto the upstream base made it a general-purpose credentialed proxy to
+ * api.agric.wa.gov.au, reachable on any path the caller cared to name.
+ */
+const DPIRD_PROXY_PATHS = new Set(["stations", "stations/summaries/hourly"]);
+
+const DPIRD_MAX_CALLS = 60;
+const DPIRD_WINDOW_MS = 15 * 60 * 1000;
 
 // Capacitor, LAN devices, and am.pufworks.farm → local Freenet sidecar call cross-origin.
 const allowedCorsOrigins = new Set([
@@ -108,6 +125,9 @@ export function createApiApp(): Express {
   });
 
   app.post("/api/weather/blight-risk", async (req, res) => {
+    const caller = await requireAuthedUser(req, res);
+    if (!caller) return;
+
     const { farmId, lat, lng, startDate, endDate, stationCode } = req.body;
 
     if (!farmId || !lat || !lng || !startDate || !endDate) {
@@ -246,13 +266,31 @@ export function createApiApp(): Express {
   });
 
   app.get("/api/weather/dpird/*", async (req, res) => {
+    // Allowlist before auth: it is the cheaper check, it tells an anonymous
+    // caller nothing they could not read in the client bundle, and putting it
+    // first keeps it testable without minting a token.
+    const dpirdPath = String(req.params[0] || "");
+    if (!DPIRD_PROXY_PATHS.has(dpirdPath)) {
+      return res.status(404).json({ error: "Unknown DPIRD path" });
+    }
+
+    const caller = await requireAuthedUser(req, res);
+    if (!caller) return;
+
     try {
-      const apiKey = getDpirdApiKey();
-      if (!apiKey) {
-        return res.status(401).json({ error: "API key missing" });
+      // Keyed by uid, not IP: the caller is authenticated by this point, and the
+      // IP is the shared NAT of a farm office as often as it is one operator.
+      if (!rateLimit(`dpird:${caller.uid}`, DPIRD_MAX_CALLS, DPIRD_WINDOW_MS)) {
+        return res
+          .status(429)
+          .json({ error: "Too many weather requests. Try again shortly." });
       }
 
-      const dpirdPath = req.params[0];
+      const apiKey = getDpirdApiKey();
+      if (!apiKey) {
+        return res.status(503).json({ error: "DPIRD API key missing on this server" });
+      }
+
       const queryString = new URLSearchParams(req.query as Record<string, string>).toString();
       const targetUrl = `https://api.agric.wa.gov.au/v2/weather/${dpirdPath}${queryString ? "?" + queryString : ""}`;
 

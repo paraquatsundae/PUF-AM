@@ -196,7 +196,7 @@ export function DryerSessionDetailModal({
                          const prediction = calculateDryingPrediction(selectedSession.readings, selectedSession.targetMoisture);
                          
                          // If no prediction, just plot raw points
-                         let data = prediction?.plotData || selectedSession.readings.map(r => ({
+                         const data = prediction?.plotData || selectedSession.readings.map(r => ({
                            hours: (new Date(r.time).getTime() - new Date(selectedSession.startTime).getTime()) / (1000 * 60 * 60),
                            measured: r.moisture,
                            date: new Date(r.time)

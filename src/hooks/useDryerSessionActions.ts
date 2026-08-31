@@ -3,7 +3,7 @@ import { collection, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
-import { apiUrl } from '../lib/apiBase';
+import { apiFetch, apiUrl } from '../lib/apiBase';
 import type { DryingSession } from '../lib/dryingModel';
 import type { FarmDryer } from '../lib/farmAssets';
 import type { NewSessionForm } from '../components/drying/StartDryingSessionModal';
@@ -71,7 +71,7 @@ export function useDryerSessionActions(
         const url = apiUrl(
           `/api/weather/dpird/stations/summaries/hourly?startDateTime=${start.toISOString().split('.')[0]}Z&endDateTime=${end.toISOString().split('.')[0]}Z&stationCode=${stationCode}`
         );
-        const response = await fetch(url);
+        const response = await apiFetch(url, { timeoutMs: 60000 });
         if (!response.ok) throw new Error('Failed to fetch hourly weather');
         const json = await response.json();
         if (isSubscribed && json.collection && json.collection.length > 0) {

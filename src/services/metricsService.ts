@@ -49,13 +49,22 @@ export async function trackMetric(type: MetricType, count: number = 1) {
 }
 
 /**
- * Calculates the estimated cost based on usage metrics.
+ * The counters `trackMetric` maintains, as the admin usage tab reads them back.
+ *
+ * Optional throughout because a metrics doc only gains a field once something
+ * has incremented it — a farm that has never called the weather proxy has no
+ * `totalWeatherCalls` key at all.
  */
-export function calculateEstimatedCost(metrics: {
+export type UsageMetrics = {
   totalWeatherCalls?: number;
   totalFirestoreReads?: number;
   totalFirestoreWrites?: number;
-}) {
+};
+
+/**
+ * Calculates the estimated cost based on usage metrics.
+ */
+export function calculateEstimatedCost(metrics: UsageMetrics) {
   const weatherCost = (metrics.totalWeatherCalls || 0) * COST_ESTIMATES.weather;
   const readCost = (metrics.totalFirestoreReads || 0) * COST_ESTIMATES.read;
   const writeCost = (metrics.totalFirestoreWrites || 0) * COST_ESTIMATES.write;

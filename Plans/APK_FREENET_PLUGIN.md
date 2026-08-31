@@ -411,7 +411,7 @@ Gateway selection — which machine answers this tablet's `/api/*`, including th
 | File | Job |
 |------|-----|
 | [`src/lib/farmGateway.ts`](../src/lib/farmGateway.ts) | **New.** Address classification (what is accepted and refused, and why), the remembered gateway, `gatewayIdentityChanged()` |
-| [`src/lib/syncHub.ts`](../src/lib/syncHub.ts) | `hubLadderOrder()` (pure), the gateway rung, `useFarmGateway()`, `clearFarmGateway()`, the identity guard |
+| [`src/lib/syncHub.ts`](../src/lib/syncHub.ts) | `hubLadderOrder()` (pure), the gateway rung, `resolveFarmGateway()`, `clearFarmGateway()`, the identity guard |
 | [`src/lib/hubIdentity.ts`](../src/lib/hubIdentity.ts) | `adoptHubCredentialByHubId()` — one laptop reachable two ways is **one** pairing |
 | [`shared/sync/hubInfo.ts`](../shared/sync/hubInfo.ts) | `HubInfo.hubId`, optional, explicitly **not** an authenticator |
 | [`src/lib/autoSync.ts`](../src/lib/autoSync.ts) | `SyncPeerState: 'reachable-remote'`, `SyncVia: 'gateway'`, operator copy |

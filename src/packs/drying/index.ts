@@ -1,10 +1,15 @@
-import React from 'react';
 import { IconTemperature } from '@tabler/icons-react';
-import { FarmDryersPanel } from '../../components/harvest/FarmDryersPanel';
 import type { CropPackUiRegistration } from '../types';
 import { DRYING_PACK_ID, DRYING_PRIMARY_PATH } from '../../../shared/farm/dryingPackage';
+import { lazyWithRetry } from '../../lib/lazyWithRetry';
 
-const DryingPage = React.lazy(() =>
+const FarmDryersPanel = lazyWithRetry(() =>
+  import('../../components/harvest/FarmDryersPanel').then((m) => ({
+    default: m.FarmDryersPanel,
+  }))
+);
+
+const DryingPage = lazyWithRetry(() =>
   import('../../pages/Drying').then((m) => ({ default: m.Drying }))
 );
 
