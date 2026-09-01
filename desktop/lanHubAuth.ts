@@ -71,7 +71,25 @@ export const LAN_SCOPE_PREFIXES: readonly string[] = [
   '/api/presence/',
   '/api/highlights/',
   '/api/mist/freenet/',
+  // Imagery, rendered by this hub for the tablets on the shed Wi-Fi.
+  '/api/tiles/',
 ];
+
+/**
+ * In scope **and** served without a pairing token, matched by prefix because the
+ * path carries coordinates.
+ *
+ * Leaflet fetches tiles as `<img src>` and an image element cannot carry
+ * `x-puf-hub-token`, so requiring one here would mean the hub can render imagery
+ * that no map is able to ask it for.
+ *
+ * Opening it costs little: no farm data is behind it, the upstream host is fixed
+ * in `server/tileProxyRoutes.ts` so it cannot be aimed elsewhere, coordinates are
+ * validated and upstream concurrency is capped. An unpaired device on the shed
+ * Wi-Fi gains public satellite imagery, which it could fetch from the internet
+ * unaided.
+ */
+export const LAN_OPEN_PREFIXES: readonly string[] = ['/api/tiles/'];
 
 /**
  * Served by the cloud even for a paired tablet, because a packaged desktop has no
@@ -279,6 +297,9 @@ export function decideLanRequest(
   // that follows rather than the one being checked.
   if (req.method === 'OPTIONS') return { kind: 'allow' };
   if (LAN_OPEN_PATHS.includes(req.path)) return { kind: 'allow' };
+  if (LAN_OPEN_PREFIXES.some((prefix) => req.path.startsWith(prefix))) {
+    return { kind: 'allow' };
+  }
 
   if (!LAN_SCOPE_PREFIXES.some((prefix) => req.path.startsWith(prefix))) {
     return { kind: 'out-of-scope', message: LAN_OUT_OF_SCOPE_MESSAGE };

@@ -22,7 +22,7 @@ Cloud Run reads `DPIRD_API_KEY` and `PUF_ENROLLMENT_CODES` from **Secret Manager
 
 ## Client-visible keys
 
-`VITE_GOOGLE_MAPS_API_KEY` is baked into the web/APK build. Restrict it in Google Cloud (HTTP referrers + Android package). See `Plans/API_KEY_SECURITY.md`.
+There is no client map key. Satellite imagery goes through `/api/tiles/:z/:x/:y` on our own server, so the provider and any credential it needs stay server-side. The only credential in the bundle is the Firebase web API key, which is public by design — restrict it anyway. See `Plans/API_KEY_SECURITY.md`.
 
 ## Reports
 

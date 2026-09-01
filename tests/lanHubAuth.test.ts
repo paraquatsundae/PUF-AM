@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   HUB_TOKEN_HEADER,
+  LAN_OPEN_PREFIXES,
   LAN_SCOPE_PREFIXES,
   PairingThrottle,
   decideLanRequest,
@@ -169,10 +170,33 @@ describe('LAN request scope', () => {
   });
 
   it('requires a device token on every route a tablet actually uses', () => {
-    for (const prefix of LAN_SCOPE_PREFIXES) {
+    const guarded = LAN_SCOPE_PREFIXES.filter((prefix) => !LAN_OPEN_PREFIXES.includes(prefix));
+    // Without this, adding every prefix to the open list would make the loop
+    // below iterate nothing and pass while asserting the opposite of its name.
+    expect(guarded.length).toBe(LAN_SCOPE_PREFIXES.length - LAN_OPEN_PREFIXES.length);
+    expect(guarded.length).toBeGreaterThan(0);
+
+    for (const prefix of guarded) {
       const path = `${prefix}anything`;
       expect(decideLanRequest(request(path), devices).kind).toBe('unpaired');
       expect(decideLanRequest(request(path, token), devices).kind).toBe('allow');
+    }
+  });
+
+  /**
+   * Leaflet fetches tiles as `<img src>`, and an image element cannot carry
+   * `x-puf-hub-token`. Requiring one would mean the hub can render imagery that
+   * no map is able to ask it for, which is the whole reason it serves tiles.
+   */
+  it('serves imagery to an unpaired device', () => {
+    expect(decideLanRequest(request('/api/tiles/12/3366/2431'), devices).kind).toBe('allow');
+  });
+
+  it('keeps every open prefix inside the LAN scope', () => {
+    // An open prefix that drifts out of scope would 404 rather than serve, and
+    // the failure would look like a missing route rather than a policy mistake.
+    for (const prefix of LAN_OPEN_PREFIXES) {
+      expect(LAN_SCOPE_PREFIXES).toContain(prefix);
     }
   });
 

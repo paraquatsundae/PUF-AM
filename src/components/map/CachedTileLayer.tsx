@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import L from '../../lib/leaflet-setup';
 import {
-  ESRI_ATTRIBUTION,
-  ESRI_IMAGERY_URL,
+  IMAGERY_ATTRIBUTION,
   getTileBlob,
   tileUrl,
+  tileUrlTemplate,
 } from '../../lib/basemapPack';
 
 type Props = {
@@ -17,8 +17,8 @@ type Props = {
 type PufomTileImg = HTMLImageElement & { _pufomObjectUrl?: string };
 
 /**
- * Leaflet GridLayer that serves Esri imagery from IndexedDB first,
- * then falls back to network when online (unless offlineOnly).
+ * Leaflet GridLayer that serves satellite imagery from IndexedDB first,
+ * then falls back to the `/api/tiles` proxy when online (unless offlineOnly).
  *
  * Note: do not revoke blob: URLs in img.onload — Android WebView often
  * blanks the tile after revoke. Revoke when Leaflet removes the tile.
@@ -138,7 +138,7 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
     });
 
     const layer = new (Layer as unknown as new (opts?: L.GridLayerOptions) => L.GridLayer)({
-      attribution: ESRI_ATTRIBUTION,
+      attribution: IMAGERY_ATTRIBUTION,
       maxZoom: 20,
       maxNativeZoom: 17,
       minZoom: 0,
@@ -153,13 +153,13 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
   return null;
 }
 
-/** Network-only Esri layer (used during setup preview before pack exists). */
-export function EsriPreviewTileLayer() {
+/** Network-only imagery layer (used during setup preview before a pack exists). */
+export function ImageryPreviewTileLayer() {
   const map = useMap();
 
   useEffect(() => {
-    const layer = L.tileLayer(ESRI_IMAGERY_URL, {
-      attribution: ESRI_ATTRIBUTION,
+    const layer = L.tileLayer(tileUrlTemplate(), {
+      attribution: IMAGERY_ATTRIBUTION,
       maxZoom: 20,
       maxNativeZoom: 19,
     });

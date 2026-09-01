@@ -6,15 +6,8 @@ import {
   setBasemapSkipped,
   type BasemapPack,
 } from '../lib/basemapPack';
-import { preferEsriSatelliteBasemap, resolveGoogleMapsApiKey } from '../lib/googleMapsKey';
 
 export function useOrchardMapBasemap(farmId: string | undefined) {
-  const googleMapsApiKey = resolveGoogleMapsApiKey();
-  /** Native Capacitor: Esri first (Google referrer/key often blanks LAN WebView). */
-  const [useGoogleSatellite, setUseGoogleSatellite] = useState(
-    () => Boolean(resolveGoogleMapsApiKey()) && !preferEsriSatelliteBasemap()
-  );
-
   const [basemapPack, setBasemapPack] = useState<BasemapPack | null>(null);
   const [basemapChecked, setBasemapChecked] = useState(false);
   const [showBasemapSetup, setShowBasemapSetup] = useState(false);
@@ -105,9 +98,6 @@ export function useOrchardMapBasemap(farmId: string | undefined) {
   };
 
   return {
-    googleMapsApiKey,
-    useGoogleSatellite,
-    setUseGoogleSatellite,
     basemapPack,
     basemapChecked,
     showBasemapSetup,

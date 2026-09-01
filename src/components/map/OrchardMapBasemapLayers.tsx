@@ -1,39 +1,34 @@
 import { TileLayer } from 'react-leaflet';
 import { CachedTileLayer } from './CachedTileLayer';
-import { GoogleMapsLayer } from './GoogleMapsLayer';
-import { ESRI_ATTRIBUTION, type BasemapPack } from '../../lib/basemapPack';
+import { IMAGERY_ATTRIBUTION, tileUrlTemplate, type BasemapPack } from '../../lib/basemapPack';
 
+/**
+ * Satellite imagery comes from `/api/tiles`, never from a provider directly.
+ *
+ * There used to be three branches here — the offline pack, a Google Maps layer
+ * behind a client-side key, and a hardcoded `server.arcgisonline.com` fallback.
+ * The proxy makes the last two the same thing, and a keyless one, so what is
+ * left is "the pack if there is one, the proxy if not".
+ */
 export function OrchardMapBasemapLayers({
   farmId,
   mapLayer,
   basemapPack,
   isOnline,
-  useGoogleSatellite,
-  googleMapsApiKey,
-  onGoogleFail,
 }: {
   farmId: string;
   mapLayer: 'vector' | 'satellite';
   basemapPack: BasemapPack | null;
   isOnline: boolean;
-  useGoogleSatellite: boolean;
-  googleMapsApiKey: string | undefined;
-  onGoogleFail: () => void;
 }) {
   return (
     <>
       {mapLayer === 'satellite' && basemapPack ? (
         <CachedTileLayer farmId={farmId} offlineOnly={!isOnline} />
-      ) : useGoogleSatellite && googleMapsApiKey && mapLayer === 'satellite' ? (
-        <GoogleMapsLayer
-          type="hybrid"
-          apiKey={googleMapsApiKey}
-          onFail={onGoogleFail}
-        />
       ) : mapLayer === 'satellite' ? (
         <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          attribution={ESRI_ATTRIBUTION}
+          url={tileUrlTemplate()}
+          attribution={IMAGERY_ATTRIBUTION}
           maxZoom={20}
           maxNativeZoom={19}
         />
@@ -43,7 +38,7 @@ export function OrchardMapBasemapLayers({
           attribution="&copy; <a href='https://carto.com/'>CARTO</a>"
         />
       )}
-      {mapLayer === 'satellite' && !basemapPack && !(useGoogleSatellite && googleMapsApiKey) && (
+      {mapLayer === 'satellite' && !basemapPack && (
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png"
           attribution="&copy; <a href='https://carto.com/'>CARTO</a>"

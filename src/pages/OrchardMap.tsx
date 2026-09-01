@@ -417,9 +417,6 @@ export function OrchardMap() {
           basemapPack={basemap.basemapPack}
           showBasemapSetup={basemap.showBasemapSetup}
           isOnline={basemap.isOnline}
-          useGoogleSatellite={basemap.useGoogleSatellite}
-          googleMapsApiKey={basemap.googleMapsApiKey}
-          onGoogleFail={() => basemap.setUseGoogleSatellite(false)}
           featureGroupRef={chrome.featureGroupRef}
           drawLayerCtx={drawLayerCtx}
           boundaryEditBlockId={draw.boundaryEditBlockId}

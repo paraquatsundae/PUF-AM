@@ -30,7 +30,7 @@ import {
 import { downloadBasemapPack } from '../../lib/tileDownloader';
 import { useFarmDiary } from '../../lib/farmDiary';
 import { mapUiCopy } from '../../../shared/farm/farmTypes';
-import { EsriPreviewTileLayer } from './CachedTileLayer';
+import { ImageryPreviewTileLayer } from './CachedTileLayer';
 
 type NominatimResult = {
   display_name: string;
@@ -449,7 +449,10 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                           ? ' (Detail reduced so the pack fits on this device.)'
                           : null}
                       </li>
-                      <li>Uses free Esri World Imagery. Attribution shown on the map.</li>
+                      <li>
+                        Uses Landgate (SLIP) aerial imagery for Western Australia.
+                        Attribution shown on the map.
+                      </li>
                       <li>Needs a good connection once; afterwards works offline in the paddock.</li>
                     </ul>
                   )}
@@ -544,7 +547,7 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
             className="absolute inset-0"
             zoomControl={false}
           >
-            <EsriPreviewTileLayer />
+            <ImageryPreviewTileLayer />
             <ZoomControl position="bottomleft" />
             {selected && (
               <Rectangle

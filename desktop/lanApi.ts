@@ -140,7 +140,9 @@ export async function startLanApi(options: LanApiOptions): Promise<LanApiHandle>
   const throttle = new PairingThrottle();
 
   const app = express();
-  app.use(apiCorsMiddleware());
+  // Hub surface: this listener exists for paired tablets on the shed Wi-Fi, so
+  // `capacitor://localhost` and the loopback origins have to be allowed.
+  app.use(apiCorsMiddleware('hub'));
   app.use(express.json({ limit: '1mb' }));
 
   const describeHub = (req: express.Request): HubInfo => ({
@@ -154,6 +156,7 @@ export async function startLanApi(options: LanApiOptions): Promise<LanApiHandle>
     cloudApiBase: options.cloudApiBase(),
     lanScopePrefixes: [...LAN_SCOPE_PREFIXES],
     freenet: options.freenetReady(),
+    tiles: true,
   });
 
   app.get(HUB_INFO_PATH, (req, res) => {
@@ -236,7 +239,9 @@ export async function startLanApi(options: LanApiOptions): Promise<LanApiHandle>
     res.status(401).json({ error: verdict.message, pairingRequired: true });
   });
 
-  app.use(createApiApp());
+  // Hub surface — the LAN families are the point of this listener. The scope
+  // guard above has already restricted what a paired tablet may reach.
+  app.use(createApiApp({ surface: 'hub' }));
 
   const { server, port } = await listenFrom(app, host, preferred, LAN_HUB_PORT_ATTEMPTS);
   const lanIp = options.lanAddress?.();

@@ -75,7 +75,8 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
    Edit `firebase-applet-config.json` with your Firebase project credentials.
    Edit `.env` with your API keys:
    - `DPIRD_API_KEY` — WA DPIRD weather API (**server only** — never `VITE_`)
-   - `VITE_GOOGLE_MAPS_API_KEY` — Google Maps tiles (optional; restrict in Google Cloud — see `Plans/API_KEY_SECURITY.md`)
+   - `TILE_UPSTREAM_URL` — optional; overrides the satellite imagery upstream (defaults to Landgate SLIP). Server only — there is no client map key. See `Plans/API_KEY_SECURITY.md`
+   - `ALLOWED_ORIGINS` — optional; comma-separated CORS allowlist. Unlisted origins get no CORS header
    - `APP_URL` — `http://localhost:3000` for local dev; Cloud Run URL after publish
    - `VITE_APP_URL` — optional; set to Cloud Run **App URL** after publish
 

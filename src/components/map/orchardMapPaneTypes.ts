@@ -19,9 +19,6 @@ export type OrchardMapCanvasProps = {
   basemapPack: BasemapPack | null;
   showBasemapSetup: boolean;
   isOnline: boolean;
-  useGoogleSatellite: boolean;
-  googleMapsApiKey: string | undefined;
-  onGoogleFail: () => void;
   onBasemapCancel: () => void;
   onBasemapComplete: () => Promise<void>;
   featureGroupRef: { current: any };

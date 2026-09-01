@@ -115,14 +115,11 @@ if (Test-Path ".env") {
 }
 
 # Vite bakes VITE_* at image build time; .env is in .gcloudignore so pass build env explicitly.
-$mapsKey = $null
+# No map key here any more: satellite imagery goes through /api/tiles on the
+# server, so nothing map-related needs to reach the browser. See
+# Plans/API_KEY_SECURITY.md.
 $viteAppUrl = $AppUrl
 if (Test-Path ".env") {
-  $mapsLine = Get-Content .env | Where-Object { $_ -match '^\s*VITE_GOOGLE_MAPS_API_KEY\s*=' } | Select-Object -First 1
-  if ($mapsLine) {
-    $mapsKey = ($mapsLine -split '=', 2)[1].Trim().Trim('"').Trim("'")
-    if ($mapsKey -eq "YOUR_GOOGLE_MAPS_API_KEY") { $mapsKey = $null }
-  }
   $viteLine = Get-Content .env | Where-Object { $_ -match '^\s*VITE_APP_URL\s*=' } | Select-Object -First 1
   if ($viteLine) {
     $fromVite = ($viteLine -split '=', 2)[1].Trim().Trim('"').Trim("'")
@@ -131,8 +128,6 @@ if (Test-Path ".env") {
 }
 
 $buildEnv = "VITE_APP_URL=$viteAppUrl,VITE_MIST_EXPERIMENTAL=true"
-if ($mapsKey) { $buildEnv = "$buildEnv,VITE_GOOGLE_MAPS_API_KEY=$mapsKey" }
-else { Write-Warning "VITE_GOOGLE_MAPS_API_KEY missing in .env — satellite basemap will be unavailable in this build." }
 
 Write-Host "APP_URL:  $AppUrl"
 Write-Host "Building and deploying (Cloud Build + Cloud Run)..."

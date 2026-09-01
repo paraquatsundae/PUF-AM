@@ -68,6 +68,17 @@ export type HubInfo = {
   lanScopePrefixes: string[];
   /** Whether a Freenet node is usable through this hub, for the honest gate. */
   freenet: boolean;
+  /**
+   * Whether this hub serves `/api/tiles/:z/:x/:y` itself.
+   *
+   * Optional, and absent means **no**: a desktop older than the imagery proxy
+   * answers without this field, and a tablet that assumed otherwise would ask it
+   * for tiles, collect 404s and show a grey map. Unlike the other capabilities
+   * here this one has to be stated positively — `cloudOnlyPrefixes` describes
+   * what a hub *refuses*, and an old hub cannot refuse a route it has never
+   * heard of.
+   */
+  tiles?: boolean;
 };
 
 export function isHubInfo(value: unknown): value is HubInfo {
@@ -80,4 +91,16 @@ export function isHubInfo(value: unknown): value is HubInfo {
 export function hubDefersToCloud(info: HubInfo | null, path: string): boolean {
   if (!info) return false;
   return info.cloudOnlyPrefixes.some((prefix) => path.startsWith(prefix));
+}
+
+/**
+ * True when this hub can render satellite tiles itself.
+ *
+ * Serving imagery locally is the point of the proxy on a hub: the shed laptop
+ * becomes the one thing talking to the imagery provider, so a paddock tablet
+ * gets tiles over Wi-Fi instead of a phone connection, and each farm is its own
+ * consumer of that provider rather than everyone drawing through one server.
+ */
+export function hubServesTiles(info: HubInfo | null): boolean {
+  return info?.tiles === true;
 }

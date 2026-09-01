@@ -3,6 +3,8 @@ import { hostname as osHostname } from "node:os";
 import express, { Express } from "express";
 import { runBlightModel, defaultCalibration } from "../src/lib/blightModel.ts";
 import { HUB_INFO_PATH, type HubInfo } from "../shared/sync/hubInfo.ts";
+import { servesLanFamilies, type ApiSurface } from "./apiSurface.ts";
+import { registerTileProxyRoutes } from "./tileProxyRoutes.ts";
 import { registerAccessPinRoutes } from "./accessPinRoutes.ts";
 import { registerAdminOpsRoutes } from "./adminOpsRoutes.ts";
 import { registerWeatherCacheRoutes } from "./weatherCacheRoutes.ts";
@@ -33,41 +35,81 @@ const DPIRD_MAX_CALLS = 60;
 const DPIRD_WINDOW_MS = 15 * 60 * 1000;
 
 // Capacitor, LAN devices, and am.pufworks.farm → local Freenet sidecar call cross-origin.
-const allowedCorsOrigins = new Set([
+const DEFAULT_CORS_ORIGINS = [
   'https://am.pufworks.farm',
   'https://pufom-quby5ye5pa-ts.a.run.app',
-]);
+];
+
+/**
+ * Exact origins allowed to read a cross-origin response.
+ *
+ * `ALLOWED_ORIGINS` is comma-separated and replaces the built-in pair outright
+ * rather than adding to it, so a deployment can be narrowed as well as widened.
+ */
+function allowedCorsOrigins(): Set<string> {
+  const configured = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return new Set(configured.length ? configured : DEFAULT_CORS_ORIGINS);
+}
+
+/**
+ * The loopback and Capacitor origins a tablet talks to a LAN hub from.
+ *
+ * These belong to the hub surface only. On Cloud Run they let any page served
+ * from any localhost port read the response, which is a real origin on a
+ * developer's machine and one an attacker can arrange to be — it costs nothing
+ * to allow there and buys nothing either, because the cloud API is never the
+ * thing a `capacitor://localhost` page is calling on the LAN.
+ */
+function isLanClientOrigin(origin: string): boolean {
+  return (
+    origin.startsWith('http://127.0.0.1:') ||
+    origin.startsWith('http://localhost:') ||
+    origin === 'https://localhost' ||
+    origin === 'capacitor://localhost'
+  );
+}
 
 /**
  * Shared so the desktop shell's LAN listener can put its own `/api/hub/*` routes
  * in front of `createApiApp()` and still answer a preflight the same way. Two
  * copies of this would drift, and the failure mode is a tablet that works on one
  * listener and not the other.
+ *
+ * An unrecognised origin gets **no** `Access-Control-Allow-Origin` at all. It
+ * used to get `*`, which let any site on the internet read every unauthenticated
+ * response. Same-origin traffic is unaffected either way — the browser does not
+ * consult CORS for it — so the wildcard was only ever serving the cross-origin
+ * callers we do not have.
  */
-export function apiCorsMiddleware(): express.RequestHandler {
+export function apiCorsMiddleware(surface: ApiSurface = 'cloud'): express.RequestHandler {
   return (req, res, next) => {
     const origin = req.headers.origin;
-    let allowOrigin = '*';
-    if (origin) {
-      if (
-        allowedCorsOrigins.has(origin) ||
-        origin.startsWith('http://127.0.0.1:') ||
-        origin.startsWith('http://localhost:') ||
-        origin === 'https://localhost' ||
-        origin === 'capacitor://localhost'
-      ) {
-        allowOrigin = origin;
-      }
+    const allowed =
+      typeof origin === 'string' &&
+      (allowedCorsOrigins().has(origin) ||
+        (servesLanFamilies(surface) && isLanClientOrigin(origin)));
+
+    if (allowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin as string);
+      // The answer depends on the request's Origin, so a shared cache must not
+      // serve one origin's response to another.
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      // `x-puf-hub-token` is the paired-tablet credential for a desktop LAN hub.
+      // Omitting it here is invisible on same-origin and fails every cross-origin
+      // call from the APK, which is the only place it is ever sent from.
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, Accept, api-key, x-puf-hub-token'
+      );
     }
-    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    // `x-puf-hub-token` is the paired-tablet credential for a desktop LAN hub.
-    // Omitting it here is invisible on same-origin and fails every cross-origin
-    // call from the APK, which is the only place it is ever sent from.
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, Accept, api-key, x-puf-hub-token'
-    );
+
+    // Still 204 an unrecognised preflight rather than letting it fall through to
+    // a route: without the headers above the browser blocks the real request
+    // anyway, and this keeps OPTIONS off the handlers.
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
     }
@@ -75,11 +117,18 @@ export function apiCorsMiddleware(): express.RequestHandler {
   };
 }
 
-/** Express app with API routes only (no Vite/static middleware). Used by server.ts and tests. */
-export function createApiApp(): Express {
+/**
+ * Express app with API routes only (no Vite/static middleware). Used by
+ * server.ts, the desktop shell's two listeners, and tests.
+ *
+ * See `apiSurface.ts` for why the LAN families are not registered on `'cloud'`,
+ * and why `'cloud'` is the default.
+ */
+export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
+  const surface = opts.surface ?? 'cloud';
   const app = express();
 
-  app.use(apiCorsMiddleware());
+  app.use(apiCorsMiddleware(surface));
 
   app.use(express.json());
 
@@ -95,9 +144,17 @@ export function createApiApp(): Express {
   registerAdminOpsRoutes(app);
   registerWeatherCacheRoutes(app);
   registerChillRoutes(app);
-  registerLanSyncRoutes(app);
-  registerMistFreenetRoutes(app);
+  registerLanSyncRoutes(app, surface);
   registerPluginPackageRoutes(app);
+  // Both surfaces: a desktop hub serving tablets on the shed Wi-Fi needs to
+  // render imagery for them just as Cloud Run does for the web app.
+  registerTileProxyRoutes(app);
+
+  // Freenet is a peer on somebody's own machine. Every route in this family is
+  // unauthenticated by design, which is defensible on a laptop and not on the
+  // public internet — where today it is closed only by `MIST_FREENET_DISABLED=1`
+  // happening to be set on the deploy.
+  if (servesLanFamilies(surface)) registerMistFreenetRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
@@ -108,21 +165,29 @@ export function createApiApp(): Express {
    * Firebase and DPIRD secrets, so it serves every family itself and asks for no
    * credential — the opposite of the packaged desktop LAN hub, which registers a
    * richer version of this route in front of `createApiApp()`.
+   *
+   * Not on the cloud surface: Cloud Run is not a hub, and answering
+   * `kind: 'workshop-dev'` there advertised the production API as a dev box and
+   * leaked its hostname. `fetchHubInfo()` already documents a 404 here as "a
+   * Cloud Run deployment", so this is the case it was written for.
    */
-  app.get(HUB_INFO_PATH, (_req, res) => {
-    const info: HubInfo = {
-      product: 'PUF-AM',
-      kind: 'workshop-dev',
-      name: `PUF-AM dev (${osHostname().split('.')[0] || 'workshop'})`,
-      pairingRequired: false,
-      paired: true,
-      cloudOnlyPrefixes: [],
-      cloudApiBase: '',
-      lanScopePrefixes: [],
-      freenet: process.env.MIST_FREENET_DISABLED !== '1',
-    };
-    res.json(info);
-  });
+  if (servesLanFamilies(surface)) {
+    app.get(HUB_INFO_PATH, (_req, res) => {
+      const info: HubInfo = {
+        product: 'PUF-AM',
+        kind: 'workshop-dev',
+        name: `PUF-AM dev (${osHostname().split('.')[0] || 'workshop'})`,
+        pairingRequired: false,
+        paired: true,
+        cloudOnlyPrefixes: [],
+        cloudApiBase: '',
+        lanScopePrefixes: [],
+        freenet: process.env.MIST_FREENET_DISABLED !== '1',
+        tiles: true,
+      };
+      res.json(info);
+    });
+  }
 
   app.post("/api/weather/blight-risk", async (req, res) => {
     const caller = await requireAuthedUser(req, res);

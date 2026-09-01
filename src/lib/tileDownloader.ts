@@ -67,7 +67,8 @@ async function fetchTileBlob(
 }
 
 /**
- * Download Esri World Imagery tiles for a bbox into IndexedDB and save pack metadata.
+ * Download satellite tiles for a bbox into IndexedDB and save pack metadata.
+ * Tiles come through our own `/api/tiles` proxy, not from a provider directly.
  * Reuses tiles already on the device (shared cache) so overlapping areas are not
  * downloaded or stored twice. Failed updates leave the previous pack intact.
  */
@@ -174,7 +175,7 @@ export async function downloadBasemapPack(options: DownloadOptions): Promise<Bas
     tileCount: total,
     bytes,
     createdAt: new Date().toISOString(),
-    source: 'esri-world-imagery',
+    source: 'landgate-locate',
   };
   try {
     await saveBasemapPack(pack);

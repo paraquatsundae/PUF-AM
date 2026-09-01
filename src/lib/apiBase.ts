@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 
-import { hubDefersToCloud } from '../../shared/sync/hubInfo.ts';
+import { hubDefersToCloud, hubServesTiles } from '../../shared/sync/hubInfo.ts';
 import { getDesktopBridge, isDesktopShell } from './desktopBridge.ts';
 import { getHubInfo, getHubToken } from './hubIdentity.ts';
 
@@ -12,6 +12,12 @@ let runtimeApiBase: string | null = null;
  * service account or `DPIRD_API_KEY`, which never ship to an operator machine.
  * Everything else — Freenet, LAN sync, presence — is local by design.
  * See `Plans/DESKTOP_FREENET_PLUGIN.md` §6.2.
+ *
+ * Imagery is deliberately **not** in this list. The desktop ships its own copy of
+ * the tile proxy, so it renders its own tiles and is its own consumer of the
+ * imagery provider — see `hubServesTiles()`. `/api/tiles/` is exempt from the
+ * loopback token in `desktop/loopbackAuth.ts`, because Leaflet fetches tiles as
+ * `<img src>` and an image element cannot carry a header.
  */
 const DESKTOP_CLOUD_ONLY_PREFIXES = ['/api/auth/', '/api/weather/', '/api/admin/'];
 
@@ -135,13 +141,21 @@ function hubCloudBaseFor(path: string): string {
       isPackagedNativeAndroid() &&
       (path.startsWith('/api/auth/') ||
         path.startsWith('/api/weather/') ||
-        path.startsWith('/api/admin/'))
+        path.startsWith('/api/admin/') ||
+        path.startsWith('/api/tiles/'))
     ) {
       return DEFAULT_CLOUD_API_BASE;
     }
     return '';
   }
   const info = getHubInfo(hub);
+  // Imagery is the one capability a hub has to claim rather than disclaim. A
+  // desktop older than the tile proxy says nothing about `/api/tiles/`, so
+  // `cloudOnlyPrefixes` does not list it and the tablet would ask that hub for
+  // tiles it has never been able to serve — a grey map instead of a fallback.
+  if (path.startsWith('/api/tiles/') && !hubServesTiles(info)) {
+    return (info?.cloudApiBase || DEFAULT_CLOUD_API_BASE).replace(/\/$/, '');
+  }
   if (!hubDefersToCloud(info, path)) return '';
   return (info?.cloudApiBase || DEFAULT_CLOUD_API_BASE).replace(/\/$/, '');
 }

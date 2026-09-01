@@ -94,7 +94,9 @@ export async function startLocalApi(options: LocalApiOptions): Promise<LocalApiH
   const app = express();
 
   app.use(createLoopbackAuthGuard(options.authToken));
-  app.use(createApiApp());
+  // Hub surface, not cloud: a packaged build sets NODE_ENV=production, and the
+  // renderer's LAN, Freenet and hub-handshake calls all come here.
+  app.use(createApiApp({ surface: 'hub' }));
 
   // Static + SPA fallback must be registered after the API routes so `/api/*` is never shadowed.
   app.use(express.static(options.distPath));

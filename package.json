@@ -56,6 +56,7 @@
     "//desktop:dist:win:portable": "The Windows targets that build without wine. NSIS makes its uninstaller by running a stub .exe, so `desktop:dist:win` only completes on a Windows host; portable + zip skip that and produce copyable artifacts from Fedora.",
     "desktop:dist:win:portable": "npm run desktop:vendor:verify:win && npm run desktop:dist:prep && electron-builder --win portable zip",
     "audit:codebase": "node scripts/audit-codebase.mjs",
+    "audit:bundle": "node scripts/audit-bundle.mjs",
     "plugins:verify": "tsx scripts/plugin-package.mjs verify",
     "plugins:unpack": "tsx scripts/plugin-package.mjs unpack",
     "plugins:pack": "tsx scripts/plugin-package.mjs pack",

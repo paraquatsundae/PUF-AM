@@ -1,10 +1,14 @@
-/** Local Esri World Imagery basemap packs stored in IndexedDB. */
+/**
+ * Offline satellite basemap packs stored in IndexedDB.
+ *
+ * Imagery arrives through our own `/api/tiles/:z/:x/:y` proxy rather than
+ * straight from a provider, so the provider, its terms and any key it needs stay
+ * on the server. `server/tileProxyRoutes.ts` has the reasoning.
+ */
+import { apiUrl } from './apiBase';
 
-export const ESRI_IMAGERY_URL =
-  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-
-export const ESRI_ATTRIBUTION =
-  'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+export const IMAGERY_ATTRIBUTION =
+  'Imagery © Western Australian Land Information Authority (Landgate) — SLIP';
 
 export const DEFAULT_MIN_ZOOM = 12;
 export const DEFAULT_MAX_ZOOM = 17;
@@ -58,7 +62,16 @@ export type BasemapPack = {
   tileCount: number;
   bytes: number;
   createdAt: string;
-  source: 'esri-world-imagery';
+  /**
+   * Which provider the tiles came from.
+   *
+   * Both values are live, and a single pack may hold a mixture. Tiles are keyed
+   * `z/x/y` with no provider in the key, so packs downloaded from Esri before the
+   * proxy landed keep serving offline exactly as they did — only new fetches go
+   * to Landgate. This field records what a pack *started* as, which is enough to
+   * explain a seam in the imagery to whoever asks about it.
+   */
+  source: 'esri-world-imagery' | 'landgate-locate';
 };
 
 const DB_NAME = 'sentinut_basemap';
@@ -130,7 +143,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-/** Shared cache key — one blob per Esri tile for the whole device. */
+/** Shared cache key — one blob per tile for the whole device, any provider. */
 export function sharedTileKey(z: number, x: number, y: number): string {
   return `${z}/${x}/${y}`;
 }
@@ -405,10 +418,17 @@ export function latToTileY(lat: number, z: number): number {
   );
 }
 
+/** One tile, through our proxy. `apiUrl` picks the hub or the cloud base. */
 export function tileUrl(z: number, x: number, y: number): string {
-  return ESRI_IMAGERY_URL.replace('{z}', String(z))
-    .replace('{x}', String(x))
-    .replace('{y}', String(y));
+  return apiUrl(`/api/tiles/${z}/${x}/${y}`);
+}
+
+/**
+ * The proxy path as a Leaflet URL template, for layers that fetch tiles
+ * themselves rather than going through `tileUrl()` per coordinate.
+ */
+export function tileUrlTemplate(): string {
+  return apiUrl('/api/tiles/{z}/{x}/{y}');
 }
 
 export type TileCoord = { z: number; x: number; y: number };
@@ -440,7 +460,7 @@ export function enumerateTiles(
   return tiles;
 }
 
-/** Rough size estimate (~25 KB average JPEG tile for Esri imagery). */
+/** Rough size estimate (~25 KB average JPEG tile). */
 export const AVG_TILE_BYTES = 25_000;
 
 export function estimatePackSize(tileCount: number): {

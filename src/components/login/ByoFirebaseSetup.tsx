@@ -58,7 +58,7 @@ export function ByoFirebaseSetup({
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 space-y-1">
         <p>
           <strong>Maps.</strong> This app will not use the PUFworks Google Maps key on your
-          project — the map uses the offline Esri packs.
+          project — the map uses the offline imagery packs.
         </p>
         <p>
           <strong>Weather.</strong> Station cache still comes from the shared PUFworks endpoint

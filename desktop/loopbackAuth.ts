@@ -27,6 +27,23 @@ export const LOOPBACK_TOKEN_HEADER = 'x-puf-desktop-token';
  */
 export const LOOPBACK_OPEN_PATHS: readonly string[] = ['/api/health'];
 
+/**
+ * Path prefixes served without the token, matched by prefix rather than equality
+ * because the path carries coordinates.
+ *
+ * `/api/tiles/` is here because Leaflet fetches tiles as `<img src>`, and an
+ * image element cannot carry a header — so a guarded tile route is a route the
+ * map cannot use, which would leave the desktop drawing its imagery from the
+ * cloud instead of from the copy of the proxy already running inside it.
+ *
+ * Nothing is given away by opening it. The route holds no farm data, the
+ * upstream host is fixed in `server/tileProxyRoutes.ts` so it cannot be aimed
+ * anywhere, coordinates are validated, and upstream concurrency is capped. The
+ * worst a local process gains is public satellite imagery it could have fetched
+ * itself.
+ */
+export const LOOPBACK_OPEN_PREFIXES: readonly string[] = ['/api/tiles/'];
+
 export type LoopbackGuardRequest = {
   method: string;
   path: string;
@@ -76,6 +93,7 @@ export function isLoopbackRequestAuthorized(
   // header, so rejecting one would fail the request that follows it.
   if (req.method === 'OPTIONS') return true;
   if (LOOPBACK_OPEN_PATHS.includes(req.path)) return true;
+  if (LOOPBACK_OPEN_PREFIXES.some((prefix) => req.path.startsWith(prefix))) return true;
   return tokensMatch(expected, presentedToken(req));
 }
 

@@ -1,6 +1,6 @@
 /**
  * Local farm geometry (blocks, pins, tracks, viewport) in IndexedDB —
- * same durability model as the Esri basemap pack.
+ * same durability model as the satellite basemap pack.
  */
 import type { OrchardBlock, InfrastructurePin, FarmTrack, MapViewport } from './mapStore';
 

@@ -52,9 +52,6 @@ export function OrchardMapCanvas({
   basemapPack,
   showBasemapSetup,
   isOnline,
-  useGoogleSatellite,
-  googleMapsApiKey,
-  onGoogleFail,
   onBasemapCancel,
   onBasemapComplete,
   featureGroupRef,
@@ -152,9 +149,6 @@ export function OrchardMapCanvas({
           mapLayer={mapLayer}
           basemapPack={basemapPack}
           isOnline={isOnline}
-          useGoogleSatellite={useGoogleSatellite}
-          googleMapsApiKey={googleMapsApiKey}
-          onGoogleFail={onGoogleFail}
         />
         <ZoomControl position="bottomright" />
 

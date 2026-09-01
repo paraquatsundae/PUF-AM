@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import * as dotenv from "dotenv";
 import { createApiApp } from "./server/createApiApp.ts";
+import { surfaceFromEnv } from "./server/apiSurface.ts";
 
 dotenv.config();
 
@@ -14,14 +15,6 @@ function warnMissingEnvKeys() {
         (process.env.VITE_DPIRD_API_KEY && process.env.VITE_DPIRD_API_KEY !== 'YOUR_DPIRD_API_KEY')
       ),
       note: 'Weather proxy and blight risk will use fallback data (server-only; do not use VITE_ prefix)',
-    },
-    {
-      name: 'VITE_GOOGLE_MAPS_API_KEY',
-      present: Boolean(
-        process.env.VITE_GOOGLE_MAPS_API_KEY &&
-        process.env.VITE_GOOGLE_MAPS_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY'
-      ),
-      note: 'Google Maps satellite layer will not load (OpenStreetMap still works). Restrict this key in Google Cloud — see Plans/API_KEY_SECURITY.md',
     },
   ];
 
@@ -37,7 +30,9 @@ function warnMissingEnvKeys() {
 
 async function startServer() {
   warnMissingEnvKeys();
-  const app = createApiApp();
+  // Production here means Cloud Run, which is not a LAN hub. The desktop shell
+  // does not come through this file; it asks for the hub surface outright.
+  const app = createApiApp({ surface: surfaceFromEnv() });
   const PORT = Number(process.env.PORT) || 3000;
 
   // Vite middleware for development

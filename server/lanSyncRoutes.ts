@@ -27,6 +27,7 @@ import {
 } from './lanHighlightStore.ts';
 import { registerJoinTicketRoutes } from './joinTicketRoutes.ts';
 import { registerMistLanShelfRoutes } from './mistLanShelfRoutes.ts';
+import { servesLanFamilies, type ApiSurface } from './apiSurface.ts';
 
 type ShelfEntry = {
   farmId: string;
@@ -114,42 +115,60 @@ async function verifyFarmMember(req: Request, farmId: string): Promise<{ uid: st
   throw Object.assign(new Error('Not a member of this farm'), { status: 403 });
 }
 
-export function registerLanSyncRoutes(app: Express): void {
-  // Short join tickets resolve over the same LAN shelf idea; see joinTicketRoutes.ts.
-  registerJoinTicketRoutes(app);
-  // The same shelf for a farm with no cloud account to authenticate against —
-  // sealed bytes only. See mistLanShelfRoutes.ts for why it is not per-farm
-  // authenticated, and Plans/SETTINGS_SYNC_AND_CREW.md §9.
-  registerMistLanShelfRoutes(app);
+/**
+ * The families here split two ways, and the split is by who can call them
+ * rather than by what they do.
+ *
+ * The **authenticated** shelves — `/api/sync/lan/*`, `/api/presence/*`,
+ * `/api/highlights/*` — stay on both surfaces. Each one verifies a farm
+ * membership first, so exposure is not the issue. They do share the mist
+ * shelf's per-instance storage problem on Cloud Run, which is worth revisiting,
+ * but pulling them would be a functional change rather than a security fix.
+ *
+ * The **unauthenticated** ones do not go to the cloud at all: the mist shelf
+ * (an open 64 MB write into this process's memory), mDNS browse (which on Cloud
+ * Run answers `localhost` and a link-local address to anyone who asks) and the
+ * join-ticket shelf. All three describe a local network, and Cloud Run is not
+ * on one.
+ */
+export function registerLanSyncRoutes(app: Express, surface: ApiSurface = 'cloud'): void {
+  if (servesLanFamilies(surface)) {
+    // Short join tickets resolve over the same LAN shelf idea; see joinTicketRoutes.ts.
+    registerJoinTicketRoutes(app);
+    // The same shelf for a farm with no cloud account to authenticate against —
+    // sealed bytes only. See mistLanShelfRoutes.ts for why it is not per-farm
+    // authenticated, and Plans/SETTINGS_SYNC_AND_CREW.md §9.
+    registerMistLanShelfRoutes(app);
 
-  /** This hub's mDNS identity + LAN IPs (no auth — used before / after sign-in). */
-  app.get('/api/sync/self', (_req: Request, res: Response) => {
-    const self = getSelfPeer();
-    return res.json({
-      mdnsType: 'pufom-sync',
-      self,
-      lanIpv4: listLanIpv4(),
-      mdnsEnabled: Boolean(self),
-    });
-  });
-
-  /** Browse for other PUFOM sync hubs on the LAN (mDNS). */
-  app.get('/api/sync/peers', async (req: Request, res: Response) => {
-    try {
-      const waitMs = Math.min(5000, Math.max(500, Number(req.query.waitMs) || 2500));
-      const peers = await refreshPufomMdnsBrowse(waitMs);
+    /** This hub's mDNS identity + LAN IPs (no auth — used before / after sign-in). */
+    app.get('/api/sync/self', (_req: Request, res: Response) => {
+      const self = getSelfPeer();
       return res.json({
-        peers: peers.length ? peers : listPufomPeers(),
-        scannedAt: new Date().toISOString(),
-        waitMs,
+        mdnsType: 'pufom-sync',
+        self,
+        lanIpv4: listLanIpv4(),
+        mdnsEnabled: Boolean(self),
       });
-    } catch (error) {
-      return res.status(500).json({
-        error: error instanceof Error ? error.message : 'Peer scan failed',
-        peers: listPufomPeers(),
-      });
-    }
-  });
+    });
+
+    /** Browse for other PUFOM sync hubs on the LAN (mDNS). */
+    app.get('/api/sync/peers', async (req: Request, res: Response) => {
+      try {
+        const waitMs = Math.min(5000, Math.max(500, Number(req.query.waitMs) || 2500));
+        const peers = await refreshPufomMdnsBrowse(waitMs);
+        return res.json({
+          peers: peers.length ? peers : listPufomPeers(),
+          scannedAt: new Date().toISOString(),
+          waitMs,
+        });
+      } catch (error) {
+        return res.status(500).json({
+          error: error instanceof Error ? error.message : 'Peer scan failed',
+          peers: listPufomPeers(),
+        });
+      }
+    });
+  }
 
   // Raw body for binary .pufom upload (must be before json parser for this path — use verify)
   app.post(
