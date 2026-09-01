@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { FarmModuleId } from '../shared/auth/farmModules.ts';
+import { exhaustedInviteMessage } from '../shared/auth/inviteLimits.ts';
 
 const PIN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
 
@@ -20,6 +21,12 @@ export interface AccessPinRecord {
   modules?: FarmModuleId[];
   /** Present for audit only — never store plaintext code */
   codeHint?: string;
+  /**
+   * Set on first redeem for roles that bind (admin). Once present, only this
+   * uid may redeem the PIN again — see shared/auth/inviteLimits.
+   */
+  claimedBy?: string | null;
+  claimedDisplayName?: string | null;
   lastRedeemedAt?: string | null;
   lastRedeemedBy?: string | null;
   /** Display name entered on last redeem (helps admins pick which PIN to revoke). */
@@ -70,7 +77,7 @@ export function canRedeemPin(record: AccessPinRecord): { ok: true } | { ok: fals
   if (!record.active) return { ok: false, reason: 'This invite PIN has been revoked.' };
   if (isPinExpired(record)) return { ok: false, reason: 'This invite PIN has expired.' };
   if (record.maxUses != null && record.useCount >= record.maxUses) {
-    return { ok: false, reason: 'This invite PIN has no uses left.' };
+    return { ok: false, reason: exhaustedInviteMessage(record) };
   }
   return { ok: true };
 }

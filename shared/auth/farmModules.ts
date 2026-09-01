@@ -2,7 +2,6 @@
  * Farm module IDs — nav areas a member may access.
  * Role remains the write ceiling (admin/farmer write; viewer read-only).
  */
-
 export const FARM_MODULE_IDS = [
   'dashboard',
   'map',
@@ -255,6 +254,9 @@ export const MODULE_PRESETS: ModulePreset[] = [
     blurb: 'Full access + team / PINs',
     pinLabel: 'Farm admin',
     days: 365,
+    // Left uncapped on purpose: redeem doubles as return login, so a cap would
+    // lock the admin out. Exclusivity comes from binding the code to its first
+    // redeemer — see `checkInviteClaim` in shared/auth/inviteLimits.
     maxUses: null,
   },
 ];

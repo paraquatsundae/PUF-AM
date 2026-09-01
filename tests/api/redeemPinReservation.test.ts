@@ -81,7 +81,10 @@ const fakeAuth = {
 vi.mock('../../server/firebaseAdmin.ts', () => ({
   getAdminAuth: () => fakeAuth,
   getAdminDb: () => fakeDb,
-  getAdminFieldValue: () => ({ increment: (n: number) => ({ __increment: n }) }),
+  getAdminFieldValue: () => ({
+    increment: (n: number) => ({ __increment: n }),
+    delete: () => ({ __delete: true }),
+  }),
   isAdminSdkReady: () => true,
 }));
 
@@ -156,7 +159,7 @@ describe('redeem-pin use reservation', () => {
     expect([first.status, second.status].sort()).toEqual([200, 403]);
 
     const refused = first.status === 403 ? first : second;
-    expect(refused.body.error).toBe('This invite PIN has no uses left.');
+    expect(refused.body.error).toBe('This invite PIN has already been used. Ask for a new one.');
     expect(docs.get(PIN_PATH)?.useCount).toBe(1);
   });
 
@@ -192,5 +195,74 @@ describe('redeem-pin use reservation', () => {
     const result = await redeem('Fran Grower');
     expect(result.status).toBe(200);
     expect(docs.get(PIN_PATH)?.useCount).toBe(1);
+  });
+});
+
+/**
+ * An admin PIN is uncapped because redeem is also the return-login path, so
+ * `useCount` cannot be what stops a second person using the code. The binding
+ * has to be claimed in the same transaction as the use, or two people racing
+ * one admin code both read `claimedBy` empty and both become admins.
+ */
+describe('admin PIN binds to its first redeemer', () => {
+  beforeEach(() => {
+    docs.clear();
+    transactionChain = Promise.resolve();
+    fakeAuth.createUser.mockClear();
+    docs.set(PIN_PATH, {
+      farmId: FARM_ID,
+      role: 'admin',
+      label: 'Farm admin',
+      active: true,
+      maxUses: null,
+      useCount: 0,
+      expiresAt: null,
+      createdBy: 'owner',
+      createdAt: new Date().toISOString(),
+      modules: ['diary'],
+    });
+    docs.set(`farms/${FARM_ID}`, { enabledModules: ['diary'] });
+  });
+
+  it('gives exactly one admin when two people race the same code', async () => {
+    const [first, second] = await Promise.all([
+      redeem('Alice Grower'),
+      redeem('Mallory Grower'),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 403]);
+
+    const winner = first.status === 200 ? 'Alice Grower' : 'Mallory Grower';
+    const refused = first.status === 403 ? first : second;
+    expect(String(refused.body.error)).toContain('already been used');
+    expect(docs.get(PIN_PATH)?.claimedDisplayName).toBe(winner);
+  });
+
+  it('still admits the admin who claimed it, so they are not locked out', async () => {
+    const first = await redeem('Alice Grower');
+    expect(first.status).toBe(200);
+
+    // Same person signing in again on a second device.
+    const again = await redeem('Alice Grower');
+    expect(again.status).toBe(200);
+    expect(docs.get(PIN_PATH)?.claimedDisplayName).toBe('Alice Grower');
+  });
+
+  it('turns anyone else away once it is claimed', async () => {
+    expect((await redeem('Alice Grower')).status).toBe(200);
+
+    const intruder = await redeem('Mallory Grower');
+    expect(intruder.status).toBe(403);
+    expect(String(intruder.body.error)).toContain('Alice Grower');
+  });
+
+  it('unbinds when the redeem it bound never completed', async () => {
+    // Otherwise a failed first attempt would leave the invite claimed by a uid
+    // that has no account, and nobody could ever use it.
+    fakeAuth.createUser.mockRejectedValueOnce(new Error('auth is down'));
+
+    const failed = await redeem('Alice Grower');
+    expect(failed.status).toBe(500);
+    expect(docs.get(PIN_PATH)?.claimedBy).toEqual({ __delete: true });
   });
 });

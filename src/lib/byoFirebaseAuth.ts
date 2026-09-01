@@ -21,6 +21,7 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -36,6 +37,7 @@ import {
   newFarmId,
   pinCodeHint,
 } from '../../shared/auth/byoPin';
+import { checkInviteClaim } from '../../shared/auth/inviteLimits';
 import { auth, db } from '../firebase';
 import { BILLING_ACK_TEXT, byoProjectId, readStoredByoFirebase } from './byoFirebaseConfig';
 import { signOut } from 'firebase/auth';
@@ -56,6 +58,9 @@ type JoinTicketDoc = {
   createdAt: string;
   modules: FarmModuleId[];
   codeHint: string;
+  /** First redeemer of a binding (admin) ticket — see shared/auth/inviteLimits. */
+  claimedBy?: string | null;
+  claimedDisplayName?: string | null;
   lastRedeemedAt?: string | null;
   lastRedeemedBy?: string | null;
   lastRedeemedDisplayName?: string | null;
@@ -231,6 +236,45 @@ export async function redeemByoInvitePin(
   const now = new Date().toISOString();
   const modules = ticket.role === 'admin' ? defaultModulesWithoutCropPacks() : ticket.modules || [];
 
+  /**
+   * Claim the use and the binding in one transaction, before any account work.
+   *
+   * The pre-check above reads the ticket without auth so a typo cannot create
+   * an orphan account, but it cannot also claim: the rules only allow the
+   * increment once signed in. Re-reading here is what makes the claim real —
+   * two people racing the same admin code would otherwise both pass the
+   * pre-check and both become admins.
+   */
+  const ticketDoc = ticketRef(farmId, pinHash);
+  try {
+    await runTransaction(db, async (tx) => {
+      const fresh = await tx.get(ticketDoc);
+      if (!fresh.exists()) throw new Error('That invite PIN no longer exists.');
+      const current = fresh.data() as JoinTicketDoc;
+
+      const stillAllowed = canRedeemJoinTicket(current);
+      if (!stillAllowed.ok) {
+        throw new Error(
+          'reason' in stillAllowed ? stillAllowed.reason : 'This invite PIN cannot be used.'
+        );
+      }
+      const claim = checkInviteClaim(current, uid);
+      if (claim.ok === false) throw new Error(claim.reason);
+
+      tx.update(ticketDoc, {
+        useCount: (current.useCount || 0) + 1,
+        lastRedeemedAt: now,
+        lastRedeemedBy: uid,
+        lastRedeemedDisplayName: person,
+        ...(claim.bind ? { claimedBy: uid, claimedDisplayName: person } : {}),
+      });
+    });
+  } catch (claimError) {
+    // Leaving them signed in would strand a session with no farm membership.
+    await signOut(auth);
+    throw claimError;
+  }
+
   const existing = await getDoc(doc(db, 'users', uid));
   if (!existing.exists()) {
     await setDoc(doc(db, 'users', uid), {
@@ -265,13 +309,6 @@ export async function redeemByoInvitePin(
       throw new Error('This name + PIN belongs to a different farm on this project.');
     }
   }
-
-  await updateDoc(ticketRef(farmId, pinHash), {
-    useCount: (ticket.useCount || 0) + 1,
-    lastRedeemedAt: now,
-    lastRedeemedBy: uid,
-    lastRedeemedDisplayName: person,
-  });
 
   return {
     token: BYO_SESSION_TOKEN,

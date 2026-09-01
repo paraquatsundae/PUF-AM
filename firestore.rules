@@ -265,6 +265,7 @@ service cloud.firestore {
       return hasOnlyAllowedFields([
                'farmId', 'role', 'label', 'active', 'maxUses', 'useCount', 'expiresAt',
                'createdBy', 'createdAt', 'modules', 'codeHint',
+               'claimedBy', 'claimedDisplayName',
                'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName'
              ]) &&
              hasRequiredFields(['farmId', 'role', 'label', 'active', 'createdBy', 'createdAt']) &&
@@ -279,9 +280,24 @@ service cloud.firestore {
              data.createdAt is string &&
              (!('modules' in data) || data.modules is list) &&
              (!('codeHint' in data) || data.codeHint is string) &&
+             (!('claimedBy' in data) || data.claimedBy == null || data.claimedBy is string) &&
+             (!('claimedDisplayName' in data) || data.claimedDisplayName == null || data.claimedDisplayName is string) &&
              (!('lastRedeemedAt' in data) || data.lastRedeemedAt == null || data.lastRedeemedAt is string) &&
              (!('lastRedeemedBy' in data) || data.lastRedeemedBy == null || data.lastRedeemedBy is string) &&
              (!('lastRedeemedDisplayName' in data) || data.lastRedeemedDisplayName == null || data.lastRedeemedDisplayName is string);
+    }
+
+    // An admin join ticket belongs to whoever redeems it first: the first
+    // redeemer must stamp their own uid, and nobody may rebind it afterwards.
+    // Client code checks this too, but on BYO projects the rule is the only
+    // boundary an attacker cannot skip.
+    function joinTicketBindingHeld(prior, next) {
+      return prior.role != 'admin' ||
+             (
+               (!('claimedBy' in prior) || prior.claimedBy == null)
+                 ? next.claimedBy == request.auth.uid
+                 : next.claimedBy == prior.claimedBy
+             );
     }
 
     // Discovery index — written by Admin SDK / Express only (nearby join API).
@@ -1180,8 +1196,10 @@ service cloud.firestore {
                             isAuthenticated() &&
                             resource.data.active == true &&
                             request.resource.data.diff(resource.data).affectedKeys()
-                              .hasOnly(['useCount', 'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName']) &&
-                            request.resource.data.useCount == resource.data.useCount + 1
+                              .hasOnly(['useCount', 'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName',
+                                        'claimedBy', 'claimedDisplayName']) &&
+                            request.resource.data.useCount == resource.data.useCount + 1 &&
+                            joinTicketBindingHeld(resource.data, request.resource.data)
                           )
                         );
         allow delete: if isFarmAdmin(farmId);

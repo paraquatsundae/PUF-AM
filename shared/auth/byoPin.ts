@@ -8,6 +8,8 @@
  * @see Plans/FIREBASE_BILLING.md §3.2 #1 (c)
  */
 
+import { exhaustedInviteMessage } from './inviteLimits';
+
 export const BYO_PIN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const BYO_AUTH_EMAIL_DOMAIN = 'byo.pufam.invalid';
 export const BYO_JOIN_TICKETS = 'join_tickets';
@@ -71,6 +73,7 @@ export function canRedeemJoinTicket(
     maxUses: number | null;
     useCount: number;
     expiresAt: string | null;
+    role?: string | null;
   },
   now = new Date()
 ): { ok: true } | { ok: false; reason: string } {
@@ -79,7 +82,7 @@ export function canRedeemJoinTicket(
     return { ok: false, reason: 'This invite PIN has expired.' };
   }
   if (record.maxUses != null && record.useCount >= record.maxUses) {
-    return { ok: false, reason: 'This invite PIN has no uses left.' };
+    return { ok: false, reason: exhaustedInviteMessage(record) };
   }
   return { ok: true };
 }

@@ -12,6 +12,138 @@ npm test && npm run lint && npm run plugins:verify && npm run audit:codebase
 
 `npm run lint` is `tsc --noEmit`. Procedure A is green as of the 2026-08-30 thin SoC greps.
 
+There is now a fifth gate for anything touching the client bundle, because some
+questions only a built artefact can answer:
+
+```
+npm run build && npm run audit:bundle
+```
+
+---
+
+## 2026-09-01 — Admin invite PINs bind to their first redeemer
+
+**Host:** Linux (Fedora), repo `Walnut_farm_manager`
+**Why:** Follow-on from the pen test work — an admin invite could be used by more than one person.
+
+### What was actually wrong
+
+The `admin` preset in `MODULE_PRESETS` shipped `maxUses: null` with `days: 365`, so an admin code was redeemable without limit for a year. The sharp edge is `uidForPinRedeem(pin, displayName)`: the account id is derived from the PIN **and the name typed beside it**, so a second person entering a leaked admin code under their own name does not collide with the first. They quietly become a second, separate admin with `allFarmModules()`. One overheard admin code was an unbounded supply of admins.
+
+### Why this is not `maxUses: 1`
+
+The obvious fix is wrong. `/api/auth/redeem-pin` is also the **return-login** path — it branches on `existingUser`, calls `auth.updateUser`, carries `priorEpoch` forward and only stamps `createdAt` for genuinely new accounts. `useCount` therefore counts *logins*, not people. Capping the admin preset at one use would let an admin sign in exactly once and then lock them out of their own farm, which is the failure mode the owner recovery PIN is deliberately uncapped to avoid.
+
+So the property enforced is the one that was actually wanted: **nobody else** can use the code. The PIN binds to whoever redeems it first; that person keeps signing in.
+
+### Change
+
+- [`shared/auth/inviteLimits.ts`](../shared/auth/inviteLimits.ts) — new. `inviteBindsToFirstRedeemer(role)` (admin only, so crew PINs stay shareable for a season gang) and `checkInviteClaim(record, uid)` returning `bind` so the caller knows it must persist the binding in the claiming write.
+- `AccessPinRecord` / `JoinTicketDoc` gain `claimedBy` and `claimedDisplayName`.
+- Cloud `redeem-pin`: `uid` is computed **before** the transaction, and the claim check runs **inside** it, in the same `tx.set` that claims the use. Anything less races exactly the way `useCount` did — two people reading `claimedBy` empty and both committing.
+- The existing rollback now also unbinds when that redeem is what bound it. A first attempt that died at `createUser` would otherwise leave the invite claimed by a uid with no account, killing the invite for everyone including its intended holder.
+- BYO redeem was still the old shape — `getDoc`, check, then an `updateDoc` far below, i.e. the pre-transaction bug the cloud path already fixed. Now claims in `runTransaction` before any account write, and signs out if the claim loses so no session is stranded without membership.
+- [`firestore.rules`](../firestore.rules) — `joinTicketBindingHeld()`. On BYO projects the client is not a boundary, so the rule is what actually stops a rebind: an unclaimed admin ticket must be stamped with `request.auth.uid`, and a claimed one may not change. Redeemer updates may now touch the two new keys and nothing more.
+- The exhausted-PIN message distinguishes single-use from a spent multi-use PIN, and a claimed admin invite names its holder — because "already used by Alex" separates a stolen code from Alex typing their own name differently, which is a real way to miss the binding.
+
+### `accessPinMemberRoutes.ts` had to be split
+
+`audit:codebase` failed on the way out: the file was 598 lines, two under the 600-line new-file limit, and the binding took it to 631. The three member-roster routes (`/api/auth/members`, `update-member`, `remove-member`) moved to [`server/farmMemberRoutes.ts`](../server/farmMemberRoutes.ts) and register through the existing `accessPinRoutes.ts` aggregator. The seam is real rather than convenient — those three act on members who already exist, the rest act on codes that create them, and the only shared machinery (claims, epoch bumps) already lived in `accessPinAuth.ts`. Checked by diffing the registered route list against `HEAD`: same seven paths before and after.
+
+### Verdict
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Pass** — 1020 passed, 10 skipped (was 1007) |
+| `npm run lint` (`tsc --noEmit` + desktop + eslint) | **Pass** — 0 errors |
+| `npm run plugins:verify` | **Pass** — 6 packs |
+| `npm run audit:codebase` | **Pass** — after the split above |
+| `npm run build` + `npm run audit:bundle` | **Pass** — workshop gate folded false, one Firebase key, no provider called directly |
+
+### Tests are load-bearing
+
+- Made `inviteBindsToFirstRedeemer()` return `false` and stripped `joinTicketBindingHeld` from the rules: **3 of 9** in `tests/inviteBinding.test.ts` and **4 of 4** binding cases in `tests/api/redeemPinReservation.test.ts` fail, then pass on revert.
+- Replaced the in-transaction `checkInviteClaim` with a check on the pre-read record — the mutation that models "binding, but not atomic". The two race tests fail; the sequential ones still pass, which is the point of having both.
+- The lockout case is a test, not a comment: the admin who claimed the PIN redeems a second time and must get 200. That is the assertion that fails first if anyone later "simplifies" this to `maxUses: 1`.
+- `tests/inviteBinding.test.ts` also pins the admin preset at `maxUses: null` with the reason attached, since the naive fix looks like an improvement in review.
+
+---
+
+## 2026-09-01 — Pen test remediation: cloud surface, CORS, imagery proxy
+
+**Host:** Linux (Fedora), repo `Walnut_farm_manager`
+**Why:** Soft pen tests of `am.pufworks.farm`. `createApiApp()` was written for `npm run dev`, where one Express is the whole world, and Cloud Run inherited it verbatim — so the public internet got the LAN families, an open write shelf among them. Separately, the map named its imagery provider from the client.
+
+### What was actually wrong
+
+Verified against the live deployment, not only the source:
+
+- `GET /api/hub/info` answered `kind: "workshop-dev"`, `name: "PUF-AM dev (<hostname>)"` on production.
+- `Access-Control-Allow-Origin: *` for any unrecognised origin, preflight included. No `Allow-Credentials` and bearer auth, so not session-riding — but an open read of every unauthenticated endpoint, and the wildcard bought nothing, since same-origin never consults CORS.
+- `POST /api/sync/mist/:farmId` unauthenticated, 64 MB per arbitrary farm ID, into a module-level `Map` plus a `process.cwd()` file. Both are RAM on Cloud Run. Trivial memory-exhaustion DoS, plus unauthenticated read and enumeration.
+- `/api/sync/self` and `/api/sync/peers` leaked `169.254.9.1`, `localhost.local`, port 8080.
+- `/api/mist/freenet/*`, a large unauthenticated family, closed only by `MIST_FREENET_DISABLED=1` remembering to be set on the deploy.
+- **Not** a finding: `isWorkshopMode()` was already folded to `return!1` in the shipped bundle, so the `ProtectedRoute` bypass was dead code. The `Workshop mode` string in the bundle is banner copy. **Also not a finding:** no Google Maps key ships; the one `AIza…` is the Firebase web key.
+
+A LAN family on Cloud Run is not merely exposed, it is broken — the shelves live in one instance's memory and the next request may land elsewhere. So none of this was a security tax on a working feature.
+
+### Change
+
+- [`server/apiSurface.ts`](../server/apiSurface.ts) — new. `ApiSurface = 'cloud' | 'hub'`. Default is `'cloud'`, the smaller surface, so a caller that forgets fails closed. `server.ts` keys off `NODE_ENV`; both desktop listeners ask for `'hub'` outright, because a packaged build is `production` and would otherwise lose the LAN hub that is its whole purpose.
+- Cloud surface drops the mist shelf, mDNS discovery, join tickets, the Freenet family and `HUB_INFO_PATH`. Dropping hub info is what the code already expected — `fetchHubInfo()` documents a 404 as "a Cloud Run deployment".
+- **Kept on cloud:** `/api/sync/lan/*`, `/api/presence/*`, `/api/highlights/*`. Each verifies farm membership, so exposure is not the issue. They do share the per-instance storage problem and are worth revisiting, but pulling them is a functional change, not a security fix.
+- `apiCorsMiddleware(surface)` — an unknown origin now gets **no** `Access-Control-Allow-Origin` at all, plus `Vary: Origin` when one is emitted. Allowlist from `ALLOWED_ORIGINS`, which replaces the built-in pair rather than adding to it so a deploy can be narrowed too. Loopback and `capacitor://localhost` are reflected on `'hub'` only. OPTIONS still 204s.
+- [`server/tileProxyRoutes.ts`](../server/tileProxyRoutes.ts) — new. `GET /api/tiles/:z/:x/:y`, on both surfaces. Landgate SLIP has no tile cache (`singleFusedMapCache: false`, `tileInfo: null`), so this does the XYZ → Web Mercator bbox conversion a tiled service would have done and calls the dynamic `export` endpoint. Bounded LRU (64 MB), single-flight so N clients asking for one tile make one upstream request, upstream concurrency capped at 3 against the client's 6, identifying `User-Agent`, `TILE_UPSTREAM_URL` so a provider swap is a deploy variable.
+- Client: `tileUrl()` returns `apiUrl('/api/tiles/z/x/y')`; `ESRI_IMAGERY_URL` and the hardcoded `server.arcgisonline.com` layer are gone; `EsriPreviewTileLayer` → `ImageryPreviewTileLayer`; attribution is Landgate/SLIP.
+- **Tiles are rendered by whichever PUF-AM server the client already talks to.** The first cut made `/api/tiles/` cloud-only for desktop and tablet, because Leaflet fetches tiles as `<img src>` and an image element cannot carry the loopback or hub token. That worked, but it made one Cloud Run service the sole consumer of the imagery provider for every install — the wrong shape for an MIT-licensed, self-hostable app, and it puts the whole licence question on one operator. So both local guards now exempt `/api/tiles/` (`LOOPBACK_OPEN_PREFIXES`, `LAN_OPEN_PREFIXES`): the desktop renders its own, and a shed laptop renders for the tablets paired to it. Only browser users at `am.pufworks.farm` still draw through Cloud Run, which is unavoidable — they have no local server.
+- Opening those two routes costs little: no farm data is behind them, the upstream host is fixed in code so the proxy cannot be aimed elsewhere, coordinates are validated and upstream concurrency is capped.
+- `HubInfo.tiles?: boolean` — a hub has to claim imagery rather than disclaim it. `cloudOnlyPrefixes` describes what a hub *refuses*, and a desktop older than the proxy cannot refuse a route it has never heard of, so a tablet paired to one would ask it for tiles and show a grey map. Absent reads as no, and the tablet falls back to the cloud.
+- **Existing packs are left alone.** Tiles are keyed `z/x/y` with no provider in the key, so Esri tiles already on a device keep serving offline; only new fetches change. `BasemapPack.source` records what a pack started as, which is why both `'esri-world-imagery'` and `'landgate-locate'` are live values.
+- Google Maps removed entirely — `GoogleMapsLayer`, `googleMapsKey.ts`, `VITE_GOOGLE_MAPS_API_KEY`, the `$mapsKey` block in `scripts/deploy-cloudrun.ps1` and three props threaded through the map chain. With the proxy there is no client map key, which closes "restrict the map keys" structurally rather than by console policy.
+- [`scripts/audit-bundle.mjs`](../scripts/audit-bundle.mjs) — new, `npm run audit:bundle`.
+- [`Plans/API_KEY_SECURITY.md`](API_KEY_SECURITY.md) — rewritten. Records the Firebase key restriction steps and the open question about production living on the AI Studio project `gen-lang-client-0444791425`.
+
+### Verdict
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Pass** — 1007 passed, 10 skipped (was 941) |
+| `npm run lint` (`tsc --noEmit` + desktop + eslint) | **Pass** — 0 errors |
+| `npm run build` | **Pass** |
+| `npm run audit:bundle` | **Pass** — workshop gate folded false, one Google key, no provider called directly |
+
+Live proxy check against Landgate: `z12/3366/2431` and `z17/107734/77804` both 200 `image/jpeg`, 23 KB and 31 KB, JPEG magic `ffd8`, repeat request `X-Tile-Cache: hit`. The 23–31 KB range confirms `AVG_TILE_BYTES = 25_000` is still a fair pack estimate.
+
+### Tests are load-bearing
+
+Proven by reinstating each old behaviour rather than by assertion count:
+
+- Restored the `*` CORS default and made `servesLanFamilies()` return `true`: **15 of the 34** new assertions in `tests/api/apiCors.test.ts` and `tests/api/cloudSurface.test.ts` fail, then pass again on revert.
+- Built with `VITE_WORKSHOP_MODE=true` and ran `audit:bundle` against it: fails with *"the workshop gate folded to `return!0`"*. This is also how the check was derived — grepping for `VITE_WORKSHOP_MODE` or `Workshop mode` matches banner copy in **every** build and is exactly the vacuous check that made the pen test report look alarming. The script instead finds the banner by its copy, reads the name of the function gating it, and asserts that function's minified body.
+- `tests/api/tileProxy.test.ts` anchors the bbox maths to a place: the tile XYZ says covers Perth must produce a bbox containing Perth. A flipped Y axis passes the tessellation checks and fails that one. It also caught a real bug — `Number.isInteger` accepts `'0x10'`, `'1e1'` and `''`, so `/api/tiles/5/0x10/0` was an accepted alias for one tile with `Cache-Control: immutable` on it. Now digits only.
+
+### One test had to be loosened, deliberately
+
+`tests/lanHubAuth.test.ts` asserted a device token on **every** prefix in `LAN_SCOPE_PREFIXES`, and imagery is now in scope without one. Rather than delete the assertion it now iterates the scope minus `LAN_OPEN_PREFIXES`, with a check that the subtraction removed exactly as many entries as the open list holds — otherwise adding every prefix to the open list would make the loop iterate nothing and pass while asserting its own opposite. Two tests were added beside it: tiles are allowed unpaired, and every open prefix is still inside the scope (an open prefix that drifts out would 404, and the failure would read as a missing route rather than a policy mistake).
+
+### `testTimeout` raised to 30 s
+
+Three pre-existing API tests began timing out once the new test files ran alongside them. The cause is dull: `isAdminSdkReady()` synchronously loads the whole `firebase-admin` package on the first authenticated route, so every test *file* touching one pays that import, and this checkout lives on a mounted Windows filesystem. Several vitest workers doing it at once exceeds 5 s, and the failure looks like a hung route rather than a slow disk. Raised rather than worked around — the tests are correct, they are just being charged for a heavyweight import. Still bounded, so a real hang still fails.
+
+`tests/api/cloudSurface.test.ts` also stopped paying it where it did not need to: proving the weather family is mounted now uses an *unlisted* DPIRD path, because the allowlist check runs before authentication and `{"error":"Unknown DPIRD path"}` distinguishes a mounted family from the `/api` catch-all more sharply than a status code does.
+
+### Not done, deliberately
+
+**Landgate's public imagery licence is SLIP Transaction Personal Use.** Commercial use needs written agreement from `CustomerExperience@Landgate.wa.gov.au`, and that has not been asked yet.
+
+Two tempting arguments for skipping the question do not hold. **Open-sourcing the code does not distribute the obligation** — that would follow if each user's machine made the requests, but any client drawing tiles from `am.pufworks.farm` makes its operator the single consumer whatever the code's licence says. Pushing tile rendering out to the desktop and LAN hub is what makes the argument true for self-hosters; it cannot help browser users. **And "commercial" almost certainly is not "somebody charged for the app"** — a grower using imagery to plan spraying is using it in a business, with no fork and no money changing hands, which Personal Use likely does not cover even self-hosted.
+
+Worth asking in the same email: offline packs pull up to 20,000 tiles into IndexedDB, and bulk extraction and storage are commonly permissioned separately from viewing.
+
+If the answer is no, `TILE_UPSTREAM_URL` points at a licensed provider and nothing else changes — which is most of why the proxy exists.
+
+**Zoom is not clamped to the pack range.** The plan said 12–17; the accepted range is 0–19. `CachedTileLayer` is mounted with `minZoom: 0`, so panning out asks for low-z tiles on the same URL, and rejecting them would grey out the map the moment a user zooms past their pack. The open-proxy concern the clamp was meant to answer is handled by the upstream host being fixed in the module: a caller picks a tile, never a target.
+
 ---
 
 ## 2026-08-30 — Chunk resilience, Leaflet entry point, diary CSV
