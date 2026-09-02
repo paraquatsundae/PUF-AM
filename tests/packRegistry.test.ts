@@ -25,6 +25,7 @@ describe('pack UI registry (CP-04)', () => {
     expect(ui.surfaces.productionSettings).toBeTruthy();
     expect(ui.surfaces.researchSettings).toBeTruthy();
     expect(ui.surfaces.science).toBeTruthy();
+    expect(ui.surfaces.dashboardCard).toBeTruthy();
     expect(WALNUT_BLIGHT_PRIMARY_PATH).toBe('/blight');
   });
 
@@ -34,6 +35,7 @@ describe('pack UI registry (CP-04)', () => {
     expect(ui.routes[0]?.moduleId).toBe('chill');
     expect(ui.surfaces.productionSettings).toBeTruthy();
     expect(ui.surfaces.science).toBeTruthy();
+    expect(ui.surfaces.dashboardCard).toBeTruthy();
     expect(CHILL_PORTIONS_PRIMARY_PATH).toBe('/weather-events');
   });
 

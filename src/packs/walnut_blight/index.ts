@@ -33,6 +33,11 @@ const BlightEngineSettings = lazyWithRetry(() =>
     default: m.BlightEngineSettings,
   }))
 );
+const BlightDashboardCard = lazyWithRetry(() =>
+  import('../../components/blight/BlightDashboardCard').then((m) => ({
+    default: m.BlightDashboardCard,
+  }))
+);
 
 const blightPath = WALNUT_BLIGHT_PRIMARY_PATH.replace(/^\//, '');
 
@@ -59,6 +64,7 @@ export const walnutBlightPackUi: CropPackUiRegistration = {
     researchSettings: BlightResearchModifiersPanel,
     science: BlightEngineSciencePanel,
     engineSettings: BlightEngineSettings,
+    dashboardCard: BlightDashboardCard,
   },
 };
 

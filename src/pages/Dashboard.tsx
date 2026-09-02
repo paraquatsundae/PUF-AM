@@ -1,68 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   BookOpen,
-  Bug,
   CheckCircle2,
-  ChevronRight,
   ClipboardList,
-  Loader2,
   Map,
   MapPin,
-  Snowflake,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
 import { useFieldStore } from '../lib/fieldStore';
 import { useFarmDiary, getDefaultDiaryStartDate } from '../lib/farmDiary';
 import { isOpenIssue } from '../lib/blockIssueCounts';
-import { getBlightAggregate, isAggregateFresh, type BlightAggregate, type BlightRiskBand } from '../services/aggregateService';
-import { bandFromRisk, RISK_BAND_LABEL } from '../lib/jiBlightBands';
-import { useWalnutPack } from '../hooks/useWalnutPack';
-import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
-import { useChillPack } from '../hooks/useChillPack';
+import { DashboardPackCards } from '../components/DashboardPackCards';
 import { ensureLegacyPacksMigrated } from '../lib/cropPackLifecycle';
 import { cn } from '../lib/utils';
 
-/**
- * Map the Ji daily infection risk to a grower band. Uses the stored band when
- * present (written by the aggregate) and falls back to deriving it from the
- * score so old aggregate docs still render. Matches the BlightRisk page bands.
- */
-function riskMeta(agg: BlightAggregate | null) {
-  const band: BlightRiskBand = agg?.currentBand ?? bandFromRisk(agg?.currentRiskScore ?? 0);
-  const label = RISK_BAND_LABEL[band];
-  switch (band) {
-    case 'action':
-      return { band, label, color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' };
-    case 'watch':
-      return { band, label, color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' };
-    default:
-      return { band, label, color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' };
-  }
-}
-
 export function Dashboard() {
-  const { userData, hasModule, isAdmin, refreshFarmModules, refreshFarmCropPacks } = useAuth();
+  const { userData, isAdmin, refreshFarmModules, refreshFarmCropPacks } = useAuth();
   const farmId = userData?.farmId;
-  const { blocks, viewport } = useMapStore();
+  const { blocks } = useMapStore();
   const fieldIssues = useFieldStore((s) => s.issues);
   const loadFieldData = useFieldStore((s) => s.loadData);
   const { events, settings } = useFarmDiary(getDefaultDiaryStartDate(90));
-  const hasWalnutPack = useWalnutPack();
-  const showBlight = hasWalnutPack && hasModule('blight');
-  const showChill = useChillPack();
-  const chill = useFarmChillPortions(
-    viewport.lat,
-    viewport.lng,
-    showChill,
-    settings.dpirdStationCode,
-    settings.dpirdStationName
-  );
-
-  const [blightAggregate, setBlightAggregate] = useState<BlightAggregate | null>(null);
-  const [blightLoading, setBlightLoading] = useState(true);
 
   useEffect(() => {
     if (farmId) loadFieldData(farmId);
@@ -87,26 +48,6 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [farmId, isAdmin]);
 
-  useEffect(() => {
-    if (!farmId || !showBlight) {
-      setBlightAggregate(null);
-      setBlightLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setBlightLoading(true);
-    getBlightAggregate(farmId)
-      .then((agg) => {
-        if (!cancelled && agg) setBlightAggregate(agg);
-      })
-      .finally(() => {
-        if (!cancelled) setBlightLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [farmId, showBlight]);
-
   const openIssues = useMemo(
     () =>
       [...fieldIssues.filter(isOpenIssue)].sort((a, b) =>
@@ -123,12 +64,6 @@ export function Dashboard() {
     [events]
   );
 
-  const threat = blightAggregate?.currentRiskScore ?? 0;
-  const risk = riskMeta(blightAggregate);
-  const blightFresh = blightAggregate
-    ? isAggregateFresh(blightAggregate.lastUpdated)
-    : false;
-
   const todayLabel = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
     day: 'numeric',
@@ -141,9 +76,7 @@ export function Dashboard() {
         <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{todayLabel}</p>
         <h1 className="text-2xl font-bold text-slate-900 mt-0.5">Farm home</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {showBlight
-            ? 'Map → issues → diary plans. Blight and seasonal logs sit beside that loop.'
-            : 'Map → issues → diary plans. Seasonal logs sit beside that loop.'}
+          Map → issues → diary plans. Seasonal logs sit beside that loop.
         </p>
         <p className="text-xs text-slate-400 mt-1">
           {blocks.length} {blocks.length === 1 ? 'block' : 'blocks'}
@@ -221,80 +154,7 @@ export function Dashboard() {
         </Link>
       </section>
 
-      {(showBlight || showChill) && (
-        <section className="space-y-3">
-          {showBlight && (
-            <Link
-              to="/blight"
-              className={cn(
-                'flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-colors',
-                risk.bg,
-                risk.border,
-                'hover:opacity-95'
-              )}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <Bug className={cn('w-5 h-5 shrink-0', risk.color)} />
-                <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Blight risk
-                  </div>
-                  {blightLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400 mt-1" />
-                  ) : blightAggregate ? (
-                    <div className={cn('text-sm font-bold', risk.color)}>
-                      {risk.label}
-                      <span className="font-mono font-medium text-slate-600 ml-2">
-                        {threat < 0.001 ? threat.toExponential(1) : threat.toFixed(3)}
-                      </span>
-                      {!blightFresh && (
-                        <span className="ml-2 text-[10px] font-medium text-amber-700">stale</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-slate-500">Open blight page for detail</div>
-                  )}
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-            </Link>
-          )}
-
-          {showChill && (
-            <Link
-              to="/weather-events"
-              className="flex items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50/80 px-4 py-3 transition-colors hover:opacity-95"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <Snowflake className="w-5 h-5 shrink-0 text-sky-600" />
-                <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Chill portions
-                  </div>
-                  {chill.loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-400 mt-1" />
-                  ) : chill.error ? (
-                    <div className="text-sm text-rose-600">Unavailable</div>
-                  ) : (
-                    <div className="text-sm font-bold text-slate-900">
-                      <span className="font-mono tabular-nums">
-                        {chill.data?.totalPortions ?? '—'} CP
-                      </span>
-                      <span className="ml-2 text-xs font-medium text-slate-500">
-                        season to date
-                        {chill.data?.portionsLast24h != null && (
-                          <> · {chill.data.portionsLast24h} last 24h</>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-            </Link>
-          )}
-        </section>
-      )}
+      <DashboardPackCards />
 
       {/* Open issues queue */}
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">

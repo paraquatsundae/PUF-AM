@@ -26,6 +26,11 @@ const ChillEngineSciencePanel = lazyWithRetry(() =>
     default: m.ChillEngineSciencePanel,
   }))
 );
+const ChillDashboardCard = lazyWithRetry(() =>
+  import('../../components/chill/ChillDashboardCard').then((m) => ({
+    default: m.ChillDashboardCard,
+  }))
+);
 
 const chillPath = CHILL_PORTIONS_PRIMARY_PATH.replace(/^\//, '');
 
@@ -50,6 +55,7 @@ export const chillPortionsPackUi: CropPackUiRegistration = {
   surfaces: {
     productionSettings: ChillCalculatorPanel,
     science: ChillEngineSciencePanel,
+    dashboardCard: ChillDashboardCard,
   },
 };
 

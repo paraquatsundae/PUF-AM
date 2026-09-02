@@ -47,6 +47,12 @@ export type PackSurfaceComponents = {
   researchSettings?: PackSurface;
   science?: PackSurface;
   engineSettings?: PackSurface;
+  /**
+   * Farm home summary card. Renders in `DashboardPackCards`, which mounts every
+   * registered card — so the card gates itself and returns null when its pack is
+   * inactive. Build it on `DashboardCard` for consistent chrome.
+   */
+  dashboardCard?: PackSurface;
 };
 
 export type CropPackUiRegistration = {
