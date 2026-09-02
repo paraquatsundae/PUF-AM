@@ -3,6 +3,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CircleHelp,
+  Gauge,
   HardDrive,
   Loader2,
   Menu,
@@ -29,6 +30,7 @@ export function OrchardMapToolbar({
   crewError,
   pendingSyncCount,
   onFlushSync,
+  featureLoadWarning,
   searchQuery,
   onSearchQuery,
   onSearch,
@@ -59,6 +61,7 @@ export function OrchardMapToolbar({
   crewError: string | null | undefined;
   pendingSyncCount: number;
   onFlushSync: () => void;
+  featureLoadWarning: string | null;
   searchQuery: string;
   onSearchQuery: (value: string) => void;
   onSearch: (e: FormEvent) => void;
@@ -288,6 +291,13 @@ export function OrchardMapToolbar({
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {featureLoadWarning && (
+        <div className="shrink-0 z-20 flex items-start gap-2 px-3 py-1.5 bg-slate-100 border-b border-slate-200 text-slate-600 text-[11px]">
+          <Gauge className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <p className="flex-1 min-w-0 leading-snug">{featureLoadWarning}</p>
         </div>
       )}
     </>

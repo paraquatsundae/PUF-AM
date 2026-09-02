@@ -488,16 +488,16 @@ graph TD
 | **Depends on** | STEP-10 |
 | **Owner** | — |
 | **Completed** | 2026-07-13 |
-| **Note** | Performance guard (>500 features) deferred; Layer Settings never built |
+| **Note** | Clustering + guard shipped; **viewport culling was never wired** (see tasks); Layer Settings never built |
 
 **Problem:** All blocks, tracks, and event markers render as DOM/SVG at once — mobile browsers choke at scale (`DEVELOPER_NOTES.md` §2A, `OrchardMap.tsx` TODOs).
 
 **Tasks**
 
 - [x] **Event markers:** `leaflet.markercluster` via `EventMarkerCluster.tsx`
-- [x] **Blocks/tracks:** Load only features intersecting map bounds (client-side Turf filter in `api.ts`)
-- [x] Debounce viewport changes (300 ms) before refetch in `mapStore.ts`
-- [ ] Add performance guard: warn or simplify when >500 features in view
+- [ ] **Blocks/tracks:** bounds filtering exists but is unused. `mapApi.getBlocks/getPins/getTracks` take an optional bounds arg that `farmGeometrySync.ts:104` never passes, it is a hand-rolled point-walk rather than Turf, and `filterByBounds` (`mapStore.ts:111`) deliberately no-ops for polygons. Only pins are filtered, only at load.
+- [ ] Debounce before refetch. `useOrchardMapViewport.ts:126` debounces `moveend`/`zoomend` at 500 ms (not 300 ms in `mapStore.ts`), but `setBounds` only stores the box — no refetch, and `orchardMapLayerSync.ts` never reads it. **Nothing is viewport-culled.**
+- [x] Performance guard: warn above 500 rendered features (`mapFeatureLoad.ts` + toolbar banner). Warn only — `CODEBASE_HEALTH.md` forbids rebuilding GeoJSON layers on pan/zoom, so no level-of-detail pass.
 - [x] **Live Telemetry Mock:** deleted from `EditInfraSidebar.tsx` (`8003949`) — no gate needed
 - [ ] Add "Layer Settings" when real layers ship — never built, so there is no stub to hide
 
@@ -512,6 +512,8 @@ graph TD
 - `src/pages/OrchardMap.tsx`
 - `src/services/api.ts`
 - `src/lib/mapStore.ts`
+- `src/lib/mapFeatureLoad.ts`
+- `src/components/map/OrchardMapToolbar.tsx`
 
 ---
 

@@ -20,6 +20,7 @@ import { OrchardMapToolbar } from '../components/map/OrchardMapToolbar';
 import { OrchardMapCanvas } from '../components/map/OrchardMapCanvas';
 import { OrchardMapSheets } from '../components/map/OrchardMapSheets';
 import { countOpenIssuesByBlock } from '../lib/blockIssueCounts';
+import { assessMapFeatureLoad } from '../lib/mapFeatureLoad';
 import { orchardMapDiaryDateRange } from '../lib/orchardMapDiaryRange';
 import { buildOrchardMapDrawLayerCtx } from '../lib/orchardMapDrawLayerCtx';
 import { orchardMapCanvasActions } from '../lib/orchardMapCanvasActions';
@@ -297,6 +298,11 @@ export function OrchardMap() {
     [blocks, operate.fieldIssues]
   );
 
+  const featureLoad = useMemo(
+    () => assessMapFeatureLoad({ blocks, pins, tracks }),
+    [blocks, pins, tracks]
+  );
+
   const enterEditPaddocks = () => {
     chrome.setMapMode('edit');
     chrome.setActiveTab('blocks');
@@ -344,6 +350,7 @@ export function OrchardMap() {
         crewError={crewError}
         pendingSyncCount={pendingSyncCount}
         onFlushSync={() => void flushSync(farmId)}
+        featureLoadWarning={featureLoad?.message ?? null}
         searchQuery={search.searchQuery}
         onSearchQuery={search.setSearchQuery}
         onSearch={search.handleSearch}
