@@ -2,7 +2,7 @@
 
 **Adding a pack to the app:** [`Plans/PLUGIN_AUTHORING.md`](../Plans/PLUGIN_AUTHORING.md). A zip here is catalog + optional engine defaults. It does **not** register routes or appear under Settings → Plugins until `cropPacks.ts` lists the id.
 
-**Under review:** [`Plans/PLUGIN_RUNTIME_MIGRATION.md`](../Plans/PLUGIN_RUNTIME_MIGRATION.md) proposes pack code moving here under `plugins/<id>/src/` and loading at runtime. Plan only — point 3 below still describes what ships.
+**Layout change planned:** [`Plans/PLUGIN_PACK_LAYOUT.md`](../Plans/PLUGIN_PACK_LAYOUT.md) moves pack code here under `plugins/<id>/src/`, still statically compiled. Hot-load stays out of scope. Plan only — point 3 below describes what ships today.
 
 Drop **`{packId}.zip`** files here. Each zip must contain a root **`plugin.json`** (or one top-level folder `{packId}/plugin.json`).
 

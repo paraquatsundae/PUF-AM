@@ -6,7 +6,7 @@
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)  
 **Limits / debug / audit:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
 **Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1)  
-**Under review:** [`PLUGIN_RUNTIME_MIGRATION.md`](PLUGIN_RUNTIME_MIGRATION.md) proposes moving pack code into `plugins/<id>/src/` and loading it at runtime, reversing the "Must not → hot-load" rule below. Nothing is built; the rules on this page stand until that plan is accepted.
+**Layout change planned:** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moves pack code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, so a pack is one folder. Still statically compiled — the "Must not → hot-load" rule below **stands**. Nothing is built yet; §5 of this page is the current layout.
 
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.
 
