@@ -1,6 +1,6 @@
-import { db, auth } from "../firebase";
-import { WALNUT_AGRONOMIC_IDEALS } from "../constants";
-import { trackMetric } from "./metricsService";
+import { db, auth } from "../../../src/firebase";
+import { WALNUT_AGRONOMIC_IDEALS } from "../../../src/constants";
+import { trackMetric } from "../../../src/services/metricsService";
 import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, doc, setDoc, getDoc } from "firebase/firestore";
 
 enum OperationType {

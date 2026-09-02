@@ -1,10 +1,10 @@
 import { IconFlask2 } from '@tabler/icons-react';
-import type { CropPackUiRegistration } from '../types';
+import type { CropPackUiRegistration } from '../../../src/packs/types';
 import { NUTRITION_PACK_ID, NUTRITION_PRIMARY_PATH } from '../../../shared/farm/nutritionPackage';
-import { lazyWithRetry } from '../../lib/lazyWithRetry';
+import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
 
 const NutritionPage = lazyWithRetry(() =>
-  import('../../pages/Nutrition').then((m) => ({ default: m.Nutrition }))
+  import('./Nutrition').then((m) => ({ default: m.Nutrition }))
 );
 
 export const nutritionPackUi: CropPackUiRegistration = {

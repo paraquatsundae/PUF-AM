@@ -31,6 +31,8 @@ export default defineConfig({
     // rendering it, and JSX in a `.ts` file is a syntax error.
     include: [
       "src/**/*.test.{ts,tsx}",
+      // Packs keep their tests beside the code they cover (PLUGIN_PACK_LAYOUT.md).
+      "plugins/*/src/**/*.test.{ts,tsx}",
       "tests/**/*.test.{ts,tsx}",
       "units/**/*.test.ts",
       // Only the Electron-free parts of desktop/ are testable; main.ts needs a real shell.

@@ -2,7 +2,12 @@
  * Aggregate crop-pack UI registrations.
  *
  * To add a pack: `Plans/PLUGIN_AUTHORING.md`
- * Then: adapter + `cropPacks.ts`, `src/packs/<id>/index.ts` → append here.
+ * Then: adapter + `cropPacks.ts`, `plugins/<id>/src/index.ts` → append here.
+ *
+ * Packs are mid-migration to `plugins/<id>/src/` (Plans/PLUGIN_PACK_LAYOUT.md
+ * Phase 1), so the imports below point at two places. Once they all point at
+ * `plugins/`, this list is replaced by an `import.meta.glob` and appending stops
+ * being a step at all.
  */
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import type { CropPackId } from '../../shared/farm/cropPacks';
@@ -16,7 +21,7 @@ import type {
 import { chillPortionsPackUi } from './chill_portions';
 import { dryingPackUi } from './drying';
 import { harvestPackUi } from './harvest';
-import { nutritionPackUi } from './nutrition';
+import { nutritionPackUi } from '../../plugins/nutrition/src';
 import { walnutBlightPackUi } from './walnut_blight';
 import { waterPackUi } from './water';
 

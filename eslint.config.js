@@ -77,7 +77,9 @@ export default tseslint.config(
   },
 
   {
-    files: ['src/**/*.{ts,tsx}'],
+    // Pack code is app code: it lives in plugins/<id>/src/ but ships in the same
+    // bundle and must obey the same hook and a11y rules.
+    files: ['src/**/*.{ts,tsx}', 'plugins/*/src/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks, 'jsx-a11y': jsxA11y },
     rules: {
       ...jsxA11y.flatConfigs.recommended.rules,
@@ -94,7 +96,7 @@ export default tseslint.config(
     // The accessibility backlog predates this config: ~100 findings, mostly
     // labels without a control association. Warnings so the list stays visible
     // and shrinkable; promote a rule to error once its count reaches zero.
-    files: ['src/**/*.tsx'],
+    files: ['src/**/*.tsx', 'plugins/*/src/**/*.tsx'],
     rules: Object.fromEntries(
       Object.entries(jsxA11y.flatConfigs.recommended.rules)
         // Keep the ones recommended deliberately disables disabled. Mapping
@@ -120,7 +122,7 @@ export default tseslint.config(
      *
      * `import type` is unaffected: it is erased before anything runs.
      */
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'plugins/*/src/**/*.{ts,tsx}'],
     ignores: ['src/lib/leaflet-window.ts', 'src/lib/leaflet-setup.ts'],
     rules: {
       'no-restricted-imports': [

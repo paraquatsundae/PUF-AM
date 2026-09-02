@@ -1,7 +1,7 @@
 # Self-contained crop packs (migration plan)
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Phase 0 under way, 2026-09-02 — see §5  
+**Status:** Phase 0 functionally complete; Phase 1 piloted on nutrition, 2026-09-02 — see §5  
 **Goal:** each pack's whole implementation lives in `plugins/<id>/src/`; a contributor adds a pack by adding one folder  
 **Decision:** statically compiled, boundary enforced by the compiler. **No runtime loading** — see §3  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
@@ -10,6 +10,8 @@
 ---
 
 ## 1. Where we actually are
+
+> **Superseded in part.** This section describes the position before any work started. Nutrition now ships its UI from `plugins/nutrition/src/` — see the Phase 1 pilot note in §5. The rest still reads true.
 
 **No pack ships UI in `plugins/` today.** All six folders hold manifests only:
 
@@ -127,6 +129,17 @@ Core must stop importing pack code. Worth doing on its own, and required for eve
 ### Phase 1 — Colocate into `plugins/<id>/src/`
 
 Pure file moves plus build wiring. No runtime change, so it is revertible.
+
+**Pilot done — nutrition (2026-09-02).** `Nutrition.tsx`, `nutritionService.ts`, `nutritionEngine.ts` and the registration now live in `plugins/nutrition/src/`. What the pilot established, for the packs that follow:
+
+- `tsconfig.json` needed no change — it has no `include`, only an `exclude`, so `plugins/**` already compiled.
+- `eslint.config.js` did. `react-hooks`, `jsx-a11y` and the Leaflet import ban were all scoped to `src/**`, so moving a page out silently dropped them. Those globs now cover `plugins/*/src/**` as well.
+- `madge` only scanned `src`, `shared` and `server`, so moved packs fell out of cycle detection. `plugins` is now a scan root.
+- `vitest.config.ts` gained `plugins/*/src/**/*.test.{ts,tsx}` so packs keep tests beside their code.
+- The pack-registration check exists **twice** — `scripts/audit-codebase.mjs` and `tests/codebaseHealth.test.ts`. Both now accept either location, and both carry a note to drop the `src/packs/` arm when the last pack moves.
+- Imports back into core are relative (`../../../src/...`), matching the depth pack registrations already used for `shared/`. An unused `@/*` alias exists in tsconfig, vite and vitest if that ever gets tiring.
+- Verified beyond the gate: `npm run build` still emits a separate `Nutrition-*.js` chunk, so `lazyWithRetry` code splitting survived the move.
+- Left behind on purpose: `shared/farm/nutritionPackage.ts` (the catalog imports every adapter eagerly — these move together, with discovery), and `src/lib/walnutNutritionalEngine.R`, which is uncompiled reference material whose name claims walnut while its contents claim nutrition.
 
 - Move each pack's components, page, hooks, lib, adapter and tests under `plugins/<id>/src/`.
 - Replace the hand-maintained registry with build-time discovery (`import.meta.glob` over `plugins/*/src/index.ts`).

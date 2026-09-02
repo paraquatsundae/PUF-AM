@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Beaker, CheckCircle2, ChevronRight, Activity } from 'lucide-react';
-import { useFarmDiary, NutritionMethod, NutritionRateUnit } from '../lib/farmDiary';
-import { useMapStore } from '../lib/mapStore';
-import { cn } from '../lib/utils';
+import { useFarmDiary, NutritionMethod, NutritionRateUnit } from '../../../src/lib/farmDiary';
+import { useMapStore } from '../../../src/lib/mapStore';
+import { cn } from '../../../src/lib/utils';
 
 function todayIso() {
   return new Date().toISOString().split('T')[0];

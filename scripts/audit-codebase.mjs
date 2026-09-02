@@ -165,8 +165,12 @@ function auditPackFolders() {
       failed += 1;
     }
     ids.push(json.id);
-    if (!existsSync(join(packsDir, name, 'index.ts'))) {
-      fail(`missing src/packs/${name}/index.ts`);
+    // Phase 1 of Plans/PLUGIN_PACK_LAYOUT.md moves packs to plugins/<id>/src/.
+    // Either location counts while that migration is part-done; drop the
+    // src/packs/ arm once the last pack has moved.
+    const colocated = existsSync(join(pluginsDir, name, 'src', 'index.ts'));
+    if (!colocated && !existsSync(join(packsDir, name, 'index.ts'))) {
+      fail(`missing plugins/${name}/src/index.ts (or legacy src/packs/${name}/index.ts)`);
       failed += 1;
     }
   }
@@ -260,7 +264,7 @@ function auditCycles() {
     fail('madge is not installed (npm i -D madge)');
     return 1;
   }
-  return madge([join(ROOT, 'src'), join(ROOT, 'shared'), join(ROOT, 'server')], {
+  return madge([join(ROOT, 'src'), join(ROOT, 'shared'), join(ROOT, 'server'), join(ROOT, 'plugins')], {
     fileExtensions: ['ts', 'tsx'],
     tsConfig: join(ROOT, 'tsconfig.json'),
     detectiveOptions: { ts: { skipTypeImports: true }, tsx: { skipTypeImports: true } },
@@ -272,7 +276,7 @@ function auditCycles() {
         for (const c of cycles) fail(`cycle: ${c.join(' → ')}`);
         return cycles.length;
       }
-      ok('no circular imports in src/ + shared/ + server/');
+      ok('no circular imports in src/ + shared/ + server/ + plugins/');
       return 0;
     })
     .catch((err) => {
