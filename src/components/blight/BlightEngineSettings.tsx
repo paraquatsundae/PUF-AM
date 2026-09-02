@@ -20,10 +20,7 @@ import {
 } from 'lucide-react';
 import type { ModelParameters } from '../../lib/modelParameters';
 import { ParameterGlossary } from './BlightParameterGlossary';
-import { SliderControl } from './SliderControl';
-
-export type { SliderControlProps } from './SliderControl';
-export { SliderControl } from './SliderControl';
+import { SliderControl } from '../ui/SliderControl';
 
 export type BlightEngineSettingsProps = {
   params: ModelParameters;
