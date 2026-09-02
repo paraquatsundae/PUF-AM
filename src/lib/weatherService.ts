@@ -1,6 +1,5 @@
 import { doc, getDoc, getDocFromCache } from 'firebase/firestore';
 import { db } from '../firebase';
-import { WeatherData } from './blightModel';
 import { trackMetric } from '../services/metricsService';
 import { apiFetch, apiUrl } from './apiBase';
 import { debugLog } from './debugLog';
@@ -167,11 +166,11 @@ export async function fetchEnvironmentalData(
   calibration?: unknown,
   defaultIrrigationType?: string
 ): Promise<{
-  weatherData: Record<string, WeatherData>;
+  weatherData: Record<string, DayWeather>;
   lastUpdated?: string;
   cacheSource?: string;
   isStale?: boolean;
-  forecastData?: Record<string, WeatherData>;
+  forecastData?: Record<string, DayWeather>;
   forecastUpdatedAt?: string;
 }> {
   if (source !== 'DPIRD') {
@@ -202,13 +201,13 @@ export async function fetchEnvironmentalData(
 
   const forecastFields = sharedCache?.forecastData
     ? {
-        forecastData: sharedCache.forecastData as Record<string, WeatherData>,
+        forecastData: sharedCache.forecastData as Record<string, DayWeather>,
         forecastUpdatedAt: sharedCache.forecastUpdatedAt,
       }
     : {};
 
   if (sharedCache?.weatherData && Object.keys(sharedCache.weatherData).length > 0) {
-    const data = sharedCache.weatherData as Record<string, WeatherData>;
+    const data = sharedCache.weatherData as Record<string, DayWeather>;
     const nowCovered = cacheCoversRange(data, startKey, endKey);
     if (nowCovered || Object.keys(data).length > 30) {
       // Prefer cache even if slightly gappy — blight can tolerate a few missing days
@@ -252,7 +251,7 @@ export async function fetchEnvironmentalData(
       ) {
         debugLog('[Weather] Using per-farm environmental cache');
         return {
-          weatherData: cacheDataFarm.weatherData as Record<string, WeatherData>,
+          weatherData: cacheDataFarm.weatherData as Record<string, DayWeather>,
           lastUpdated: cacheDataFarm.lastUpdated,
           cacheSource: 'environmental_cache',
           isStale: false,
@@ -290,7 +289,7 @@ export async function fetchEnvironmentalData(
         const data = await response.json();
         if (data.weatherData) {
           return {
-            weatherData: data.weatherData as Record<string, WeatherData>,
+            weatherData: data.weatherData as Record<string, DayWeather>,
             lastUpdated: data.lastUpdated,
             cacheSource: 'dev_server',
             isStale: false,
@@ -305,7 +304,7 @@ export async function fetchEnvironmentalData(
   // 5. Last resort: use whatever shared cache we have, else synthetic
   if (sharedCache?.weatherData && Object.keys(sharedCache.weatherData).length > 0) {
     return {
-      weatherData: sharedCache.weatherData as Record<string, WeatherData>,
+      weatherData: sharedCache.weatherData as Record<string, DayWeather>,
       lastUpdated: sharedCache.lastUpdated,
       cacheSource: 'weather_cache_partial',
       isStale: true,
@@ -329,7 +328,7 @@ export async function fetchWeatherData(
   defaultLat: number = -34.24,
   defaultLng: number = 116.14,
   stationCode?: string
-): Promise<Record<string, WeatherData>> {
+): Promise<Record<string, DayWeather>> {
   const data = await fetchEnvironmentalData(farmId, source, startDate, endDate, defaultLat, defaultLng, stationCode);
   return data.weatherData;
 }
@@ -404,8 +403,8 @@ function seededRandom(seed: number) {
   return x - Math.floor(x);
 }
 
-function generateFallbackData(startDate: Date, endDate: Date): Record<string, WeatherData> {
-  const data: Record<string, WeatherData> = {};
+function generateFallbackData(startDate: Date, endDate: Date): Record<string, DayWeather> {
+  const data: Record<string, DayWeather> = {};
   const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
   for (let i = 0; i <= totalDays; i++) {

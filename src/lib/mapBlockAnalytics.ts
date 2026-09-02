@@ -2,7 +2,7 @@
  * Edit → Analytics blight / heat / yield colors for the paddock map.
  * Kept out of OrchardMap.tsx (Plans/CODEBASE_HEALTH.md).
  */
-import { defaultCalibration } from './blightModel';
+import { DEFAULT_ORCHARD_GEOMETRY } from './orchardGeometry';
 import type { OrchardBlock } from './mapStore';
 
 export type BlockHarvestRow = {
@@ -68,9 +68,9 @@ export function computeBlockAnalytics(opts: {
   const seasonalBlight = (Math.cos((monthFloat - 9.5) * Math.PI / 6) + 1) / 2;
 
   for (const block of blocks) {
-    const height = block.treeHeight || defaultCalibration.treeHeight;
-    const width = block.canopyWidth || defaultCalibration.canopyWidth;
-    const spacing = block.rowSpacing || defaultCalibration.rowSpacing;
+    const height = block.treeHeight || DEFAULT_ORCHARD_GEOMETRY.treeHeight;
+    const width = block.canopyWidth || DEFAULT_ORCHARD_GEOMETRY.canopyWidth;
+    const spacing = block.rowSpacing || DEFAULT_ORCHARD_GEOMETRY.rowSpacing;
     const coverage = Math.min(1, width / spacing);
     const trv = (height * width * 10000) / spacing;
     const trvNorm = Math.min(1, trv / 50000);

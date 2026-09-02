@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { blockPolygonPathStyle, type BlockAnalyticsRow } from './mapBlockAnalytics';
+import {
+  blockPolygonPathStyle,
+  computeBlockAnalytics,
+  type BlockAnalyticsRow,
+} from './mapBlockAnalytics';
+import { DEFAULT_ORCHARD_GEOMETRY } from './orchardGeometry';
+import type { OrchardBlock } from './mapStore';
 
 const heat: BlockAnalyticsRow = {
   blight: 0.8,
@@ -13,6 +19,50 @@ const heat: BlockAnalyticsRow = {
   yieldColor: 'rgb(10, 180, 80)',
   lastHarvestDate: null,
 };
+
+const block = (id: string, geometry: Partial<OrchardBlock>): OrchardBlock => ({
+  id,
+  name: id,
+  cultivar: '',
+  density: '',
+  irrigation: 'drip',
+  geojson: null,
+  ...geometry,
+});
+
+/** Same day for every case, so only the geometry differs. */
+function analyticsFor(blocks: OrchardBlock[]) {
+  return computeBlockAnalytics({
+    blocks,
+    harvests: [],
+    environmentalData: null,
+    blockSprayEventsCache: {},
+    targetDate: new Date('2026-03-01T00:00:00Z'),
+    targetDateStr: '2026-03-01',
+  });
+}
+
+describe('computeBlockAnalytics geometry fallback', () => {
+  it('reads a blank block as the default orchard geometry', () => {
+    const rows = analyticsFor([
+      block('blank', {}),
+      block('spelled-out', DEFAULT_ORCHARD_GEOMETRY),
+    ]);
+
+    expect(rows.blank.heat).toBe(rows['spelled-out'].heat);
+    expect(rows.blank.blight).toBe(rows['spelled-out'].blight);
+  });
+
+  it('still prefers measurements the block actually has', () => {
+    // Denser canopy relative to row spacing, so more coverage and less heat.
+    const rows = analyticsFor([
+      block('blank', {}),
+      block('measured', { treeHeight: 6, canopyWidth: 6.5, rowSpacing: 7 }),
+    ]);
+
+    expect(rows.measured.heat).toBeLessThan(rows.blank.heat);
+  });
+});
 
 describe('blockPolygonPathStyle', () => {
   it('keeps operate / non-analytics paddocks indigo', () => {

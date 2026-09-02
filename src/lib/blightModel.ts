@@ -2,6 +2,7 @@ import {
   defaultCalibrationParams,
   type CalibrationParams,
 } from './modelParameters';
+import type { DayWeather } from '../../shared/weather/dpirdClient';
 
 export type { CalibrationParams } from './modelParameters';
 
@@ -38,15 +39,15 @@ export type DailyData = {
   fullDate: string; // YYYY-MM-DD for easy reference
 };
 
-export type WeatherData = {
-  T: number;
-  RH: number;
-  R: number;
-  WD: number;
-  maxHourlyRain: number;
-  windSpeed?: number;
-  ET0?: number;
-};
+/**
+ * A day of observations, as the model consumes them.
+ *
+ * The same shape `shared/weather` already publishes, aliased rather than
+ * restated so the two cannot drift apart — this file used to declare its own
+ * copy, field for field, and core's `weatherService` imported the model's copy
+ * to describe weather it had fetched itself.
+ */
+export type WeatherData = DayWeather;
 
 /**
  * Product options layered on the PUFOM weather-driven core.
