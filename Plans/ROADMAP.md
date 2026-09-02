@@ -488,7 +488,7 @@ graph TD
 | **Depends on** | STEP-10 |
 | **Owner** | — |
 | **Completed** | 2026-07-13 |
-| **Note** | Performance guard (>500 features) and Layer Settings stub deferred |
+| **Note** | Performance guard (>500 features) deferred; Layer Settings never built |
 
 **Problem:** All blocks, tracks, and event markers render as DOM/SVG at once — mobile browsers choke at scale (`DEVELOPER_NOTES.md` §2A, `OrchardMap.tsx` TODOs).
 
@@ -498,8 +498,8 @@ graph TD
 - [x] **Blocks/tracks:** Load only features intersecting map bounds (client-side Turf filter in `api.ts`)
 - [x] Debounce viewport changes (300 ms) before refetch in `mapStore.ts`
 - [ ] Add performance guard: warn or simplify when >500 features in view
-- [ ] Remove or gate "Live Telemetry Mock" until real data source exists
-- [ ] Implement "Layer Settings" stub or hide until real layers ship
+- [x] **Live Telemetry Mock:** deleted from `EditInfraSidebar.tsx` (`8003949`) — no gate needed
+- [ ] Add "Layer Settings" when real layers ship — never built, so there is no stub to hide
 
 **Acceptance criteria**
 
