@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, ClipboardList, Flag, Loader2, Snowflake, X } from 'lucide-react';
+import { BookOpen, ClipboardList, Flag, X } from 'lucide-react';
 import type { OrchardBlock } from '../../lib/mapStore';
 import { cn } from '../../lib/utils';
+import { PackBlockReadouts } from './PackBlockReadouts';
 import {
   areaWordForCropKind,
   getEnterprise,
@@ -9,18 +10,9 @@ import {
   type FarmEnterpriseId,
 } from '../../../shared/farm/farmTypes';
 
-export type ChillDisplay = {
-  portions: number | null;
-  loading: boolean;
-  error: string | null;
-  stationName?: string;
-  seasonLabel?: string;
-};
-
 type Props = {
   block: OrchardBlock;
   openIssues: number;
-  chill: ChillDisplay;
   onClose: () => void;
   onViewIssues: () => void;
   onReportIssue: () => void;
@@ -29,14 +21,11 @@ type Props = {
 export function BlockOperateCard({
   block,
   openIssues,
-  chill,
   onClose,
   onViewIssues,
   onReportIssue,
 }: Props) {
   const tree = isTreeCropKind(block.cropKind);
-  /** Plain CP for any tree/vine block — no cultivar target (avoids false Chandler fallback). */
-  const showChill = tree;
   const subtitle = tree
     ? [block.species, block.cultivar?.trim() || null].filter(Boolean).join(' · ') ||
       'Species not set'
@@ -89,35 +78,7 @@ export function BlockOperateCard({
           </span>
         </button>
 
-        {showChill ? (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-sm gap-3">
-              <span className="inline-flex items-center gap-2 text-slate-600">
-                <Snowflake className="w-4 h-4 text-sky-600" />
-                Chill portions
-              </span>
-              {chill.loading ? (
-                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Loading…
-                </span>
-              ) : chill.error ? (
-                <span className="text-xs font-semibold text-rose-600">Unavailable</span>
-              ) : (
-                <span className="font-bold font-mono tabular-nums text-slate-900">
-                  {chill.portions ?? '—'} CP
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-slate-400 leading-snug">
-              {chill.error
-                ? chill.error
-                : [chill.stationName ? `DPIRD ${chill.stationName}` : null, chill.seasonLabel]
-                    .filter(Boolean)
-                    .join(' · ')}
-            </p>
-          </div>
-        ) : null}
+        <PackBlockReadouts block={block} />
       </div>
 
       <div className="border-t border-slate-100 px-4 py-3 bg-slate-50/80 flex items-center justify-between gap-3">

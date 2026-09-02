@@ -44,15 +44,7 @@ import { FarmDryersPanel } from '../components/harvest/FarmDryersPanel';
 
 **Count the right thing.** 18 files under `src/` import pack code, but 10 of them *are* pack code sitting in a core-looking folder — `useBlightWeather`, `blightSeason`, `runJiBlightSeries`, `SandboxMatrix`, `DryerPerformance` and the rest are imported only by `BlightRisk.tsx`, `components/blight/*` or `Drying.tsx`. Those relocate in Phase 1 and need no inversion. A further three (`App.tsx`, `navConfig.ts`, `DashboardPackCards.tsx`) import `src/packs/registry`, which is the intended direction.
 
-That leaves **three** genuine core→pack edges:
-
-| Core file | Wants | Shape |
-|---|---|---|
-| `src/components/map/BlockMetadataModal.tsx:4` | chill's `CULTIVARS` | Block-metadata slot |
-| `src/pages/OrchardMap.tsx` | `useChillPack`, `useFarmChillPortions` | Map operate-readout slot |
-| `src/pages/About.tsx` | `useWalnutPack` | Numbered prose, not wiring — deferred, see `PLUGIN_AUTHORING.md` |
-
-Both remaining slots are on the map.
+That leaves **one** genuine core→pack edge: `src/pages/About.tsx` still calls `useWalnutPack`. Its coupling is a numbered prose list and one sentence of copy, which `PLUGIN_AUTHORING.md` defers deliberately — a copy decision, not wiring.
 
 Two more edges exist if you count `src/lib/modelParameters.ts` as pack code: `Settings.tsx` and `useFarmEconomicsSettings.ts` read it for market price, harvest cost and water cost. That file mixes farm economics with blight research parameters, so it is §7 open question 2 — a data migration on `settings/model_params`, not a wiring problem, and it should not be attempted as part of Phase 0.
 
@@ -122,9 +114,12 @@ Core must stop importing pack code. Worth doing on its own, and required for eve
 - Pack activation inverted: `shared/farm/cropPackActivation.ts` owns the legacy eligibility rules, core asks `useCropPackActivation()` for the whole map. `useOfferedFarmModules`, `InvitePinManager` and `MistFarmSyncCard` no longer name a pack id.
 - The map's geometry fallback is core's own: `DEFAULT_ORCHARD_GEOMETRY` in `src/lib/orchardGeometry.ts`, rather than reaching into the walnut pack's `engine.json` defaults through `defaultCalibration`.
 - `WeatherData` turned out to be a field-for-field duplicate of `DayWeather` in `shared/weather/dpirdClient.ts`, so it is now an alias of it and `weatherService` uses the shared type directly.
+- Both map slots: `blockOperateReadout` (chill's CP line on the block operate card, which also deleted a `chill` prop threaded through four files) and `blockCultivars` (the cultivar list, contributed as registry data rather than a component since the field itself is core).
+
+**Phase 0 is functionally complete.** The only core file left that names a pack is `About.tsx`, and that is prose.
 
 - Turn each core→pack import into an **extension point** core declares and packs fill. The registry's existing `surfaces` concept is the seam; today `getPackUi()` is only called from tests, so surfaces are registered but never consumed.
-- Slots needed, from the current couplings: dashboard cards, map block-analytics contributions, map operate readouts, diary composer fields, block-metadata fields.
+- Slots needed, from the current couplings: ~~dashboard cards~~, ~~map operate readouts~~, ~~block-metadata fields~~, diary composer fields. Map block-analytics needed no slot — see the geometry note above.
 - Move misfiled core utilities **into core**, not into a pack: ~~`SliderControl`~~, ~~the `WeatherData` type~~, `estimateWetnessHoursProxy`.
 - ~~Retire the migration shims in `useOfferedFarmModules` and `ModuleRoute`.~~ They cannot simply be deleted: the legacy rules disagree with the generic path in both directions (a farm with walnut blocks but `blight` off, and a farm with a non-walnut profile but `blight` on), so removing them changes which modules invite PINs and join tickets offer. They are inverted and quarantined instead, to delete on the data condition.
 - **Done when:** deleting a pack's folder breaks only its own registry entry.

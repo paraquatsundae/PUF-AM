@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { FieldIssue } from '../../lib/fieldStore';
 import type { OrchardBlock } from '../../lib/mapStore';
 import type { BreadTrailPrefs } from '../../lib/breadTrails';
-import type { ChillDisplay } from './BlockOperateCard';
 import { BlockOperateCard } from './BlockOperateCard';
 import { BlockIssuesSheet } from './BlockIssuesSheet';
 import { ReportIssueSheet } from './ReportIssueSheet';
@@ -24,7 +23,6 @@ export function OperateMapOverlays({
   onCancelHighlight,
   onSendHighlight,
   openIssuesByBlock,
-  chill,
   onCloseBlock,
   onViewIssues,
   onReportIssue,
@@ -56,7 +54,6 @@ export function OperateMapOverlays({
   onCancelHighlight: () => void;
   onSendHighlight: (payload: { note: string; durationSeconds: number }) => void;
   openIssuesByBlock: Record<string, number>;
-  chill: ChillDisplay;
   onCloseBlock: () => void;
   onViewIssues: () => void;
   onReportIssue: (block: OrchardBlock) => void;
@@ -130,7 +127,6 @@ export function OperateMapOverlays({
               <BlockOperateCard
                 block={selectedOperateBlock}
                 openIssues={openIssuesByBlock[selectedOperateBlock.id] || 0}
-                chill={chill}
                 onClose={onCloseBlock}
                 onViewIssues={onViewIssues}
                 onReportIssue={() => onReportIssue(selectedOperateBlock)}

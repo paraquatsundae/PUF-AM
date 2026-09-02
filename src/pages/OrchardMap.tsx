@@ -25,8 +25,6 @@ import { orchardMapDiaryDateRange } from '../lib/orchardMapDiaryRange';
 import { buildOrchardMapDrawLayerCtx } from '../lib/orchardMapDrawLayerCtx';
 import { orchardMapCanvasActions } from '../lib/orchardMapCanvasActions';
 import { orchardMapSheetActions } from '../lib/orchardMapSheetActions';
-import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
-import { useChillPack } from '../hooks/useChillPack';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import { useCrewPresence } from '../hooks/useCrewPresence';
 import { useMapHighlights } from '../hooks/useMapHighlights';
@@ -97,14 +95,6 @@ export function OrchardMap() {
   const { events, settings, getSprayEvents, getIrrigationEvents } = useFarmDiary(
     diaryDateRange.start,
     diaryDateRange.end
-  );
-  const showChill = useChillPack();
-  const farmChill = useFarmChillPortions(
-    viewport.lat,
-    viewport.lng,
-    showChill,
-    settings.dpirdStationCode,
-    settings.dpirdStationName
   );
   const mapCopy = useMemo(() => mapUiCopy(settings.farmProfile), [settings.farmProfile]);
   const {
@@ -459,13 +449,6 @@ export function OrchardMap() {
           highlightSending={chrome.highlightSending}
           onCancelHighlight={clicks.cancelHighlightPaint}
           farmDefaultSeconds={settings.highlightDefaultSeconds}
-          chill={{
-            portions: farmChill.data?.totalPortions ?? null,
-            loading: farmChill.loading,
-            error: farmChill.error,
-            stationName: farmChill.data?.stationName,
-            seasonLabel: farmChill.data?.seasonLabel,
-          }}
           onCloseBlock={() => chrome.setHighlightedBlockId(null)}
           onReportIssue={operate.startReportForBlock}
           issuesPanelBlock={operate.issuesPanelBlock}

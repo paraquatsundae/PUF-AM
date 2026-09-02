@@ -94,7 +94,6 @@ export function OrchardMapCanvas({
   onCancelHighlight,
   onSendHighlight,
   farmDefaultSeconds,
-  chill,
   onCloseBlock,
   onViewIssues,
   onReportIssue,
@@ -250,7 +249,6 @@ export function OrchardMapCanvas({
           onCancelHighlight={onCancelHighlight}
           onSendHighlight={onSendHighlight}
           openIssuesByBlock={openIssuesByBlock}
-          chill={chill}
           onCloseBlock={onCloseBlock}
           onViewIssues={onViewIssues}
           onReportIssue={onReportIssue}

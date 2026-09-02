@@ -8,6 +8,7 @@ import type { FarmModuleId } from '../../shared/auth/farmModules';
 import type { CropPackId } from '../../shared/farm/cropPacks';
 import type {
   CropPackUiRegistration,
+  PackCultivarOption,
   PackNavGroupId,
   PackNavRegistration,
   PackRouteRegistration,
@@ -42,6 +43,17 @@ export function allPackNavItems(): PackNavRegistration[] {
 
 export function packNavItemsForGroup(groupId: PackNavGroupId): PackNavRegistration[] {
   return allPackNavItems().filter((item) => item.groupId === groupId);
+}
+
+/**
+ * Every pack's cultivar suggestions, in registry order.
+ *
+ * Deliberately not filtered by whether the pack is active: the block editor has
+ * always offered these, and a farm can be recording a cultivar before it decides
+ * to install the pack that cares about one.
+ */
+export function allPackCultivars(): PackCultivarOption[] {
+  return PACK_UI_REGISTRY.flatMap((p) => [...(p.blockCultivars ?? [])]);
 }
 
 /** Module ids contributed by any pack route (for tests / docs). */

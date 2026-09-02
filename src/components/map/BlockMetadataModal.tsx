@@ -1,7 +1,7 @@
 import React from 'react';
 import { Hexagon, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { CULTIVARS } from '../../lib/chillPortions';
+import { allPackCultivars } from '../../packs/registry';
 import { cn } from '../../lib/utils';
 import {
   internalBoundariesIntersectingBlock,
@@ -18,6 +18,9 @@ import {
 } from '../../../shared/farm/farmTypes';
 import { getInfraType } from '../../../shared/farm/infraTypes';
 import type { InternalBoundaryKind } from './BoundaryEditActionBar';
+
+/** Read once — the pack registry is static for the life of the bundle. */
+const cultivarOptions = allPackCultivars();
 
 export function BlockMetadataModal({
   editingBlockId,
@@ -241,9 +244,9 @@ export function BlockMetadataModal({
                                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
                               >
                                 <option value="">Select cultivar...</option>
-                                {CULTIVARS.map((c) => (
+                                {cultivarOptions.map((c) => (
                                   <option key={c.id} value={c.name}>
-                                    {c.name} ({c.requiredCP} CP)
+                                    {c.note ? `${c.name} (${c.note})` : c.name}
                                   </option>
                                 ))}
                                 <option value="Other">Other / Mixed</option>

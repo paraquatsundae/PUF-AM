@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CROP_PACK_IDS } from '../shared/farm/cropPacks';
 import {
   PACK_UI_REGISTRY,
+  allPackCultivars,
   allPackNavItems,
   allPackRoutes,
   getPackUi,
@@ -36,7 +37,17 @@ describe('pack UI registry (CP-04)', () => {
     expect(ui.surfaces.productionSettings).toBeTruthy();
     expect(ui.surfaces.science).toBeTruthy();
     expect(ui.surfaces.dashboardCard).toBeTruthy();
+    expect(ui.surfaces.blockOperateReadout).toBeTruthy();
     expect(CHILL_PORTIONS_PRIMARY_PATH).toBe('/weather-events');
+  });
+
+  it('gets its cultivar list from the chill pack, not the block editor', () => {
+    const options = allPackCultivars();
+
+    expect(options.length).toBeGreaterThan(0);
+    // The note is what the editor shows in brackets; core does not build it.
+    expect(options.every((c) => c.name && c.note?.endsWith(' CP'))).toBe(true);
+    expect(getPackUi('chill_portions')!.blockCultivars?.length).toBe(options.length);
   });
 
   it('merges pack nav into crop group (not hardcoded in base shell list)', () => {

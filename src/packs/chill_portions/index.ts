@@ -10,6 +10,7 @@ import {
   CHILL_PORTIONS_PACK_ID,
   CHILL_PORTIONS_PRIMARY_PATH,
 } from '../../../shared/farm/chillPortionsPackage';
+import { CULTIVARS } from '../../../shared/weather/chillPortions';
 import { lazyWithRetry } from '../../lib/lazyWithRetry';
 
 const WeatherEventsPage = lazyWithRetry(() =>
@@ -29,6 +30,11 @@ const ChillEngineSciencePanel = lazyWithRetry(() =>
 const ChillDashboardCard = lazyWithRetry(() =>
   import('../../components/chill/ChillDashboardCard').then((m) => ({
     default: m.ChillDashboardCard,
+  }))
+);
+const ChillBlockReadout = lazyWithRetry(() =>
+  import('../../components/chill/ChillBlockReadout').then((m) => ({
+    default: m.ChillBlockReadout,
   }))
 );
 
@@ -56,7 +62,15 @@ export const chillPortionsPackUi: CropPackUiRegistration = {
     productionSettings: ChillCalculatorPanel,
     science: ChillEngineSciencePanel,
     dashboardCard: ChillDashboardCard,
+    blockOperateReadout: ChillBlockReadout,
   },
+  // Cited targets from the pack's engine.json — the chill requirement is the
+  // reason to pick one cultivar over another, so it rides along as the note.
+  blockCultivars: CULTIVARS.map((c) => ({
+    id: c.id,
+    name: c.name,
+    note: `${c.requiredCP} CP`,
+  })),
 };
 
 export { CHILL_PORTIONS_PRIMARY_PATH } from '../../../shared/farm/chillPortionsPackage';

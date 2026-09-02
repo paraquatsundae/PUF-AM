@@ -69,13 +69,6 @@ export type OrchardMapCanvasProps = {
   onCancelHighlight: () => void;
   onSendHighlight: (payload: { note: string; durationSeconds: number }) => void;
   farmDefaultSeconds: number | undefined;
-  chill: {
-    portions: number | null;
-    loading: boolean;
-    error: string | null;
-    stationName?: string;
-    seasonLabel?: string;
-  };
   onCloseBlock: () => void;
   onViewIssues: () => void;
   onReportIssue: (block: OrchardBlock) => void;
