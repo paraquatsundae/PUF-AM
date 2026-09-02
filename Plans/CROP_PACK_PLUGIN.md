@@ -4,7 +4,8 @@
 **Status:** Active — CP-00–CP-05 done (contract through developer PR checklist); first consumer walnut blight ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md))  
 **Date:** 2026-08-11  
 **Authors start here:** [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) (file list). This file is the contract, lifecycle, and history.  
-**Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet is a **network pack** ([`APK_FREENET_HOST.md`](APK_FREENET_HOST.md), [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md)) — a **different** word. Do not conflate.
+**Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet is a **network pack** ([`APK_FREENET_HOST.md`](APK_FREENET_HOST.md), [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md)) — a **different** word. Do not conflate.  
+**Under review:** [`PLUGIN_RUNTIME_MIGRATION.md`](PLUGIN_RUNTIME_MIGRATION.md) revisits the v1 "no hot-load" scope below. Plan only — v1 as described here is still what ships.
 
 ---
 
