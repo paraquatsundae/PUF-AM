@@ -2,25 +2,24 @@
  * Farm module catalog plus pack modules that should already be visible.
  *
  * Stored `enabledModules` often lags Install (and used to omit new pack ids).
- * Nav / ModuleRoute must offer every active pack immediately.
- * Walnut / chill extras cover the pre-cropPacks eligibility window only.
+ * Nav / ModuleRoute must offer every active pack immediately, so the extras come
+ * from whichever packs `useCropPackActivation` reports — including the ones held
+ * open by a legacy eligibility rule on a farm that never ran Install.
  */
 import { useMemo } from 'react';
 import type { FarmModuleId } from '../../shared/auth/farmModules';
-import { offeredFarmModules } from '../../shared/farm/cropPacks';
+import { CROP_PACKS, offeredFarmModules } from '../../shared/farm/cropPacks';
 import { useAuth } from '../contexts/AuthContext';
-import { useChillPack } from './useChillPack';
-import { useWalnutPack } from './useWalnutPack';
+import { useCropPackActivation } from './useCropPackActivation';
 
 export function useOfferedFarmModules(): FarmModuleId[] {
   const { farmEnabledModules, farmCropPacks } = useAuth();
-  const showChill = useChillPack();
-  const showWalnut = useWalnutPack();
+  const activePacks = useCropPackActivation();
 
   return useMemo(() => {
-    const extra: FarmModuleId[] = [];
-    if (showChill) extra.push('chill');
-    if (showWalnut) extra.push('blight');
+    const extra = CROP_PACKS.filter((pack) => activePacks[pack.id]).flatMap(
+      (pack) => pack.modules
+    );
     return offeredFarmModules(farmEnabledModules, farmCropPacks, extra);
-  }, [farmEnabledModules, farmCropPacks, showChill, showWalnut]);
+  }, [farmEnabledModules, farmCropPacks, activePacks]);
 }

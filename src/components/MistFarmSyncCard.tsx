@@ -49,8 +49,7 @@ import {
 } from '../../shared/sync/joinGrant.ts';
 import { MODULE_LABELS, type FarmModuleId } from '../../shared/auth/farmModules.ts';
 import { packModulesToExclude } from '../../shared/farm/cropPacks.ts';
-import { useWalnutPack } from '../hooks/useWalnutPack';
-import { useChillPack } from '../hooks/useChillPack';
+import { useCropPackActivation } from '../hooks/useCropPackActivation';
 import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import {
   FREENET_NO_HOST_DETAIL,
@@ -202,8 +201,7 @@ export function MistFarmSyncCard() {
   const { userData, farmEnabledModules, farmCropPacks } = useAuth();
   const farmId = userData?.farmId;
   const desktop = getDesktopBridge();
-  const hasWalnutPack = useWalnutPack();
-  const hasChillPack = useChillPack();
+  const activePacks = useCropPackActivation();
 
   /**
    * Same filter the invite-PIN screen uses, so a farm with no walnut pack is
@@ -212,16 +210,9 @@ export function MistFarmSyncCard() {
   const presets = useMemo(
     () =>
       joinPresetsForFarm(farmEnabledModules, {
-        excludeModules: packModulesToExclude(
-          farmCropPacks,
-          {
-            walnut_blight: hasWalnutPack,
-            chill_portions: hasChillPack,
-          },
-          farmEnabledModules
-        ),
+        excludeModules: packModulesToExclude(farmCropPacks, activePacks, farmEnabledModules),
       }),
-    [farmEnabledModules, farmCropPacks, hasWalnutPack, hasChillPack],
+    [farmEnabledModules, farmCropPacks, activePacks],
   );
 
   /**

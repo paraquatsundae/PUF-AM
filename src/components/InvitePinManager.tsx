@@ -18,8 +18,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { isByoFirebase } from '../lib/byoFirebaseConfig';
 import { APP_INVITE_SUBJECT } from '../brand';
-import { useWalnutPack } from '../hooks/useWalnutPack';
-import { useChillPack } from '../hooks/useChillPack';
+import { useCropPackActivation } from '../hooks/useCropPackActivation';
 
 function shareMessage(
   code: string,
@@ -90,19 +89,10 @@ function ModuleChecklist({
 
 export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const { farmEnabledModules, farmCropPacks, userData } = useAuth();
-  const hasWalnutPack = useWalnutPack();
-  const hasChillPack = useChillPack();
+  const activePacks = useCropPackActivation();
   const packExclude = useMemo(
-    () =>
-      packModulesToExclude(
-        farmCropPacks,
-        {
-          walnut_blight: hasWalnutPack,
-          chill_portions: hasChillPack,
-        },
-        farmEnabledModules
-      ),
-    [farmCropPacks, farmEnabledModules, hasWalnutPack, hasChillPack]
+    () => packModulesToExclude(farmCropPacks, activePacks, farmEnabledModules),
+    [farmCropPacks, farmEnabledModules, activePacks]
   );
   const grantCatalog = useMemo(
     () => farmEnabledModules.filter((m) => !packExclude.includes(m)),

@@ -221,9 +221,9 @@ These are holes. Fix them with small edits when a third pack lands — not with 
 | Hole | Why it hurts | Lean fix |
 |------|----------------|----------|
 | Docs listed `onInstall` hooks that do not exist | Authors invent APIs | This file; contract D6 is declarative wipe |
-| Walnut / chill `use*Pack` + `ModuleRoute` special cases | Copy-paste makes the next pack “work” before Install | New packs: `isPackActive` only |
+| Walnut / chill legacy eligibility | Copy-paste makes the next pack “work” before Install | Quarantined in `cropPackActivation.ts` 2026-09-02; the `ModuleRoute` special case is already gone. New packs: `isPackActive` only |
 | ~~`WALNUT_PACK_MODULES` / `CHILL_PACK_MODULES` in `farmModules.ts`~~ | Done 2026-08-24 | `allPackModuleIds` / `defaultModulesWithoutCropPacks` / `packModulesToExclude` read `CROP_PACKS` |
-| `useOfferedFarmModules` hard-codes blight / chill | Migration shim, not a registry | Let it die with the last unmigrated farm |
+| ~~`useOfferedFarmModules` hard-codes blight / chill~~ | Done 2026-09-02 | Extras derive from `activeCropPacks`. The rules themselves moved to `cropPackActivation.ts` — still to die with the last unmigrated farm, but now as one file rather than four call sites |
 | About / Dashboard cards special-case packs | Fine for two packs; noisy at five | Optional later: one “active pack cards” list. Not now |
 | Chill weather API has no pack gate | Server will compute without Install | Add when it matters; not an authoring blocker |
 | `cropPacks` in rules is “any map” | Unknown ids persist | Optional: allow-list known pack ids. Later |

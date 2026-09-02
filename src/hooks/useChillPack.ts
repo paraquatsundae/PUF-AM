@@ -1,29 +1,13 @@
 /**
  * Whether the chill portions crop pack is active on this farm.
- * Falls back to legacy eligibility when cropPacks has not been migrated yet.
+ *
+ * For the pack's own components to ask about themselves. Core screens should
+ * use `useCropPackActivation()` and stay pack-agnostic — the eligibility rules
+ * moved to `shared/farm/cropPackActivation.ts`.
  */
-import { useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useFarmDiary } from '../lib/farmDiary';
-import { useMapStore } from '../lib/mapStore';
-import { farmShowsChillPortions } from '../../shared/farm/farmTypes';
-import { isPackActive, isPackInstalled } from '../../shared/farm/cropPacks';
-import { useWalnutPack } from './useWalnutPack';
+import { CHILL_PORTIONS_PACK_ID } from '../../shared/farm/chillPortionsPackage';
+import { useCropPackActivation } from './useCropPackActivation';
 
 export function useChillPack(): boolean {
-  const { farmCropPacks } = useAuth();
-  const { settings } = useFarmDiary();
-  const { blocks } = useMapStore();
-  const walnutPackActive = useWalnutPack();
-
-  return useMemo(() => {
-    if (isPackInstalled(farmCropPacks, 'chill_portions')) {
-      return isPackActive(farmCropPacks, 'chill_portions');
-    }
-    return farmShowsChillPortions({
-      profile: settings.farmProfile,
-      blocks,
-      walnutPackActive,
-    });
-  }, [farmCropPacks, settings.farmProfile, blocks, walnutPackActive]);
+  return useCropPackActivation()[CHILL_PORTIONS_PACK_ID] ?? false;
 }
