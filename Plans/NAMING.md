@@ -38,7 +38,7 @@ Related plans (not duplicated here):
 | **PUFAM** | Marketing copy, site module cards, `package.json` description | Hyphenated repo slug (prefer **PUF-AM** in GitHub) |
 | **PUFOM** | Legacy wire/sync brand: `.pufom`, `PUFOM1`, `_pufom-sync._tcp`, `pufom_*` keys | New user-facing hero copy (use PUF-AM) |
 | **Sentinut** | Historical company/Android namespace only (`com.sentinut.farm`, `@sentinut.local` Auth emails) | Product name in new docs or UI |
-| **Walnut_farm_manager** | Local clone folder name only — **no rename required** | Implies walnut-only product (mixed-enterprise app) |
+| **Walnut_farm_manager** | Historical local clone folder — renamed to `PUF-AM` on 2026-09-02; reference/history only | Implies walnut-only product (mixed-enterprise app). Not the npm `name`, which is the separate still-current `walnut-farm-manager` |
 | **Walnut-Farm-Manager** | Archived GitHub repo — reference/history only | Active remote or deploy target |
 | **PUF-AM Desktop** | The Electron shell + installers (Fedora `rpm`/AppImage, Windows NSIS/portable). Docs shorthand for the packaged app | A separate product — it *is* PUF-AM; do not brand installers differently |
 | **PUF Freenet Host** | The in-app Freenet lifecycle plugin — unit `units/puf-freenet-host/`, package `@pufworks/puf-freenet-host`, `hostId` `puf-freenet-host` | The mist storage unit (`mist-freenet`); a user-visible app or service name |
@@ -66,7 +66,7 @@ Related plans (not duplicated here):
 | Identifier | Current value | Rename policy |
 |------------|---------------|---------------|
 | npm `name` | `walnut-farm-manager` | Optional Phase B — breaks scripts if rushed |
-| GitHub repo | `PUF-AM` | Display name done; folder may stay `Walnut_farm_manager` |
+| GitHub repo | `PUF-AM` | Display name done; local clone folder renamed to `PUF-AM` on 2026-09-02 |
 | Capacitor / Android `appId` | `com.sentinut.farm` | **Frozen** — Play / sideload continuity |
 | Capacitor `appName` | `PUF-Ag Manager` | User-facing; update with brand |
 | Desktop (Electron) `appId` | `farm.pufworks.am` | Desktop only — **do not** reuse the Android `com.sentinut.farm` |
@@ -312,6 +312,6 @@ Track in [`RENAME_TO_PUFAM.md`](RENAME_TO_PUFAM.md) Phase B. High-impact items:
 - Optional `PUFAM1` magic alongside `PUFOM1`
 - npm package rename
 - Migrate legacy `localStorage` issue/diary keys fully into `pufom_farm_local` (code cleanup)
-- GitHub folder rename `Walnut_farm_manager` → optional
+- ~~Local clone folder rename `Walnut_farm_manager` → `PUF-AM`~~ — done 2026-09-02. Docs only: no code ever read the folder name. The npm `name` is a separate item, still `walnut-farm-manager`
 
 Do **not** rename `com.sentinut.farm` or wipe `sentinut_*` / `pufom_*` storage without explicit migration design.

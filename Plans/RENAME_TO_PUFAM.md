@@ -13,7 +13,8 @@
 - [x] README + SITE_SYNOPSIS
 - [x] PUFworks-site module card + showcase page copy / `/pufam/` route
 - [x] Plans headers (ROADMAP, AUTH, OFFLINE, DEPLOY, BLIGHT) + crop-pack About/Settings copy (2026-07-27)
-- [ ] GitHub repo **display name / description** (and optional rename `Walnut_farm_manager` → later)
+- [ ] GitHub repo **display name / description**
+- [x] Local clone folder `Walnut_farm_manager` → `PUF-AM` (2026-09-02; docs only, no code read it)
 - [ ] Redeploy Cloud Run + site after merge
 
 ## Phase B — deferred (breaks sync / infra if rushed)

@@ -3,7 +3,7 @@
 **Created:** 13 July 2026  
 **Last updated:** 13 August 2026 (docs audit; Phase E crop packs / plugins / blight / desktop)  
 **Status:** Active — Phases A–C code complete; Phase D polish mostly done (D-07 mesh P3 open); Phase E crop-pack + blight + desktop Freenet in code, zip-as-engine still next  
-**Public name:** PUFAM — Ag Manager (repo folder still `Walnut_farm_manager`)  
+**Public name:** PUFAM — Ag Manager (local clone folder `PUF-AM`)  
 **Companion doc:** [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) §5 (13-step checklist)  
 **Rename:** [RENAME_TO_PUFAM.md](./RENAME_TO_PUFAM.md) · **Farm types:** [FARM_TYPES.md](./FARM_TYPES.md)
 

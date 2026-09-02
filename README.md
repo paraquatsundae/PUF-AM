@@ -2,7 +2,7 @@
 
 Paddock-first farm tools for mixed enterprises — map areas and issues, diary plans, seasonal records, and optional crop packs (walnut blight / chill first).
 
-**Repo:** [https://github.com/paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM) (local folder may still be `Walnut_farm_manager`).
+**Repo:** [https://github.com/paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM) (local clone folder `PUF-AM`; the npm `name` is still `walnut-farm-manager` — see [`Plans/NAMING.md`](Plans/NAMING.md) §2).
 
 **Brand:** **PUF-AM** = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/NAMING.md`](Plans/NAMING.md) and rebrand checklist [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
 

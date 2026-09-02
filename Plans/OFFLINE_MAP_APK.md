@@ -66,8 +66,8 @@ Installable paddock shell using the same Vite build. Tiles still live in **Index
 
 ### Workshop build
 
-```powershell
-cd C:\Projects\Walnut_farm_manager
+```bash
+cd ~/dev/PUF-AM
 npm run build:android
 npm run open:android
 ```
@@ -88,17 +88,17 @@ Public downloads come from **GitHub Releases**, not PUFworks-site `public/downlo
 
 **Required secret (Firebase client config):** `firebase-applet-config.json` is gitignored and imported by `src/firebase.ts`. CI writes it from repo secret `FIREBASE_APPLET_CONFIG` (raw JSON) before `vite build`:
 
-```powershell
-cd C:\Projects\Walnut_farm_manager
+```bash
+cd ~/dev/PUF-AM
 gh secret set FIREBASE_APPLET_CONFIG --repo paraquatsundae/PUF-AM < firebase-applet-config.json
 ```
 
 (Locally: `cp firebase-applet-config.example.json firebase-applet-config.json` and fill values.)
 
-**Windows — dispatch a build:**
+**Dispatch a build:**
 
-```powershell
-cd C:\Projects\Walnut_farm_manager
+```bash
+cd ~/dev/PUF-AM
 gh workflow run release-apk.yml
 # watch: gh run watch
 ```

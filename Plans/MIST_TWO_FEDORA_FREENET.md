@@ -120,8 +120,8 @@ freenet network
 ### PUF-AM repo
 
 ```bash
-git clone <repo-url> Walnut_farm_manager   # B once
-cd Walnut_farm_manager
+git clone <repo-url> PUF-AM   # B once
+cd PUF-AM
 git pull origin master
 npm ci
 ```
@@ -318,7 +318,7 @@ Build bakes `VITE_MIST_EXPERIMENTAL=true`. When the page is HTTPS on `am.pufwork
 freenet network
 
 # Terminal 2 — local API sidecar (Freenet peer in-process)
-cd Walnut_farm_manager
+cd PUF-AM
 git pull origin master && npm ci
 export FREENET_TRANSPORT=ws02
 export MIST_FREENET=1

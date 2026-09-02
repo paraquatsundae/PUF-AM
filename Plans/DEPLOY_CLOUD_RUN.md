@@ -29,7 +29,7 @@
 ## Deploy
 
 ```bash
-cd ~/dev/Walnut_farm_manager   # or C:\Projects\Walnut_farm_manager on Windows
+cd ~/dev/PUF-AM
 npm run deploy:cloudrun
 ```
 

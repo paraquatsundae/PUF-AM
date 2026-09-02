@@ -29,7 +29,7 @@ SOURCES
 
 NOTES FOR EDITOR
 - Do **not** link the public site card or /pufam/ showcase at github.com/paraquatsundae/PUF-AM (repo stays private / workshop). APK CTA may still use GitHub Releases.
-- Repo folder is Walnut_farm_manager; public name is PUFAM — use PUFAM / Ag Manager on the website card.
+- Repo folder is PUF-AM; public name is PUFAM — use PUFAM / Ag Manager on the website card.
 - Canonical live URL is https://am.pufworks.farm (Cloud Run service still named pufom until Phase B).
 - Generative AI features were removed; do not imply AI forecasting on the site.
 - Walnut blight / chill are a crop pack — do not describe the product as walnut-only.

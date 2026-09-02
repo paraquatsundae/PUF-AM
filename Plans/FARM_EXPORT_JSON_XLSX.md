@@ -1,7 +1,7 @@
 # Farm export — `farm-export.json` → xlsx (sketch)
 
 **Status:** v1 implemented (Settings → Offline & sync + Diary JSON/Excel buttons)  
-**Product:** PUF-AM (Ag Manager) — local folder may be `Walnut_farm_manager`  
+**Product:** PUF-AM (Ag Manager)  
 **Naming:** [`NAMING.md`](NAMING.md) § Export formats (distinct from `.pufom` / `PUFOM1`)  
 **Audience:** Production Firebase path first; mist fork consumes the same record shape later.
 

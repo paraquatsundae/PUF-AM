@@ -38,8 +38,8 @@ Validate **FarmCode identity**, **IndexedDB mist store**, and **local → Hot br
 # Node 20+ and git
 sudo dnf install -y nodejs npm git   # or nvm/fnm if you prefer
 
-git clone <repo-url> Walnut_farm_manager   # B only, once
-cd Walnut_farm_manager
+git clone <repo-url> PUF-AM   # B only, once
+cd PUF-AM
 git checkout master && git pull            # both before test
 
 npm ci
@@ -59,7 +59,7 @@ nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
 1. **Start app**
 
    ```bash
-   cd Walnut_farm_manager
+   cd PUF-AM
    VITE_MIST_EXPERIMENTAL=true npm run dev
    ```
 
@@ -102,7 +102,7 @@ nohup bash scripts/dev-keepalive.sh >/tmp/pufam-dev-keepalive.out 2>&1 & disown
 1. **Same commit as A**
 
    ```bash
-   cd Walnut_farm_manager
+   cd PUF-AM
    git pull origin master
    npm ci
    VITE_MIST_EXPERIMENTAL=true npm run dev
