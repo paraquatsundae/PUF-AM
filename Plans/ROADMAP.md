@@ -496,7 +496,7 @@ graph TD
 
 - [x] **Event markers:** `leaflet.markercluster` via `EventMarkerCluster.tsx`
 - [ ] **Blocks/tracks:** bounds filtering exists but is unused. `mapApi.getBlocks/getPins/getTracks` take an optional bounds arg that `farmGeometrySync.ts:104` never passes, it is a hand-rolled point-walk rather than Turf, and `filterByBounds` (`mapStore.ts:111`) deliberately no-ops for polygons. Only pins are filtered, only at load.
-- [ ] Debounce before refetch. `useOrchardMapViewport.ts:126` debounces `moveend`/`zoomend` at 500 ms (not 300 ms in `mapStore.ts`), but `setBounds` only stores the box — no refetch, and `orchardMapLayerSync.ts` never reads it. **Nothing is viewport-culled.**
+- [ ] Debounce before refetch. `useOrchardMapViewport.ts:126` debounces `moveend`/`zoomend` at 500 ms (not 300 ms in `mapStore.ts`), but `setBounds` only stores the box — no refetch, and `orchardMapLayerSync.ts` never reads it. **Nothing is viewport-culled** — design in [`MAP_VIEWPORT_CULLING.md`](MAP_VIEWPORT_CULLING.md); measure with the guard before building.
 - [x] Performance guard: warn above 500 rendered features (`mapFeatureLoad.ts` + toolbar banner). Warn only — `CODEBASE_HEALTH.md` forbids rebuilding GeoJSON layers on pan/zoom, so no level-of-detail pass.
 - [x] **Live Telemetry Mock:** deleted from `EditInfraSidebar.tsx` (`8003949`) — no gate needed
 - [ ] Add "Layer Settings" when real layers ship — never built, so there is no stub to hide
