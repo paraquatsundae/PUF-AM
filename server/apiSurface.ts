@@ -32,7 +32,7 @@ export function servesLanFamilies(surface: ApiSurface): boolean {
  * The surface a plain `node server.ts` should serve.
  *
  * Keyed on `NODE_ENV` because that is what the Cloud Run deploy already sets
- * (`scripts/deploy-cloudrun.ps1`), so there is no new variable to forget. The
+ * (`scripts/deploy-cloudrun.mjs`), so there is no new variable to forget. The
  * desktop shell does not come through here — it asks for `'hub'` outright,
  * since a packaged build is `production` and would otherwise lose the LAN hub
  * that is its entire purpose.

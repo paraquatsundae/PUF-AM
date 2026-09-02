@@ -20,7 +20,7 @@
     "apk:debug": "node scripts/build-android-apk.mjs",
     "apk:debug:firebase": "node scripts/build-android-apk.mjs --no-mist",
     "apk:install": "node scripts/adb-install-debug.mjs",
-    "sync:android:lan": "powershell -ExecutionPolicy Bypass -File scripts/sync-android-lan.ps1",
+    "sync:android:lan": "node scripts/sync-android-lan.mjs",
     "open:android": "npx cap open android",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -62,7 +62,7 @@
     "plugins:pack": "tsx scripts/plugin-package.mjs pack",
     "plugins:list": "tsx scripts/plugin-package.mjs list",
     "deploy:rules": "node scripts/deployFirestoreRules.mjs",
-    "deploy:cloudrun": "powershell -ExecutionPolicy Bypass -File scripts/deploy-cloudrun.ps1"
+    "deploy:cloudrun": "node scripts/deploy-cloudrun.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.0",

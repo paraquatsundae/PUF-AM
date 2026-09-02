@@ -14,9 +14,11 @@
 ## One-time setup
 
 1. Install [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)  
-   `winget install Google.CloudSDK` → **open a new terminal**
+   Windows: `winget install Google.CloudSDK` → **open a new terminal**. Linux: the tarball
+   installer puts it in `~/google-cloud-sdk`; add `~/google-cloud-sdk/bin` to `PATH` (the
+   deploy script also finds it there, and in `/usr/lib/google-cloud-sdk` and `/snap/bin`).
 2. Log in and pick the Firebase/GCP project:
-   ```powershell
+   ```bash
    gcloud auth login
    gcloud config set project gen-lang-client-0444791425
    ```
@@ -26,12 +28,18 @@
 
 ## Deploy
 
-```powershell
-cd C:\Projects\Walnut_farm_manager
+```bash
+cd ~/dev/Walnut_farm_manager   # or C:\Projects\Walnut_farm_manager on Windows
 npm run deploy:cloudrun
 ```
 
 This builds via Cloud Build, deploys service `pufom` in `australia-southeast1`, wires `DPIRD_API_KEY` from Secret Manager, and prints the public `*.run.app` URL.
+
+`scripts/deploy-cloudrun.mjs` runs on Linux, macOS and Windows — Cloud Build does the
+container build server-side, so no local Docker is needed either. The only hard local
+requirement is `firebase-applet-config.json`; `.env` and `secrets/enrollment-codes.json`
+are read **only** to bootstrap the `DPIRD_API_KEY` / `PUF_ENROLLMENT_CODES` secrets the
+first time, and both are in `.gcloudignore` so they never reach the image.
 
 ## Custom domain: `am.pufworks.farm`
 
@@ -193,19 +201,19 @@ See [Set up a global external Application Load Balancer with Cloud Run](https://
 
 If Google later enables mappings in Sydney, or the service moves to a supported region:
 
-```powershell
+```bash
 gcloud config set project gen-lang-client-0444791425
 
 # Confirm ownership first:
 gcloud domains list-user-verified
 
-gcloud beta run domain-mappings create `
-  --service=pufom `
-  --domain=am.pufworks.farm `
+gcloud beta run domain-mappings create \
+  --service=pufom \
+  --domain=am.pufworks.farm \
   --region=australia-southeast1
 
-gcloud beta run domain-mappings describe `
-  --domain=am.pufworks.farm `
+gcloud beta run domain-mappings describe \
+  --domain=am.pufworks.farm \
   --region=australia-southeast1
 ```
 
@@ -247,7 +255,7 @@ npx wrangler login   # or export CLOUDFLARE_API_TOKEN=...
    APP_URL=https://am.pufworks.farm
    VITE_APP_URL=https://am.pufworks.farm
    ```
-   `npm run deploy:cloudrun` now sets runtime `APP_URL` and passes `VITE_APP_URL` (+ Maps key from local `.env`) as **build** env vars — required because `.env*` is in `.gcloudignore`.
+   `npm run deploy:cloudrun` now sets runtime `APP_URL` and passes `VITE_APP_URL` as a **build** env var — required because `.env*` is in `.gcloudignore`. (There is no Maps key any more; imagery goes through `/api/tiles` — see [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md).)
 
 2. **Firebase Auth** authorized domains — add `am.pufworks.farm` (keep the `*.run.app` host until cutover is proven):  
    https://console.firebase.google.com/project/gen-lang-client-0444791425/authentication/settings
@@ -309,7 +317,7 @@ Site download button: `https://github.com/paraquatsundae/PUF-AM/releases/latest`
 
 `src/firebase.ts` imports `../firebase-applet-config.json`, which is gitignored. The workflow writes it from **`FIREBASE_APPLET_CONFIG`** before `vite build`:
 
-```powershell
+```bash
 gh secret set FIREBASE_APPLET_CONFIG --repo paraquatsundae/PUF-AM < firebase-applet-config.json
 ```
 
@@ -321,7 +329,7 @@ gh secret set FIREBASE_APPLET_CONFIG --repo paraquatsundae/PUF-AM < firebase-app
 
 ### Trigger from CLI (Windows / Linux)
 
-```powershell
+```bash
 gh workflow run release-apk.yml --repo paraquatsundae/PUF-AM
 # or tag:
 git tag v0.1.0
@@ -345,7 +353,7 @@ Never commit the keystore. See also `Plans/OFFLINE_MAP_APK.md` § CI releases.
 
 Still via Firebase CLI (separate from the web app container):
 
-```powershell
+```bash
 npx firebase login
 npx firebase deploy --only firestore:rules,functions
 ```

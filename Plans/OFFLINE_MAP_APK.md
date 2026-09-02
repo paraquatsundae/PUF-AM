@@ -137,13 +137,13 @@ Packaged shell (no live server): `CAP_PACKAGED=1 npx cap sync android` — then 
 
 Physical phone / tablet (same Wi‑Fi as the PC):
 
-```powershell
+```bash
 # Keep npm run dev running, then:
 npm run sync:android:lan
 npm run open:android
 ```
 
-That detects the PC Wi‑Fi IP and sets Capacitor `server.url` (e.g. `http://192.168.x.x:3000`). Or set manually: `$env:CAP_SERVER_URL="http://<pc-lan-ip>:3000"; npx cap sync android`.
+That detects the PC Wi‑Fi IP and sets Capacitor `server.url` (e.g. `http://192.168.x.x:3000`), skipping container bridges and preferring the wireless interface. Or set manually: `CAP_SERVER_URL="http://<pc-lan-ip>:3000" npx cap sync android` (`$env:CAP_SERVER_URL="…";` on PowerShell).
 
 Phone **browser** (no APK): open `http://<pc-lan-ip>:3000` while `npm run dev` is up.
 
