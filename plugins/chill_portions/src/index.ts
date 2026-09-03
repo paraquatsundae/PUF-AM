@@ -40,7 +40,7 @@ const ChillBlockReadout = lazyWithRetry(() =>
 
 const chillPath = CHILL_PORTIONS_PRIMARY_PATH.replace(/^\//, '');
 
-export const chillPortionsPackUi: CropPackUiRegistration = {
+export const packUi: CropPackUiRegistration = {
   packId: CHILL_PORTIONS_PACK_ID,
   routes: [
     {

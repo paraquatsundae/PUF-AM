@@ -168,8 +168,14 @@ function auditPackFolders() {
     // Every pack finished the Plans/PLUGIN_PACK_LAYOUT.md Phase 1 move, so the
     // new location is now the only one. A pack registering from src/packs/
     // would be a regression, not a leftover.
-    if (!existsSync(join(pluginsDir, name, 'src', 'index.ts'))) {
+    const entry = join(pluginsDir, name, 'src', 'index.ts');
+    if (!existsSync(entry)) {
       fail(`missing plugins/${name}/src/index.ts`);
+      failed += 1;
+    } else if (!/export\s+const\s+packUi\b/.test(readFileSync(entry, 'utf8'))) {
+      // registry.ts discovers packs by globbing for this exact export, so a
+      // pack naming it anything else is dropped without a word at runtime.
+      fail(`plugins/${name}/src/index.ts does not "export const packUi" — it will not be discovered`);
       failed += 1;
     }
     if (existsSync(join(packsDir, name, 'index.ts'))) {

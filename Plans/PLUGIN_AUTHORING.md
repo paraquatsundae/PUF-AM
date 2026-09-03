@@ -2,11 +2,11 @@
 
 **Product:** PUF-AM — Ag Manager  
 **Status:** Active — how-to for adding a crop pack  
-**Date:** 2026-08-23  
+**Date:** 2026-09-03  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)  
 **Limits / debug / audit:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
 **Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1)  
-**Layout change planned:** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moves pack code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, so a pack is one folder. Still statically compiled — the "Must not → hot-load" rule below **stands**. Nothing is built yet; §5 of this page is the current layout.
+**Layout change done (2026-09-03):** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moved every pack's code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, and `registry.ts` now discovers packs instead of listing them — **a pack is one folder and adding one edits no core file.** Still statically compiled: discovery is a build-time glob, so the "Must not → hot-load" rule below **stands**.
 
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.
 
@@ -22,11 +22,11 @@ A crop pack is **in-app code** plus a **disk package** the catalog reads. Unpack
 | TS adapter | `shared/farm/<id>Package.ts` | Parse the package; export id, modules, path, owned keys |
 | Catalog | `shared/farm/cropPacks.ts` | Install / Activate / Deactivate / Delete; `canInstall` hint |
 | Module id | `shared/auth/farmModules.ts` | Nav atom. Packs **offer** modules; they do not grant users |
-| UI | `src/packs/<id>/` + `registry.ts` | Routes, nav, pack surfaces. App already maps `allPackRoutes()` |
+| UI | `plugins/<id>/src/` | Routes, nav, pack surfaces. Discovered automatically; App already maps `allPackRoutes()` |
 | Settings | `farms/{id}/settings/<settingsDocId>` | Farm knobs. Delete wipes this doc (or listed keys only) |
 | Rules | `firestore.rules` | `isValid…` for that settings doc |
 
-**Copy [`plugins/chill_portions/`](../plugins/chill_portions/) + [`src/packs/chill_portions/`](../src/packs/chill_portions/)** for an engine pack, or [`plugins/water/`](../plugins/water/) for a thin ops pack (no `engine.json`).  
+**Copy [`plugins/chill_portions/`](../plugins/chill_portions/)** for an engine pack, or [`plugins/water/`](../plugins/water/) for a thin ops pack (no `engine.json`). A pack is one folder now — manifest and code together.  
 Do **not** copy walnut blight as the template — it still shares `settings/model_params` with farm economics.
 
 [`plugins/_skeleton/`](../plugins/_skeleton/) is `plugin.json` only. It does not wire the app.
@@ -132,9 +132,13 @@ Do **not** add `migrateLegacy…` unless you are extracting a feature that alrea
 
 | File | Job |
 |------|-----|
-| `src/packs/<id>/index.ts` | `CropPackUiRegistration`: routes, nav, surfaces |
-| `src/packs/registry.ts` | Append to `PACK_UI_REGISTRY` |
-| `src/pages/…` or `src/components/<id>/` | The page + knobs |
+| `plugins/<id>/src/index.ts` | **`export const packUi: CropPackUiRegistration`** — routes, nav, surfaces |
+| `plugins/<id>/src/…` | The page + knobs, beside the registration |
+
+**Nothing to append.** `src/packs/registry.ts` finds packs with an `import.meta.glob` over `plugins/*/src/index.ts`, so adding a pack touches no core file. Two consequences worth knowing:
+
+- The export **must** be named `packUi`. Any other name and the pack is skipped in silence — `audit:codebase` fails with that exact message rather than letting you find out from an empty menu.
+- Menu order comes from `CROP_PACKS`, not the folder name, because the glob returns paths alphabetically. Position your pack in the catalog array.
 
 Route `path` is the segment (`weather-events`), not `/weather-events`. `href` / `primaryPath` keep the leading slash.
 

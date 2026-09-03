@@ -41,7 +41,7 @@ const BlightDashboardCard = lazyWithRetry(() =>
 
 const blightPath = WALNUT_BLIGHT_PRIMARY_PATH.replace(/^\//, '');
 
-export const walnutBlightPackUi: CropPackUiRegistration = {
+export const packUi: CropPackUiRegistration = {
   packId: WALNUT_BLIGHT_PACK_ID,
   routes: [
     {

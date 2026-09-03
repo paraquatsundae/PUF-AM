@@ -1,7 +1,7 @@
 # Self-contained crop packs (migration plan)
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Phase 0 complete. Phase 1 all six packs colocated, 2026-09-02; build-time discovery is the last step — see §5  
+**Status:** Phases 0 and 1 complete, 2026-09-03 — a pack is one folder and adding one edits no core file. Phase 2 (compiler-enforced boundary) is next — see §5  
 **Goal:** each pack's whole implementation lives in `plugins/<id>/src/`; a contributor adds a pack by adding one folder  
 **Decision:** statically compiled, boundary enforced by the compiler. **No runtime loading** — see §3  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
@@ -182,12 +182,22 @@ That page is `WeatherEvents.tsx`, and it moved despite the generic name. It is o
 
 **Both pack-location checks are now strict.** `scripts/audit-codebase.mjs` and `tests/codebaseHealth.test.ts` had each accepted either location during the migration, with a note to drop the `src/packs/` arm when the last pack moved. Both now require `plugins/<id>/src/index.ts` **and** fail if `src/packs/<id>/index.ts` reappears, so the old layout cannot creep back. `src/packs/` holds only `registry.ts` and `types.ts` — the core-side seam.
 
-**Where that leaves Phase 1.** Every pack's implementation lives with its manifest. The one thing still hand-maintained is `registry.ts`, which names all six imports, so a contributor adding a folder must still edit one core file. Replacing it with `import.meta.glob` over `plugins/*/src/index.ts` is the remaining task, and it is now the only thing between here and "add a folder, no core edits".
+**Build-time discovery (2026-09-03) — Phase 1 done.** `registry.ts` no longer lists the packs. It globs `plugins/*/src/index.ts` and takes the `packUi` each one exports, so **adding a pack edits no core file** — the goal this whole plan was written for.
+
+`import.meta.glob` is Vite reading a directory *at build time*, not a runtime loader. It expands to static imports of whatever matched when the bundle was built, so packs are still compiled in and still vetted through review, and §3's decision against runtime loading is untouched. It stays eager, exactly as the hand-written imports were: App and navConfig need routes and nav on first paint. The weight stays behind each pack's own `lazyWithRetry` calls, and the build still emits one chunk per pack page.
+
+Three things this needed that were not obvious:
+
+- **Every pack exports the same name.** The six were `walnutBlightPackUi`, `waterPackUi` and so on, which a glob cannot ask for. They are all `packUi` now. Nothing outside the old registry imported them.
+- **Order had to be rescued.** The glob returns paths alphabetically, which would have put chill portions above blight and quietly reshuffled the Crop menu. Order now comes from `CROP_PACKS`, which is where it was really decided all along — the old array just happened to copy it. `tests/packRegistry.test.ts` pins the result and asserts it is *not* alphabetical, because nothing else would notice the menu moving.
+- **Silent-drop is the new failure mode.** A pack whose export is misnamed simply is not there. `audit:codebase` now greps each `index.ts` for `export const packUi` and fails by name, so the answer arrives in CI rather than as an empty menu.
+
+An unknown folder is skipped rather than thrown on — an unregistered pack must not blank the app at import time — and the catalog/folder pairing is enforced where it can be fixed, by `tests/codebaseHealth.test.ts` and the audit.
 
 - ~~Move each pack's components, page, hooks, lib and tests under `plugins/<id>/src/`.~~ Done, all six. The `shared/farm/<id>Package.ts` adapters are the exception and move with discovery, since the catalog imports them all eagerly.
-- **Replace the hand-maintained registry with build-time discovery** (`import.meta.glob` over `plugins/*/src/index.ts`). The one remaining task: `registry.ts` still names all six imports, so adding a pack still means editing a core file.
+- ~~Replace the hand-maintained registry with build-time discovery (`import.meta.glob` over `plugins/*/src/index.ts`).~~ Done. Packs export `packUi`; order comes from `CROP_PACKS`.
 - ~~Update `tsconfig.json` includes, `vitest.config.ts` globs, `eslint.config.js`, and `scripts/audit-codebase.mjs`.~~ Done during the nutrition pilot; both pack-location checks are now strict, and reintroducing `src/packs/<id>/index.ts` fails them.
-- **Done when:** ~~`plugins/<id>/` is the only place that pack's code lives.~~ True today, except for the registry edit.
+- **Done when:** ~~`plugins/<id>/` is the only place that pack's code lives.~~ True.
 
 ### Phase 2 — Make the boundary a compile error
 

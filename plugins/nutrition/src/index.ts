@@ -7,7 +7,7 @@ const NutritionPage = lazyWithRetry(() =>
   import('./Nutrition').then((m) => ({ default: m.Nutrition }))
 );
 
-export const nutritionPackUi: CropPackUiRegistration = {
+export const packUi: CropPackUiRegistration = {
   packId: NUTRITION_PACK_ID,
   routes: [
     {

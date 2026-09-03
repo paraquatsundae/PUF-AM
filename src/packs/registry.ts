@@ -1,16 +1,22 @@
 /**
- * Aggregate crop-pack UI registrations.
+ * Every crop pack's UI, discovered from the `plugins/` folder at build time.
  *
- * To add a pack: `Plans/PLUGIN_AUTHORING.md`
- * Then: adapter + `cropPacks.ts`, `plugins/<id>/src/index.ts` → append here.
+ * To add a pack: `Plans/PLUGIN_AUTHORING.md`. Drop a folder under `plugins/`
+ * with a `plugin.json` and a `src/index.ts` exporting `packUi`, add its catalog
+ * adapter, and it appears here — no core file lists the packs, so contributing
+ * one is not a core edit.
  *
- * Packs are mid-migration to `plugins/<id>/src/` (Plans/PLUGIN_PACK_LAYOUT.md
- * Phase 1), so the imports below point at two places. Once they all point at
- * `plugins/`, this list is replaced by an `import.meta.glob` and appending stops
- * being a step at all.
+ * `import.meta.glob` is Vite's build-time directory read, not a runtime loader:
+ * it expands to static imports of whatever matched when the bundle was built,
+ * so packs are still compiled in and vetted through review. `Plans/
+ * PLUGIN_PACK_LAYOUT.md` §3 explains why this app does not load code at runtime.
+ *
+ * Eager, as the hand-written imports were. App and navConfig need routes and
+ * nav on first paint, so a pack's registration must be present — the weight of
+ * a pack's actual screens stays behind the `lazyWithRetry` calls inside it.
  */
 import type { FarmModuleId } from '../../shared/auth/farmModules';
-import type { CropPackId } from '../../shared/farm/cropPacks';
+import { CROP_PACKS, type CropPackId } from '../../shared/farm/cropPacks';
 import type {
   CropPackUiRegistration,
   PackCultivarOption,
@@ -18,21 +24,34 @@ import type {
   PackNavRegistration,
   PackRouteRegistration,
 } from './types';
-import { chillPortionsPackUi } from '../../plugins/chill_portions/src';
-import { dryingPackUi } from '../../plugins/drying/src';
-import { harvestPackUi } from '../../plugins/harvest/src';
-import { nutritionPackUi } from '../../plugins/nutrition/src';
-import { walnutBlightPackUi } from '../../plugins/walnut_blight/src';
-import { waterPackUi } from '../../plugins/water/src';
 
-export const PACK_UI_REGISTRY: readonly CropPackUiRegistration[] = [
-  walnutBlightPackUi,
-  chillPortionsPackUi,
-  waterPackUi,
-  nutritionPackUi,
-  harvestPackUi,
-  dryingPackUi,
-];
+const discovered = import.meta.glob<{ packUi?: CropPackUiRegistration }>(
+  '../../plugins/*/src/index.ts',
+  { eager: true }
+);
+
+/**
+ * Catalog order, not folder order.
+ *
+ * The glob hands back paths sorted by filename, which would put chill portions
+ * above blight and reshuffle the Crop menu. `CROP_PACKS` is where pack order is
+ * already decided, so nav ordering follows it rather than the alphabet.
+ *
+ * A folder with no catalog entry is skipped rather than thrown on: an
+ * unregistered pack should not blank the whole app at import time. The pairing
+ * is enforced where it can be fixed — `tests/codebaseHealth.test.ts` compares
+ * the two sets, and `audit:codebase` checks every catalog pack has a folder.
+ */
+const catalogOrder = new Map(CROP_PACKS.map((pack, i) => [pack.id as string, i]));
+
+export const PACK_UI_REGISTRY: readonly CropPackUiRegistration[] = Object.entries(discovered)
+  .map(([path, mod]) => ({ id: path.split('/')[3], packUi: mod.packUi }))
+  .filter(
+    (entry): entry is { id: string; packUi: CropPackUiRegistration } =>
+      Boolean(entry.packUi) && catalogOrder.has(entry.id)
+  )
+  .sort((a, b) => catalogOrder.get(a.id)! - catalogOrder.get(b.id)!)
+  .map((entry) => entry.packUi);
 
 export function getPackUi(packId: CropPackId): CropPackUiRegistration | undefined {
   return PACK_UI_REGISTRY.find((p) => p.packId === packId);

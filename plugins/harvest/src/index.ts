@@ -7,7 +7,7 @@ const HarvestPage = lazyWithRetry(() =>
   import('./Harvest').then((m) => ({ default: m.Harvest }))
 );
 
-export const harvestPackUi: CropPackUiRegistration = {
+export const packUi: CropPackUiRegistration = {
   packId: HARVEST_PACK_ID,
   routes: [
     {

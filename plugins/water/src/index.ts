@@ -13,7 +13,7 @@ const WaterAllocationPanel = lazyWithRetry(() =>
   }))
 );
 
-export const waterPackUi: CropPackUiRegistration = {
+export const packUi: CropPackUiRegistration = {
   packId: WATER_PACK_ID,
   routes: [
     {

@@ -14,7 +14,7 @@ const DryingPage = lazyWithRetry(() =>
   import('./Drying').then((m) => ({ default: m.Drying }))
 );
 
-export const dryingPackUi: CropPackUiRegistration = {
+export const packUi: CropPackUiRegistration = {
   packId: DRYING_PACK_ID,
   routes: [
     {

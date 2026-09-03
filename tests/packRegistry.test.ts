@@ -19,6 +19,19 @@ describe('pack UI registry (CP-04)', () => {
     }
   });
 
+  /**
+   * Registry order is menu order, and it used to be a hand-written array. Now
+   * it comes from an `import.meta.glob`, which sorts by path — that alone would
+   * put chill portions above blight — so the registry re-sorts by `CROP_PACKS`.
+   * This pins the result, because nothing else would notice the menu changing.
+   */
+  it('follows catalog order, not the alphabetical order the glob returns', () => {
+    expect(PACK_UI_REGISTRY.map((p) => p.packId)).toEqual([...CROP_PACK_IDS]);
+    expect(PACK_UI_REGISTRY.map((p) => p.packId)).not.toEqual(
+      [...CROP_PACK_IDS].sort((a, b) => a.localeCompare(b))
+    );
+  });
+
   it('exposes walnut blight route and surfaces', () => {
     const ui = getPackUi('walnut_blight')!;
     expect(ui.routes.map((r) => r.path)).toContain('blight');
