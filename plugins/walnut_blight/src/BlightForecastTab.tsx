@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { cn } from '../../lib/utils';
+import { cn } from '../../../src/lib/utils';
 import {
   eventSeverityPhrase,
   INCUBATION_MAX_DAYS,
@@ -23,12 +23,12 @@ import {
   type InfectionEvent,
   type RiskBand,
   type SevenDayOutlook,
-} from '../../lib/jiBlightBands';
-import { FORECAST_HORIZON_DAYS } from '../../lib/blightSeason';
-import { growthStageLabel, type DailyData, type GrowthStage } from '../../lib/blightModel';
+} from './jiBlightBands';
+import { FORECAST_HORIZON_DAYS } from './blightSeason';
+import { growthStageLabel, type DailyData, type GrowthStage } from './blightModel';
 
 type ForecastDay = DailyData & { isForecast?: boolean; isPersistence?: boolean };
-import type { WeatherSource } from '../../lib/weatherService';
+import type { WeatherSource } from '../../../src/lib/weatherService';
 import { BlightChartTooltip } from './BlightChartTooltip';
 
 export function BlightForecastTab({

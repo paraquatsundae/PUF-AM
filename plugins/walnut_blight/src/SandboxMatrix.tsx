@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { cn } from '../lib/utils';
-import { SprayType, ApplicationMethod } from '../lib/blightModel';
+import { cn } from '../../../src/lib/utils';
+import { SprayType, ApplicationMethod } from './blightModel';
 
 interface SandboxMatrixProps {
   season: string;

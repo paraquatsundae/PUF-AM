@@ -7,16 +7,16 @@
  * engine knobs (Ctrl+Shift+D). Session knobs are never written to Firestore.
  */
 
-export type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
-import type { OrchardInoculumLevel } from '../../shared/weather/jiBlightModel';
+export type { OrchardInoculumLevel } from '../../../shared/weather/jiBlightModel';
+import type { OrchardInoculumLevel } from '../../../shared/weather/jiBlightModel';
 import {
   walnutBlightModelDefaults,
   walnutBlightSessionDefaults,
-} from '../../shared/farm/walnutBlightPackage';
+} from '../../../shared/farm/walnutBlightPackage';
 import {
   DEFAULT_ECONOMICS_MODEL_PARAMS,
   type EconomicsModelParams,
-} from './farmEconomicsParams';
+} from '../../../src/lib/farmEconomicsParams';
 
 export interface ModelParameters extends EconomicsModelParams {
   blightSensitivity: number;

@@ -3,10 +3,10 @@ import { RefreshCw, Settings2, Sparkles, X } from 'lucide-react';
 import { BlightResearchModifiersPanel } from './BlightResearchModifiersPanel';
 import { BlightSandboxSidebar } from './BlightSandboxSidebar';
 import { BlightSandboxChart } from './BlightSandboxChart';
-import type { CalibrationParams } from '../../lib/modelParameters';
-import type { DailyData, SprayType } from '../../lib/blightModel';
-import type { BlightTimeRange } from '../../lib/blightSeason';
-import type { SandboxScenario } from '../../hooks/useBlightSandbox';
+import type { CalibrationParams } from './modelParameters';
+import type { DailyData, SprayType } from './blightModel';
+import type { BlightTimeRange } from './blightSeason';
+import type { SandboxScenario } from './useBlightSandbox';
 
 export function BlightSandboxTab({
   isAdmin,

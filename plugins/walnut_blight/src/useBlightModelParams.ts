@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
+import { db } from '../../../src/firebase';
+import { handleFirestoreError, OperationType } from '../../../src/lib/firestoreErrors';
 import {
   defaultCalibration,
   growthStageFromDate,
   type CalibrationParams,
   type GrowthStage,
-} from '../lib/blightModel';
+} from './blightModel';
 
 export function useBlightModelParams(farmId: string | undefined, todayDate: Date) {
   const [growthStage, setGrowthStage] = useState<GrowthStage>(growthStageFromDate(todayDate));

@@ -1,9 +1,9 @@
 import React from 'react';
 import { History, Settings2, Sparkles } from 'lucide-react';
-import { seasonMonthsList, type BlightTimeRange } from '../../lib/blightSeason';
-import type { SprayType } from '../../lib/blightModel';
-import type { CalibrationParams } from '../../lib/modelParameters';
-import type { SandboxScenario } from '../../hooks/useBlightSandbox';
+import { seasonMonthsList, type BlightTimeRange } from './blightSeason';
+import type { SprayType } from './blightModel';
+import type { CalibrationParams } from './modelParameters';
+import type { SandboxScenario } from './useBlightSandbox';
 
 export function BlightSandboxSidebar({
   sandboxView,

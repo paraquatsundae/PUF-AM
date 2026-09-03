@@ -1,7 +1,7 @@
 # Self-contained crop packs (migration plan)
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Phase 0 functionally complete; Phase 1 under way — four of six packs moved, 2026-09-02 — see §5  
+**Status:** Phase 0 complete; Phase 1 under way — five of six packs moved, only chill_portions left, 2026-09-02 — see §5  
 **Goal:** each pack's whole implementation lives in `plugins/<id>/src/`; a contributor adds a pack by adding one folder  
 **Decision:** statically compiled, boundary enforced by the compiler. **No runtime loading** — see §3  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
@@ -11,7 +11,7 @@
 
 ## 1. Where we actually are
 
-> **Superseded in part.** This section describes the position before any work started. Nutrition, harvest, water and drying now ship their UI from `plugins/<id>/src/` — see the Phase 1 notes in §5. Only chill_portions and walnut_blight are still under `src/`. The rest still reads true.
+> **Superseded in part.** This section describes the position before any work started. Every pack except chill_portions now ships its UI from `plugins/<id>/src/` — see the Phase 1 notes in §5. The rest still reads true.
 
 **No pack ships UI in `plugins/` today.** All six folders hold manifests only:
 
@@ -27,7 +27,7 @@
 
 | Pack | Impl lines | Tests | Hardest coupling |
 |------|-----------:|------:|------------------|
-| walnut_blight | 8,122 | 930 | Dashboard card, map heat, `weatherService`, `model_params` shared with economics, CF aggregate |
+| walnut_blight | 8,122 | 930 | ~~All of it~~ — moved; every edge cleared, see §5 |
 | chill_portions | 1,816 | 217 | Dashboard card, map operate readout, `BlockMetadataModal` cultivars, server route |
 | drying | 1,625 | 52 | Imports harvest's `FarmDryersPanel` — now a sibling pack path, see §5 |
 | water | 1,445 | 82 | ~~Diary composer embed~~ (not a coupling — see §5), `settings/farm` fields |
@@ -46,9 +46,9 @@ import { FarmDryersPanel } from '../components/harvest/FarmDryersPanel';
 
 **Count the right thing.** 18 files under `src/` import pack code, but 10 of them *are* pack code sitting in a core-looking folder — `useBlightWeather`, `blightSeason`, `runJiBlightSeries`, `SandboxMatrix`, `DryerPerformance` and the rest are imported only by `BlightRisk.tsx`, `components/blight/*` or `Drying.tsx`. Those relocate in Phase 1 and need no inversion. A further three (`App.tsx`, `navConfig.ts`, `DashboardPackCards.tsx`) import `src/packs/registry`, which is the intended direction.
 
-That leaves **one** genuine core→pack edge: `src/pages/About.tsx` still calls `useWalnutPack`. Its coupling is a numbered prose list and one sentence of copy, which `PLUGIN_AUTHORING.md` defers deliberately — a copy decision, not wiring.
+~~That leaves **one** genuine core→pack edge: `src/pages/About.tsx` still calls `useWalnutPack`.~~ Cleared with the walnut_blight move; only its prose and `/blight` links remain, which `PLUGIN_AUTHORING.md` defers deliberately — a copy decision, not wiring.
 
-Two more edges exist if you count `src/lib/modelParameters.ts` as pack code: `Settings.tsx` and `useFarmEconomicsSettings.ts` read it for market price, harvest cost and water cost. That file mixes farm economics with blight research parameters, so it is §7 open question 2 — a data migration on `settings/model_params`, not a wiring problem, and it should not be attempted as part of Phase 0.
+~~Two more edges exist if you count `src/lib/modelParameters.ts` as pack code: `Settings.tsx` and `useFarmEconomicsSettings.ts` read it for market price, harvest cost and water cost.~~ Also cleared. The economics keys are now `src/lib/farmEconomicsParams.ts` in core. That was a code split along a boundary the data already had, and it is **not** §7 question 2 — the stored `settings/model_params` document is untouched, and the migration question stands.
 
 `src/packs/registry.ts:15-20` then statically imports all six pack modules, and `App.tsx:27` / `navConfig.ts:19` import the registry eagerly.
 
@@ -118,11 +118,11 @@ Core must stop importing pack code. Worth doing on its own, and required for eve
 - `WeatherData` turned out to be a field-for-field duplicate of `DayWeather` in `shared/weather/dpirdClient.ts`, so it is now an alias of it and `weatherService` uses the shared type directly.
 - Both map slots: `blockOperateReadout` (chill's CP line on the block operate card, which also deleted a `chill` prop threaded through four files) and `blockCultivars` (the cultivar list, contributed as registry data rather than a component since the field itself is core).
 
-**Phase 0 is functionally complete.** The only core file left that names a pack is `About.tsx`, and that is prose.
+**Phase 0 is complete.** `About.tsx` was the last core file naming a pack; it now asks `useCropPackActivation()`, and only its prose and `/blight` links still mention one, which `PLUGIN_AUTHORING.md` defers on purpose. No file under `src/` (outside `packs/registry.ts`), `shared/` or `server/` imports pack code.
 
 - Turn each core→pack import into an **extension point** core declares and packs fill. The registry's existing `surfaces` concept is the seam; today `getPackUi()` is only called from tests, so surfaces are registered but never consumed.
 - Slots needed, from the current couplings: ~~dashboard cards~~, ~~map operate readouts~~, ~~block-metadata fields~~, ~~diary composer fields~~. Map block-analytics needed no slot — see the geometry note above. Neither did the diary composer: the water move showed that coupling does not exist — see §5.
-- Move misfiled core utilities **into core**, not into a pack: ~~`SliderControl`~~, ~~the `WeatherData` type~~, `estimateWetnessHoursProxy`.
+- Move misfiled core utilities **into core**, not into a pack: ~~`SliderControl`~~, ~~the `WeatherData` type~~, ~~`estimateWetnessHoursProxy`~~ (all done — the last went with the walnut_blight move).
 - ~~Retire the migration shims in `useOfferedFarmModules` and `ModuleRoute`.~~ They cannot simply be deleted: the legacy rules disagree with the generic path in both directions (a farm with walnut blocks but `blight` off, and a farm with a non-walnut profile but `blight` on), so removing them changes which modules invite PINs and join tickets offer. They are inverted and quarantined instead, to delete on the data condition.
 - **Done when:** deleting a pack's folder breaks only its own registry entry.
 
@@ -156,6 +156,23 @@ Left behind for the usual reason: `shared/farm/waterPackage.ts`, with the other 
 This settles §7 question 4 in the mildest possible way. Harvest's move left drying importing `plugins/harvest/src/FarmDryersPanel` from two places; now that drying is itself a pack, both shortened to `../../harvest/src/FarmDryersPanel`. The dependency is unchanged and still real — it is just a sibling reference between two pack folders rather than a reach out of core. Whether one pack may import another is now a policy question for Phase 2's boundary rules, not a layout problem.
 
 `src/lib/farmAssets.ts` stays in core. It is the farm's asset store — `FarmAssets` with dryers inside it — and it is read by both drying and harvest's panel. Pushing it into either pack would only reverse which one does the cross-pack import. It belongs to the farm, so it is exactly the kind of scoped data accessor Phase 2's host API is meant to expose.
+
+**walnut_blight moved (2026-09-02).** 32 files, the largest pack. Unlike the other four this was not a file move — core reached into it from four directions, so each was cleared first, in its own commit, before anything was relocated.
+
+The four edges, and what each turned out to be:
+
+- **Wetness proxy.** `estimateWetnessHoursProxy` moved from `shared/weather/jiBlightModel.ts` to `shared/weather/wetnessProxy.ts`. Leaf wetness duration is a weather derivation, not a disease one — the DPIRD cache, the met.no forecast and the scheduled refresh all fill in `WD` on farms with no interest in blight — so the entire weather pipeline was importing a disease engine for one column. Phase 0 had already listed it as a misfiled core utility. The `functions/` copy stays vendored, still guarded by `functionsJiParity`.
+- **`About.tsx`** now asks `useCropPackActivation()`. That left `useWalnutPack` with a single importer inside the pack, so it travelled with it.
+- **Economics.** `marketPrice`, `harvestCostPerKg` and `waterCostPerML` moved to `src/lib/farmEconomicsParams.ts`, with `modelParameters` composing them back so `settings/model_params` keeps its shape. **This is not §7 question 2** and stores nothing new — it is a code split along a line the data already had, since `settingsOwnedKeys`, `cropPackLifecycle.ts` and `pluginPackage.ts` all already say economics must survive uninstalling the pack.
+- **The server route.** See below.
+
+**`/api/weather/blight-risk` was running a model nobody read.** The route ran `runBlightModel` over the farm and returned `blightResults`, `blockRisks` and `currentRiskScore` beside the weather. Its only caller is the dev-only fallback in `fetchEnvironmentalData`, which takes `weatherData` and discards the rest — and could not have done otherwise, because that function's return type never declared the risk fields.
+
+Worse, core was supplying the inputs. `useOrchardMapAnalytics` passed blocks, spray events, irrigation events and irrigation type so the server could compute per-block risk; the reply dropped them; and `computeBlockAnalytics` fell through to its seasonal-and-canopy heuristic every time. The blight hook passed none of it. Core was feeding a disease model on the pack's behalf and the pack was not involved. The whole pathway is gone, behaviour unchanged, and `server/` no longer imports `src/lib` at all. The route keeps its path, since it is still the dev weather fallback and renaming it would touch the mist smoke tests.
+
+Also deleted: `blightApi.getBlightRisk` in `src/services/farmRecordApis.ts`, a stub with no callers that returned a hardcoded 0.15.
+
+After all that the move itself was mechanical, and the proof it worked is that relocating 32 files broke **only test import paths** — not one core source file. `npm run build` still emits a separate `BlightRisk-*.js` chunk.
 
 - Move each pack's components, page, hooks, lib, adapter and tests under `plugins/<id>/src/`.
 - Replace the hand-maintained registry with build-time discovery (`import.meta.glob` over `plugins/*/src/index.ts`).

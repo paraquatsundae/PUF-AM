@@ -10,8 +10,8 @@ import {
   JI_PUBLISHED as SHARED_PUBLISHED,
 } from '../shared/weather/jiBlightModel';
 import { estimateWetnessHoursProxy as sharedWetnessProxy } from '../shared/weather/wetnessProxy';
-import { runJiBlightSeries as sharedRunSeries } from '../src/lib/runJiBlightSeries';
-import { JI_WATCH_THRESHOLD, JI_ACTION_THRESHOLD } from '../src/lib/jiBlightBands';
+import { runJiBlightSeries as sharedRunSeries } from '../plugins/walnut_blight/src/runJiBlightSeries';
+import { JI_WATCH_THRESHOLD, JI_ACTION_THRESHOLD } from '../plugins/walnut_blight/src/jiBlightBands';
 
 import {
   runJiBlightModel as fnRunJiBlightModel,

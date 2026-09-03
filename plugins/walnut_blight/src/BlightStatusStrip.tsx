@@ -1,7 +1,7 @@
 import React from 'react';
 import { AlertTriangle, CloudRain, ShieldCheck, ThermometerSun } from 'lucide-react';
-import { cn } from '../../lib/utils';
-import { RISK_BAND_LABEL, type RiskBand } from '../../lib/jiBlightBands';
+import { cn } from '../../../src/lib/utils';
+import { RISK_BAND_LABEL, type RiskBand } from './jiBlightBands';
 
 export function BlightStatusStrip({
   todayBand,

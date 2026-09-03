@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { SEASONS } from '../constants';
+import { SEASONS } from '../../../src/constants';
 import {
   growthStageFromDate,
   growthStageLabel,
@@ -12,16 +12,16 @@ import {
   type GrowthStage,
   type SprayType,
   type WeatherData,
-} from '../lib/blightModel';
-import { runJiBlightSeries } from '../lib/runJiBlightSeries';
-import { kFromInoculumLevel } from '../../shared/weather/jiBlightModel';
+} from './blightModel';
+import { runJiBlightSeries } from './runJiBlightSeries';
+import { kFromInoculumLevel } from '../../../shared/weather/jiBlightModel';
 import {
   bandFromRisk,
   computeSymptomOnsetSeries,
   detectInfectionEvents,
   JI_HIGH_RISK_THRESHOLD,
   summarizeNext7Days,
-} from '../lib/jiBlightBands';
+} from './jiBlightBands';
 import {
   addDaysIso,
   BLIGHT_STAGE_CHIP,
@@ -29,7 +29,7 @@ import {
   FORECAST_HORIZON_DAYS,
   mergeObservedAndForecast,
   type BlightTimeRange,
-} from '../lib/blightSeason';
+} from './blightSeason';
 import type { SandboxScenario } from './useBlightSandbox';
 
 export type BlightStageBreakdown = {

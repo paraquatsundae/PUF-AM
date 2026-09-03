@@ -12,15 +12,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { seasonMonthsList, type BlightTimeRange } from '../../lib/blightSeason';
+import { seasonMonthsList, type BlightTimeRange } from './blightSeason';
 import {
   INCUBATION_MAX_DAYS,
   INCUBATION_MIN_DAYS,
   JI_HIGH_RISK_THRESHOLD,
-} from '../../lib/jiBlightBands';
-import type { DailyData } from '../../lib/blightModel';
-import type { WeatherSource } from '../../lib/weatherService';
-import type { BlightHistoricalStats } from '../../hooks/useBlightModelSeries';
+} from './jiBlightBands';
+import type { DailyData } from './blightModel';
+import type { WeatherSource } from '../../../src/lib/weatherService';
+import type { BlightHistoricalStats } from './useBlightModelSeries';
 import { BlightChartTooltip } from './BlightChartTooltip';
 
 export function BlightHistoricalTab({

@@ -5,8 +5,8 @@
  * use `useCropPackActivation()` and stay pack-agnostic — the eligibility rules
  * moved to `shared/farm/cropPackActivation.ts`.
  */
-import { WALNUT_BLIGHT_PACK_ID } from '../../shared/farm/walnutBlightPackage';
-import { useCropPackActivation } from './useCropPackActivation';
+import { WALNUT_BLIGHT_PACK_ID } from '../../../shared/farm/walnutBlightPackage';
+import { useCropPackActivation } from '../../../src/hooks/useCropPackActivation';
 
 export function useWalnutPack(): boolean {
   return useCropPackActivation()[WALNUT_BLIGHT_PACK_ID] ?? false;

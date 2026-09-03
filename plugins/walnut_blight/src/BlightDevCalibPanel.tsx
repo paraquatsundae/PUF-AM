@@ -1,6 +1,6 @@
 import React from 'react';
 import { Settings2, X } from 'lucide-react';
-import { defaultCalibration, type CalibrationParams } from '../../lib/blightModel';
+import { defaultCalibration, type CalibrationParams } from './blightModel';
 
 export function BlightDevCalibPanel({
   calib,

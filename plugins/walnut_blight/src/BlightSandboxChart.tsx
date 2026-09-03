@@ -12,10 +12,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { SandboxMatrix } from '../SandboxMatrix';
-import { filterSandboxScenarioDays, getCurrentSeasonStr } from '../../lib/blightSeason';
-import type { DailyData, SprayType } from '../../lib/blightModel';
-import type { SandboxScenario } from '../../hooks/useBlightSandbox';
+import { SandboxMatrix } from './SandboxMatrix';
+import { filterSandboxScenarioDays, getCurrentSeasonStr } from './blightSeason';
+import type { DailyData, SprayType } from './blightModel';
+import type { SandboxScenario } from './useBlightSandbox';
 import { BlightChartTooltip } from './BlightChartTooltip';
 
 export function BlightSandboxChart({

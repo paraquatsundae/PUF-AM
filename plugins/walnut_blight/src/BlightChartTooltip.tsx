@@ -1,4 +1,4 @@
-import { formatRiskValue } from '../../lib/blightSeason';
+import { formatRiskValue } from './blightSeason';
 
 /** Recharts default tooltip shows the raw X timestamp (13-digit ms). Format as a date + weather. */
 export function BlightChartTooltip({

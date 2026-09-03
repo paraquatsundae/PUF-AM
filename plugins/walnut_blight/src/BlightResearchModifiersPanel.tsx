@@ -6,15 +6,15 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { handleFirestoreError, OperationType } from '../../lib/firestoreErrors';
-import type { CalibrationParams } from '../../lib/blightModel';
+import { db } from '../../../src/firebase';
+import { handleFirestoreError, OperationType } from '../../../src/lib/firestoreErrors';
+import type { CalibrationParams } from './blightModel';
 import {
   applyResearchToCalibration,
   defaultResearchModelParams,
   modelParamsFromCalibration,
   pickResearchModelParams,
-} from '../../lib/modelParameters';
+} from './modelParameters';
 import { BlightEngineSettings } from './BlightEngineSettings';
 
 export type BlightResearchModifiersPanelProps = {

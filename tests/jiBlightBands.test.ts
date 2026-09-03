@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { DailyData } from '../src/lib/blightModel';
+import type { DailyData } from '../plugins/walnut_blight/src/blightModel';
 import {
   bandFromRisk,
   detectInfectionEvents,
@@ -10,7 +10,7 @@ import {
   INCUBATION_MAX_DAYS,
   JI_WATCH_THRESHOLD,
   JI_ACTION_THRESHOLD,
-} from '../src/lib/jiBlightBands';
+} from '../plugins/walnut_blight/src/jiBlightBands';
 
 function day(fullDate: string, threat: number, extras: Partial<DailyData> = {}): DailyData {
   const [y, m, d] = fullDate.split('-').map(Number);

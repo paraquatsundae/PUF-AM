@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { SEASONS } from '../constants';
+import { SEASONS } from '../../../src/constants';
 import {
   resolveCanopyGeometry,
   runBlightModel,
@@ -8,7 +8,7 @@ import {
   type GrowthStage,
   type SprayType,
   type WeatherData,
-} from '../lib/blightModel';
+} from './blightModel';
 
 export type SandboxScenario = {
   id: string;

@@ -22,7 +22,7 @@ import { chillPortionsPackUi } from './chill_portions';
 import { dryingPackUi } from '../../plugins/drying/src';
 import { harvestPackUi } from '../../plugins/harvest/src';
 import { nutritionPackUi } from '../../plugins/nutrition/src';
-import { walnutBlightPackUi } from './walnut_blight';
+import { walnutBlightPackUi } from '../../plugins/walnut_blight/src';
 import { waterPackUi } from '../../plugins/water/src';
 
 export const PACK_UI_REGISTRY: readonly CropPackUiRegistration[] = [

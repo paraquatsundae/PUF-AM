@@ -9,7 +9,7 @@ import {
   packRouteModuleIds,
 } from '../src/packs/registry';
 import { navGroups } from '../src/lib/navConfig';
-import { WALNUT_BLIGHT_PRIMARY_PATH } from '../src/packs/walnut_blight';
+import { WALNUT_BLIGHT_PRIMARY_PATH } from '../plugins/walnut_blight/src/index';
 import { CHILL_PORTIONS_PRIMARY_PATH } from '../src/packs/chill_portions';
 
 describe('pack UI registry (CP-04)', () => {

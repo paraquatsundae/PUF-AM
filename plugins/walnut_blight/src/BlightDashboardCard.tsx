@@ -6,21 +6,21 @@
  */
 import { useEffect, useState } from 'react';
 import { Bug, Loader2 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useWalnutPack } from '../../hooks/useWalnutPack';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { useWalnutPack } from './useWalnutPack';
 import {
   getBlightAggregate,
   isAggregateFresh,
   type BlightAggregate,
   type BlightRiskBand,
-} from '../../services/aggregateService';
-import { bandFromRisk, RISK_BAND_LABEL } from '../../lib/jiBlightBands';
+} from './aggregateService';
+import { bandFromRisk, RISK_BAND_LABEL } from './jiBlightBands';
 import {
   DashboardCard,
   dashboardToneText,
   type DashboardCardTone,
-} from '../ui/DashboardCard';
-import { cn } from '../../lib/utils';
+} from '../../../src/components/ui/DashboardCard';
+import { cn } from '../../../src/lib/utils';
 
 /**
  * Map the Ji daily infection risk to a grower band. Uses the stored band when

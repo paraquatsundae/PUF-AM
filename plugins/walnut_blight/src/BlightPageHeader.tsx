@@ -1,15 +1,15 @@
 import React from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
-import { WALNUT_DISTRICTS } from '../../constants';
-import { cn } from '../../lib/utils';
+import { WALNUT_DISTRICTS } from '../../../src/constants';
+import { cn } from '../../../src/lib/utils';
 import {
   calendarMonthLabelsForStage,
   growthStageFromDate,
   growthStageLabel,
   type GrowthStage,
-} from '../../lib/blightModel';
-import type { WeatherSource } from '../../lib/weatherService';
-import type { CalibrationParams, OrchardInoculumLevel } from '../../lib/modelParameters';
+} from './blightModel';
+import type { WeatherSource } from '../../../src/lib/weatherService';
+import type { CalibrationParams, OrchardInoculumLevel } from './modelParameters';
 import { BlightOrchardInoculumPanel } from './BlightOrchardInoculumPanel';
 import { BlightEngineSciencePanel } from './BlightEngineScience';
 

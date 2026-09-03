@@ -1,5 +1,5 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db } from '../../../src/firebase';
 
 export type BlightRiskBand = 'quiet' | 'watch' | 'action';
 

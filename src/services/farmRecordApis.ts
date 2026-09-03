@@ -45,23 +45,6 @@ export const safetyApi = {
   }
 };
 
-// --- Blight Data ---
-export const blightApi = {
-  getBlightRisk: async (farmId: string): Promise<{ riskScore: number }> => {
-    if (isLocalOnlyFarmSession()) return { riskScore: 0.1 };
-    try {
-      const path = `farms/${farmId}/settings/model_params`;
-      const docSnap = await getDoc(doc(db, path));
-      // This is a simplified risk score for the dashboard
-      return { riskScore: docSnap.exists() ? 0.15 : 0.1 };
-    } catch (error) {
-      if (isBenignFirestoreFailure(error)) return { riskScore: 0.1 };
-      handleFirestoreError(error, OperationType.GET, `farms/${farmId}/settings/model_params`);
-      return { riskScore: 0.1 };
-    }
-  }
-};
-
 // --- Nutrition Data ---
 export const nutritionApi = {
   getNutritionData: async (farmId: string): Promise<any> => {

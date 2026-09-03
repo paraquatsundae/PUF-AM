@@ -11,7 +11,7 @@ import {
 } from '../shared/farm/walnutBlightPackage';
 import { getCropPack } from '../shared/farm/cropPacks';
 import { parsePluginPackageManifestJson } from '../shared/farm/pluginPackage';
-import { DEFAULT_MODEL_PARAMS } from '../src/lib/modelParameters';
+import { DEFAULT_MODEL_PARAMS } from '../plugins/walnut_blight/src/modelParameters';
 
 describe('walnut blight on-disk package', () => {
   it('loads plugin.json as the catalog source of truth', () => {

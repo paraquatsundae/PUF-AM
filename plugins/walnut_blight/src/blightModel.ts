@@ -2,7 +2,7 @@ import {
   defaultCalibrationParams,
   type CalibrationParams,
 } from './modelParameters';
-import type { DayWeather } from '../../shared/weather/dpirdClient';
+import type { DayWeather } from '../../../shared/weather/dpirdClient';
 
 export type { CalibrationParams } from './modelParameters';
 

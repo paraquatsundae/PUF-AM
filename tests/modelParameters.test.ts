@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultCalibration } from '../src/lib/blightModel';
+import { defaultCalibration } from '../plugins/walnut_blight/src/blightModel';
 import {
   DEFAULT_ENGINE_SESSION,
   DEFAULT_MODEL_PARAMS,
@@ -7,7 +7,7 @@ import {
   defaultCalibrationParams,
   modelParamsFromCalibration,
   pickResearchModelParams,
-} from '../src/lib/modelParameters';
+} from '../plugins/walnut_blight/src/modelParameters';
 // Economics is core-owned and shares the doc; the split must not change its shape.
 import { pickEconomicsModelParams } from '../src/lib/farmEconomicsParams';
 

@@ -7,7 +7,7 @@ import {
   runJiBlightModel,
   type JiOrchardParams,
   type JiRunOptions,
-} from '../../shared/weather/jiBlightModel';
+} from '../../../shared/weather/jiBlightModel';
 import type { DailyData, WeatherData } from './blightModel';
 
 function toLocalISOString(date: Date) {

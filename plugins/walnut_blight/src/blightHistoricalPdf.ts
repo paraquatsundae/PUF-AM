@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import { JI_HIGH_RISK_THRESHOLD } from './jiBlightBands';
 import { seasonMonthsList, type BlightTimeRange } from './blightSeason';
-import type { BlightHistoricalStats } from '../hooks/useBlightModelSeries';
+import type { BlightHistoricalStats } from './useBlightModelSeries';
 
 type PdfDay = {
   dateStr: string;

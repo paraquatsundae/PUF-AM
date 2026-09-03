@@ -7,7 +7,7 @@ import {
   runJiBlightModel,
   JI_PUBLISHED,
 } from '../shared/weather/jiBlightModel';
-import { runJiBlightSeries } from '../src/lib/runJiBlightSeries';
+import { runJiBlightSeries } from '../plugins/walnut_blight/src/runJiBlightSeries';
 
 describe('estimateWetnessHoursProxy', () => {
   it('matches notebook: heavy rain + high RH caps at 18', () => {

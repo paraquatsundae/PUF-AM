@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SEASONS, WALNUT_DISTRICTS } from '../constants';
-import { debugLog } from '../lib/debugLog';
-import type { WeatherData } from '../lib/blightModel';
+import { SEASONS, WALNUT_DISTRICTS } from '../../../src/constants';
+import { debugLog } from '../../../src/lib/debugLog';
+import type { WeatherData } from './blightModel';
 import {
   calculateDistance,
   fetchAllDPIRDStations,
   fetchEnvironmentalData,
   type WeatherSource,
-} from '../lib/weatherService';
+} from '../../../src/lib/weatherService';
 
 export function useBlightWeather({
   farmId,

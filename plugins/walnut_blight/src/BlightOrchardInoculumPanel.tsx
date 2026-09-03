@@ -6,10 +6,10 @@ import React, { useState } from 'react';
 import { clsx } from 'clsx';
 import { Loader2 } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { handleFirestoreError, OperationType } from '../../lib/firestoreErrors';
+import { db } from '../../../src/firebase';
+import { handleFirestoreError, OperationType } from '../../../src/lib/firestoreErrors';
 import { kFromInoculumLevel } from '../../../shared/weather/jiBlightModel';
-import type { OrchardInoculumLevel } from '../../lib/modelParameters';
+import type { OrchardInoculumLevel } from './modelParameters';
 
 const OPTIONS = [
   { id: 'low' as const, label: 'Low', k: '0.5×' },

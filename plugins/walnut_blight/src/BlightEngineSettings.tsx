@@ -18,9 +18,9 @@ import {
   RefreshCcw,
   AlertTriangle,
 } from 'lucide-react';
-import type { ModelParameters } from '../../lib/modelParameters';
+import type { ModelParameters } from './modelParameters';
 import { ParameterGlossary } from './BlightParameterGlossary';
-import { SliderControl } from '../ui/SliderControl';
+import { SliderControl } from '../../../src/components/ui/SliderControl';
 
 export type BlightEngineSettingsProps = {
   params: ModelParameters;
