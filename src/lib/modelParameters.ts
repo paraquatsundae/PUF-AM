@@ -13,8 +13,12 @@ import {
   walnutBlightModelDefaults,
   walnutBlightSessionDefaults,
 } from '../../shared/farm/walnutBlightPackage';
+import {
+  DEFAULT_ECONOMICS_MODEL_PARAMS,
+  type EconomicsModelParams,
+} from './farmEconomicsParams';
 
-export interface ModelParameters {
+export interface ModelParameters extends EconomicsModelParams {
   blightSensitivity: number;
   cropCoefficient: number;
   gddBaseTemp: number;
@@ -33,16 +37,11 @@ export interface ModelParameters {
   rowSpacing: number;
   chemEfficacy: number;
   bioEfficacy: number;
-  marketPrice: number;
-  harvestCostPerKg: number;
-  waterCostPerML: number;
 }
 
 export const DEFAULT_MODEL_PARAMS: ModelParameters = {
   ...walnutBlightModelDefaults,
-  marketPrice: 3.3,
-  harvestCostPerKg: 0.45,
-  waterCostPerML: 150,
+  ...DEFAULT_ECONOMICS_MODEL_PARAMS,
 };
 
 /** Ji production inoculum — only farm-tunable Forecast/Historical term. */
@@ -79,17 +78,6 @@ export const RESEARCH_MODEL_PARAM_KEYS = [
 export type ResearchModelParamKey = (typeof RESEARCH_MODEL_PARAM_KEYS)[number];
 
 export type ResearchModelParams = Pick<ModelParameters, ResearchModelParamKey>;
-
-export const ECONOMICS_MODEL_PARAM_KEYS = [
-  'marketPrice',
-  'harvestCostPerKg',
-  'waterCostPerML',
-] as const satisfies ReadonlyArray<keyof ModelParameters>;
-
-export type EconomicsModelParams = Pick<
-  ModelParameters,
-  (typeof ECONOMICS_MODEL_PARAM_KEYS)[number]
->;
 
 /**
  * Ctrl+Shift+D / sandbox engine-only knobs. Session state — not part of
@@ -128,24 +116,12 @@ export function pickResearchModelParams(
   return out;
 }
 
-export function pickEconomicsModelParams(params: ModelParameters): EconomicsModelParams {
-  return {
-    marketPrice: params.marketPrice,
-    harvestCostPerKg: params.harvestCostPerKg,
-    waterCostPerML: params.waterCostPerML,
-  };
-}
-
 export function pickProductionModelParams(params: ModelParameters): ProductionModelParams {
   return { orchardInoculumLevel: params.orchardInoculumLevel };
 }
 
 export function defaultResearchModelParams(): ResearchModelParams {
   return pickResearchModelParams(DEFAULT_MODEL_PARAMS);
-}
-
-export function defaultEconomicsModelParams(): EconomicsModelParams {
-  return pickEconomicsModelParams(DEFAULT_MODEL_PARAMS);
 }
 
 export function defaultCalibrationParams(): CalibrationParams {

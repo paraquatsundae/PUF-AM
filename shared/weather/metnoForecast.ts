@@ -12,7 +12,7 @@
  * the browser.
  */
 
-import { estimateWetnessHoursProxy } from './jiBlightModel';
+import { estimateWetnessHoursProxy } from './wetnessProxy';
 import type { DayWeather } from './dpirdClient';
 
 /** WA has no DST — a fixed +8h offset maps MET Norway UTC steps to local days. */

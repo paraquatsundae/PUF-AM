@@ -23,7 +23,7 @@ import { TabletHubCard } from '../components/TabletHubCard';
 import { MistWorkshopCard } from '../components/MistWorkshopCard';
 import { PluginsPanel } from '../components/PluginsPanel';
 import { SliderControl } from '../components/ui/SliderControl';
-import { type EconomicsModelParams } from '../lib/modelParameters';
+import { type EconomicsModelParams } from '../lib/farmEconomicsParams';
 import { activeFarmPipe } from '../lib/farmPipes';
 import { isWorkshopDiagnosticsEnabled } from '../lib/workshopMode';
 import {

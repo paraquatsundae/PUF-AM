@@ -4,10 +4,11 @@ import { Map, Activity, BookOpen, Tractor, Warehouse, ExternalLink, Droplets } f
 import { motion } from 'motion/react';
 import { getAppUrl, hasPublishedAppUrl } from '../lib/appUrl';
 import { APP_BLURB, APP_FULL_NAME, APP_LOGO_SRC, APP_NAME, APP_WORKSHOP } from '../brand';
-import { useWalnutPack } from '../hooks/useWalnutPack';
+import { useCropPackActivation } from '../hooks/useCropPackActivation';
+import { WALNUT_BLIGHT_PACK_ID } from '../../shared/farm/walnutBlightPackage';
 
 export function About() {
-  const hasWalnutPack = useWalnutPack();
+  const hasWalnutPack = useCropPackActivation()[WALNUT_BLIGHT_PACK_ID] ?? false;
 
   const workflowItems = (
     [

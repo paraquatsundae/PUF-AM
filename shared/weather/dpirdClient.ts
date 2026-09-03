@@ -1,4 +1,4 @@
-import { estimateWetnessHoursProxy } from './jiBlightModel';
+import { estimateWetnessHoursProxy } from './wetnessProxy';
 
 /** Regional DPIRD station anchors refreshed by Cloud Scheduler (Step 9). */
 export const WEATHER_STATION_ANCHORS = [

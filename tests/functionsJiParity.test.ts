@@ -5,11 +5,11 @@ import {
   runJiBlightModel as sharedRunJiBlightModel,
   jiTempFactor as sharedTempFactor,
   jiWetnessFactor as sharedWetnessFactor,
-  estimateWetnessHoursProxy as sharedWetnessProxy,
   kFromInoculumLevel as sharedKFromLevel,
   JI_INOCULUM_K as SHARED_INOCULUM_K,
   JI_PUBLISHED as SHARED_PUBLISHED,
 } from '../shared/weather/jiBlightModel';
+import { estimateWetnessHoursProxy as sharedWetnessProxy } from '../shared/weather/wetnessProxy';
 import { runJiBlightSeries as sharedRunSeries } from '../src/lib/runJiBlightSeries';
 import { JI_WATCH_THRESHOLD, JI_ACTION_THRESHOLD } from '../src/lib/jiBlightBands';
 

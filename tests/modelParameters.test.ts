@@ -6,9 +6,10 @@ import {
   applyResearchToCalibration,
   defaultCalibrationParams,
   modelParamsFromCalibration,
-  pickEconomicsModelParams,
   pickResearchModelParams,
 } from '../src/lib/modelParameters';
+// Economics is core-owned and shares the doc; the split must not change its shape.
+import { pickEconomicsModelParams } from '../src/lib/farmEconomicsParams';
 
 describe('modelParameters', () => {
   it('defaults orchard inoculum to medium (Ji k = 1)', () => {

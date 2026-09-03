@@ -3,12 +3,11 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
 import {
-  DEFAULT_MODEL_PARAMS,
+  DEFAULT_ECONOMICS_MODEL_PARAMS,
   defaultEconomicsModelParams,
   pickEconomicsModelParams,
   type EconomicsModelParams,
-  type ModelParameters,
-} from '../lib/modelParameters';
+} from '../lib/farmEconomicsParams';
 
 export function useFarmEconomicsSettings(farmId: string | undefined, canSave: boolean) {
   const [economics, setEconomics] = useState<EconomicsModelParams>(defaultEconomicsModelParams());
@@ -26,9 +25,9 @@ export function useFarmEconomicsSettings(farmId: string | undefined, canSave: bo
       (docSnap) => {
         if (docSnap.exists()) {
           const merged = {
-            ...DEFAULT_MODEL_PARAMS,
+            ...DEFAULT_ECONOMICS_MODEL_PARAMS,
             ...docSnap.data(),
-          } as ModelParameters;
+          } as EconomicsModelParams;
           setEconomics(pickEconomicsModelParams(merged));
         } else {
           setEconomics(defaultEconomicsModelParams());
@@ -56,7 +55,7 @@ export function useFarmEconomicsSettings(farmId: string | undefined, canSave: bo
 
     try {
       const docRef = doc(db, 'farms', farmId, 'settings', 'model_params');
-      await setDoc(docRef, pickEconomicsModelParams({ ...DEFAULT_MODEL_PARAMS, ...economics }), {
+      await setDoc(docRef, pickEconomicsModelParams({ ...DEFAULT_ECONOMICS_MODEL_PARAMS, ...economics }), {
         merge: true,
       });
       setMessage({ type: 'success', text: 'Market & economics saved.' });

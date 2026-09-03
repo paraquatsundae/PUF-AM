@@ -15,7 +15,7 @@ import {
 } from '../../shared/weather/dpirdClient';
 
 export { WEATHER_STATION_ANCHORS };
-import { estimateWetnessHoursProxy } from '../../shared/weather/jiBlightModel';
+import { estimateWetnessHoursProxy } from '../../shared/weather/wetnessProxy';
 import { isForecastStale } from '../../shared/weather/metnoForecast';
 import { readWeatherFromIdb, saveWeatherToIdb } from './weatherCacheIdb';
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fixture from './fixtures/blightJiOctSample.json';
+import { estimateWetnessHoursProxy } from '../shared/weather/wetnessProxy';
 import {
-  estimateWetnessHoursProxy,
   jiTempFactor,
   jiWetnessFactor,
   runJiBlightModel,

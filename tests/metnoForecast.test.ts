@@ -7,7 +7,7 @@ import {
   PERTH_UTC_OFFSET_HOURS,
   type MetnoTimeseriesEntry,
 } from '../shared/weather/metnoForecast';
-import { estimateWetnessHoursProxy } from '../shared/weather/jiBlightModel';
+import { estimateWetnessHoursProxy } from '../shared/weather/wetnessProxy';
 
 import {
   aggregateMetnoToDaily as fnAggregate,

@@ -7,6 +7,7 @@
  *
  * @see Plans/BLIGHT_VALIDATION.md
  */
+import { estimateWetnessHoursProxy } from './wetnessProxy';
 
 /** Frozen parameters from Ji et al. 2025 (Adaskaveg 1998 fits). */
 export const JI_PUBLISHED = {
@@ -103,13 +104,6 @@ export type JiRunOptions = {
    */
   doseMode?: 'deltaY' | 'cumulativeY';
 };
-
-/** Interim LWD when no sensor: rain intensity + high RH (local Mathematica notebook). */
-export function estimateWetnessHoursProxy(R: number, RH: number): number {
-  const fromRain = R > 0.2 ? 5 + 0.8 * R : 0;
-  const fromHumidity = RH > 82 ? 5 : 0;
-  return Math.min(18, fromRain + fromHumidity);
-}
 
 /** Beta temperature response — Analytis form as in Ji supplementary / notebook. */
 export function jiTempFactor(T: number, p = JI_PUBLISHED): number {
