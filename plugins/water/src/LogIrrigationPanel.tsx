@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, ChevronRight, Droplets } from 'lucide-react';
-import { cn } from '../../lib/utils';
-import { irrigationTypeToStyle } from '../../lib/waterPlanning';
+import { cn } from '../../../src/lib/utils';
+import { irrigationTypeToStyle } from './waterPlanning';
 import { WATER_FIELD_CLASS } from './waterFieldClass';
 
 function todayIso() {

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { BarChart3, CheckCircle2, Copy, Edit2, Info, Loader2, Plus, Target, Trash2, Wand2, X } from 'lucide-react';
-import { cn } from '../../lib/utils';
-import { WALNUT_DISTRICTS, SEASONS } from '../../constants';
-import { fetchWithTimeout } from '../../lib/weatherService';
+import { cn } from '../../../src/lib/utils';
+import { WALNUT_DISTRICTS, SEASONS } from '../../../src/constants';
+import { fetchWithTimeout } from '../../../src/lib/weatherService';
 import {
   WATER_SEASON_MONTHS as MONTHS,
   autoDistributePlan,
@@ -14,7 +14,7 @@ import {
   mmToDisplay,
   planTotals,
   type WaterScenario as Scenario,
-} from '../../lib/waterPlanning';
+} from './waterPlanning';
 import { WATER_FIELD_CLASS } from './waterFieldClass';
 
 export function WaterSeasonPlanner({

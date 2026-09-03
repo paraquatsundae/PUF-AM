@@ -1,20 +1,20 @@
 import { useMemo, useState } from 'react';
-import { useFarmDiary } from '../lib/farmDiary';
-import { useMapStore } from '../lib/mapStore';
-import { useAuth } from '../contexts/AuthContext';
-import { SEASONS } from '../constants';
-import { WaterAllocationPanel } from '../components/water/WaterAllocationPanel';
-import { WaterBudgetStrip } from '../components/water/WaterBudgetStrip';
-import { LogIrrigationPanel } from '../components/water/LogIrrigationPanel';
-import { RecentIrrigationTable } from '../components/water/RecentIrrigationTable';
-import { WaterSeasonPlanner } from '../components/water/WaterSeasonPlanner';
-import { useWaterRecentStats } from '../hooks/useWaterRecentStats';
+import { useFarmDiary } from '../../../src/lib/farmDiary';
+import { useMapStore } from '../../../src/lib/mapStore';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { SEASONS } from '../../../src/constants';
+import { WaterAllocationPanel } from './WaterAllocationPanel';
+import { WaterBudgetStrip } from './WaterBudgetStrip';
+import { LogIrrigationPanel } from './LogIrrigationPanel';
+import { RecentIrrigationTable } from './RecentIrrigationTable';
+import { WaterSeasonPlanner } from './WaterSeasonPlanner';
+import { useWaterRecentStats } from './useWaterRecentStats';
 import {
   actualIrrigationByMonth,
   avgKcFromBlocks,
   irrigationStyleLabel,
   usedWaterMl,
-} from '../lib/waterPlanning';
+} from './waterPlanning';
 
 export function WaterMonitoring() {
   const { userData } = useAuth();

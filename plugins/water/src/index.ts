@@ -1,14 +1,14 @@
 import { IconDroplets } from '@tabler/icons-react';
-import type { CropPackUiRegistration } from '../types';
+import type { CropPackUiRegistration } from '../../../src/packs/types';
 import { WATER_PACK_ID, WATER_PRIMARY_PATH } from '../../../shared/farm/waterPackage';
-import { lazyWithRetry } from '../../lib/lazyWithRetry';
+import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
 
 const WaterPage = lazyWithRetry(() =>
-  import('../../pages/WaterMonitoring').then((m) => ({ default: m.WaterMonitoring }))
+  import('./WaterMonitoring').then((m) => ({ default: m.WaterMonitoring }))
 );
 
 const WaterAllocationPanel = lazyWithRetry(() =>
-  import('../../components/water/WaterAllocationPanel').then((m) => ({
+  import('./WaterAllocationPanel').then((m) => ({
     default: m.WaterAllocationPanel,
   }))
 );

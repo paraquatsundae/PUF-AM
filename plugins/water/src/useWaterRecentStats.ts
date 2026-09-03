@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { WALNUT_DISTRICTS } from '../constants';
-import { fetchWithTimeout } from '../lib/weatherService';
-import { getKcForMonth } from '../lib/waterPlanning';
+import { WALNUT_DISTRICTS } from '../../../src/constants';
+import { fetchWithTimeout } from '../../../src/lib/weatherService';
+import { getKcForMonth } from './waterPlanning';
 
 export function useWaterRecentStats(
   farmId: string | undefined,

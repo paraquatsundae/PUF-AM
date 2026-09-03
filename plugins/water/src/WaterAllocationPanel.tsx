@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Droplets, Save } from 'lucide-react';
-import { useFarmDiary, type IrrigationSystemType } from '../../lib/farmDiary';
-import { useMapStore } from '../../lib/mapStore';
+import { useFarmDiary, type IrrigationSystemType } from '../../../src/lib/farmDiary';
+import { useMapStore } from '../../../src/lib/mapStore';
 
 const IRRIGATION_OPTIONS: { value: IrrigationSystemType; label: string }[] = [
   { value: 'micro', label: 'Micro-sprinkler' },

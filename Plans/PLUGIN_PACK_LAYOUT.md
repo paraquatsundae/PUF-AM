@@ -1,7 +1,7 @@
 # Self-contained crop packs (migration plan)
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Phase 0 functionally complete; Phase 1 piloted on nutrition, 2026-09-02 — see §5  
+**Status:** Phase 0 functionally complete; Phase 1 under way — nutrition, harvest and water moved, 2026-09-02 — see §5  
 **Goal:** each pack's whole implementation lives in `plugins/<id>/src/`; a contributor adds a pack by adding one folder  
 **Decision:** statically compiled, boundary enforced by the compiler. **No runtime loading** — see §3  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
@@ -11,7 +11,7 @@
 
 ## 1. Where we actually are
 
-> **Superseded in part.** This section describes the position before any work started. Nutrition now ships its UI from `plugins/nutrition/src/` — see the Phase 1 pilot note in §5. The rest still reads true.
+> **Superseded in part.** This section describes the position before any work started. Nutrition, harvest and water now ship their UI from `plugins/<id>/src/` — see the Phase 1 notes in §5. The rest still reads true.
 
 **No pack ships UI in `plugins/` today.** All six folders hold manifests only:
 
@@ -30,7 +30,7 @@
 | walnut_blight | 8,122 | 930 | Dashboard card, map heat, `weatherService`, `model_params` shared with economics, CF aggregate |
 | chill_portions | 1,816 | 217 | Dashboard card, map operate readout, `BlockMetadataModal` cultivars, server route |
 | drying | 1,625 | 52 | Imports harvest's `FarmDryersPanel` |
-| water | 1,445 | 82 | Diary composer embed, `settings/farm` fields |
+| water | 1,445 | 82 | ~~Diary composer embed~~ (not a coupling — see §5), `settings/farm` fields |
 | nutrition | 1,077 | 0 | Core diary event type + export column |
 | harvest | 676 | 35 | Map analytics reads `harvests` |
 
@@ -121,7 +121,7 @@ Core must stop importing pack code. Worth doing on its own, and required for eve
 **Phase 0 is functionally complete.** The only core file left that names a pack is `About.tsx`, and that is prose.
 
 - Turn each core→pack import into an **extension point** core declares and packs fill. The registry's existing `surfaces` concept is the seam; today `getPackUi()` is only called from tests, so surfaces are registered but never consumed.
-- Slots needed, from the current couplings: ~~dashboard cards~~, ~~map operate readouts~~, ~~block-metadata fields~~, diary composer fields. Map block-analytics needed no slot — see the geometry note above.
+- Slots needed, from the current couplings: ~~dashboard cards~~, ~~map operate readouts~~, ~~block-metadata fields~~, ~~diary composer fields~~. Map block-analytics needed no slot — see the geometry note above. Neither did the diary composer: the water move showed that coupling does not exist — see §5.
 - Move misfiled core utilities **into core**, not into a pack: ~~`SliderControl`~~, ~~the `WeatherData` type~~, `estimateWetnessHoursProxy`.
 - ~~Retire the migration shims in `useOfferedFarmModules` and `ModuleRoute`.~~ They cannot simply be deleted: the legacy rules disagree with the generic path in both directions (a farm with walnut blocks but `blight` off, and a farm with a non-walnut profile but `blight` on), so removing them changes which modules invite PINs and join tickets offer. They are inverted and quarantined instead, to delete on the data condition.
 - **Done when:** deleting a pack's folder breaks only its own registry entry.
@@ -140,6 +140,16 @@ Pure file moves plus build wiring. No runtime change, so it is revertible.
 - Imports back into core are relative (`../../../src/...`), matching the depth pack registrations already used for `shared/`. An unused `@/*` alias exists in tsconfig, vite and vitest if that ever gets tiring.
 - Verified beyond the gate: `npm run build` still emits a separate `Nutrition-*.js` chunk, so `lazyWithRetry` code splitting survived the move.
 - Left behind on purpose: `shared/farm/nutritionPackage.ts` (the catalog imports every adapter eagerly — these move together, with discovery), and `src/lib/walnutNutritionalEngine.R`, which is uncompiled reference material whose name claims walnut while its contents claim nutrition.
+
+**Harvest moved (2026-09-02).** Six files, and `src/components/harvest/` is gone. Taken second because it forces the cross-pack question rather than deferring it: drying reuses harvest's `FarmDryersPanel` from both `Drying.tsx` and its registration, so those two imports now cross pack folders and carry a comment pointing at §7 question 4. That is the honest state of a real dependency, and spelling it `plugins/harvest/src/FarmDryersPanel` makes it visible instead of letting it hide as a sibling under `src/components`. It shortens back to a sibling path when drying moves. The tooling widened for nutrition needed nothing further, which was the point of doing that first.
+
+**Water moved (2026-09-02).** Eleven files — page, five components, `waterPlanning` and its test, the recent-stats hook, the field-class constant and the registration. `src/components/water/` is gone.
+
+The interesting result is what did *not* move. §2 listed water's hardest coupling as a **diary composer embed**, and Phase 0 accordingly listed "diary composer fields" as a slot still to build. Reading the code, there is no coupling to invert. `DiaryComposerWaterFields.tsx` imports nothing, knows nothing about the water pack, and renders two number inputs — volume and duration — for an `irrigation` diary event. Irrigation is a **core diary event type**, and `DiaryComposer.tsx` does not gate the fields on the pack at all: they are the `else` branch of a spray check, and they render whether or not water is installed.
+
+So the file stays in core. It is misnamed rather than misplaced — `DiaryComposerIrrigationFields` would say what it is — but renaming it is cosmetic and unrelated to this move. **No diary composer slot is needed**, which removes the last unbuilt item from the Phase 0 slot list.
+
+Left behind for the usual reason: `shared/farm/waterPackage.ts`, with the other adapters.
 
 - Move each pack's components, page, hooks, lib, adapter and tests under `plugins/<id>/src/`.
 - Replace the hand-maintained registry with build-time discovery (`import.meta.glob` over `plugins/*/src/index.ts`).
