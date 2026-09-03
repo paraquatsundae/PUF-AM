@@ -12,9 +12,9 @@ export {
   type ChillSeasonWindow,
   type CultivarChillTarget,
   type CultivarId,
-} from '../../shared/weather/chillPortions';
+} from '../../../shared/weather/chillPortions';
 
-import { apiFetch, apiUrl } from './apiBase';
+import { apiFetch, apiUrl } from '../../../src/lib/apiBase';
 
 export type FarmChillPortions = {
   totalPortions: number;

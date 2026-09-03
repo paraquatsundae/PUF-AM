@@ -42,12 +42,16 @@ describe('pack golden set', () => {
       expect(manifest.id).toBe(pack.id);
       expect(manifest.category).toBe(pack.category);
       expect(manifest.modules).toEqual(pack.modules);
-      // Phase 1 of Plans/PLUGIN_PACK_LAYOUT.md moves packs to plugins/<id>/src/.
-      // Both count while that is part-done; require the new one once all have moved.
-      const registration =
-        existsSync(join(ROOT, 'plugins', pack.id, 'src', 'index.ts')) ||
-        existsSync(join(ROOT, 'src', 'packs', pack.id, 'index.ts'));
-      expect(registration, `no UI registration for ${pack.id}`).toBe(true);
+      // All packs finished the Plans/PLUGIN_PACK_LAYOUT.md Phase 1 move, so a
+      // pack's code lives with its manifest and nowhere else.
+      expect(
+        existsSync(join(ROOT, 'plugins', pack.id, 'src', 'index.ts')),
+        `no UI registration at plugins/${pack.id}/src/index.ts`
+      ).toBe(true);
+      expect(
+        existsSync(join(ROOT, 'src', 'packs', pack.id, 'index.ts')),
+        `src/packs/${pack.id}/index.ts is back — packs register from plugins/<id>/src/`
+      ).toBe(false);
 
       const ui = getPackUi(pack.id);
       expect(ui, `missing PACK_UI_REGISTRY for ${pack.id}`).toBeTruthy();

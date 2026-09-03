@@ -10,7 +10,7 @@ import {
 } from '../src/packs/registry';
 import { navGroups } from '../src/lib/navConfig';
 import { WALNUT_BLIGHT_PRIMARY_PATH } from '../plugins/walnut_blight/src/index';
-import { CHILL_PORTIONS_PRIMARY_PATH } from '../src/packs/chill_portions';
+import { CHILL_PORTIONS_PRIMARY_PATH } from '../plugins/chill_portions/src/index';
 
 describe('pack UI registry (CP-04)', () => {
   it('registers UI for every catalog pack id', () => {

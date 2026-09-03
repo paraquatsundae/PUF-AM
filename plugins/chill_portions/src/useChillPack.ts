@@ -5,8 +5,8 @@
  * use `useCropPackActivation()` and stay pack-agnostic — the eligibility rules
  * moved to `shared/farm/cropPackActivation.ts`.
  */
-import { CHILL_PORTIONS_PACK_ID } from '../../shared/farm/chillPortionsPackage';
-import { useCropPackActivation } from './useCropPackActivation';
+import { CHILL_PORTIONS_PACK_ID } from '../../../shared/farm/chillPortionsPackage';
+import { useCropPackActivation } from '../../../src/hooks/useCropPackActivation';
 
 export function useChillPack(): boolean {
   return useCropPackActivation()[CHILL_PORTIONS_PACK_ID] ?? false;

@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, MapPin, Snowflake } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useFarmDiary } from '../lib/farmDiary';
-import { useMapStore } from '../lib/mapStore';
-import { useFarmChillPortions } from '../hooks/useFarmChillPortions';
-import { useChillPack } from '../hooks/useChillPack';
-import { ChillCalculatorPanel } from '../components/chill/ChillCalculatorPanel';
-import { ChillEngineSciencePanel } from '../components/chill/ChillEngineScience';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { useFarmDiary } from '../../../src/lib/farmDiary';
+import { useMapStore } from '../../../src/lib/mapStore';
+import { useFarmChillPortions } from './useFarmChillPortions';
+import { useChillPack } from './useChillPack';
+import { ChillCalculatorPanel } from './ChillCalculatorPanel';
+import { ChillEngineSciencePanel } from './ChillEngineScience';
 import {
   WEATHER_STATION_ANCHORS,
   calculateDistance,
   fetchAllDPIRDStations,
-} from '../lib/weatherService';
-import { cn } from '../lib/utils';
+} from '../../../src/lib/weatherService';
+import { cn } from '../../../src/lib/utils';
 
 type StationOption = {
   stationCode: string;

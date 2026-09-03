@@ -165,12 +165,15 @@ function auditPackFolders() {
       failed += 1;
     }
     ids.push(json.id);
-    // Phase 1 of Plans/PLUGIN_PACK_LAYOUT.md moves packs to plugins/<id>/src/.
-    // Either location counts while that migration is part-done; drop the
-    // src/packs/ arm once the last pack has moved.
-    const colocated = existsSync(join(pluginsDir, name, 'src', 'index.ts'));
-    if (!colocated && !existsSync(join(packsDir, name, 'index.ts'))) {
-      fail(`missing plugins/${name}/src/index.ts (or legacy src/packs/${name}/index.ts)`);
+    // Every pack finished the Plans/PLUGIN_PACK_LAYOUT.md Phase 1 move, so the
+    // new location is now the only one. A pack registering from src/packs/
+    // would be a regression, not a leftover.
+    if (!existsSync(join(pluginsDir, name, 'src', 'index.ts'))) {
+      fail(`missing plugins/${name}/src/index.ts`);
+      failed += 1;
+    }
+    if (existsSync(join(packsDir, name, 'index.ts'))) {
+      fail(`src/packs/${name}/index.ts is back — packs register from plugins/<id>/src/`);
       failed += 1;
     }
   }

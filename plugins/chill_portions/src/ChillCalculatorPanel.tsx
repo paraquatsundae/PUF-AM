@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { calculateDailyChill } from '../../../shared/weather/chillCalculator';
-import { useMapStore } from '../../lib/mapStore';
+import { useMapStore } from '../../../src/lib/mapStore';
 
 const SAMPLE = `Date,Tmax,Tmin
 2026-05-01,18.2,6.4

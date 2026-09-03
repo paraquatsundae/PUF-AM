@@ -1,7 +1,7 @@
 # Self-contained crop packs (migration plan)
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Phase 0 complete; Phase 1 under way — five of six packs moved, only chill_portions left, 2026-09-02 — see §5  
+**Status:** Phase 0 complete. Phase 1 all six packs colocated, 2026-09-02; build-time discovery is the last step — see §5  
 **Goal:** each pack's whole implementation lives in `plugins/<id>/src/`; a contributor adds a pack by adding one folder  
 **Decision:** statically compiled, boundary enforced by the compiler. **No runtime loading** — see §3  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
@@ -11,9 +11,9 @@
 
 ## 1. Where we actually are
 
-> **Superseded in part.** This section describes the position before any work started. Every pack except chill_portions now ships its UI from `plugins/<id>/src/` — see the Phase 1 notes in §5. The rest still reads true.
+> **Superseded.** This section describes the position before any work started, when no pack shipped UI in `plugins/`. All six now do — see the Phase 1 notes in §5. Kept as the starting point the plan was written against.
 
-**No pack ships UI in `plugins/` today.** All six folders hold manifests only:
+**No pack shipped UI in `plugins/` when this was written.** All six folders held manifests only:
 
 | Folder | Contents |
 |--------|----------|
@@ -174,10 +174,20 @@ Also deleted: `blightApi.getBlightRisk` in `src/services/farmRecordApis.ts`, a s
 
 After all that the move itself was mechanical, and the proof it worked is that relocating 32 files broke **only test import paths** — not one core source file. `npm run build` still emits a separate `BlightRisk-*.js` chunk.
 
-- Move each pack's components, page, hooks, lib, adapter and tests under `plugins/<id>/src/`.
-- Replace the hand-maintained registry with build-time discovery (`import.meta.glob` over `plugins/*/src/index.ts`).
-- Update `tsconfig.json` includes, `vitest.config.ts` globs, `eslint.config.js`, and `scripts/audit-codebase.mjs` — its pack check requires `src/packs/<id>/index.ts` (line 168) and must flip.
-- **Done when:** `plugins/<id>/` is the only place that pack's code lives.
+**chill_portions moved (2026-09-02) — Phase 1 complete.** Nine files: four components, two hooks, the client-side `chillPortions` accessor, the page and the registration. No inversions were needed; nothing in core imported chill except the page the pack itself registers.
+
+That page is `WeatherEvents.tsx`, and it moved despite the generic name. It is only ever reached through the pack's own `/weather-events` route, and it imports chill hooks and chill panels throughout — a chill page that was named after the tab it sits in.
+
+`shared/weather/chillPortions.ts` and `chillCalculator.ts` stay in `shared/`, because `server/chillRoutes.ts` needs the model to serve `/api/weather/chill-portions`. Same shape as blight leaving `jiBlightModel.ts` behind.
+
+**Both pack-location checks are now strict.** `scripts/audit-codebase.mjs` and `tests/codebaseHealth.test.ts` had each accepted either location during the migration, with a note to drop the `src/packs/` arm when the last pack moved. Both now require `plugins/<id>/src/index.ts` **and** fail if `src/packs/<id>/index.ts` reappears, so the old layout cannot creep back. `src/packs/` holds only `registry.ts` and `types.ts` — the core-side seam.
+
+**Where that leaves Phase 1.** Every pack's implementation lives with its manifest. The one thing still hand-maintained is `registry.ts`, which names all six imports, so a contributor adding a folder must still edit one core file. Replacing it with `import.meta.glob` over `plugins/*/src/index.ts` is the remaining task, and it is now the only thing between here and "add a folder, no core edits".
+
+- ~~Move each pack's components, page, hooks, lib and tests under `plugins/<id>/src/`.~~ Done, all six. The `shared/farm/<id>Package.ts` adapters are the exception and move with discovery, since the catalog imports them all eagerly.
+- **Replace the hand-maintained registry with build-time discovery** (`import.meta.glob` over `plugins/*/src/index.ts`). The one remaining task: `registry.ts` still names all six imports, so adding a pack still means editing a core file.
+- ~~Update `tsconfig.json` includes, `vitest.config.ts` globs, `eslint.config.js`, and `scripts/audit-codebase.mjs`.~~ Done during the nutrition pilot; both pack-location checks are now strict, and reintroducing `src/packs/<id>/index.ts` fails them.
+- **Done when:** ~~`plugins/<id>/` is the only place that pack's code lives.~~ True today, except for the registry edit.
 
 ### Phase 2 — Make the boundary a compile error
 

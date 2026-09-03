@@ -5,35 +5,35 @@
  * under `src/components/chill/`.
  */
 import { IconSnowflake } from '@tabler/icons-react';
-import type { CropPackUiRegistration } from '../types';
+import type { CropPackUiRegistration } from '../../../src/packs/types';
 import {
   CHILL_PORTIONS_PACK_ID,
   CHILL_PORTIONS_PRIMARY_PATH,
 } from '../../../shared/farm/chillPortionsPackage';
 import { CULTIVARS } from '../../../shared/weather/chillPortions';
-import { lazyWithRetry } from '../../lib/lazyWithRetry';
+import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
 
 const WeatherEventsPage = lazyWithRetry(() =>
-  import('../../pages/WeatherEvents').then((m) => ({ default: m.WeatherEvents }))
+  import('./WeatherEvents').then((m) => ({ default: m.WeatherEvents }))
 );
 
 const ChillCalculatorPanel = lazyWithRetry(() =>
-  import('../../components/chill/ChillCalculatorPanel').then((m) => ({
+  import('./ChillCalculatorPanel').then((m) => ({
     default: m.ChillCalculatorPanel,
   }))
 );
 const ChillEngineSciencePanel = lazyWithRetry(() =>
-  import('../../components/chill/ChillEngineScience').then((m) => ({
+  import('./ChillEngineScience').then((m) => ({
     default: m.ChillEngineSciencePanel,
   }))
 );
 const ChillDashboardCard = lazyWithRetry(() =>
-  import('../../components/chill/ChillDashboardCard').then((m) => ({
+  import('./ChillDashboardCard').then((m) => ({
     default: m.ChillDashboardCard,
   }))
 );
 const ChillBlockReadout = lazyWithRetry(() =>
-  import('../../components/chill/ChillBlockReadout').then((m) => ({
+  import('./ChillBlockReadout').then((m) => ({
     default: m.ChillBlockReadout,
   }))
 );

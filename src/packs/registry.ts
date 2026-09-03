@@ -18,7 +18,7 @@ import type {
   PackNavRegistration,
   PackRouteRegistration,
 } from './types';
-import { chillPortionsPackUi } from './chill_portions';
+import { chillPortionsPackUi } from '../../plugins/chill_portions/src';
 import { dryingPackUi } from '../../plugins/drying/src';
 import { harvestPackUi } from '../../plugins/harvest/src';
 import { nutritionPackUi } from '../../plugins/nutrition/src';

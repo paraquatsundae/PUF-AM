@@ -12,12 +12,12 @@
  * does not know falls back to Chandler, and a false target is worse than none.
  */
 import { Loader2, Snowflake } from 'lucide-react';
-import { useChillPack } from '../../hooks/useChillPack';
-import { useFarmChillPortions } from '../../hooks/useFarmChillPortions';
-import { useFarmDiary } from '../../lib/farmDiary';
-import { useMapStore } from '../../lib/mapStore';
+import { useChillPack } from './useChillPack';
+import { useFarmChillPortions } from './useFarmChillPortions';
+import { useFarmDiary } from '../../../src/lib/farmDiary';
+import { useMapStore } from '../../../src/lib/mapStore';
 import { isTreeCropKind } from '../../../shared/farm/farmTypes';
-import type { PackBlockReadoutProps } from '../../packs/types';
+import type { PackBlockReadoutProps } from '../../../src/packs/types';
 
 export function ChillBlockReadout({ block }: PackBlockReadoutProps) {
   const hasChillPack = useChillPack();

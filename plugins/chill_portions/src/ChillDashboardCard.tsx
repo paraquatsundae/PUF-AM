@@ -5,11 +5,11 @@
  * inactive pack returns null rather than the page knowing about chill.
  */
 import { Loader2, Snowflake } from 'lucide-react';
-import { useChillPack } from '../../hooks/useChillPack';
-import { useFarmChillPortions } from '../../hooks/useFarmChillPortions';
-import { useFarmDiary } from '../../lib/farmDiary';
-import { useMapStore } from '../../lib/mapStore';
-import { DashboardCard } from '../ui/DashboardCard';
+import { useChillPack } from './useChillPack';
+import { useFarmChillPortions } from './useFarmChillPortions';
+import { useFarmDiary } from '../../../src/lib/farmDiary';
+import { useMapStore } from '../../../src/lib/mapStore';
+import { DashboardCard } from '../../../src/components/ui/DashboardCard';
 
 export function ChillDashboardCard() {
   const show = useChillPack();

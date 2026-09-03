@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchFarmChillPortions, type FarmChillPortions } from '../lib/chillPortions';
+import { fetchFarmChillPortions, type FarmChillPortions } from './chillPortions';
 
 export type FarmChillState = {
   loading: boolean;
