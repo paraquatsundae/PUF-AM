@@ -178,8 +178,6 @@ export function OrchardMap() {
     viewport,
     events,
     getSprayEvents,
-    getIrrigationEvents,
-    irrigationSystemType: settings.irrigationSystemType,
   });
 
   useOrchardMapLayers({

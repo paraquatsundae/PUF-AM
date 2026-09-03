@@ -27,8 +27,6 @@ export function useOrchardMapAnalytics<EventRow extends { date: string }>({
   viewport,
   events,
   getSprayEvents,
-  getIrrigationEvents,
-  irrigationSystemType,
 }: {
   farmId: string | undefined;
   mapMode: MapMode;
@@ -37,8 +35,6 @@ export function useOrchardMapAnalytics<EventRow extends { date: string }>({
   viewport: { lat: number; lng: number };
   events: EventRow[];
   getSprayEvents: (blockId?: string) => Record<string, unknown>;
-  getIrrigationEvents: (blockId?: string) => Record<string, number>;
-  irrigationSystemType?: string;
 }) {
   const [environmentalData, setEnvironmentalData] = useState<BlockEnvironmentalData>(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
@@ -79,13 +75,7 @@ export function useOrchardMapAnalytics<EventRow extends { date: string }>({
         start,
         end,
         viewport.lat,
-        viewport.lng,
-        undefined,
-        blocks,
-        getSprayEvents(),
-        getIrrigationEvents(),
-        undefined,
-        irrigationSystemType || 'micro'
+        viewport.lng
       )
         .then((data) => {
           setEnvironmentalData(data);

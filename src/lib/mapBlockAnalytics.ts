@@ -26,7 +26,6 @@ export type BlockAnalyticsRow = {
 
 export type BlockEnvironmentalData = {
   weatherData?: Record<string, { T: number; RH: number; R: number }>;
-  blockRisks?: Record<string, Array<{ dateStr: string; threat: number }>>;
 } | null;
 
 function getSmoothColor(value: number, type: 'risk' | 'yield' = 'risk'): string {
@@ -82,13 +81,7 @@ export function computeBlockAnalytics(opts: {
     let blightRisk = 0;
 
     if (environmentalData?.weatherData) {
-      const blockRisks = environmentalData.blockRisks?.[block.id];
-      if (blockRisks) {
-        const dayData = blockRisks.find((d) => d.dateStr === targetDateStr);
-        blightRisk = dayData ? dayData.threat : (blockRisks[blockRisks.length - 1] || { threat: 0.1 }).threat;
-      } else {
-        blightRisk = seasonalBlight * 0.7 + trvNorm * 0.3;
-      }
+      blightRisk = seasonalBlight * 0.7 + trvNorm * 0.3;
       const dailyWeather = environmentalData.weatherData[targetDateStr];
       if (dailyWeather) {
         const tempFactor = Math.max(0, Math.min(1, (dailyWeather.T - 25) / 10));

@@ -159,12 +159,7 @@ export async function fetchEnvironmentalData(
   endDate: Date,
   defaultLat: number = -34.24,
   defaultLng: number = 116.14,
-  stationCode?: string,
-  blocks?: unknown[],
-  sprayEvents?: unknown,
-  irrigationEvents?: unknown,
-  calibration?: unknown,
-  defaultIrrigationType?: string
+  stationCode?: string
 ): Promise<{
   weatherData: Record<string, DayWeather>;
   lastUpdated?: string;
@@ -277,11 +272,6 @@ export async function fetchEnvironmentalData(
           startDate: startKey,
           endDate: endKey,
           stationCode: resolvedStation,
-          blocks,
-          sprayEvents,
-          irrigationEvents,
-          calibration,
-          defaultIrrigationType,
         }),
       });
 

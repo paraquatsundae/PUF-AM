@@ -1,7 +1,6 @@
 import { hostname as osHostname } from "node:os";
 
 import express, { Express } from "express";
-import { runBlightModel, defaultCalibration } from "../src/lib/blightModel.ts";
 import { HUB_INFO_PATH, type HubInfo } from "../shared/sync/hubInfo.ts";
 import { servesLanFamilies, type ApiSurface } from "./apiSurface.ts";
 import { registerTileProxyRoutes } from "./tileProxyRoutes.ts";
@@ -189,6 +188,15 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
     });
   }
 
+  /**
+   * Dev-only DPIRD weather fetch. The path is a misnomer kept for compatibility:
+   * it used to run the blight model server-side and return `blightResults`,
+   * `blockRisks` and `currentRiskScore` alongside the weather. Nothing consumed
+   * them — `fetchEnvironmentalData` reads `weatherData` and drops the rest, and
+   * its return type never carried the risk fields — so the model ran on every
+   * call and its output was discarded. Removing it also removed the last import
+   * of pack code from core server (Plans/PLUGIN_PACK_LAYOUT.md Phase 0).
+   */
   app.post("/api/weather/blight-risk", async (req, res) => {
     const caller = await requireAuthedUser(req, res);
     if (!caller) return;
@@ -268,65 +276,13 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
         }
       }
 
-      const {
-        calibration,
-        sprayEvents = {},
-        irrigationEvents = {},
-        blocks = [],
-        defaultIrrigationType = "micro",
-      } = req.body;
-
-      const finalCalibration = calibration || defaultCalibration;
-
-      const generalResults = runBlightModel(
-        new Date(startDate),
-        new Date(endDate),
-        "bloom",
-        sprayEvents,
-        weatherData as Parameters<typeof runBlightModel>[4],
-        irrigationEvents,
-        defaultIrrigationType,
-        finalCalibration
-      );
-
-      const blockRisks: Record<string, ReturnType<typeof runBlightModel>> = {};
-      for (const block of blocks) {
-        const height = block.treeHeight || finalCalibration.treeHeight;
-        const width = block.canopyWidth || finalCalibration.canopyWidth;
-        const spacing = block.rowSpacing || finalCalibration.rowSpacing;
-        const coverage = Math.min(1, width / spacing);
-
-        const blockCalib = {
-          ...finalCalibration,
-          treeHeight: height,
-          canopyWidth: width,
-          rowSpacing: spacing,
-          cropCoefficient: 0.2 + 0.8 * coverage,
-        };
-
-        blockRisks[block.id] = runBlightModel(
-          new Date(startDate),
-          new Date(endDate),
-          "bloom",
-          sprayEvents,
-          weatherData as Parameters<typeof runBlightModel>[4],
-          irrigationEvents,
-          block.irrigation || defaultIrrigationType,
-          blockCalib
-        );
-      }
-
       res.json({
         lastUpdated: new Date().toISOString(),
         weatherData,
-        blightResults: generalResults,
-        blockRisks,
-        currentRiskScore:
-          generalResults.length > 0 ? generalResults[generalResults.length - 1].threat : 0,
       });
     } catch (error) {
-      console.error("[Server] Blight Risk Endpoint Error:", error);
-      res.status(500).json({ error: "Failed to process blight risk" });
+      console.error("[Server] Dev weather endpoint error:", error);
+      res.status(500).json({ error: "Failed to fetch weather" });
     }
   });
 
