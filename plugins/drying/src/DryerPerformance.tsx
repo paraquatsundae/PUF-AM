@@ -1,10 +1,10 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useDryingSessions } from '../hooks/useDryingSessions';
-import { useDryerSessionActions } from '../hooks/useDryerSessionActions';
-import { DryerSessionList } from './drying/DryerSessionList';
-import { StartDryingSessionModal } from './drying/StartDryingSessionModal';
-import { DryerSessionDetailModal } from './drying/DryerSessionDetailModal';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { useDryingSessions } from './useDryingSessions';
+import { useDryerSessionActions } from './useDryerSessionActions';
+import { DryerSessionList } from './DryerSessionList';
+import { StartDryingSessionModal } from './StartDryingSessionModal';
+import { DryerSessionDetailModal } from './DryerSessionDetailModal';
 
 export type DryerPerformanceProps = {
   blocks: { id: string; name: string; cultivar: string }[];

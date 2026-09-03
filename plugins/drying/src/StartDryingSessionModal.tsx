@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
-import type { FarmDryer } from '../../lib/farmAssets';
+import type { FarmDryer } from '../../../src/lib/farmAssets';
 
 export type NewSessionForm = {
   dryerId: string;

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { db } from '../firebase';
-import type { DryingSession } from '../lib/dryingModel';
-import { getFarmAssets, type FarmDryer } from '../lib/farmAssets';
+import { db } from '../../../src/firebase';
+import type { DryingSession } from './dryingModel';
+import { getFarmAssets, type FarmDryer } from '../../../src/lib/farmAssets';
 
 /** Firestore subscribe for drying sessions + dryer list (drying pack). */
 export function useDryingSessions(farmId: string | undefined) {

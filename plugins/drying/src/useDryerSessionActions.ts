@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { collection, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { db } from '../firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
-import { apiFetch, apiUrl } from '../lib/apiBase';
-import type { DryingSession } from '../lib/dryingModel';
-import type { FarmDryer } from '../lib/farmAssets';
-import type { NewSessionForm } from '../components/drying/StartDryingSessionModal';
+import { db } from '../../../src/firebase';
+import { handleFirestoreError, OperationType } from '../../../src/lib/firestoreErrors';
+import { apiFetch, apiUrl } from '../../../src/lib/apiBase';
+import type { DryingSession } from './dryingModel';
+import type { FarmDryer } from '../../../src/lib/farmAssets';
+import type { NewSessionForm } from './StartDryingSessionModal';
 
 function nowLocal() {
   return format(new Date(), "yyyy-MM-dd'T'HH:mm");

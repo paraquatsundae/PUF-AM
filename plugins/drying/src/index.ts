@@ -1,17 +1,17 @@
 import { IconTemperature } from '@tabler/icons-react';
-import type { CropPackUiRegistration } from '../types';
+import type { CropPackUiRegistration } from '../../../src/packs/types';
 import { DRYING_PACK_ID, DRYING_PRIMARY_PATH } from '../../../shared/farm/dryingPackage';
-import { lazyWithRetry } from '../../lib/lazyWithRetry';
+import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
 
 // Cross-pack: drying reuses harvest's dryer panel (PLUGIN_PACK_LAYOUT.md §7 q4).
 const FarmDryersPanel = lazyWithRetry(() =>
-  import('../../../plugins/harvest/src/FarmDryersPanel').then((m) => ({
+  import('../../harvest/src/FarmDryersPanel').then((m) => ({
     default: m.FarmDryersPanel,
   }))
 );
 
 const DryingPage = lazyWithRetry(() =>
-  import('../../pages/Drying').then((m) => ({ default: m.Drying }))
+  import('./Drying').then((m) => ({ default: m.Drying }))
 );
 
 export const dryingPackUi: CropPackUiRegistration = {

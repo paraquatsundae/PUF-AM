@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, Download, Thermometer } from 'lucide-react';
 import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Scatter, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { format } from 'date-fns';
-import { calculateDryingPrediction, type DryingSession } from '../../lib/dryingModel';
+import { calculateDryingPrediction, type DryingSession } from './dryingModel';
 
 function MoistureTooltip({ active, payload }: { active?: boolean; payload?: { payload: Record<string, unknown> }[] }) {
   if (active && payload && payload.length) {

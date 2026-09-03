@@ -1,7 +1,7 @@
 # Self-contained crop packs (migration plan)
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Phase 0 functionally complete; Phase 1 under way — nutrition, harvest and water moved, 2026-09-02 — see §5  
+**Status:** Phase 0 functionally complete; Phase 1 under way — four of six packs moved, 2026-09-02 — see §5  
 **Goal:** each pack's whole implementation lives in `plugins/<id>/src/`; a contributor adds a pack by adding one folder  
 **Decision:** statically compiled, boundary enforced by the compiler. **No runtime loading** — see §3  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
@@ -11,7 +11,7 @@
 
 ## 1. Where we actually are
 
-> **Superseded in part.** This section describes the position before any work started. Nutrition, harvest and water now ship their UI from `plugins/<id>/src/` — see the Phase 1 notes in §5. The rest still reads true.
+> **Superseded in part.** This section describes the position before any work started. Nutrition, harvest, water and drying now ship their UI from `plugins/<id>/src/` — see the Phase 1 notes in §5. Only chill_portions and walnut_blight are still under `src/`. The rest still reads true.
 
 **No pack ships UI in `plugins/` today.** All six folders hold manifests only:
 
@@ -29,7 +29,7 @@
 |------|-----------:|------:|------------------|
 | walnut_blight | 8,122 | 930 | Dashboard card, map heat, `weatherService`, `model_params` shared with economics, CF aggregate |
 | chill_portions | 1,816 | 217 | Dashboard card, map operate readout, `BlockMetadataModal` cultivars, server route |
-| drying | 1,625 | 52 | Imports harvest's `FarmDryersPanel` |
+| drying | 1,625 | 52 | Imports harvest's `FarmDryersPanel` — now a sibling pack path, see §5 |
 | water | 1,445 | 82 | ~~Diary composer embed~~ (not a coupling — see §5), `settings/farm` fields |
 | nutrition | 1,077 | 0 | Core diary event type + export column |
 | harvest | 676 | 35 | Map analytics reads `harvests` |
@@ -150,6 +150,12 @@ The interesting result is what did *not* move. §2 listed water's hardest coupli
 So the file stays in core. It is misnamed rather than misplaced — `DiaryComposerIrrigationFields` would say what it is — but renaming it is cosmetic and unrelated to this move. **No diary composer slot is needed**, which removes the last unbuilt item from the Phase 0 slot list.
 
 Left behind for the usual reason: `shared/farm/waterPackage.ts`, with the other adapters.
+
+**Drying moved (2026-09-02).** Ten files — page, `DryerPerformance`, three session modals/lists, two hooks, `dryingModel` and its test, and the registration. `src/components/drying/` is gone, and so is the stray `src/components/DryerPerformance.tsx` that sat at the top level of core's component folder.
+
+This settles §7 question 4 in the mildest possible way. Harvest's move left drying importing `plugins/harvest/src/FarmDryersPanel` from two places; now that drying is itself a pack, both shortened to `../../harvest/src/FarmDryersPanel`. The dependency is unchanged and still real — it is just a sibling reference between two pack folders rather than a reach out of core. Whether one pack may import another is now a policy question for Phase 2's boundary rules, not a layout problem.
+
+`src/lib/farmAssets.ts` stays in core. It is the farm's asset store — `FarmAssets` with dryers inside it — and it is read by both drying and harvest's panel. Pushing it into either pack would only reverse which one does the cross-pack import. It belongs to the farm, so it is exactly the kind of scoped data accessor Phase 2's host API is meant to expose.
 
 - Move each pack's components, page, hooks, lib, adapter and tests under `plugins/<id>/src/`.
 - Replace the hand-maintained registry with build-time discovery (`import.meta.glob` over `plugins/*/src/index.ts`).

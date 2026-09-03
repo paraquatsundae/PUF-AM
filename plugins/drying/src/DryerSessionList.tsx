@@ -1,8 +1,8 @@
 import React from 'react';
 import { Plus, Maximize2, TrendingDown, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
-import { calculateDryingPrediction, type DryingSession } from '../../lib/dryingModel';
-import type { FarmDryer } from '../../lib/farmAssets';
+import { calculateDryingPrediction, type DryingSession } from './dryingModel';
+import type { FarmDryer } from '../../../src/lib/farmAssets';
 
 export function DryerSessionList({
   sessions,

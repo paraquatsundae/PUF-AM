@@ -19,7 +19,7 @@ import type {
   PackRouteRegistration,
 } from './types';
 import { chillPortionsPackUi } from './chill_portions';
-import { dryingPackUi } from './drying';
+import { dryingPackUi } from '../../plugins/drying/src';
 import { harvestPackUi } from '../../plugins/harvest/src';
 import { nutritionPackUi } from '../../plugins/nutrition/src';
 import { walnutBlightPackUi } from './walnut_blight';
