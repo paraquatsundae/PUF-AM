@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { collection, deleteDoc, doc, onSnapshot, orderBy, query, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
-import type { HarvestRecord } from '../lib/harvestRecords';
+import { db } from '../../../src/firebase';
+import { handleFirestoreError, OperationType } from '../../../src/lib/firestoreErrors';
+import type { HarvestRecord } from './harvestRecords';
 
 export type HarvestFormDraft = {
   date: string;

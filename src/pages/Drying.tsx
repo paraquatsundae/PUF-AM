@@ -3,7 +3,8 @@ import { Thermometer } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
 import { DryerPerformance } from '../components/DryerPerformance';
-import { FarmDryersPanel } from '../components/harvest/FarmDryersPanel';
+// Cross-pack: drying reuses harvest's dryer panel (PLUGIN_PACK_LAYOUT.md §7 q4).
+import { FarmDryersPanel } from '../../plugins/harvest/src/FarmDryersPanel';
 
 export function Drying() {
   const { userData } = useAuth();

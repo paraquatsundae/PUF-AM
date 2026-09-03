@@ -1,10 +1,10 @@
 import { IconTractor } from '@tabler/icons-react';
-import type { CropPackUiRegistration } from '../types';
+import type { CropPackUiRegistration } from '../../../src/packs/types';
 import { HARVEST_PACK_ID, HARVEST_PRIMARY_PATH } from '../../../shared/farm/harvestPackage';
-import { lazyWithRetry } from '../../lib/lazyWithRetry';
+import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
 
 const HarvestPage = lazyWithRetry(() =>
-  import('../../pages/Harvest').then((m) => ({ default: m.Harvest }))
+  import('./Harvest').then((m) => ({ default: m.Harvest }))
 );
 
 export const harvestPackUi: CropPackUiRegistration = {

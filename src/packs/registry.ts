@@ -20,7 +20,7 @@ import type {
 } from './types';
 import { chillPortionsPackUi } from './chill_portions';
 import { dryingPackUi } from './drying';
-import { harvestPackUi } from './harvest';
+import { harvestPackUi } from '../../plugins/harvest/src';
 import { nutritionPackUi } from '../../plugins/nutrition/src';
 import { walnutBlightPackUi } from './walnut_blight';
 import { waterPackUi } from './water';

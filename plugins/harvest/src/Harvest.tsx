@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, X, ChevronDown, ChevronRight, Weight } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../../src/contexts/AuthContext';
 import { format } from 'date-fns';
-import { useMapStore } from '../lib/mapStore';
-import { groupHarvestsByBlock, harvestSeasonTotalKg } from '../lib/harvestRecords';
-import { useHarvestRecords } from '../hooks/useHarvestRecords';
+import { useMapStore } from '../../../src/lib/mapStore';
+import { groupHarvestsByBlock, harvestSeasonTotalKg } from './harvestRecords';
+import { useHarvestRecords } from './useHarvestRecords';
 
 export function Harvest() {
   const { userData, user } = useAuth();

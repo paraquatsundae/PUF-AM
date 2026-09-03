@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Plus, Save, Thermometer, Trash2 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useFarmDiary } from '../../lib/farmDiary';
-import { FarmDryer, getFarmAssets, saveFarmAssets } from '../../lib/farmAssets';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { useFarmDiary } from '../../../src/lib/farmDiary';
+import { FarmDryer, getFarmAssets, saveFarmAssets } from '../../../src/lib/farmAssets';
 
 const fieldClass =
   'bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-400 w-full';

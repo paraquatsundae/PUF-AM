@@ -3,8 +3,9 @@ import type { CropPackUiRegistration } from '../types';
 import { DRYING_PACK_ID, DRYING_PRIMARY_PATH } from '../../../shared/farm/dryingPackage';
 import { lazyWithRetry } from '../../lib/lazyWithRetry';
 
+// Cross-pack: drying reuses harvest's dryer panel (PLUGIN_PACK_LAYOUT.md §7 q4).
 const FarmDryersPanel = lazyWithRetry(() =>
-  import('../../components/harvest/FarmDryersPanel').then((m) => ({
+  import('../../../plugins/harvest/src/FarmDryersPanel').then((m) => ({
     default: m.FarmDryersPanel,
   }))
 );
