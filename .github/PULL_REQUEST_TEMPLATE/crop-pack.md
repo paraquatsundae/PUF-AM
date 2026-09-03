@@ -4,15 +4,15 @@ Use this template when adding or changing a **crop pack** (not a Freenet host pl
 
 **How-to:** [`Plans/PLUGIN_AUTHORING.md`](../../Plans/PLUGIN_AUTHORING.md)  
 **Contract:** [`Plans/CROP_PACK_PLUGIN.md`](../../Plans/CROP_PACK_PLUGIN.md)  
-**Template pack:** chill portions (`plugins/chill_portions/`, `src/packs/chill_portions/`) — not walnut blight  
+**Template pack:** chill portions (`plugins/chill_portions/` — manifest and code in one folder) — not walnut blight  
 **Naming:** crop pack ≠ Freenet plugin — [`Plans/NAMING.md`](../../Plans/NAMING.md) §1
 
 ### Checklist
 
 - [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (id, label, blurb, **`category`** (`crop` \| `network` \| `generic`), modules, `settingsDocId` / owned keys, `canInstall`)
 - [ ] Module ids + `MODULE_LABELS` / `MODULE_BLURBS` (and pack module list if new)
-- [ ] `src/packs/<id>/index.ts` UI registration (routes, nav, surfaces)
-- [ ] Entry appended to `PACK_UI_REGISTRY` in `src/packs/registry.ts`
+- [ ] `plugins/<id>/src/index.ts` exports `packUi` (routes, nav, surfaces). The registry discovers it — do **not** edit `src/packs/registry.ts`; a diff that touches it needs a reason
+- [ ] Pack code lives only under `plugins/<id>/src/`; nothing new added to `src/pages/`, `src/components/`, or `src/lib/`
 - [ ] Production knobs on the pack surface (not Settings → Advanced)
 - [ ] Honesty / science copy on the pack page; About = pointer only
 - [ ] Firestore rules for pack settings fields

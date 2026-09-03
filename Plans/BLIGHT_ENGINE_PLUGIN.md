@@ -4,7 +4,8 @@
 **Status:** Active — BE-00–BE-05 done for settings home + type unify; BE-06 doc split deferred  
 **Date:** 2026-08-11  
 **Companion:** [`BLIGHT_VALIDATION.md`](BLIGHT_VALIDATION.md) (science / Ji track) · [`FARM_TYPES.md`](FARM_TYPES.md) (walnut pack gating) · [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) (Settings tab inventory) · [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) (general pack seam for other packs)  
-**Honesty UI:** [`src/components/blight/BlightEngineScience.tsx`](../src/components/blight/BlightEngineScience.tsx) on Blight risk
+**Honesty UI:** [`plugins/walnut_blight/src/BlightEngineScience.tsx`](../plugins/walnut_blight/src/BlightEngineScience.tsx) on Blight risk  
+**Layout note:** the pack moved into `plugins/walnut_blight/src/` on 2026-09-03 ([`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md)). Key files below are current; dated rows in the build-slice table and progress log keep their original paths, because those record where the code was at the time.
 
 ---
 
@@ -38,7 +39,7 @@ Not a Freenet-style Node unit. A **crop-pack UI + settings seam**:
 | **Pack gate** | Existing `useWalnutPack()` / `hasModule('blight')` — unchanged |
 | **Surface** | Blight Risk page + a pack-owned settings panel (new) |
 | **Storage** | Keep `farms/{farmId}/settings/model_params` for v1 (zero migration). Optional later split: blight vs economics docs |
-| **Engine** | Existing `shared/weather/jiBlightModel.ts` + Sandbox `src/lib/blightModel.ts` — unchanged math |
+| **Engine** | Existing `shared/weather/jiBlightModel.ts` + Sandbox `plugins/walnut_blight/src/blightModel.ts` — unchanged math |
 | **Not in scope** | New npm package, Capacitor plugin, or Freenet host unit |
 
 Name in UI copy: **Walnut blight** / **Blight engine**. Docs may say "blight engine plug-in" to match the About park note; do not invent a second product mark.
@@ -172,12 +173,14 @@ Acceptance for **done** (BE-02 + BE-03 + BE-04):
 
 | Role | Path |
 |------|------|
-| Advanced UI (today) | `src/pages/Settings.tsx` |
-| Blight Risk UI | `src/pages/BlightRisk.tsx` |
-| Legacy sandbox engine | `src/lib/blightModel.ts` |
+| Advanced UI (economics only) | `src/pages/Settings.tsx` |
+| Blight Risk UI | `plugins/walnut_blight/src/BlightRisk.tsx` |
+| Legacy sandbox engine | `plugins/walnut_blight/src/blightModel.ts` |
+| Pack-owned model params | `plugins/walnut_blight/src/modelParameters.ts` |
+| Economics params (core) | `src/lib/farmEconomicsParams.ts` — same `settings/model_params` doc, merged writes |
 | Ji engine | `shared/weather/jiBlightModel.ts` |
 | CF aggregate | `functions/src/blightAggregate.ts` |
-| Pack gate | `src/hooks/useWalnutPack.ts`, `shared/farm/farmTypes.ts` |
+| Pack gate | `plugins/walnut_blight/src/useWalnutPack.ts`, `shared/farm/farmTypes.ts` |
 | Honesty copy | `src/pages/About.tsx` |
 | Rules | `firestore.rules` → `settings/model_params` |
 

@@ -3,8 +3,8 @@
 **Product:** PUFAM — Ag Manager (walnut crop pack)  
 **Status:** Ji Forecast/Historical wired; Sandbox keeps legacy multiplicative index  
 **Date:** July 2026  
-**Authoritative honesty copy:** [`src/components/blight/BlightEngineScience.tsx`](../src/components/blight/BlightEngineScience.tsx) (on Blight risk; About points there)  
-**Engine:** [`src/lib/blightModel.ts`](../src/lib/blightModel.ts) · [`shared/weather/jiBlightModel.ts`](../shared/weather/jiBlightModel.ts)  
+**Authoritative honesty copy:** [`plugins/walnut_blight/src/BlightEngineScience.tsx`](../plugins/walnut_blight/src/BlightEngineScience.tsx) (on Blight risk; About points there)  
+**Engine:** [`plugins/walnut_blight/src/blightModel.ts`](../plugins/walnut_blight/src/blightModel.ts) · [`shared/weather/jiBlightModel.ts`](../shared/weather/jiBlightModel.ts)  
 **Weather WD proxy:** [`shared/weather/dpirdClient.ts`](../shared/weather/dpirdClient.ts)
 
 ## Verdict
@@ -236,10 +236,10 @@ Minimum for calling it a **validated spray-timing aid** for this farm:
 
 | Area | Path |
 |------|------|
-| Client model | `src/lib/blightModel.ts` |
-| Client tests | `src/lib/blightModel.test.ts` |
-| Blight UI | `src/pages/BlightRisk.tsx` |
-| Honesty / science copy | `src/components/blight/BlightEngineScience.tsx` (About → Blight risk pointer) |
+| Client model | `plugins/walnut_blight/src/blightModel.ts` |
+| Client tests | `plugins/walnut_blight/src/blightModel.test.ts` |
+| Blight UI | `plugins/walnut_blight/src/BlightRisk.tsx` |
+| Honesty / science copy | `plugins/walnut_blight/src/BlightEngineScience.tsx` (About → Blight risk pointer) |
 | DPIRD daily + WD proxy | `shared/weather/dpirdClient.ts` |
 | Client weather fetch | `src/lib/weatherService.ts` |
 | Server aggregate (divergent) | `functions/src/blightAggregate.ts` |

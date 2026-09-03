@@ -69,7 +69,7 @@ Reuse `WEATHER_CACHE_MAX_AGE_HOURS` / `isCacheFresh` / `cacheCoversRange`. Do no
 
 `GET /api/weather/dpird/stations/summaries/hourly?…&stationCode=MA002`
 
-(`src/components/DryerPerformance.tsx` → `server/createApiApp.ts` passthrough.)
+(`plugins/drying/src/DryerPerformance.tsx` → `server/createApiApp.ts` passthrough.)
 
 That route attaches the key and forwards. No TTL, no store, no pagination.
 

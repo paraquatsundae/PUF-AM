@@ -9,7 +9,11 @@ Engine is the standalone **Chill Portion Calculator** (Erez & Fishman / `chill_c
 | `plugin.json` | Catalog row (label, category, `chill` module, `/weather-events`) |
 | `engine.json` | Dynamic Model constants, SH season defaults, cultivar CP targets |
 
-**Still in the app build:** React UI (`src/packs/chill_portions`, Weather events page), hourly farm path (`shared/weather/chillPortions.ts`), daily/CSV calculator (`shared/weather/chillCalculator.ts`). v1 does not hot-load those from the zip.
+| `src/` | React UI — Weather events page, calculator and science panels, `packUi` registration |
+
+**Not in this folder:** the hourly farm path (`shared/weather/chillPortions.ts`) and the daily/CSV calculator (`shared/weather/chillCalculator.ts`). Both stay shared because `server/chillRoutes.ts` computes seasonal portions server-side and cannot import from a pack folder.
+
+Everything here is compiled into the app build. v1 does not hot-load React from the zip.
 
 ```bash
 npm run plugins:verify -- plugins/chill_portions

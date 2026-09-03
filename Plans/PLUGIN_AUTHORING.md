@@ -175,7 +175,7 @@ Minimum:
 
 - Adapter: manifest id, modules, owned keys, path
 - `cropPacks`: Install adds modules; Deactivate strips them; Delete drops the farm entry
-- `packRegistry`: new routes/nav are in `PACK_UI_REGISTRY`
+- `packRegistry`: the pack's routes/nav show up in `PACK_UI_REGISTRY`. You are testing that discovery found the folder and that `packUi` is spelled right, not that someone registered it by hand
 
 Manual on a test farm: Install → use → Deactivate (settings kept, nav gone) → Activate (knobs still there) → Delete (settings gone) → Install again (defaults).
 

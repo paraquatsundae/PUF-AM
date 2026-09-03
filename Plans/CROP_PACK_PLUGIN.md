@@ -5,7 +5,7 @@
 **Date:** 2026-08-11  
 **Authors start here:** [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) (file list). This file is the contract, lifecycle, and history.  
 **Companion:** [`FARM_TYPES.md`](FARM_TYPES.md) · [`NAMING.md`](NAMING.md) · Freenet is a **network pack** ([`APK_FREENET_HOST.md`](APK_FREENET_HOST.md), [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md)) — a **different** word. Do not conflate.  
-**Layout change planned:** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moves pack code into `plugins/<id>/src/`. The "no hot-load" scope below is **unchanged** — packs stay statically compiled. Plan only; nothing is built.
+**Layout change done (2026-09-03):** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) — pack code now lives in `plugins/<id>/src/`, and `src/packs/registry.ts` discovers it at build time instead of listing it. The "no hot-load" scope below is **unchanged**: packs are still statically compiled and still vetted by PR. Where this file says `src/packs/<id>/` inside a dated build-slice row, that is a record of the August 2026 state, not current layout.
 
 ---
 
@@ -135,7 +135,7 @@ assets/         # optional
 
 **`category` is required** on every package (`crop` | `network` | `generic`).
 
-**Reference package:** [`plugins/walnut_blight/`](../plugins/walnut_blight/) — catalog + blight engine defaults. `shared/farm/cropPacks.ts` and `src/lib/modelParameters.ts` read that folder; they do not duplicate the numbers. React / Ji code still ships in the app.
+**Reference package:** [`plugins/walnut_blight/`](../plugins/walnut_blight/) — catalog, blight engine defaults, and (since the layout change) the pack's React code in `src/`. `shared/farm/cropPacks.ts` and `plugins/walnut_blight/src/modelParameters.ts` read `engine.json`; they do not duplicate the numbers. The Ji engine core stays in `shared/weather/`, because the DPIRD client and Cloud Functions use it too.
 
 ```bash
 npm run plugins:verify -- plugins/walnut_blight
@@ -146,7 +146,7 @@ npm run plugins:list
 
 Workshop hub lists unpacked packages at `GET /api/plugins/packages`.
 
-**Still in-app for React UI:** UI under `src/packs/<id>/` so Install activates real routes. Catalog metadata and (for walnut blight) engine defaults live in `plugins/<id>/`. Hot-loading arbitrary React from a zip is out of scope for v1.
+**Still compiled in:** a pack's UI lives in `plugins/<id>/src/` alongside its manifest, and is bundled into the app so Install activates real routes. Hot-loading arbitrary React from a zip is out of scope for v1 — a zip that contains `src/` still only lands files on disk, and nothing runs until the next build.
 
 ---
 
@@ -238,7 +238,7 @@ export function deletePack(farmId, packId): Promise<void>;
 export function isPackActive(farm, packId): boolean;
 ```
 
-Route/panel registry (CP-04): each pack exports `{ path, Page, moduleId }` + nav + named surfaces in `src/packs/<id>/`; `App` and `navConfig` read `src/packs/registry.ts`.
+Route/panel registry (CP-04): each pack exports `packUi` — `{ path, Page, moduleId }` routes plus nav and named surfaces — from `plugins/<id>/src/index.ts`. `src/packs/registry.ts` globs those files at build time and `App` / `navConfig` read the result, so no core file names the packs.
 
 ---
 
@@ -296,7 +296,7 @@ Route/panel registry (CP-04): each pack exports `{ path, Page, moduleId }` + nav
 
 - [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (D1–D3, D6 wipe list)  
 - [ ] Modules + labels/blurbs  
-- [ ] `src/packs/<id>/index.ts` UI registration + entry in `PACK_UI_REGISTRY` (routes, nav, surfaces)  
+- [ ] `plugins/<id>/src/index.ts` exports `packUi` (routes, nav, surfaces). `PACK_UI_REGISTRY` fills itself from the folder — adding a pack should not change `src/packs/registry.ts`  
 - [ ] Pack surface + production knobs (D5)  
 - [ ] Rules + tests (D7–D8)  
 - [ ] Honesty panel (D9)  

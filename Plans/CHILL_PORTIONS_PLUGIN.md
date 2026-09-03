@@ -15,7 +15,7 @@ Chill was a core always-on feature (`shared/weather/chillPortions.ts`, `/weather
 | TS adapter | `shared/farm/chillPortionsPackage.ts` |
 | Farm hourly path (DPIRD) | `shared/weather/chillPortions.ts` — constants/cultivars from the pack |
 | Daily / CSV calculator | `shared/weather/chillCalculator.ts` — port of calculator `app.js` |
-| UI | `src/packs/chill_portions/`, `src/pages/WeatherEvents.tsx` |
+| UI | `plugins/chill_portions/src/` — Weather events page, calculator and science panels, `packUi` registration |
 | Module | `chill` (not `dashboard`) |
 
 The `PUFworks-chill_calculator` folder is **release binaries only** (AppImage / exe / APK). It is not a drop-in PUF-AM zip. Engine logic was recovered from the APK `assets/www/app.js`.

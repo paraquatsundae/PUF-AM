@@ -96,7 +96,7 @@ Checked 2026-08-30 before CodeRabbit. Second model: confirm still true, then kee
 | Named AI Studio DB | `functions/src/db.ts` | Default `ai-studio-143a17d7-b431-4490-8302-3a5ff176bb96`. Needed for this Firebase project — do not “fix” by switching to `(default)` without a migrate. |
 | AI Studio URL guard | `src/lib/appUrl.ts` | Still rejects `MY_APP_URL` and `ai.studio/apps`. Keep until env is clean; not a delete. |
 | HMR leftover | `vite.config.ts` | `DISABLE_HMR` comment / env. Harmless; flag only if it still disables HMR in workshop. |
-| Live listeners in live cards | `src/components/blight/BlightResearchModifiersPanel.tsx`, `BlightOrchardInoculumPanel.tsx` | Firestore `setDoc` in the component. In-scope for “fetch in the owner hook,” not a dead clone. |
+| Live listeners in live cards | `plugins/walnut_blight/src/BlightResearchModifiersPanel.tsx`, `BlightOrchardInoculumPanel.tsx` | Firestore `setDoc` in the component. In-scope for “fetch in the owner hook,” not a dead clone. |
 
 Financials no longer mounts the `*Manager` cards. Deleting the seven files is the likely first cleanup **after** both reviews agree they are unused (including dynamic `import()` and Desktop/APK).
 

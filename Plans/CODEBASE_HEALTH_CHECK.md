@@ -4,6 +4,8 @@
 **Rules:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
 **Purpose:** Captured output of procedure A / D. Newest run first. This is a log, not a rewrite of the limits.
 
+**Paths in entries before 2026-09-03 will not open.** The crop packs moved out of `src/` into `plugins/<id>/src/` that day ([`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md)). Links like `../src/components/blight/…` are left as they were written, because each entry records the tree as it stood when the check ran. Look for the file under `plugins/` instead of correcting the log.
+
 Command (procedure A):
 
 ```

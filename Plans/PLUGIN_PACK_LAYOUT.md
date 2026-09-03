@@ -99,7 +99,7 @@ plugins/<id>/
     *.test.ts
 ```
 
-`src/packs/` disappears. `shared/farm/<id>Package.ts` moves into the pack.
+`src/packs/` shrinks to the core-side seam — `types.ts` (what a pack may register) and `registry.ts` (the discovery glob). It does not disappear, and as built it did not need to: nothing in it names a pack. `shared/farm/<id>Package.ts` still moves into the pack, with discovery, in a later phase.
 
 ---
 
@@ -194,6 +194,12 @@ Three things this needed that were not obvious:
 
 An unknown folder is skipped rather than thrown on — an unregistered pack must not blank the app at import time — and the catalog/folder pairing is enforced where it can be fixed, by `tests/codebaseHealth.test.ts` and the audit.
 
+**Documentation pass (2026-09-03), and one file it moved.** Sweeping the docs for paths the migration invalidated turned up a misfile the migration had carried along. `FarmDryersPanel.tsx` sat in `plugins/harvest/src/` while its own header comment read *"drying pack surface (not Farm setup, not harvest)"*. The comment was right: nothing in harvest imports it, and its only two importers are drying's page and drying's registration. It was in `src/components/harvest/` before the move purely by filing accident, and the harvest commit relocated it faithfully.
+
+It is now in `plugins/drying/src/`, which **closes §7 question 4** rather than deferring it to Phase 2. There is no cross-pack import anywhere in the tree. The entry above describing this as "a sibling reference between two pack folders" was true when written and is superseded here.
+
+That also changes the `farmAssets.ts` reasoning above. It stays in core, but not for the stated reason — every one of its callers is now inside the drying pack, so it is no longer shared between two packs. It stays because `settings/assets` is named as a farm-wide asset doc rather than a drying one, which makes it a Phase 2 host-API candidate instead of a pack file. Worth revisiting when the host API is defined.
+
 - ~~Move each pack's components, page, hooks, lib and tests under `plugins/<id>/src/`.~~ Done, all six. The `shared/farm/<id>Package.ts` adapters are the exception and move with discovery, since the catalog imports them all eagerly.
 - ~~Replace the hand-maintained registry with build-time discovery (`import.meta.glob` over `plugins/*/src/index.ts`).~~ Done. Packs export `packUi`; order comes from `CROP_PACKS`.
 - ~~Update `tsconfig.json` includes, `vitest.config.ts` globs, `eslint.config.js`, and `scripts/audit-codebase.mjs`.~~ Done during the nutrition pilot; both pack-location checks are now strict, and reintroducing `src/packs/<id>/index.ts` fails them.
@@ -207,8 +213,8 @@ An unknown folder is skipped rather than thrown on — an unregistered pack must
 
 ### Phase 3 — Contributor contract
 
-- Rewrite [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) §5 around the new layout: one folder, no core edits.
-- State what the host API guarantees and what is off-limits.
+- ~~Rewrite [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) §5 around the new layout: one folder, no core edits.~~ Done 2026-09-03, along with the PR template and the pack READMEs.
+- State what the host API guarantees and what is off-limits. Still open — it needs Phase 2's `paths` work to have something to point at.
 
 ---
 
@@ -226,7 +232,7 @@ An unknown folder is skipped rather than thrown on — an unregistered pack must
 1. **Server and Cloud Functions.** `functions/src/blightAggregate.ts` and `server/chillRoutes.ts` are pack code running outside the browser. They may have to stay first-party in `functions/` and `server/`, with only the browser half moving.
 2. **`settings/model_params`** is shared between blight and farm economics. Splitting it needs a data migration.
 3. **`engine.json` imports.** `shared/farm/*Package.ts` imports them via `resolveJsonModule`; after the move the adapter is inside the pack, so the relative path shortens — check Vite still inlines them.
-4. **Cross-pack dependency.** Drying imports harvest's `FarmDryersPanel`. Either it becomes a host-API surface, moves to drying, or drying declares a dependency on harvest.
+4. ~~**Cross-pack dependency.** Drying imports harvest's `FarmDryersPanel`. Either it becomes a host-API surface, moves to drying, or drying declares a dependency on harvest.~~ **Closed 2026-09-03** — it moved to drying. The panel was never harvest's; harvest never imported it. No pack imports another.
 
 ---
 

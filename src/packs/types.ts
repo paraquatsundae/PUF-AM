@@ -41,7 +41,7 @@ export type PackSurface = ComponentType<any> | LazyExoticComponent<ComponentType
 
 /**
  * Named pack surfaces (settings / honesty panels).
- * Walnut keeps implementations under `src/components/blight/`; packs re-export.
+ * Each pack implements these in its own `plugins/<id>/src/` folder.
  */
 export type PackSurfaceComponents = {
   productionSettings?: PackSurface;

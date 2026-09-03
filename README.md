@@ -88,10 +88,11 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 
 ## Project structure
 
-* `src/components/` — UI components (map, dryer performance, diary panels).
-* `src/pages/` — Main views (Dashboard, Map, Diary, Blight, Water, Nutrition, Harvest, Farm setup, …).
-* `src/packs/` — Crop-pack UI registry (`<packId>/` routes, nav, surfaces → `registry.ts`). Not Freenet plugins.
-* `src/lib/` — Stores and domain logic (`farmDiary`, `blightModel`, `farmAssets`, `mapStore`, …).
+* `plugins/<id>/` — One crop pack each: `plugin.json` manifest plus the pack's whole implementation in `src/` (page, components, hooks, model). Not Freenet plugins.
+* `src/components/` — Core UI components (map, diary panels, admin cards). Pack UI does not live here.
+* `src/pages/` — Core views (Dashboard, Map, Diary, Farm setup, Settings, …). Pack pages ship inside their own `plugins/<id>/src/`.
+* `src/packs/` — The seam between core and packs: `types.ts` (what a pack may register) and `registry.ts` (discovers `plugins/*/src/index.ts` at build time). Adding a pack does not edit either file.
+* `src/lib/` — Core stores and domain logic (`farmDiary`, `farmAssets`, `mapStore`, …).
 * `src/contexts/` — Auth and shared context.
 * `src/services/` — Firestore/API helpers.
 * `shared/farm/cropPacks.ts` — Pack catalog + Install/Activate/Deactivate/Delete helpers.

@@ -1,8 +1,9 @@
 /**
  * Chill portions crop pack — UI registration.
  *
- * Page stays in `src/pages/WeatherEvents`; calculator + science panels live
- * under `src/components/chill/`.
+ * The Dynamic Model itself is not in this folder. It stays in `shared/weather/`
+ * because `server/chillRoutes.ts` computes seasonal portions from hourly DPIRD
+ * data, and the server cannot import from a pack.
  */
 import { IconSnowflake } from '@tabler/icons-react';
 import type { CropPackUiRegistration } from '../../../src/packs/types';

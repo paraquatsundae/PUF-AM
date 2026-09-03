@@ -3,7 +3,7 @@
 **Authoritative naming reference for this repo.**  
 **Product:** PUF-AM (Ag Manager) · **Repo:** [paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM)
 
-When display names, wire formats, storage keys, or doc titles disagree, **this file wins** for PUF-AM. Cross-repo cab/sprayer rules live in workspace [`AGENTS.md`](../../AGENTS.md) (PUFworks); they do not override identifiers listed here.
+When display names, wire formats, storage keys, or doc titles disagree, **this file wins** for PUF-AM. Cross-repo cab/sprayer rules live in the PUFworks workspace `AGENTS.md`, which sits outside this repository and so is not linkable from a clone; they do not override identifiers listed here.
 
 Related plans (not duplicated here):
 
@@ -43,7 +43,7 @@ Related plans (not duplicated here):
 | **PUF-AM Desktop** | The Electron shell + installers (Fedora `rpm`/AppImage, Windows NSIS/portable). Docs shorthand for the packaged app | A separate product — it *is* PUF-AM; do not brand installers differently |
 | **PUF Freenet Host** | The in-app Freenet lifecycle plugin — unit `units/puf-freenet-host/`, package `@pufworks/puf-freenet-host`, `hostId` `puf-freenet-host` | The mist storage unit (`mist-freenet`); a user-visible app or service name |
 | **PUF-FN** | Future product name for the **Freenet client unit** when `units/puf-freenet-host/` forks into its own repo (in-app plugin today → standalone repo later) | Current mist storage unit (`mist-freenet`) or the host unit's present package name; not a shipping product yet |
-| **Crop pack** / **pack plugin** | Optional farm capability: catalog id, modules, routes, pack settings UI ([`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md), `src/packs/`) | Freenet host plugin, Capacitor plugin, npm marketplace install |
+| **Crop pack** / **pack plugin** | Optional farm capability: catalog id, modules, routes, pack settings UI ([`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md); code in `plugins/<id>/src/`, discovered by `src/packs/registry.ts`) | Freenet host plugin, Capacitor plugin, npm marketplace install |
 | **Network pack** | Operator name for Freenet under Settings → Plugins → Network & storage. Code `kind` stays `system` (`freenet_host`). Ships in the app — not a zip Install | Crop pack; `plugins/` zip drop |
 | **Walnut blight** | UI / pack label for pack id `walnut_blight` | Generic “plugin”; Freenet units |
 

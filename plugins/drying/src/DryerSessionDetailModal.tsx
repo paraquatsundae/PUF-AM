@@ -382,8 +382,9 @@ export function DryerSessionDetailModal({
                             });
                             
                             (selectedSession.temperatureReadings || []).forEach(r => {
-                              // Find closest hour or exact match, simplify by just putting it in the map
-                              // We can just rely on the time as key if we round it, but let's just use raw ISO string for sort
+                              // Keyed on the raw ISO string, so a bin reading shares a point with
+                              // an ambient sample only on an exact timestamp match — otherwise it
+                              // plots as its own point with no ambient value.
                               const existing = dataMap.get(r.time) || { time: new Date(r.time) };
                               dataMap.set(r.time, { ...existing, bin: r.temperature });
                             });
