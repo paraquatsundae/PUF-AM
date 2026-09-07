@@ -17,7 +17,7 @@ function toLocalISOString(date) {
 /**
  * SH walnut season start (1 June) for the season that contains `today`.
  * Mirrors the client BlightRisk start (`${startYear}-06-01`); the Ji series then
- * resets primary inoculum at the 1 Sep budbreak inside this window.
+ * resets primary inoculum at the farm's configured budbreak inside this window.
  */
 function seasonStartDate(today) {
     const startYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
@@ -35,24 +35,30 @@ async function resolveFarmStation(farmId) {
     }
     return DEFAULT_STATION_CODE;
 }
-/** Orchard inoculum level from farm model params → Ji k. Default medium (k=1). */
-async function resolveInoculumLevel(farmId) {
+/**
+ * Ji production terms from the farm's model params, in one read: inoculum level → k,
+ * and the budbreak date that opens the 4-week primary-inoculum window.
+ * Defaults are medium (k=1) and 1 October.
+ */
+async function resolveJiFarmParams(farmId) {
     try {
         const snap = await db.doc(`farms/${farmId}/settings/model_params`).get();
-        const level = snap.data()?.orchardInoculumLevel;
-        if (level === "low" || level === "medium" || level === "high")
-            return level;
+        const data = snap.data();
+        const level = data?.orchardInoculumLevel;
+        return {
+            inoculumLevel: level === "low" || level === "medium" || level === "high" ? level : "medium",
+            budbreak: (0, jiBlightModel_1.resolveBudbreak)(data?.budbreakMonth, data?.budbreakDay),
+        };
     }
     catch {
-        // fall through to default
+        return { inoculumLevel: "medium", budbreak: jiBlightModel_1.DEFAULT_SH_BUDBREAK };
     }
-    return "medium";
 }
 async function computeFarmBlightAggregate(farmId) {
     const today = new Date();
     const startDate = seasonStartDate(today);
     const stationCode = await resolveFarmStation(farmId);
-    const inoculumLevel = await resolveInoculumLevel(farmId);
+    const { inoculumLevel, budbreak } = await resolveJiFarmParams(farmId);
     const cacheSnap = await db.doc(`weather_cache/${stationCode}`).get();
     const raw = (cacheSnap.data()?.weatherData || {});
     // Ji series only needs T / RH / R / WD (WD is the shared notebook proxy in the cache).
@@ -61,12 +67,12 @@ async function computeFarmBlightAggregate(farmId) {
         weatherData[key] = { T: w.T, RH: w.RH, R: w.R, WD: w.WD };
     }
     // Same production config as client BlightRisk (Forecast/Historical): Ji 2025,
-    // cumulativeY dose within each budbreak season, k from the farm's inoculum level.
-    // Protection/sprays are NOT applied on the production path, so diary sprays do
-    // not change this score.
+    // deltaY rain-event dose within each budbreak season, k from the farm's inoculum
+    // level. Protection/sprays are NOT applied on the production path, so diary sprays
+    // do not change this score.
     const series = (0, jiBlightModel_1.runJiBlightSeries)(startDate, today, weatherData, {
         orchard: { k: (0, jiBlightModel_1.kFromInoculumLevel)(inoculumLevel) },
-        doseMode: "cumulativeY",
+        budbreak,
     });
     const todayKey = toLocalISOString(today);
     const todayRow = series.find((r) => r.fullDate === todayKey);
@@ -76,8 +82,10 @@ async function computeFarmBlightAggregate(farmId) {
     const currentBand = current ? current.band : (0, jiBlightModel_1.bandFromRisk)(0);
     await db.doc(`farms/${farmId}/aggregates/blight_daily`).set({
         model: "ji-2025",
-        doseMode: "cumulativeY",
+        doseMode: "deltaY",
         inoculumLevel,
+        budbreakMonth: budbreak.month,
+        budbreakDay: budbreak.day,
         currentRiskScore,
         currentBand,
         riskDate: current ? current.fullDate : todayKey,
