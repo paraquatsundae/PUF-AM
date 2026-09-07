@@ -11,8 +11,7 @@ import { registerChillRoutes } from "./chillRoutes.ts";
 import { registerLanSyncRoutes } from "./lanSyncRoutes.ts";
 import { registerMistFreenetRoutes } from "./mistFreenetRoutes.ts";
 import { registerPluginPackageRoutes } from "./pluginPackageRoutes.ts";
-import { rateLimit } from "./accessPinAuth.ts";
-import { requireAuthedUser } from "./requireAuthedUser.ts";
+import { requireWeatherCaller } from "./requireWeatherCaller.ts";
 import { getDpirdApiKey } from "./envSecrets.ts";
 import {
   fetchDpirdDailySummaries,
@@ -29,9 +28,6 @@ import {
  * api.agric.wa.gov.au, reachable on any path the caller cared to name.
  */
 const DPIRD_PROXY_PATHS = new Set(["stations", "stations/summaries/hourly"]);
-
-const DPIRD_MAX_CALLS = 60;
-const DPIRD_WINDOW_MS = 15 * 60 * 1000;
 
 // Capacitor, LAN devices, and am.pufworks.farm → local Freenet sidecar call cross-origin.
 const DEFAULT_CORS_ORIGINS = [
@@ -198,7 +194,7 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
    * of pack code from core server (Plans/PLUGIN_PACK_LAYOUT.md Phase 0).
    */
   app.post("/api/weather/blight-risk", async (req, res) => {
-    const caller = await requireAuthedUser(req, res);
+    const caller = await requireWeatherCaller(req, res);
     if (!caller) return;
 
     const { farmId, lat, lng, startDate, endDate, stationCode } = req.body;
@@ -295,18 +291,10 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
       return res.status(404).json({ error: "Unknown DPIRD path" });
     }
 
-    const caller = await requireAuthedUser(req, res);
+    const caller = await requireWeatherCaller(req, res);
     if (!caller) return;
 
     try {
-      // Keyed by uid, not IP: the caller is authenticated by this point, and the
-      // IP is the shared NAT of a farm office as often as it is one operator.
-      if (!rateLimit(`dpird:${caller.uid}`, DPIRD_MAX_CALLS, DPIRD_WINDOW_MS)) {
-        return res
-          .status(429)
-          .json({ error: "Too many weather requests. Try again shortly." });
-      }
-
       const apiKey = getDpirdApiKey();
       if (!apiKey) {
         return res.status(503).json({ error: "DPIRD API key missing on this server" });

@@ -21,6 +21,9 @@
  */
 import type { Express, Request, Response } from 'express';
 
+import { rateLimit } from './accessPinAuth.ts';
+import { clientIp } from './clientIp.ts';
+
 /** Half the Web Mercator circumference, in metres. The bbox edge at z0. */
 const WEB_MERCATOR_HALF = 20_037_508.342_789_244;
 
@@ -52,6 +55,26 @@ const MAX_ZOOM = 19;
 
 /** Upstream requests in flight at once, across all callers. */
 const MAX_UPSTREAM_CONCURRENCY = 3;
+
+/**
+ * Per-IP ceiling on tiles this server will *fetch* for one caller. Cache hits
+ * are free, so a user re-panning ground they have already covered never spends
+ * from it.
+ *
+ * Sized above `MAX_PACK_TILES` (20,000) on purpose. An offline basemap pack is
+ * a legitimate 20,000-tile download from a single address, so any ceiling that
+ * would read as "abusive" for a normal session breaks the feature this proxy
+ * exists to serve. What is left catches sustained scraping — someone walking
+ * the zoom range of the whole state — rather than anyone using the app.
+ *
+ * This is not a cost control. Cloud Run is capped at three instances and
+ * Landgate SLIP is free and unkeyed, so the spend does not run away on its own.
+ * It is here so one address cannot sit on the shared upstream slots above
+ * indefinitely, and so our traffic to a free government service stays
+ * attributable and bounded per source.
+ */
+const TILE_MAX_UPSTREAM_PER_IP = 25_000;
+const TILE_WINDOW_MS = 60 * 60 * 1000;
 
 /** Bytes of rendered tile held in this process. ~2,600 tiles at 25 KB. */
 const MAX_CACHE_BYTES = 64 * 1024 * 1024;
@@ -301,6 +324,15 @@ export function registerTileProxyRoutes(app: Express): void {
     try {
       let pending = inFlight.get(key);
       if (!pending) {
+        // Charged here rather than at the top of the handler, so it counts
+        // upstream fetches and not requests: a cache hit already returned
+        // above, and joining an in-flight fetch for the same tile costs the
+        // upstream nothing.
+        if (!rateLimit(`tiles:${clientIp(req)}`, TILE_MAX_UPSTREAM_PER_IP, TILE_WINDOW_MS)) {
+          return res
+            .status(429)
+            .json({ error: 'Too many imagery requests from this address. Try again later.' });
+        }
         pending = fetchTile(z, x, y).finally(() => inFlight.delete(key));
         inFlight.set(key, pending);
       }
