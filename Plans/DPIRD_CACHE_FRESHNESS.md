@@ -22,6 +22,8 @@ Walnut blight’s **daily** path is already conservative. This note is the remai
 
 Steady-state blight cost: about **4 DPIRD daily-summary calls per hour**. Clients read Firestore `weather_cache/{station}` (plus IDB / SDK cache). The Blight **Refresh** button is a model recalc — it does not re-hit DPIRD.
 
+“Fine” here means DPIRD **call volume**, and that held up when checked on 2026-09-07. It did not mean the page was quiet: the blight weather effect was re-running every 30 seconds for an unrelated reason (see the progress log). Worth separating the two when reading this table — a page can thrash without spending a single DPIRD call, because `isDev` gates every DPIRD branch in `fetchEnvironmentalData` and production never takes them.
+
 Production blight snaps the picker onto the nearest of those four anchors (`resolveNearestAnchorStation`). The key stays server-only (`DPIRD_API_KEY`; never `VITE_*`). Packaged desktop / APK send `/api/weather/*` to Cloud Run.
 
 ---
@@ -147,3 +149,4 @@ Chill does **not** use the raw proxy. `GET /api/weather/chill-portions` already 
 | Date | Slice | Notes |
 |------|-------|--------|
 | 2026-08-24 | — | Design note after walnut blight / DPIRD assessment. No code. |
+| 2026-09-07 | — | Blight page reported as “refreshing far too often” on `am.pufworks.farm`. Not a weather knob and not a DPIRD cost: `GEOMETRY_REFRESH_MS = 30_000` polls `mapStore.loadData`, which deserialised a **fresh viewport object** from IndexedDB each run. `useBlightWeather` derives `processedStations` from the viewport and that sits in its load effect's dependency array, so an idle Blight Risk page refetched Firestore weather and re-ran the model twice a minute. Fixed at the source: `loadData` / `setViewport` now keep the stored object when the position is unchanged (`nextViewport`). The persistence subscriber had already worked around this by comparing by value; the comparison now lives where every reader benefits. Covered by `tests/mapStoreViewportIdentity.test.ts`. |

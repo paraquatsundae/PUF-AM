@@ -73,6 +73,30 @@ export interface MapViewport {
 
 const DEFAULT_VIEWPORT: MapViewport = { lat: -33.9249, lng: 115.0750, zoom: 15 };
 
+/** Same place on the map, whatever object it arrived in. */
+export function sameViewport(a: MapViewport, b: MapViewport): boolean {
+  return a.lat === b.lat && a.lng === b.lng && a.zoom === b.zoom;
+}
+
+/**
+ * The stored viewport when the incoming one describes the same place, so the
+ * object identity only changes when the map actually moved.
+ *
+ * `loadData` deserialises a fresh viewport out of IndexedDB on every run, and
+ * the farm upkeep poll runs it every 30 seconds. That made identity a clock
+ * rather than a signal, and consumers keying work off it re-ran on the poll:
+ * the blight page recomputed `processedStations` from it, which sits in the
+ * dependency array of the weather load effect, so an idle tab refetched
+ * weather and re-ran the model twice a minute.
+ *
+ * The persistence subscriber already compared by value for the same reason.
+ * This puts the comparison where every reader benefits, rather than leaving
+ * each one to notice independently.
+ */
+function nextViewport(current: MapViewport, incoming: MapViewport): MapViewport {
+  return sameViewport(current, incoming) ? current : incoming;
+}
+
 /** Ignore stale async load results when a newer load/save superseded them. */
 let loadGeneration = 0;
 
@@ -144,7 +168,7 @@ export const useMapStoreInternal = create<MapState>((set, get) => ({
   pendingSyncCount: 0,
   syncError: null,
 
-  setViewport: (viewport) => set({ viewport }),
+  setViewport: (viewport) => set((state) => ({ viewport: nextViewport(state.viewport, viewport) })),
   setLocked: (isLocked) => set({ isLocked }),
   clearSyncError: () => set({ syncError: null }),
 
@@ -197,14 +221,14 @@ export const useMapStoreInternal = create<MapState>((set, get) => ({
         pins = filterByBounds(pins, bounds, 'point');
       }
 
-      set({
+      set((state) => ({
         blocks,
         pins,
         tracks,
-        viewport: bundle.viewport || DEFAULT_VIEWPORT,
+        viewport: nextViewport(state.viewport, bundle.viewport || DEFAULT_VIEWPORT),
         isLoaded: true,
         isLoading: false,
-      });
+      }));
       await get().refreshPendingCount(farmId);
     } catch (err) {
       if (gen !== loadGeneration) return;
@@ -415,11 +439,10 @@ function startFarmUpkeep(farmId: string): () => void {
 
   // Outside React: one writer for the viewport, whatever moved the map.
   //
-  // Compared by value, not identity: every `loadData` sets a fresh viewport
-  // object out of IndexedDB, so an identity check fires on each poll and an idle
-  // tablet writes — and syncs — a viewport it never moved every 30 seconds.
-  const sameViewport = (a: MapViewport, b: MapViewport) =>
-    a.lat === b.lat && a.lng === b.lng && a.zoom === b.zoom;
+  // Still compared by value rather than trusting identity. `nextViewport` now
+  // holds the stored object when the place is unchanged, so the two agree — but
+  // this subscriber is the thing that writes to the network, and it should not
+  // depend on a caller elsewhere having deduplicated correctly.
   const unsubscribeViewport = useMapStoreInternal.subscribe((next, prev) => {
     if (!next.isLoaded || sameViewport(next.viewport, prev.viewport)) return;
     persistViewport(farmId, next.viewport).catch((err) =>
