@@ -57,7 +57,7 @@ export function addDaysIso(dateStr: string, days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Ji daily risk is often << 0.01; plain toFixed(2) collapses everything to 0.00. */
+/** Quiet days sit orders of magnitude below 1; plain toFixed(2) collapses them to 0.00. */
 export function formatRiskValue(v: number): string {
   if (v === 0) return '0';
   if (Math.abs(v) < 0.001) return v.toExponential(1);

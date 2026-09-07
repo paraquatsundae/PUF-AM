@@ -13,6 +13,8 @@
     "bioEnvDegradationCoef": 0.75,
     "springStartingInoculum": 0.02,
     "orchardInoculumLevel": "medium",
+    "budbreakMonth": 9,
+    "budbreakDay": 1,
     "latencyGDDThreshold": 120.0,
     "secondarySpreadMultiplier": 1.0,
     "treeHeight": 4.5,

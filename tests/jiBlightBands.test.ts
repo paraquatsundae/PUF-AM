@@ -36,11 +36,28 @@ function day(fullDate: string, threat: number, extras: Partial<DailyData> = {}):
   };
 }
 
+/**
+ * Representative risk for each band, derived from the thresholds so that
+ * re-tuning the bands does not require rewriting the grouping tests below.
+ */
+const QUIET = JI_WATCH_THRESHOLD / 2;
+const WATCH = (JI_WATCH_THRESHOLD + JI_ACTION_THRESHOLD) / 2;
+const ACTION = JI_ACTION_THRESHOLD * 1.5;
+
 describe('bandFromRisk', () => {
   it('maps Quiet / Watch / Action', () => {
     expect(bandFromRisk(0)).toBe('quiet');
     expect(bandFromRisk(JI_WATCH_THRESHOLD)).toBe('watch');
     expect(bandFromRisk(JI_ACTION_THRESHOLD)).toBe('action');
+  });
+
+  it('bands are ordered and sit on Ji\u2019s 0\u20131 rate scale', () => {
+    expect(JI_WATCH_THRESHOLD).toBeGreaterThan(0);
+    expect(JI_ACTION_THRESHOLD).toBeGreaterThan(JI_WATCH_THRESHOLD);
+    expect(JI_ACTION_THRESHOLD).toBeLessThan(1);
+    expect(bandFromRisk(QUIET)).toBe('quiet');
+    expect(bandFromRisk(WATCH)).toBe('watch');
+    expect(bandFromRisk(ACTION)).toBe('action');
   });
 });
 
@@ -48,11 +65,11 @@ describe('detectInfectionEvents', () => {
   it('groups contiguous Watch+ days and picks peak drivers', () => {
     const series = [
       day('2025-10-01', 0),
-      day('2025-10-02', 0.003, { T: 16, R: 2, WD: 8 }),
-      day('2025-10-03', 0.02, { T: 17, R: 12, WD: 14 }),
-      day('2025-10-04', 0.004),
+      day('2025-10-02', WATCH, { T: 16, R: 2, WD: 8 }),
+      day('2025-10-03', ACTION, { T: 17, R: 12, WD: 14 }),
+      day('2025-10-04', WATCH),
       day('2025-10-05', 0),
-      day('2025-10-08', 0.015, { T: 19, R: 8, WD: 11 }),
+      day('2025-10-08', ACTION, { T: 19, R: 8, WD: 11 }),
     ];
     const events = detectInfectionEvents(series);
     expect(events).toHaveLength(2);
@@ -115,9 +132,9 @@ describe('symptomWindowForEvent', () => {
 describe('summarizeNext7Days', () => {
   it('counts bands and finds next Action day', () => {
     const days = [
-      day('2026-07-18', 0.001),
-      day('2026-07-19', 0.003),
-      day('2026-07-20', 0.012),
+      day('2026-07-18', QUIET),
+      day('2026-07-19', WATCH),
+      day('2026-07-20', ACTION),
       day('2026-07-21', 0),
     ];
     const o = summarizeNext7Days(days);

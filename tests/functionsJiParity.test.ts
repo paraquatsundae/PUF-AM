@@ -8,6 +8,8 @@ import {
   kFromInoculumLevel as sharedKFromLevel,
   JI_INOCULUM_K as SHARED_INOCULUM_K,
   JI_PUBLISHED as SHARED_PUBLISHED,
+  DEFAULT_SH_BUDBREAK as SHARED_DEFAULT_BUDBREAK,
+  resolveBudbreak as sharedResolveBudbreak,
 } from '../shared/weather/jiBlightModel';
 import { estimateWetnessHoursProxy as sharedWetnessProxy } from '../shared/weather/wetnessProxy';
 import { runJiBlightSeries as sharedRunSeries } from '../plugins/walnut_blight/src/runJiBlightSeries';
@@ -24,6 +26,8 @@ import {
   JI_PUBLISHED as FN_PUBLISHED,
   JI_WATCH_THRESHOLD as FN_WATCH,
   JI_ACTION_THRESHOLD as FN_ACTION,
+  DEFAULT_SH_BUDBREAK as FN_DEFAULT_BUDBREAK,
+  resolveBudbreak as fnResolveBudbreak,
   type SeriesWeatherDay,
 } from '../functions/src/jiBlightModel';
 
@@ -64,7 +68,7 @@ describe('functions Ji module ↔ shared Ji module parity', () => {
     }
   });
 
-  it('runJiBlightModel matches on the notebook golden fixture', () => {
+  it('runJiBlightModel matches on the golden fixture', () => {
     const weather = fixture.days.map((d) => ({ R: d.R, T: d.T, RH: d.RH }));
     for (const doseMode of ['cumulativeY', 'deltaY'] as const) {
       const shared = sharedRunJiBlightModel(weather, { orchard: fixture.orchard, doseMode });
@@ -74,6 +78,42 @@ describe('functions Ji module ↔ shared Ji module parity', () => {
         expect(fn[i].dailyInfectionRisk).toBeCloseTo(shared[i].dailyInfectionRisk, 12);
         expect(fn[i].wetnessHours).toBeCloseTo(shared[i].wetnessHours, 12);
       }
+    }
+  });
+
+  /**
+   * The site cascade is the newest and most intricate part of both modules, so the
+   * parity guard has to reach past the headline number into every state variable.
+   */
+  it('the S1–S4 cascade matches state for state over a long wet run', () => {
+    const ideal = { R: 8, T: 15.65, RH: 95, WD: 12 };
+    const dry = { R: 0, T: 13, RH: 55, WD: 0 };
+    const weather = Array.from({ length: 150 }, (_, i) => (i % 3 === 0 ? ideal : dry));
+
+    for (const k of [0.5, 1, 2]) {
+      const shared = sharedRunJiBlightModel(weather, { orchard: { k } });
+      const fn = fnRunJiBlightModel(weather, { orchard: { k } });
+      expect(fn).toHaveLength(shared.length);
+      for (let i = 0; i < shared.length; i++) {
+        const where = `k=${k} day ${i}`;
+        expect(fn[i].healthySites, where).toBeCloseTo(shared[i].healthySites, 12);
+        expect(fn[i].latentSites, where).toBeCloseTo(shared[i].latentSites, 12);
+        expect(fn[i].diseasedSites, where).toBeCloseTo(shared[i].diseasedSites, 12);
+        expect(fn[i].eruptingSites, where).toBeCloseTo(shared[i].eruptingSites, 12);
+        expect(fn[i].diseaseSeverity, where).toBeCloseTo(shared[i].diseaseSeverity, 12);
+        expect(fn[i].secondaryDose, where).toBeCloseTo(shared[i].secondaryDose, 12);
+        expect(fn[i].dispersalRate, where).toBeCloseTo(shared[i].dispersalRate, 12);
+      }
+    }
+  });
+
+  it('the 4-week SR window matches', () => {
+    const weather = Array.from({ length: 60 }, () => ({ R: 5, T: 15, RH: 90, WD: 10 }));
+    const shared = sharedRunJiBlightModel(weather, { orchard: { k: 1 } });
+    const fn = fnRunJiBlightModel(weather, { orchard: { k: 1 } });
+    for (let i = 0; i < shared.length; i++) {
+      expect(fn[i].cumulativeRain, `day ${i}`).toBeCloseTo(shared[i].cumulativeRain, 12);
+      expect(fn[i].primaryInoculumY, `day ${i}`).toBeCloseTo(shared[i].primaryInoculumY, 12);
     }
   });
 
@@ -88,7 +128,7 @@ describe('functions Ji module ↔ shared Ji module parity', () => {
 
     const start = new Date(2024, 5, 1);
     const end = new Date(2025, 10, 1);
-    const opts = { orchard: { k: 1 }, doseMode: 'cumulativeY' as const };
+    const opts = { orchard: { k: 1 } };
 
     const shared = sharedRunSeries(start, end, weather, opts);
     const fn = fnRunSeries(start, end, weather, opts);
@@ -99,6 +139,50 @@ describe('functions Ji module ↔ shared Ji module parity', () => {
       const match = fnByDate.get(row.fullDate);
       expect(match, `missing ${row.fullDate}`).toBeTruthy();
       expect(match!.threat).toBeCloseTo(row.threat, 9);
+      expect(match!.diseaseSeverity, row.fullDate).toBeCloseTo(row.diseaseSeverity ?? 0, 9);
+    }
+  });
+
+  it('budbreak default and coercion match', () => {
+    expect(FN_DEFAULT_BUDBREAK).toEqual(SHARED_DEFAULT_BUDBREAK);
+    const cases: [unknown, unknown][] = [
+      [9, 1],
+      [10, 15],
+      [0, 31],
+      [undefined, undefined],
+      [-1, 5],
+      [12, 5],
+      [5, 0],
+      [5, 32],
+      [1, 30], // 30 February → default
+      [3.5, 5],
+      ['9', '1'],
+      [null, null],
+    ];
+    for (const [m, d] of cases) {
+      expect(fnResolveBudbreak(m, d), `${String(m)}/${String(d)}`).toEqual(
+        sharedResolveBudbreak(m, d)
+      );
+    }
+  });
+
+  it('a moved budbreak shifts the window identically in both modules', () => {
+    const weather: Record<string, SeriesWeatherDay & { maxHourlyRain: number }> = {};
+    const budbreak = { month: 10, day: 1 };
+    for (const d of [4, 5, 6]) {
+      weather[`2025-11-0${d}`] = { T: 15.65, RH: 95, R: 12, WD: 12, maxHourlyRain: 2.4 };
+    }
+    const start = new Date(2025, 5, 1);
+    const end = new Date(2025, 11, 20);
+    const opts = { orchard: { k: 1 }, budbreak };
+
+    const shared = sharedRunSeries(start, end, weather, opts);
+    const fn = fnRunSeries(start, end, weather, opts);
+
+    expect(shared.some((r) => r.threat > 0)).toBe(true);
+    const fnByDate = new Map(fn.map((r) => [r.fullDate, r]));
+    for (const row of shared) {
+      expect(fnByDate.get(row.fullDate)!.threat, row.fullDate).toBeCloseTo(row.threat, 9);
     }
   });
 });

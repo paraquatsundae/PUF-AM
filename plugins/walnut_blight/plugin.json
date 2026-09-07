@@ -10,6 +10,8 @@
   "settingsDocId": "model_params",
   "settingsOwnedKeys": [
     "orchardInoculumLevel",
+    "budbreakMonth",
+    "budbreakDay",
     "blightSensitivity",
     "cropCoefficient",
     "gddBaseTemp",

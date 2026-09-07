@@ -37,6 +37,11 @@ export type DailyData = {
   R: number;
   WD: number;
   fullDate: string; // YYYY-MM-DD for easy reference
+  /**
+   * Ji disease progress curve (S4, 0–1) — cumulative fraction of tissue showing
+   * symptoms. Only produced on the Ji path; the Sandbox index has no equivalent.
+   */
+  diseaseSeverity?: number;
 };
 
 /**

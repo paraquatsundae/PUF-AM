@@ -1,6 +1,8 @@
 {
   "description": "32-day farm weather from Mathematica notebook (Modified Daily blight infection risk). Oct–Nov window; no sprays; no irrigation; 400 trees/ha.",
   "source": "Documents/Agronomy'/2026/Walnut/Blight forecasting/Modified Daily blight infection risk.pdf",
+  "expectedSource": "Recomputed 2026-09 from Ji et al. 2025 eq. 1-4 as published. The notebook applied the Beta exponent d to (1 - Teq) alone instead of the whole product, so its outputs encoded the same error the code did and could not be used to catch it. Weather inputs below are unchanged and remain notebook-sourced; expectations were derived independently of this codebase so the test stays a cross-check rather than a snapshot.",
+  "expectedScope": "Equation layer only: primary inoculum Y (eq. 1) and INFR = f(T) x f(WD) (eq. 2-4). This is a 32-day Oct-Nov window, not a budbreak-anchored season, so it deliberately does not exercise the S1-S4 site cascade or the 4-week SR window - those have their own deterministic tests.",
   "orchard": {
     "k": 1,
     "treeDensityPerHa": 400,
@@ -43,10 +45,24 @@
     { "day": 31, "R": 2.2, "T": 20.6, "RH": 79 },
     { "day": 32, "R": 20.2, "T": 17.0, "RH": 75 }
   ],
-  "expectedDailyInfectionRisk": [
-    2.09682629e-8, 0, 0, 0.00370970494, 0.0274408253, 6.950e-6, 7.82e-6,
-    0.02632182, 2.404e-5, 2.404e-5, 1.2e-7, 1e-8, 4.8e-7, 1e-8, 0, 0, 0,
-    0.00235558, 0.00018636, 0.0027496, 0.01423433, 3.18e-6, 3e-8, 1.89e-5,
-    0.00126463, 2.984e-5, 0, 0, 0.00068626, 5.99e-6, 3.815e-5, 0.0109187041
+  "expectedPrimaryInoculumY": [
+    0.0173947171, 0.0173947171, 0.0173947171, 0.754343885,
+    0.849705796, 0.852320122, 0.852320122, 0.892317524,
+    0.892317524, 0.892317524, 0.892317524, 0.892317524,
+    0.896031155, 0.896031155, 0.896031155, 0.896031155,
+    0.896031155, 0.904764538, 0.906421132, 0.92550862,
+    0.949365549, 0.950246321, 0.950246321, 0.951111772,
+    0.97780457, 0.978570021, 0.978942789, 0.978942789,
+    0.980022639, 0.982639154, 0.985686662, 0.997567631
+  ],
+  "expectedInfectionRate": [
+    0.000278769026, 0, 2.04253001e-06, 0.531959959,
+    0.955014429, 0.000827223675, 0.000872900229, 0.946736934,
+    0.00127696751, 0.00127696751, 5.8724478e-05, 6.27677747e-06,
+    0.000508127723, 8.05223723e-06, 5.13265637e-07, 2.7515644e-12,
+    0, 0.382605486, 0.000915771494, 0.411265768,
+    0.823667739, 0.000521322622, 1.59663254e-05, 0.00117328531,
+    0.253571369, 0.0163765724, 2.39869852e-10, 0,
+    0.1708941, 0.00427184989, 0.0198619324, 0.744271372
   ]
 }

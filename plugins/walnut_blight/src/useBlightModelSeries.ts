@@ -14,7 +14,7 @@ import {
   type WeatherData,
 } from './blightModel';
 import { runJiBlightSeries } from './runJiBlightSeries';
-import { kFromInoculumLevel } from '../../../shared/weather/jiBlightModel';
+import { kFromInoculumLevel, resolveBudbreak } from '../../../shared/weather/jiBlightModel';
 import {
   bandFromRisk,
   computeSymptomOnsetSeries,
@@ -151,7 +151,10 @@ export function useBlightModelSeries({
 
     return runJiBlightSeries(startDate, endDate, modelWeather, {
       orchard: { k: kFromInoculumLevel(debouncedParams.calib.orchardInoculumLevel) },
-      doseMode: 'cumulativeY',
+      budbreak: resolveBudbreak(
+        debouncedParams.calib.budbreakMonth,
+        debouncedParams.calib.budbreakDay
+      ),
     });
   }, [
     weatherData,

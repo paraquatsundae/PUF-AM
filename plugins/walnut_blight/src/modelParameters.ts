@@ -30,6 +30,10 @@ export interface ModelParameters extends EconomicsModelParams {
   bioEnvDegradationCoef: number;
   springStartingInoculum: number;
   orchardInoculumLevel: OrchardInoculumLevel;
+  /** Budbreak month, 0-indexed. Starts Ji's 4-week primary-inoculum window. */
+  budbreakMonth: number;
+  /** Budbreak day of month, 1-31. */
+  budbreakDay: number;
   latencyGDDThreshold: number;
   secondarySpreadMultiplier: number;
   treeHeight: number;
@@ -44,10 +48,12 @@ export const DEFAULT_MODEL_PARAMS: ModelParameters = {
   ...DEFAULT_ECONOMICS_MODEL_PARAMS,
 };
 
-/** Ji production inoculum — only farm-tunable Forecast/Historical term. */
-export const PRODUCTION_MODEL_PARAM_KEYS = ['orchardInoculumLevel'] as const satisfies ReadonlyArray<
-  keyof ModelParameters
->;
+/** Farm-tunable Ji production terms on Forecast / Historical / Dashboard. */
+export const PRODUCTION_MODEL_PARAM_KEYS = [
+  'orchardInoculumLevel',
+  'budbreakMonth',
+  'budbreakDay',
+] as const satisfies ReadonlyArray<keyof ModelParameters>;
 
 export type ProductionModelParams = Pick<
   ModelParameters,
@@ -116,8 +122,12 @@ export function pickResearchModelParams(
   return out;
 }
 
-export function pickProductionModelParams(params: ModelParameters): ProductionModelParams {
-  return { orchardInoculumLevel: params.orchardInoculumLevel };
+export function pickProductionModelParams(params: ProductionModelParams): ProductionModelParams {
+  return {
+    orchardInoculumLevel: params.orchardInoculumLevel,
+    budbreakMonth: params.budbreakMonth,
+    budbreakDay: params.budbreakDay,
+  };
 }
 
 export function defaultResearchModelParams(): ResearchModelParams {
@@ -127,7 +137,7 @@ export function defaultResearchModelParams(): ResearchModelParams {
 export function defaultCalibrationParams(): CalibrationParams {
   return {
     ...defaultResearchModelParams(),
-    orchardInoculumLevel: DEFAULT_MODEL_PARAMS.orchardInoculumLevel,
+    ...pickProductionModelParams(DEFAULT_MODEL_PARAMS),
     ...DEFAULT_ENGINE_SESSION,
   };
 }
@@ -137,7 +147,7 @@ export function modelParamsFromCalibration(calib: CalibrationParams): ModelParam
   return {
     ...DEFAULT_MODEL_PARAMS,
     ...pickResearchModelParams(calib),
-    orchardInoculumLevel: calib.orchardInoculumLevel,
+    ...pickProductionModelParams(calib),
   };
 }
 

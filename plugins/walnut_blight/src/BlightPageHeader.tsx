@@ -9,8 +9,8 @@ import {
   type GrowthStage,
 } from './blightModel';
 import type { WeatherSource } from '../../../src/lib/weatherService';
-import type { CalibrationParams, OrchardInoculumLevel } from './modelParameters';
-import { BlightOrchardInoculumPanel } from './BlightOrchardInoculumPanel';
+import type { CalibrationParams } from './modelParameters';
+import { BlightProductionSettingsPanel } from './BlightProductionSettingsPanel';
 import { BlightEngineSciencePanel } from './BlightEngineScience';
 
 export type BlightStation = {
@@ -235,11 +235,11 @@ export function BlightPageHeader({
           )}
         </div>
 
-        <BlightOrchardInoculumPanel
+        <BlightProductionSettingsPanel
           farmId={farmId}
-          level={(calib.orchardInoculumLevel ?? 'medium') as OrchardInoculumLevel}
+          calib={calib}
+          setCalib={setCalib}
           canEdit={Boolean(isAdmin && farmId)}
-          onLevelChange={(next) => setCalib((prev) => ({ ...prev, orchardInoculumLevel: next }))}
         />
 
         <BlightEngineSciencePanel />

@@ -20,6 +20,8 @@ const INOCULUM_LEVELS = ['low', 'medium', 'high'] as const;
 
 const MODEL_DEFAULT_KEYS = [
   'orchardInoculumLevel',
+  'budbreakMonth',
+  'budbreakDay',
   'blightSensitivity',
   'cropCoefficient',
   'gddBaseTemp',
@@ -50,6 +52,8 @@ const SESSION_DEFAULT_KEYS = [
 
 export type WalnutBlightModelDefaults = {
   orchardInoculumLevel: OrchardInoculumLevel;
+  budbreakMonth: number;
+  budbreakDay: number;
   blightSensitivity: number;
   cropCoefficient: number;
   gddBaseTemp: number;

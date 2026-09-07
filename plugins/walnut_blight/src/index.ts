@@ -14,9 +14,9 @@ const BlightRiskPage = lazyWithRetry(() =>
   import('./BlightRisk').then((m) => ({ default: m.BlightRisk }))
 );
 
-const BlightOrchardInoculumPanel = lazyWithRetry(() =>
-  import('./BlightOrchardInoculumPanel').then((m) => ({
-    default: m.BlightOrchardInoculumPanel,
+const BlightProductionSettingsPanel = lazyWithRetry(() =>
+  import('./BlightProductionSettingsPanel').then((m) => ({
+    default: m.BlightProductionSettingsPanel,
   }))
 );
 const BlightResearchModifiersPanel = lazyWithRetry(() =>
@@ -61,7 +61,7 @@ export const packUi: CropPackUiRegistration = {
     },
   ],
   surfaces: {
-    productionSettings: BlightOrchardInoculumPanel,
+    productionSettings: BlightProductionSettingsPanel,
     researchSettings: BlightResearchModifiersPanel,
     science: BlightEngineSciencePanel,
     engineSettings: BlightEngineSettings,

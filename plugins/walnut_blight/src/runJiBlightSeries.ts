@@ -5,6 +5,8 @@
 
 import {
   runJiBlightModel,
+  DEFAULT_SH_BUDBREAK,
+  type BudbreakDay,
   type JiOrchardParams,
   type JiRunOptions,
 } from '../../../shared/weather/jiBlightModel';
@@ -18,35 +20,42 @@ function toLocalISOString(date: Date) {
 }
 
 /**
- * Southern Hemisphere calendar bud break: 1 Sep of each year.
- * Primary inoculum (cumulative rain → Y) resets at each budbreak so multi-year
- * history does not saturate Y≈1 and flatten later seasons (deltaY → 0).
+ * Budbreak recurs annually. Primary inoculum (cumulative rain → Y) resets at each
+ * one, so multi-year history does not saturate Y≈1 and flatten later seasons.
  */
-export function isShBudbreakDay(date: Date): boolean {
-  return date.getMonth() === 8 && date.getDate() === 1;
+export function isShBudbreakDay(date: Date, budbreak: BudbreakDay = DEFAULT_SH_BUDBREAK): boolean {
+  return date.getMonth() === budbreak.month && date.getDate() === budbreak.day;
 }
 
-/** First SH budbreak on or after rangeStart (local calendar). */
-export function defaultShBudbreakDate(rangeStart: Date): Date {
+/** First budbreak on or after rangeStart (local calendar). */
+export function defaultShBudbreakDate(
+  rangeStart: Date,
+  budbreak: BudbreakDay = DEFAULT_SH_BUDBREAK
+): Date {
   const y = rangeStart.getFullYear();
-  const sep1 = new Date(y, 8, 1);
-  if (toLocalISOString(rangeStart) <= toLocalISOString(sep1)) return sep1;
-  return new Date(y + 1, 8, 1);
+  const thisYear = new Date(y, budbreak.month, budbreak.day);
+  if (toLocalISOString(rangeStart) <= toLocalISOString(thisYear)) return thisYear;
+  return new Date(y + 1, budbreak.month, budbreak.day);
 }
 
 export type RunJiBlightSeriesOptions = {
-  budbreakDate?: Date;
+  /**
+   * Budbreak day, recurring each season. Defaults to 1 Oct — see DEFAULT_SH_BUDBREAK
+   * for why the date is load-bearing now that SR is windowed.
+   */
+  budbreak?: BudbreakDay;
   orchard?: JiOrchardParams;
   /**
-   * Default `cumulativeY`: within each season, dose = Y_i (notebook / visible series).
-   * `deltaY`: paper rain-event splash only (sparse spikes).
+   * Default `deltaY` — Ji: the dose splashed by a rain event is the change in Y
+   * since the previous rain event. `cumulativeY` re-doses Y every day, which is
+   * what the notebook did; it holds a permanent inoculum floor and is not the paper.
    */
   doseMode?: JiRunOptions['doseMode'];
 };
 
 /**
  * Run Ji infection risk from startDate→endDate.
- * Rain / primary inoculum accumulate from each SH budbreak (1 Sep), resetting yearly.
+ * Rain / primary inoculum accumulate from each budbreak, resetting yearly.
  */
 export function runJiBlightSeries(
   startDate: Date,
@@ -54,11 +63,10 @@ export function runJiBlightSeries(
   weatherData: Record<string, WeatherData>,
   options: RunJiBlightSeriesOptions = {}
 ): DailyData[] {
-  const firstBudbreak = options.budbreakDate ?? defaultShBudbreakDate(startDate);
+  const budbreak = options.budbreak ?? DEFAULT_SH_BUDBREAK;
+  const firstBudbreak = defaultShBudbreakDate(startDate, budbreak);
   const firstBudbreakKey = toLocalISOString(firstBudbreak);
-  // cumulativeY keeps the Historical/Forecast chart readable; deltaY alone goes flat
-  // after Y saturates within a wet spring (and was broken across multi-year runs).
-  const doseMode = options.doseMode ?? 'cumulativeY';
+  const doseMode = options.doseMode ?? 'deltaY';
 
   const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / 86400000);
   const out: DailyData[] = [];
@@ -94,9 +102,10 @@ export function runJiBlightSeries(
         month: m.date.getMonth(),
         // 6 dp — Ji daily risk is often << 0.01; 4 dp was rounding spikes to 0
         threat: Number(risk.toFixed(6)),
-        latentThreat: 0,
-        eruptingThreat: 0,
+        latentThreat: m.beforeFirstBudbreak ? 0 : Number(row.latentSites.toFixed(6)),
+        eruptingThreat: m.beforeFirstBudbreak ? 0 : Number(row.eruptingSites.toFixed(6)),
         daysToEruption: null,
+        diseaseSeverity: m.beforeFirstBudbreak ? 0 : Number(row.diseaseSeverity.toFixed(6)),
         chem: 0,
         bio: 0,
         isSprayDay: false,
@@ -122,7 +131,7 @@ export function runJiBlightSeries(
     }
 
     // New primary-inoculum season at each 1 Sep.
-    const seasonReset = isShBudbreakDay(d) && segmentWeather.length > 0;
+    const seasonReset = isShBudbreakDay(d, budbreak) && segmentWeather.length > 0;
     if (seasonReset) {
       flushSegment();
       // Do not carry last year's rain into the new primary-inoculum season

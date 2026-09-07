@@ -7,10 +7,27 @@ import type { DailyData } from './blightModel';
 
 export type RiskBand = 'quiet' | 'watch' | 'action';
 
+/**
+ * Bands sit on the S2→S3 flow — the fraction of host tissue newly infected in a day,
+ * which is the "infection severity" Ji plots as grey bars in Figs. 5–8.
+ *
+ *   Watch  1% of tissue infected in a day
+ *   Action 5% of tissue infected in a day
+ *
+ * Calibrated for frequency rather than picked off the scale: across 40 synthetic
+ * Manjimup Sep–Dec seasons at k=1 these fire on ~19 and ~7.5 days respectively, and
+ * 5–10 copper applications per season is the cadence Ji describes as standard
+ * practice. Provisional until WA scouting data exists — and note Ji reports
+ * specificity of 0.130, so expect false alarms at any threshold.
+ *
+ * These are dose-model dependent: they were an order of magnitude different before
+ * the site cascade landed. Re-derive them if the model structure changes again.
+ */
+
 /** Below this: Quiet. At/above: Watch. */
-export const JI_WATCH_THRESHOLD = 0.002;
-/** At/above: Action (same as previous “high index” line). */
-export const JI_ACTION_THRESHOLD = 0.01;
+export const JI_WATCH_THRESHOLD = 0.01;
+/** At/above: Action. */
+export const JI_ACTION_THRESHOLD = 0.05;
 
 /** @deprecated prefer JI_ACTION_THRESHOLD — kept for existing imports */
 export const JI_HIGH_RISK_THRESHOLD = JI_ACTION_THRESHOLD;

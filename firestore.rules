@@ -427,7 +427,8 @@ service cloud.firestore {
                'blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor',
                'splashMultiplier', 'chemRainWashoffRate', 'bioColonizationEff',
                'bioFavorableGrowthRate', 'bioEnvDegradationCoef', 'springStartingInoculum',
-               'orchardInoculumLevel', 'latencyGDDThreshold', 'secondarySpreadMultiplier',
+               'orchardInoculumLevel', 'budbreakMonth', 'budbreakDay',
+               'latencyGDDThreshold', 'secondarySpreadMultiplier',
                'treeHeight', 'canopyWidth', 'rowSpacing', 'chemEfficacy', 'bioEfficacy',
                'marketPrice', 'harvestCostPerKg', 'waterCostPerML'
              ]) &&
@@ -437,7 +438,9 @@ service cloud.firestore {
              (!('humidityGradientFactor' in data) || data.humidityGradientFactor is number) &&
              (!('splashMultiplier' in data) || data.splashMultiplier is number) &&
              (!('bioColonizationEff' in data) || data.bioColonizationEff is number) &&
-             (!('orchardInoculumLevel' in data) || data.orchardInoculumLevel in ['low', 'medium', 'high']);
+             (!('orchardInoculumLevel' in data) || data.orchardInoculumLevel in ['low', 'medium', 'high']) &&
+             (!('budbreakMonth' in data) || (data.budbreakMonth is int && data.budbreakMonth >= 0 && data.budbreakMonth <= 11)) &&
+             (!('budbreakDay' in data) || (data.budbreakDay is int && data.budbreakDay >= 1 && data.budbreakDay <= 31));
     }
 
     function isValidChillPortionsSettings(data) {

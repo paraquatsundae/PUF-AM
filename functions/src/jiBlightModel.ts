@@ -26,9 +26,9 @@ export const JI_PUBLISHED = {
 } as const;
 
 /** Below this: Quiet. At/above: Watch. (mirror of jiBlightBands.ts) */
-export const JI_WATCH_THRESHOLD = 0.002;
+export const JI_WATCH_THRESHOLD = 0.01;
 /** At/above: Action. */
-export const JI_ACTION_THRESHOLD = 0.01;
+export const JI_ACTION_THRESHOLD = 0.05;
 
 export type RiskBand = "quiet" | "watch" | "action";
 
@@ -79,7 +79,50 @@ export type JiRunOptions = {
    * `cumulativeY` — Mathematica notebook: dose = Y_i every day (golden fixture).
    */
   doseMode?: "deltaY" | "cumulativeY";
+  /**
+   * Ji Table 1: SR is "cumulative precipitation that accumulated within 4 weeks
+   * after budbreak". Index 0 of `weather` is taken as budbreak. `null` accumulates
+   * over the whole series (pre-2026-09 behaviour; for testing the raw equations).
+   */
+  inoculumWindowDays?: number | null;
+  /**
+   * Secondary inoculum coefficient — Ji states only that production is proportional
+   * to S4 and gives no constant. Set 0 to run primary inoculum only.
+   */
+  secondaryInoculumCoeff?: number;
+  /** Incubation window (Ji: symptoms appear 15–21 days after infection). */
+  incubationMinDays?: number;
+  incubationMaxDays?: number;
 };
+
+/** Ji Table 1: SR accumulates over the 4 weeks following budbreak. */
+export const JI_INOCULUM_WINDOW_DAYS = 28;
+
+/** A budbreak date that recurs every season. `month` is 0-indexed. */
+export type BudbreakDay = { month: number; day: number };
+
+/**
+ * Default SH budbreak: 1 October — the SH equivalent of the 1 April default Ji used
+ * for the Californian epidemics. See the shared module for why this is load-bearing.
+ */
+export const DEFAULT_SH_BUDBREAK: BudbreakDay = { month: 9, day: 1 };
+
+/** Coerce stored month/day into a usable budbreak; never throws. */
+export function resolveBudbreak(month?: unknown, day?: unknown): BudbreakDay {
+  const m = typeof month === "number" && Number.isInteger(month) ? month : NaN;
+  const d = typeof day === "number" && Number.isInteger(day) ? day : NaN;
+  if (Number.isNaN(m) || Number.isNaN(d)) return DEFAULT_SH_BUDBREAK;
+  if (m < 0 || m > 11 || d < 1 || d > 31) return DEFAULT_SH_BUDBREAK;
+  if (d > new Date(2001, m + 1, 0).getDate()) return DEFAULT_SH_BUDBREAK;
+  return { month: m, day: d };
+}
+
+/** Ji: infected sites become symptomatic 15–21 days later (delay distribution, Fig. 3). */
+export const JI_INCUBATION_MIN_DAYS = 15;
+export const JI_INCUBATION_MAX_DAYS = 21;
+
+/** Neutral choice for the coefficient Ji leaves unspecified (see shared module). */
+export const JI_SECONDARY_INOCULUM_COEFF = 1;
 
 /** Interim LWD when no sensor: rain intensity + high RH (local Mathematica notebook). */
 export function estimateWetnessHoursProxy(R: number, RH: number): number {
@@ -88,12 +131,19 @@ export function estimateWetnessHoursProxy(R: number, RH: number): number {
   return Math.min(18, fromRain + fromHumidity);
 }
 
-/** Beta temperature response — Analytis form as in Ji supplementary / notebook. */
+/**
+ * Beta temperature response — Analytis form, Ji eq. 3:
+ *   f(T) = (b · Teq^c · (1 − Teq))^d
+ *
+ * `d` raises the whole product, not just the (1 − Teq) factor. Applying it to
+ * (1 − Teq) alone moves the peak from 15.65 °C to 11.07 °C and caps the output
+ * at 0.282, which cannot be right: Ji Table 1 defines INFR over 0 to 1.
+ */
 export function jiTempFactor(T: number, p = JI_PUBLISHED): number {
   if (T < p.TminInf || T > p.TmaxInf) return 0;
   const teq = (T - p.TminInf) / (p.TmaxInf - p.TminInf);
   if (teq <= 0 || teq >= 1) return 0;
-  return p.bBeta * teq ** p.cBeta * (1 - teq) ** p.dBeta;
+  return (p.bBeta * teq ** p.cBeta * (1 - teq)) ** p.dBeta;
 }
 
 /** Gompertz wetness response (Ji eq. 4). */
@@ -116,14 +166,33 @@ export type JiDailyResult = {
   cumulativeRain: number;
   primaryInoculumY: number;
   primaryDoseDelta: number;
+  /** Secondary inoculum oozing from symptomatic (S4) sites, splashed on rain days. */
+  secondaryDose: number;
+  /** DISPR — fraction of healthy sites contaminated today (0–1). */
+  dispersalRate: number;
   wetnessHours: number;
   fTemp: number;
   fWetness: number;
   infectionRate: number;
+  /** S2→S3 flow: Ji's "infection severity", the grey bars in Figs. 5–8. */
   dailyInfectionRisk: number;
+  /** S1 — fraction of host tissue still healthy and susceptible. */
+  healthySites: number;
+  /** S3 — fraction carrying latent infection. */
+  latentSites: number;
+  /** S4 — fraction symptomatic and producing inoculum. */
+  diseasedSites: number;
+  /** Fraction whose symptoms became visible today (S3→S4 flow). */
+  eruptingSites: number;
+  /** S4 — the disease progress curve (0–1), the line in Figs. 5–8. */
+  diseaseSeverity: number;
 };
 
-/** Run Ji infection risk over a daily weather series (one budbreak season). */
+/**
+ * Run the Ji walnut blight model over a daily weather series (one budbreak season).
+ * Mirror of shared/weather/jiBlightModel.ts — see that file for the full commentary
+ * on the HLIR site cascade and the two assumptions Ji leaves unspecified.
+ */
 export function runJiBlightModel(
   weather: JiDailyWeather[],
   options: JiRunOptions = {}
@@ -131,13 +200,30 @@ export function runJiBlightModel(
   const p = JI_PUBLISHED;
   const k = options.orchard?.k ?? 1;
   const doseMode = options.doseMode ?? "deltaY";
+  const windowDays =
+    options.inoculumWindowDays === undefined
+      ? JI_INOCULUM_WINDOW_DAYS
+      : options.inoculumWindowDays;
+  const secondaryCoeff =
+    options.secondaryInoculumCoeff ?? JI_SECONDARY_INOCULUM_COEFF;
+  const minLag = options.incubationMinDays ?? JI_INCUBATION_MIN_DAYS;
+  const maxLag = options.incubationMaxDays ?? JI_INCUBATION_MAX_DAYS;
   const densityMult = jiDensityFactor(options.orchard ?? {});
 
   let cumulativeRain = 0;
   let prevY = 0;
+
+  let S1 = 1;
+  let S3 = 0;
+  let S4 = 0;
+
+  const lagSpan = maxLag - minLag + 1;
+  const eruption = new Array<number>(weather.length + maxLag + 1).fill(0);
+
   const out: JiDailyResult[] = [];
 
-  for (const day of weather) {
+  for (let i = 0; i < weather.length; i++) {
+    const day = weather[i];
     const R = Math.max(0, day.R);
     const RH = day.RH ?? 60;
     const WD =
@@ -145,27 +231,56 @@ export function runJiBlightModel(
         ? Math.max(0, Math.min(24, day.WD))
         : estimateWetnessHoursProxy(R, RH);
 
-    cumulativeRain += R;
+    // Symptoms surfacing today: S3 → S4. These sites start producing inoculum.
+    const erupting = Math.min(S3, eruption[i]);
+    S3 -= erupting;
+    S4 += erupting;
+
+    // Past the window the bud reservoir is spent: SR freezes, so Y and deltaY do too.
+    if (windowDays == null || i < windowDays) cumulativeRain += R;
     const Y = k * (1 - p.aMobil ** cumulativeRain);
     const deltaY = Math.max(0, Y - prevY);
     prevY = Y;
 
+    // Both inoculum sources need rain to splash them onto healthy tissue.
+    const isRainDay = R > 0;
+    const primaryDose = doseMode === "cumulativeY" ? Y : deltaY;
+    const secondaryDose = isRainDay ? secondaryCoeff * S4 : 0;
+    const dispersalRate = Math.min(
+      1,
+      densityMult * (primaryDose + secondaryDose)
+    );
+
     const fTemp = jiTempFactor(day.T, p);
     const fWetness = jiWetnessFactor(WD, p);
     const infectionRate = fTemp * fWetness;
-    const dose = doseMode === "cumulativeY" ? Y : deltaY;
-    const dailyInfectionRisk = infectionRate * dose * densityMult;
+
+    // S1 → S2 → S3, collapsed because S2 is transient.
+    const newlyInfected = Math.min(S1, S1 * dispersalRate * infectionRate);
+    S1 -= newlyInfected;
+    S3 += newlyInfected;
+
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      eruption[i + lag] += newlyInfected / lagSpan;
+    }
 
     out.push({
       date: day.date,
       cumulativeRain,
       primaryInoculumY: Y,
       primaryDoseDelta: deltaY,
+      secondaryDose,
+      dispersalRate,
       wetnessHours: WD,
       fTemp,
       fWetness,
       infectionRate,
-      dailyInfectionRisk,
+      dailyInfectionRisk: newlyInfected,
+      healthySites: S1,
+      latentSites: S3,
+      diseasedSites: S4,
+      eruptingSites: erupting,
+      diseaseSeverity: S4,
     });
   }
 
@@ -178,6 +293,8 @@ export type JiSeriesRow = {
   fullDate: string;
   threat: number;
   band: RiskBand;
+  /** Ji disease progress curve (S4, 0–1). */
+  diseaseSeverity: number;
   T: number;
   RH: number;
   R: number;
@@ -191,32 +308,42 @@ function toLocalISOString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Southern Hemisphere calendar bud break: 1 Sep of each year. */
-function isShBudbreakDay(date: Date): boolean {
-  return date.getMonth() === 8 && date.getDate() === 1;
+function isShBudbreakDay(
+  date: Date,
+  budbreak: BudbreakDay = DEFAULT_SH_BUDBREAK
+): boolean {
+  return date.getMonth() === budbreak.month && date.getDate() === budbreak.day;
 }
 
-/** First SH budbreak on or after rangeStart (local calendar). */
-function defaultShBudbreakDate(rangeStart: Date): Date {
+/** First budbreak on or after rangeStart (local calendar). */
+function defaultShBudbreakDate(
+  rangeStart: Date,
+  budbreak: BudbreakDay = DEFAULT_SH_BUDBREAK
+): Date {
   const y = rangeStart.getFullYear();
-  const sep1 = new Date(y, 8, 1);
-  if (toLocalISOString(rangeStart) <= toLocalISOString(sep1)) return sep1;
-  return new Date(y + 1, 8, 1);
+  const thisYear = new Date(y, budbreak.month, budbreak.day);
+  if (toLocalISOString(rangeStart) <= toLocalISOString(thisYear)) return thisYear;
+  return new Date(y + 1, budbreak.month, budbreak.day);
 }
 
 /**
- * Seasonal Ji infection risk, mirroring `src/lib/runJiBlightSeries.ts`.
- * Rain / primary inoculum accumulate from each SH budbreak (1 Sep), resetting yearly.
+ * Seasonal Ji infection risk, mirroring `plugins/walnut_blight/src/runJiBlightSeries.ts`.
+ * Rain / primary inoculum accumulate from each budbreak, resetting yearly.
  */
 export function runJiBlightSeries(
   startDate: Date,
   endDate: Date,
   weatherData: Record<string, SeriesWeatherDay>,
-  options: { orchard?: JiOrchardParams; doseMode?: JiRunOptions["doseMode"] } = {}
+  options: {
+    orchard?: JiOrchardParams;
+    doseMode?: JiRunOptions["doseMode"];
+    budbreak?: BudbreakDay;
+  } = {}
 ): JiSeriesRow[] {
-  const firstBudbreak = defaultShBudbreakDate(startDate);
+  const budbreak = options.budbreak ?? DEFAULT_SH_BUDBREAK;
+  const firstBudbreak = defaultShBudbreakDate(startDate, budbreak);
   const firstBudbreakKey = toLocalISOString(firstBudbreak);
-  const doseMode = options.doseMode ?? "cumulativeY";
+  const doseMode = options.doseMode ?? "deltaY";
 
   const totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / 86400000);
   const out: JiSeriesRow[] = [];
@@ -248,6 +375,9 @@ export function runJiBlightSeries(
         fullDate: m.key,
         threat,
         band: bandFromRisk(threat),
+        diseaseSeverity: m.beforeFirstBudbreak
+          ? 0
+          : Number(row.diseaseSeverity.toFixed(6)),
         T: Number(T.toFixed(1)),
         RH: Number(RH.toFixed(1)),
         R: Number(R.toFixed(1)),
@@ -269,7 +399,7 @@ export function runJiBlightSeries(
       lastWD = w.WD;
     }
 
-    const seasonReset = isShBudbreakDay(d) && segmentWeather.length > 0;
+    const seasonReset = isShBudbreakDay(d, budbreak) && segmentWeather.length > 0;
     if (seasonReset) {
       flushSegment();
       lastR = 0;
