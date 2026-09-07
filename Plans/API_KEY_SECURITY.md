@@ -94,15 +94,33 @@ from viewing, so that is worth asking about in the same email.
 
 The `AIza…` in the bundle is the Firebase web API key. It is meant to be public:
 it identifies the project, it does not authorise anything, and Firestore rules
-plus App Check are what actually stop a request. Restricting it is defence in
-depth, not a fix for an exposure.
+are what actually stop a request. App Check would be the other half of that
+sentence, and is not implemented — see the decision below. Restricting the key
+is defence in depth, not a fix for an exposure.
 
-1. [Google Cloud Credentials](https://console.cloud.google.com/apis/credentials) →
-   the browser key for the web app.
-2. **API restrictions** → Restrict key → Identity Toolkit API, Token Service API,
-   Cloud Firestore API, Firebase Installations API. Nothing else the app does not
-   call. Do **not** leave "Don't restrict key".
-3. **Application restrictions** → HTTP referrers:
+### API restrictions — done 2026-09-07
+
+The key was reachable for **27** services, including `firebasevertexai`,
+`firebaseml` and `mlkit`. Those failed only because the APIs were not enabled on
+the project, which is a coincidence rather than a control. It is now restricted
+to the five the client actually calls:
+
+| Target | Used by |
+|--------|---------|
+| `identitytoolkit.googleapis.com` | Auth sign-in |
+| `securetoken.googleapis.com` | Auth token refresh |
+| `firestore.googleapis.com` | `initializeFirestore` |
+| `firebasestorage.googleapis.com` | `getStorage` |
+| `firebaseinstallations.googleapis.com` | Firebase SDK internals |
+
+Verified after the change: Identity Toolkit answers `PASSWORD_LOGIN_DISABLED`
+(the project's own provider config, not a blocked key), Firestore answers on the
+key, and a removed target — `firebaseremoteconfig` — answers 403.
+
+### Referrer restrictions — deliberately not applied
+
+The table below was the original plan. It is kept as a record of what was
+considered, not as an outstanding task.
 
 | Referrer | Why |
 |----------|-----|
@@ -111,8 +129,41 @@ depth, not a fix for an exposure.
 | `http://localhost:3000/*`, `http://127.0.0.1:3000/*` | Workshop dev |
 | `https://localhost/*`, `capacitor://localhost/*` | Packaged Capacitor WebView |
 
-4. Firebase Console → Authentication → Settings → **Authorized domains**: only
-   `am.pufworks.farm`, the Cloud Run host, and `localhost`.
+Two reasons it was dropped. `Referer` is set by the caller, so it deters other
+people's **websites** from embedding the key and nothing else — anyone with curl
+sends whatever they like. And the desktop shell loads the UI from
+`http://127.0.0.1:<port>` where the port is remembered per install (`appPort()`
+in `desktop/main.ts`), so no enumerable list covers it and Electron sign-in would
+break for some installs and not others. A control that is bypassed by the
+attacker and broken for the operator is the wrong way round.
+
+Revisit if the desktop shell ever moves to a fixed port or a custom scheme.
+
+Still worth doing, and independent of the above: Firebase Console →
+Authentication → Settings → **Authorized domains**: only `am.pufworks.farm`, the
+Cloud Run host, and `localhost`.
+
+### App Check — deferred 2026-09-07
+
+App Check is the standard answer to a public key being reusable, and it is not
+wired up. That is a deliberate deferral rather than an oversight, on these
+grounds:
+
+- Signup is not open. `POST /api/auth/create-farm` requires an enrollment code
+  and fails closed when none is configured, and the other path in is an invite
+  PIN. There is no self-serve front door for App Check to defend.
+- The route that spends money is gated. `/api/weather/*` now requires farm
+  membership rather than any verified token, so a stranger's Google account no
+  longer reaches the DPIRD key.
+- Firestore rules already require auth and membership, and deny client reads of
+  `farms_public` outright.
+- The cost is not the SDK call. It is reCAPTCHA for web, Play Integrity for the
+  APK, a debug-token path for every workshop tree and CI runner, and a staged
+  enforcement rollout — across three shells, one of which loads from a loopback
+  port that varies per install.
+
+Reopen this if signup ever becomes self-serve, if the project stops being one
+operator's, or if Auth abuse shows up in the logs.
 
 ### Open question: the AI Studio project
 
@@ -126,6 +177,26 @@ and a project created by a tool is a project a tool may reorganise. Moving means
 migrating Firestore, Auth users and custom claims, so it is a deliberate piece of
 work rather than a setting — but it should be decided rather than defaulted into.
 
+The scratch-project inheritance was not only cosmetic. A 2026-09-07 sweep found
+**four API keys scoped to `generativelanguage.googleapis.com`** — "Gemini API
+Key" twice, "Default Gemini API Key" and "number 3" — left from the AI Studio
+scaffold, on a project whose app has never called Gemini. Each was spendable
+quota with no legitimate caller. All four were deleted, along with a Maps key
+whose API has no code references (imagery goes through `/api/tiles`). Only the
+Firebase browser key remains.
+
+The application code itself is clean: no AI SDK in any lockfile, no AI key in
+env or deploy config, no outbound call to a generative endpoint, and no Cloud
+Function that reaches one. The single remnant is the guard in `src/lib/appUrl.ts`
+that *rejects* `ai.studio` placeholder URLs.
+
+Left enabled on the project, unused by the app, and safe to disable:
+`generativelanguage`, `cloudaicompanion`, `geminicloudassist`, `earthengine`, the
+six `maps-*` APIs, the BigQuery family, `appengine`, `sql-component`,
+`firebaseremoteconfig`, `fcm`, and others — roughly 36 of the 68 enabled.
+`containerregistry` needs one deploy to confirm before removing, since older
+Cloud Build paths can still touch `gcr.io`.
+
 ---
 
 ## Checklist
@@ -133,7 +204,11 @@ work rather than a setting — but it should be decided rather than defaulted in
 - [ ] `.env` has `DPIRD_API_KEY=` and **no** `VITE_DPIRD_API_KEY=`
 - [ ] No `VITE_GOOGLE_MAPS_API_KEY` anywhere in `.env`, CI, or the deploy script
 - [ ] Landgate commercial-use question asked and answered
-- [ ] Firebase web key API-restricted and referrer-restricted
+- [x] Firebase web key API-restricted (2026-09-07); referrers deliberately not
+      applied, reasoning above
+- [x] Stray Gemini and Maps API keys deleted (2026-09-07)
+- [x] App Check decision recorded (deferred, 2026-09-07)
 - [ ] Auth authorized domains trimmed to the list above
+- [ ] Unused project APIs disabled — see the list above
 - [ ] Satellite tiles still load on desktop, web and tablet
 - [ ] A decision recorded on the `gen-lang-client-0444791425` project
