@@ -38,9 +38,20 @@ export function useDryingSessions(farmId: string | undefined) {
   useEffect(() => {
     if (!farmId) return;
     let cancelled = false;
-    getFarmAssets(farmId).then((assets) => {
-      if (!cancelled) setDryers(assets.dryers);
-    });
+    // Names only — a failed read costs a label on a session row, so it falls
+    // back to empty rather than blocking the list. The panel that *writes* the
+    // dryer list treats the same failure as fatal.
+    getFarmAssets(farmId)
+      .then((assets) => {
+        if (!cancelled) setDryers(assets.dryers);
+      })
+      .catch((error) => {
+        // Cleared, not left alone: on a farm switch this state still holds the
+        // previous farm's dryers, and keeping them would label these sessions
+        // with another farm's bins.
+        console.error('Error fetching dryer list:', error);
+        if (!cancelled) setDryers([]);
+      });
     return () => {
       cancelled = true;
     };
