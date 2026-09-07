@@ -3,8 +3,9 @@
  *
  * To add a pack: `Plans/PLUGIN_AUTHORING.md`. Drop a folder under `plugins/`
  * with a `plugin.json` and a `src/index.ts` exporting `packUi`, add its catalog
- * adapter, and it appears here — no core file lists the packs, so contributing
- * one is not a core edit.
+ * adapter, and it appears here. No file under `src/` names a pack — but the
+ * adapter, module id and catalog row in `shared/` are still hand-added, so
+ * "adding a pack edits nothing" is only true of the UI wiring.
  *
  * `import.meta.glob` is Vite's build-time directory read, not a runtime loader:
  * it expands to static imports of whatever matched when the bundle was built,

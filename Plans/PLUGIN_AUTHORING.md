@@ -6,7 +6,7 @@
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)  
 **Limits / debug / audit:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
 **Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1)  
-**Layout change done (2026-09-03):** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moved every pack's code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, and `registry.ts` now discovers packs instead of listing them — **a pack is one folder and adding one edits no core file.** Still statically compiled: discovery is a build-time glob, so the "Must not → hot-load" rule below **stands**.
+**Layout change done (2026-09-03):** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moved every pack's code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, and `registry.ts` now discovers packs instead of listing them — **a pack's code is one folder, and its UI wires itself.** Routes, nav and surfaces need no edit to `src/packs/registry.ts`, `App.tsx` or `navConfig.ts`. You still hand-add the three `shared/` pieces in §2–§4 below — the adapter, the module id, and the catalog row — so "no core edit" is true of the UI wiring, not of the whole job. Folding those in is Phase 2. Still statically compiled: discovery is a build-time glob, so the "Must not → hot-load" rule below **stands**.
 
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.
 
@@ -135,7 +135,7 @@ Do **not** add `migrateLegacy…` unless you are extracting a feature that alrea
 | `plugins/<id>/src/index.ts` | **`export const packUi: CropPackUiRegistration`** — routes, nav, surfaces |
 | `plugins/<id>/src/…` | The page + knobs, beside the registration |
 
-**Nothing to append.** `src/packs/registry.ts` finds packs with an `import.meta.glob` over `plugins/*/src/index.ts`, so adding a pack touches no core file. Two consequences worth knowing:
+**Nothing to append.** `src/packs/registry.ts` finds packs with an `import.meta.glob` over `plugins/*/src/index.ts`, so the UI half of a pack registers itself — nothing in `src/` needs your pack's name. The catalog and module work in §2–§4 is separate and still manual. Two consequences worth knowing:
 
 - The export **must** be named `packUi`. Any other name and the pack is skipped in silence — `audit:codebase` fails with that exact message rather than letting you find out from an empty menu.
 - Menu order comes from `CROP_PACKS`, not the folder name, because the glob returns paths alphabetically. Position your pack in the catalog array.

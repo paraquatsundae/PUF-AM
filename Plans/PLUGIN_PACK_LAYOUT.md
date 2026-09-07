@@ -1,7 +1,7 @@
 # Self-contained crop packs (migration plan)
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Phases 0 and 1 complete, 2026-09-03 — a pack is one folder and adding one edits no core file. Phase 2 (compiler-enforced boundary) is next — see §5  
+**Status:** Phases 0 and 1 complete, 2026-09-03 — a pack's code is one folder, and its UI registers itself with no edit to `src/`. The `shared/` catalog, adapter and module id are still hand-added; folding those in is Phase 2, along with the compiler-enforced boundary — see §5  
 **Goal:** each pack's whole implementation lives in `plugins/<id>/src/`; a contributor adds a pack by adding one folder  
 **Decision:** statically compiled, boundary enforced by the compiler. **No runtime loading** — see §3  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
@@ -182,7 +182,9 @@ That page is `WeatherEvents.tsx`, and it moved despite the generic name. It is o
 
 **Both pack-location checks are now strict.** `scripts/audit-codebase.mjs` and `tests/codebaseHealth.test.ts` had each accepted either location during the migration, with a note to drop the `src/packs/` arm when the last pack moved. Both now require `plugins/<id>/src/index.ts` **and** fail if `src/packs/<id>/index.ts` reappears, so the old layout cannot creep back. `src/packs/` holds only `registry.ts` and `types.ts` — the core-side seam.
 
-**Build-time discovery (2026-09-03) — Phase 1 done.** `registry.ts` no longer lists the packs. It globs `plugins/*/src/index.ts` and takes the `packUi` each one exports, so **adding a pack edits no core file** — the goal this whole plan was written for.
+**Build-time discovery (2026-09-03) — Phase 1 done.** `registry.ts` no longer lists the packs. It globs `plugins/*/src/index.ts` and takes the `packUi` each one exports, so **no file under `src/` names a pack** — the goal this whole plan was written for.
+
+Stated precisely, because the short version overclaims and the short version is what gets quoted: a contributor adding a pack edits nothing in `src/`. They still add `shared/farm/<id>Package.ts`, an id and labels in `shared/auth/farmModules.ts`, and a `CropPackDef` in `shared/farm/cropPacks.ts` — the three steps `PLUGIN_AUTHORING.md` §2–§4 have always listed. Those are catalog and grants rather than UI wiring, they are why an unknown folder is skipped instead of silently mounted, and the checklist below already records them as moving with a later discovery pass.
 
 `import.meta.glob` is Vite reading a directory *at build time*, not a runtime loader. It expands to static imports of whatever matched when the bundle was built, so packs are still compiled in and still vetted through review, and §3's decision against runtime loading is untouched. It stays eager, exactly as the hand-written imports were: App and navConfig need routes and nav on first paint. The weight stays behind each pack's own `lazyWithRetry` calls, and the build still emits one chunk per pack page.
 
