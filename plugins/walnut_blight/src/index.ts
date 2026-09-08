@@ -1,9 +1,8 @@
 /**
  * Walnut blight crop pack — UI registration (CP-04).
  *
- * Do not copy this one as a template. It is the largest pack and still shares
- * `settings/model_params` with farm economics — `Plans/PLUGIN_AUTHORING.md`
- * points new packs at chill portions or water instead.
+ * Do not copy this one as a template. It is the largest pack.
+ * `Plans/PLUGIN_AUTHORING.md` points new packs at chill portions or water instead.
  */
 import { IconBug } from '@tabler/icons-react';
 import type { CropPackUiRegistration } from '../../../src/packs/types';

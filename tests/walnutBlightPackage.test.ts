@@ -35,6 +35,6 @@ describe('walnut blight on-disk package', () => {
       walnutBlightModelDefaults.blightSensitivity
     );
     expect(DEFAULT_MODEL_PARAMS.orchardInoculumLevel).toBe('medium');
-    expect(DEFAULT_MODEL_PARAMS.marketPrice).toBe(3.3);
+    expect(DEFAULT_MODEL_PARAMS).not.toHaveProperty('marketPrice');
   });
 });

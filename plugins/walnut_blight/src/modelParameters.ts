@@ -2,9 +2,9 @@
  * Farm `settings/model_params` shape + sandbox calibration slices
  * (Plans/BLIGHT_ENGINE_PLUGIN.md BE-05).
  *
- * Firestore doc = production + research + economics.
- * Sandbox `CalibrationParams` = research + orchard inoculum + session-only
- * engine knobs (Ctrl+Shift+D). Session knobs are never written to Firestore.
+ * Firestore doc = production + research. Sandbox `CalibrationParams` =
+ * research + production + session-only engine knobs (Ctrl+Shift+D).
+ * Session knobs are never written to Firestore.
  */
 
 export type { OrchardInoculumLevel } from '../../../shared/weather/jiBlightModel';
@@ -13,12 +13,8 @@ import {
   walnutBlightModelDefaults,
   walnutBlightSessionDefaults,
 } from '../../../shared/farm/walnutBlightPackage';
-import {
-  DEFAULT_ECONOMICS_MODEL_PARAMS,
-  type EconomicsModelParams,
-} from '../../../src/lib/farmEconomicsParams';
 
-export interface ModelParameters extends EconomicsModelParams {
+export interface ModelParameters {
   blightSensitivity: number;
   cropCoefficient: number;
   gddBaseTemp: number;
@@ -45,7 +41,6 @@ export interface ModelParameters extends EconomicsModelParams {
 
 export const DEFAULT_MODEL_PARAMS: ModelParameters = {
   ...walnutBlightModelDefaults,
-  ...DEFAULT_ECONOMICS_MODEL_PARAMS,
 };
 
 /** Farm-tunable Ji production terms on Forecast / Historical / Dashboard. */
@@ -60,7 +55,7 @@ export type ProductionModelParams = Pick<
   (typeof PRODUCTION_MODEL_PARAM_KEYS)[number]
 >;
 
-/** Sandbox / research knobs — not Ji production inoculum, not market economics. */
+/** Sandbox / research knobs — not Ji production inoculum. */
 export const RESEARCH_MODEL_PARAM_KEYS = [
   'blightSensitivity',
   'cropCoefficient',
@@ -142,7 +137,7 @@ export function defaultCalibrationParams(): CalibrationParams {
   };
 }
 
-/** Fill economics defaults so BlightEngineSettings can edit research slices. */
+/** Fill production defaults so BlightEngineSettings can edit research slices. */
 export function modelParamsFromCalibration(calib: CalibrationParams): ModelParameters {
   return {
     ...DEFAULT_MODEL_PARAMS,

@@ -72,10 +72,9 @@ function AssumptionsAndLimitsBox() {
                   <h3 className="font-bold text-slate-900">Admin settings</h3>
                   <p>
                     <strong>Blight risk</strong> (admin): set orchard inoculum (Ji k) and the budbreak date that
-                    opens the 4-week primary-inoculum window. Sandbox holds research modifiers. Market costs live
-                    under <strong>Settings → Economics</strong>. Dryers live under <strong> Drying</strong>;
-                    water allocation under <strong>Water</strong>. Changing either production term changes curves
-                    for everyone on the farm.
+                    opens the 4-week primary-inoculum window. Sandbox holds research modifiers. Dryers live under
+                    <strong> Drying</strong>; water allocation under <strong>Water</strong>. Changing either
+                    production term changes curves for everyone on the farm.
                   </p>
                 </div>
                 <div className="space-y-2">

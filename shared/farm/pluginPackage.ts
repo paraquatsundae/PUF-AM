@@ -45,7 +45,7 @@ export type PluginPackageManifestV1 = {
   settingsDocId: string | null;
   /**
    * Pack-owned fields inside settingsDocId (legacy shared docs).
-   * Delete clears these keys only — never economics on `model_params`.
+   * Delete clears these keys only — leftover fields on a shared doc stay.
    */
   settingsOwnedKeys?: string[];
   /** Optional primary route path, e.g. `/blight`. */

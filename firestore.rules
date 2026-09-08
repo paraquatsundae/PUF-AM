@@ -420,8 +420,10 @@ service cloud.firestore {
              ));
     }
 
-    // Blight keys are optional so crop-pack Delete can wipe settingsOwnedKeys
-    // and leave economics. Validate type/range only when a field is present.
+    // Blight keys are optional so crop-pack Delete can wipe settingsOwnedKeys.
+    // marketPrice / harvestCostPerKg / waterCostPerML are leftover fields from
+    // the retired Economics tab — still allowed so existing docs can update.
+    // Validate type/range only when a field is present.
     function isValidModelParameters(data) {
       return hasOnlyAllowedFields([
                'blightSensitivity', 'cropCoefficient', 'gddBaseTemp', 'humidityGradientFactor',
