@@ -13,6 +13,7 @@ export const COST_ESTIMATES = {
 /**
  * Tracks a specific metric (weather call or Firestore operation).
  * Updates global, daily, and user-specific counters.
+ * Global/daily writes require isAuthorized() in rules — a Google token alone is denied.
  */
 export async function trackMetric(type: MetricType, count: number = 1) {
   const user = auth.currentUser;

@@ -8,15 +8,12 @@ import {
 } from 'firebase/auth';
 import {
   initializeFirestore,
-  doc,
-  getDocFromServer,
   persistentLocalCache,
   persistentSingleTabManager,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { Capacitor } from '@capacitor/core';
 import { setApiIdTokenProvider } from './lib/apiBase';
-import { debugLog } from './lib/debugLog';
 import { resolveFirebaseWebConfig } from './lib/byoFirebaseConfig';
 
 const { config: firebaseConfig, byo: usingByoFirebase } = resolveFirebaseWebConfig();
@@ -101,17 +98,3 @@ export async function clearFirestoreIndexedDb(): Promise<void> {
     )
   );
 }
-
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-    debugLog('Firestore connection successful.');
-  } catch (error) {
-    // Expected offline / missing doc / permission — never throw into the app shell
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('[Firebase] Client appears offline during connection probe.');
-    }
-  }
-}
-
-testConnection();

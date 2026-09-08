@@ -862,8 +862,10 @@ service cloud.firestore {
              data.timestamp is string;
     }
 
+    // Was `allow read: if true` plus a boot-time getDocFromServer — anyone
+    // who loaded the page could loop an unauthenticated billable read.
     match /test/connection {
-      allow read: if true;
+      allow read, write: if false;
     }
 
     match /weather_cache/{stationCode} {
@@ -1263,14 +1265,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Writes need isAuthorized() (PIN / whitelist), not a bare Google token.
+    // metrics_global/all is one hot document; a random signed-in account
+    // must not be able to hammer it.
     match /metrics_global/all {
       allow read: if isAdmin();
-      allow write: if isAuthenticated() && isValidUsageMetrics(request.resource.data);
+      allow write: if isAuthorized() && isValidUsageMetrics(request.resource.data);
     }
 
     match /metrics_daily/{date} {
       allow read: if isAdmin();
-      allow write: if isAuthenticated() && isValidUsageMetrics(request.resource.data);
+      allow write: if isAuthorized() && isValidUsageMetrics(request.resource.data);
     }
 
     match /metrics_users/{userId} {

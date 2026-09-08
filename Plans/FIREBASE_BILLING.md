@@ -426,8 +426,8 @@ setting the secret is what makes it real on `am.pufworks.farm`.**
 | 2 | **Allowlist the farms in `firestore.rules`.** A literal `farmId in ['...','...']` constant in the rules file costs **no extra read** to evaluate, unlike an `exists()` lookup against an allowlist collection. George has a handful of farms; redeploying rules to add one is the right trade. | Small | Belt and braces with #1: even a leaked token cannot create a new farm's worth of data. |
 | 3 | **Set a GCP budget alert** at $1 / $5 / $20 to George's email, plus the Pub/Sub → disable-billing function for the runaway case. | Small | **A budget does not cap spend.** It is an alarm. The Pub/Sub automation is a fire axe: it takes the whole app down, George's farms included. |
 | 4 | **Turn on App Check** (reCAPTCHA Enterprise on web, Play Integrity on Android) and enforce it on Firestore, Storage and Cloud Run. Nothing in the repo references App Check today. | Medium | Caveats worth knowing before starting: the Electron desktop shell and sideloaded (non-Play) APKs are awkward to attest, `npm run dev` needs the debug provider, and reCAPTCHA Enterprise has its own cost above its free assessments. Roll out in monitor-only mode first. |
-| 5 | **Close `test/connection`.** `firestore.rules` has `allow read: if true`, and `src/firebase.ts` calls `getDocFromServer` on it at every boot. That is an unauthenticated billable read available to anyone who loads the page, in a loop if they want. | Tiny | Either delete the probe or make it require auth. |
-| 6 | **Fix `metrics_global/all`.** `allow write: if isAuthenticated()` on a single document that every user writes is both a contention hotspot (Firestore's sustained limit is ~1 write/s per document) and an abuse vector. | Small | See §4.2 item 3 — the same change fixes both. |
+| 5 | ~~**Close `test/connection`.**~~ **Done 2026-09-09** — probe removed; rules deny the path. | Tiny | Was an unauthenticated billable read on every page load. |
+| 6 | ~~**Fix `metrics_global/all` writes from any Google account.**~~ **Done 2026-09-09** — `isAuthorized()` (PIN / whitelist), same for `metrics_daily`. Hot-doc sampling / per-farm scope is still §4.2 item 3. | Small | Closes the abuse vector. Contention from real farm users remains. |
 | 7 | **Cap Cloud Run** with `--max-instances` (3–5 is plenty) and a sane `--concurrency`. | Tiny | Bounds runaway compute. Does nothing for Firestore. |
 | 8 | **Disable unused products** — Realtime Database, Phone Auth (billed per SMS), and any API not in use. | Tiny | Reduces the surface that can be billed at all. |
 | 9 | **Confirm which Firestore database has the free tier** and that `firestoreDatabaseId` points at it. | Tiny | §1 trap 1. Potentially the difference between $0 and the full bill. |
@@ -450,7 +450,8 @@ else is damage control, which is exactly why B is ranked last.
 - [x] §5 item 1 — enrolment code on `create-farm` (built 2026-08-10; Cloud Run redeploy pending).
 - [ ] §5 item 2 — farm allowlist in `firestore.rules`.
 - [ ] §5 item 3 — budget alerts at $1 / $5 / $20.
-- [ ] §5 item 5 — close `test/connection`.
+- [x] §5 item 5 — close `test/connection` (2026-09-09).
+- [x] §5 item 6 — `metrics_global` / `metrics_daily` writes require `isAuthorized()` (2026-09-09).
 - [ ] §5 item 9 — confirm the free-tier database.
 - [ ] Storage chooser copy: cloud is invite-only, Freenet is the open path.
 
