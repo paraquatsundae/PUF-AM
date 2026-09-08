@@ -59,19 +59,22 @@ function AssumptionsAndLimitsBox() {
                   <h3 className="font-bold text-slate-900">What we do and do <em>not</em> take from Ji et al.</h3>
                   <p>
                     Forecast / Historical <strong>do</strong> run Ji's Beta temperature curve, Gompertz
-                    leaf-wetness curve, and cumulative-rainfall primary inoculum with the published coefficients.
-                    We <strong>do not</strong> run their full S1→S4 tissue compartments or the 15–21 day incubation
-                    / secondary-inoculum stages yet — so we show daily infection risk, not symptom onset or lesion
-                    severity. Our leaf wetness is also a rain/RH proxy, not a sensor or the mean wet-period
-                    temperature the paper prefers.
+                    leaf-wetness curve, the 4-week primary-inoculum window, per-rain-event ΔY dose, and the
+                    S1→S4 site cascade (including 15–21 day incubation and rain-dispersed secondary inoculum)
+                    with the published coefficients. Two constants Ji left unspecified are ours: secondary
+                    inoculum coefficient = 1, and S2 is treated as transient (contaminated tissue that does
+                    not infect today returns to healthy). Our leaf wetness is a rain/RH proxy, not a sensor,
+                    and we still feed daily mean temperature rather than mean temperature during the wet
+                    period. Host growth is not modelled, so season-long severity can saturate.
                   </p>
                 </div>
                 <div className="space-y-2">
                   <h3 className="font-bold text-slate-900">Admin settings</h3>
                   <p>
-                    <strong>Blight risk</strong> (admin): set orchard inoculum (Ji k); Sandbox holds research
-                    modifiers. Market costs live under <strong>Settings → Economics</strong>. Dryers live under
-                    <strong> Drying</strong>; water allocation under <strong>Water</strong>. Changing production inoculum changes curves
+                    <strong>Blight risk</strong> (admin): set orchard inoculum (Ji k) and the budbreak date that
+                    opens the 4-week primary-inoculum window. Sandbox holds research modifiers. Market costs live
+                    under <strong>Settings → Economics</strong>. Dryers live under <strong> Drying</strong>;
+                    water allocation under <strong>Water</strong>. Changing either production term changes curves
                     for everyone on the farm.
                   </p>
                 </div>
@@ -115,17 +118,19 @@ export function BlightEngineScience() {
             <h3 className="text-lg font-bold text-slate-900">Walnut blight (Ji et al. 2025 infection risk)</h3>
             <p className="text-sm text-slate-600 leading-relaxed">
               Walnut blight is caused by <em>Xanthomonas arboricola</em> pv. <em>juglandis</em>. The{' '}
-              <strong>Forecast and Historical</strong> charts now run the mechanistic model of{' '}
-              <strong>Ji et al. 2025</strong> (<em>Plant Disease</em> 109:1130–1141): primary inoculum builds from
-              cumulative rain after budbreak, and each day's infection rate is a Beta temperature curve × a Gompertz
-              leaf-wetness curve. Published coefficients are frozen; only the orchard inoculum modifier{' '}
-              <em>k</em> is farm-tunable.
+              <strong>Forecast and Historical</strong> charts run the mechanistic model of{' '}
+              <strong>Ji et al. 2025</strong> (<em>Plant Disease</em> 109:1130–1141): rain in the four weeks after
+              budbreak mobilises a finite bud-inoculum reservoir; each day's infection rate is a Beta temperature
+              curve × a Gompertz leaf-wetness curve; infected sites incubate 15–21 days and then splash secondary
+              inoculum on later rain. Published coefficients are frozen; farm-tunable terms are orchard inoculum{' '}
+              <em>k</em> and the budbreak date (default 1 October).
             </p>
             <p className="text-sm text-slate-600 leading-relaxed">
               <strong>Inputs:</strong> daily DPIRD summaries (temperature, RH, rainfall), a leaf-wetness{' '}
               <em>estimate</em> (rain + humidity proxy until we have hourly or on-orchard wetness sensors), and a
-              Southern-Hemisphere budbreak date (1 Sep) that resets primary inoculum each season. Output is Ji's
-              unitless daily infection risk — useful for spotting infection periods, not a CFU or lesion count.
+              farm budbreak date (default 1 October — the SH mirror of Ji's 1 April California default) that
+              opens the primary-inoculum window. Output is Ji's daily infection risk (fraction of tissue newly
+              infected that day) — useful for spotting infection periods, not a CFU or lesion count.
             </p>
             <p className="text-xs text-slate-500 leading-relaxed">
               Ref: Ji et al. 2025, DOI 10.1094/PDIS-09-24-1850-RE (Adaskaveg 1998 Beta/Gompertz fits). Our
@@ -172,9 +177,11 @@ export function BlightEngineScience() {
             <p>
               These two charts run the mechanistic Ji model. Each day it computes an infection rate as{' '}
               <strong>f(T) × f(WD)</strong> — a Beta temperature response (zero below 10 °C or above 24 °C) times a
-              Gompertz leaf-wetness response — and multiplies it by the primary inoculum available that day. Primary
-              inoculum grows with cumulative rain after budbreak (1 Sep) and resets each season, so a wet spring loads
-              more inoculum than a dry one. There is no artificial decay/smoothing and no spray armour on these charts.
+              Gompertz leaf-wetness response — and doses healthy tissue with inoculum splashed that day (the change
+              in primary Y since the last rain, plus secondary inoculum from symptomatic sites). Primary rain only
+              counts for four weeks after budbreak; after that the bud reservoir is spent and the epidemic, if any,
+              is carried by secondary spread. There is no artificial decay/smoothing and no spray armour on these
+              charts.
             </p>
             <p>
               <strong>Weather source:</strong> past days use observed DPIRD station data; the Forecast tab extends up to
@@ -194,11 +201,11 @@ export function BlightEngineScience() {
                 and humidity until hourly / on-orchard sensors land.
               </li>
               <li>
-                <strong>Primary inoculum:</strong> <em>k</em>(1 − 0.916<sup>ΣR</sup>) from budbreak; <em>k</em> is the
-                only farm-tunable term. Set it on <strong>Blight risk → Orchard inoculum</strong> as
-                Low / Medium / High (0.5× / 1.0× / 2.0×) from prior-season blight or bud CFU — Medium is the baseline.
-                These multipliers are workshop defaults until bud-CFU calibration. Incubation (15–21 day symptom lag)
-                is shown as a scouting overlay; Ji's secondary-inoculum stage is not modelled yet.
+                <strong>Primary inoculum:</strong> <em>k</em>(1 − 0.916<sup>ΣR</sup>) from rain in the four weeks
+                after budbreak. Farm-tunable terms live on <strong>Blight risk</strong>: orchard inoculum as
+                Low / Medium / High (0.5× / 1.0× / 2.0×), and the budbreak date (default 1 October). Medium / 1 Oct
+                are the baselines until bud-CFU or scouting calibration. Incubation is a real 15–21 day state flow
+                (latent → symptomatic); a separate scouting overlay still marks when to look.
               </li>
             </ul>
           </div>
@@ -276,10 +283,11 @@ export function BlightEngineScience() {
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-xs leading-relaxed">
-            <strong>Honest limit:</strong> Forecast / Historical reproduce Ji et al. 2025's infection-rate equations,
-            but on a <strong>proxy wetness input</strong> and without their incubation / secondary-inoculum stages,
-            and with no local scouting calibration yet. Treat the number as a relative decision aid for this farm's
-            weather — not a lab assay, lesion forecast, or regulatory advice.
+            <strong>Honest limit:</strong> Forecast / Historical now run Ji's infection-rate equations and the
+            S1–S4 cascade, but on a <strong>proxy wetness input</strong>, daily mean temperature rather than
+            wet-period temperature, and with no local scouting calibration yet. Secondary inoculum's coefficient
+            is an assumption (Ji gave none). Treat the number as a relative decision aid for this farm's weather —
+            not a lab assay, lesion forecast, or regulatory advice.
           </div>
         </div>
       </section>
@@ -292,10 +300,10 @@ export function BlightEngineScience() {
         </h2>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
           <p className="text-sm text-slate-800 leading-relaxed">
-            Admin users set production orchard inoculum on <strong>Blight risk</strong>. Sandbox / research
-            knobs (sensitivity, splash, experimental latency multipliers, efficacy defaults, tree geometry for
-            TRV, etc.) live under <strong>Blight risk → Sandbox → Research modifiers</strong> — they only change
-            Sandbox what-ifs.
+            Admin users set production orchard inoculum and budbreak on <strong>Blight risk</strong>. Sandbox /
+            research knobs (sensitivity, splash, experimental latency multipliers, efficacy defaults, tree
+            geometry for TRV, etc.) live under <strong>Blight risk → Sandbox → Research modifiers</strong> — they
+            only change Sandbox what-ifs.
           </p>
           <p className="text-sm text-slate-600 leading-relaxed">
             There is no separate research team, no continuous academic collaboration loop, and no automated
@@ -333,11 +341,12 @@ export function BlightEngineScience() {
             <div className="space-y-2">
               <h4 className="font-bold text-slate-900">Blight phenology</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Forecast / Historical use a fixed Southern-Hemisphere month table (not GDD phenology, not
-                scouting): May–Aug dormant, Sep bud break, Oct bloom, Nov–Jan post-bloom, Feb–Apr shell
-                hardening. On Blight Risk you can set a temporary <strong>Scouted override</strong> from today
-                forward; past Historical days stay on the calendar. Persisting scouted stages in the diary is
-                a later step. Sandbox still locks one stage for what-ifs.
+                Stage <em>labels</em> on Historical still use a fixed Southern-Hemisphere month table (May–Aug
+                dormant, Sep bud break, Oct bloom, Nov–Jan post-bloom, Feb–Apr shell hardening). Ji's infection
+                maths does not use that table — it uses the farm <strong>Budbreak date</strong> (default 1 October)
+                to open the 4-week primary-inoculum window. A temporary <strong>Scouted override</strong> only
+                relabels stages from today forward; it does not move budbreak. Persisting a scouted budbreak is
+                a later step.
               </p>
             </div>
             <div className="space-y-2">

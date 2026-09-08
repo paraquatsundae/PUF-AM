@@ -127,19 +127,21 @@ Track status in the table; mirror progress in [`ROADMAP.md`](ROADMAP.md) when wo
 
 ### Production path (Forecast / Historical)
 
+Ji et al. 2025 via `runJiBlightSeries` → `runJiBlightModel` (not the legacy sandbox index):
+
 ```
-tempFactor      = (12 < T < 24) ? tempOptimumWeight : 0.5
-wetnessFactor   = (WD > 8) ? (WD - 8) * wdCompoundingRate : 0
-humidityFactor  = (RH > 85) ? 1.2 * humidityGradientFactor : 1.0
-stageFactor     = calendar SH month → {0.1 … 2.0}
-dailyInfection  = temp × wetness × humidity × stage × splash × sensitivityMod
-threat_t        = min(1.5, threat_{t-1} × 0.85 + dailyInfection × 0.2)
+SR             = rain in the 4 weeks after farm budbreak (default 1 Oct)
+Y              = k (1 − 0.916^SR)
+dose           = ΔY on rain days + secondaryCoeff × S4
+INFR           = f(T)_Beta × f(WD)_Gompertz
+S1--DISPR-->S2--INFR-->S3--INCR-->S4
+threat_t       = S2→S3 flow that day (dailyInfectionRisk)
 ```
 
+- Farm-tunable: `orchardInoculumLevel` → k, `budbreakMonth` / `budbreakDay`
 - `includeProtection` **false** (sprays do not reduce threat on forecast/historical charts)
-- `useCanopyMicroclimate` **false** unless map/sandbox geometry is explicit
-- `useSecondaryLatency` **false** unless sandbox toggle
 - Missing weather days **carry forward** last known values (persistence “forecast”)
+- Sandbox still uses the old multiplicative index below; it is not production
 
 ### DPIRD wetness proxy (current)
 

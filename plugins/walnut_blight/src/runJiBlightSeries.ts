@@ -130,7 +130,7 @@ export function runJiBlightSeries(
       lastWD = w.WD;
     }
 
-    // New primary-inoculum season at each 1 Sep.
+    // New primary-inoculum season at each configured budbreak.
     const seasonReset = isShBudbreakDay(d, budbreak) && segmentWeather.length > 0;
     if (seasonReset) {
       flushSegment();

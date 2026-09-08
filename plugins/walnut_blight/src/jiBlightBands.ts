@@ -195,7 +195,7 @@ function addDaysISO(fullDate: string, days: number): string {
  * the days that would erupt into visible lesions around t.
  *
  * This is a symptom-timing overlay for historic review — it is NOT new infection
- * and NOT Ji's secondary-inoculum stage (which we do not model yet).
+ * and NOT the cascade's S3→S4 flow (that lives on `eruptingThreat` / `diseaseSeverity`).
  *
  * Returns a map keyed by `fullDate`. Pass the full contiguous season series (not a
  * filtered slice) so the lag window can see infection days before the view start.

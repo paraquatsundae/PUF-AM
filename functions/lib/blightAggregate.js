@@ -1,27 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onDiaryEventWrite = exports.refreshBlightAggregates = void 0;
+exports.onModelParamsWrite = exports.onDiaryEventWrite = exports.refreshBlightAggregates = void 0;
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firestore_1 = require("firebase-functions/v2/firestore");
 const jiBlightModel_1 = require("./jiBlightModel");
 const db_1 = require("./db");
+const perthDate_1 = require("./perthDate");
 const db = (0, db_1.getDb)();
 /** Regional cache station used when a farm has no explicit station set. */
 const DEFAULT_STATION_CODE = "MA002";
-function toLocalISOString(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-/**
- * SH walnut season start (1 June) for the season that contains `today`.
- * Mirrors the client BlightRisk start (`${startYear}-06-01`); the Ji series then
- * resets primary inoculum at the farm's configured budbreak inside this window.
- */
-function seasonStartDate(today) {
-    const startYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
-    return new Date(startYear, 5, 1);
+/** YYYY-MM-DD on the farm calendar (Australia/Perth), not the function runtime. */
+function toFarmISOString(date) {
+    return (0, perthDate_1.toPerthISOString)(date);
 }
 async function resolveFarmStation(farmId) {
     try {
@@ -55,8 +45,9 @@ async function resolveJiFarmParams(farmId) {
     }
 }
 async function computeFarmBlightAggregate(farmId) {
-    const today = new Date();
-    const startDate = seasonStartDate(today);
+    const now = new Date();
+    const today = (0, perthDate_1.perthCivilDate)(now);
+    const startDate = (0, perthDate_1.blightSeasonStart)(now);
     const stationCode = await resolveFarmStation(farmId);
     const { inoculumLevel, budbreak } = await resolveJiFarmParams(farmId);
     const cacheSnap = await db.doc(`weather_cache/${stationCode}`).get();
@@ -74,7 +65,7 @@ async function computeFarmBlightAggregate(farmId) {
         orchard: { k: (0, jiBlightModel_1.kFromInoculumLevel)(inoculumLevel) },
         budbreak,
     });
-    const todayKey = toLocalISOString(today);
+    const todayKey = toFarmISOString(today);
     const todayRow = series.find((r) => r.fullDate === todayKey);
     const lastRow = series.length > 0 ? series[series.length - 1] : null;
     const current = todayRow ?? lastRow;
@@ -90,7 +81,7 @@ async function computeFarmBlightAggregate(farmId) {
         currentBand,
         riskDate: current ? current.fullDate : todayKey,
         lastUpdated: new Date().toISOString(),
-        startDate: toLocalISOString(startDate),
+        startDate: toFarmISOString(startDate),
         endDate: todayKey,
         resultsCount: series.length,
         stationCode,
@@ -113,8 +104,8 @@ exports.refreshBlightAggregates = (0, scheduler_1.onSchedule)({
 });
 /**
  * Recompute blight aggregate when diary events change.
- * (Production Ji risk ignores sprays; kept so a farm's aggregate is created
- * promptly on first activity and stays in step with station/settings changes.)
+ * Production Ji risk ignores sprays; this still creates the aggregate on first
+ * farm activity. Settings (inoculum, budbreak) are handled by onModelParamsWrite.
  */
 exports.onDiaryEventWrite = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/events/{eventId}", database: db_1.FIRESTORE_DATABASE_ID }, async (event) => {
     const farmId = event.params.farmId;
@@ -123,6 +114,19 @@ exports.onDiaryEventWrite = (0, firestore_1.onDocumentWritten)({ document: "farm
     }
     catch (error) {
         console.error(`[onDiaryEventWrite] farm ${farmId}:`, error);
+    }
+});
+/**
+ * Recompute when a farm admin changes Ji production terms (inoculum k, budbreak).
+ * Without this the dashboard card lags the Blight Risk page until 05:00 Perth.
+ */
+exports.onModelParamsWrite = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/settings/model_params", database: db_1.FIRESTORE_DATABASE_ID }, async (event) => {
+    const farmId = event.params.farmId;
+    try {
+        await computeFarmBlightAggregate(farmId);
+    }
+    catch (error) {
+        console.error(`[onModelParamsWrite] farm ${farmId}:`, error);
     }
 });
 //# sourceMappingURL=blightAggregate.js.map

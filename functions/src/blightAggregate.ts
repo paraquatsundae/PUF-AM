@@ -12,6 +12,7 @@ import {
   type SeriesWeatherDay,
 } from "./jiBlightModel";
 import { getDb, FIRESTORE_DATABASE_ID } from "./db";
+import { blightSeasonStart, perthCivilDate, toPerthISOString } from "./perthDate";
 
 const db = getDb();
 
@@ -20,21 +21,9 @@ type WeatherDay = { T: number; RH: number; R: number; WD: number; maxHourlyRain?
 /** Regional cache station used when a farm has no explicit station set. */
 const DEFAULT_STATION_CODE = "MA002";
 
-function toLocalISOString(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-/**
- * SH walnut season start (1 June) for the season that contains `today`.
- * Mirrors the client BlightRisk start (`${startYear}-06-01`); the Ji series then
- * resets primary inoculum at the farm's configured budbreak inside this window.
- */
-function seasonStartDate(today: Date): Date {
-  const startYear = today.getMonth() >= 5 ? today.getFullYear() : today.getFullYear() - 1;
-  return new Date(startYear, 5, 1);
+/** YYYY-MM-DD on the farm calendar (Australia/Perth), not the function runtime. */
+function toFarmISOString(date: Date) {
+  return toPerthISOString(date);
 }
 
 async function resolveFarmStation(farmId: string): Promise<string> {
@@ -70,8 +59,9 @@ async function resolveJiFarmParams(
 }
 
 async function computeFarmBlightAggregate(farmId: string) {
-  const today = new Date();
-  const startDate = seasonStartDate(today);
+  const now = new Date();
+  const today = perthCivilDate(now);
+  const startDate = blightSeasonStart(now);
 
   const stationCode = await resolveFarmStation(farmId);
   const { inoculumLevel, budbreak } = await resolveJiFarmParams(farmId);
@@ -93,7 +83,7 @@ async function computeFarmBlightAggregate(farmId: string) {
     budbreak,
   });
 
-  const todayKey = toLocalISOString(today);
+  const todayKey = toFarmISOString(today);
   const todayRow = series.find((r) => r.fullDate === todayKey);
   const lastRow = series.length > 0 ? series[series.length - 1] : null;
   const current = todayRow ?? lastRow;
@@ -111,7 +101,7 @@ async function computeFarmBlightAggregate(farmId: string) {
     currentBand,
     riskDate: current ? current.fullDate : todayKey,
     lastUpdated: new Date().toISOString(),
-    startDate: toLocalISOString(startDate),
+    startDate: toFarmISOString(startDate),
     endDate: todayKey,
     resultsCount: series.length,
     stationCode,
@@ -138,8 +128,8 @@ export const refreshBlightAggregates = onSchedule(
 
 /**
  * Recompute blight aggregate when diary events change.
- * (Production Ji risk ignores sprays; kept so a farm's aggregate is created
- * promptly on first activity and stays in step with station/settings changes.)
+ * Production Ji risk ignores sprays; this still creates the aggregate on first
+ * farm activity. Settings (inoculum, budbreak) are handled by onModelParamsWrite.
  */
 export const onDiaryEventWrite = onDocumentWritten(
   { document: "farms/{farmId}/events/{eventId}", database: FIRESTORE_DATABASE_ID },
@@ -149,6 +139,22 @@ export const onDiaryEventWrite = onDocumentWritten(
       await computeFarmBlightAggregate(farmId);
     } catch (error) {
       console.error(`[onDiaryEventWrite] farm ${farmId}:`, error);
+    }
+  }
+);
+
+/**
+ * Recompute when a farm admin changes Ji production terms (inoculum k, budbreak).
+ * Without this the dashboard card lags the Blight Risk page until 05:00 Perth.
+ */
+export const onModelParamsWrite = onDocumentWritten(
+  { document: "farms/{farmId}/settings/model_params", database: FIRESTORE_DATABASE_ID },
+  async (event) => {
+    const farmId = event.params.farmId;
+    try {
+      await computeFarmBlightAggregate(farmId);
+    } catch (error) {
+      console.error(`[onModelParamsWrite] farm ${farmId}:`, error);
     }
   }
 );

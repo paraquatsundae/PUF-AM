@@ -8,9 +8,11 @@
  * `tests/functionsJiParity.test.ts` runs both implementations over the golden
  * fixture and fails if they diverge — keep them in sync.
  *
- * Published coefficients are frozen; only orchard `k` is farm-tunable.
+ * Published coefficients are frozen; orchard `k` and the farm budbreak date are tunable.
  * @see Plans/BLIGHT_VALIDATION.md (BV-09 client ↔ Cloud Function parity)
  */
+
+import { getPerthYmd, toPerthISOString } from "./perthDate";
 
 /** Frozen parameters from Ji et al. 2025 (Adaskaveg 1998 fits). */
 export const JI_PUBLISHED = {
@@ -302,25 +304,23 @@ export type JiSeriesRow = {
 };
 
 function toLocalISOString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return toPerthISOString(date);
 }
 
 function isShBudbreakDay(
   date: Date,
   budbreak: BudbreakDay = DEFAULT_SH_BUDBREAK
 ): boolean {
-  return date.getMonth() === budbreak.month && date.getDate() === budbreak.day;
+  const { month, day } = getPerthYmd(date);
+  return month - 1 === budbreak.month && day === budbreak.day;
 }
 
-/** First budbreak on or after rangeStart (local calendar). */
+/** First budbreak on or after rangeStart (Perth calendar). */
 function defaultShBudbreakDate(
   rangeStart: Date,
   budbreak: BudbreakDay = DEFAULT_SH_BUDBREAK
 ): Date {
-  const y = rangeStart.getFullYear();
+  const y = getPerthYmd(rangeStart).year;
   const thisYear = new Date(y, budbreak.month, budbreak.day);
   if (toLocalISOString(rangeStart) <= toLocalISOString(thisYear)) return thisYear;
   return new Date(y + 1, budbreak.month, budbreak.day);
