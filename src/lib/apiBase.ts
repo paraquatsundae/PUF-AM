@@ -1,6 +1,15 @@
 import { Capacitor } from '@capacitor/core';
 
 import { hubDefersToCloud, hubServesTiles } from '../../shared/sync/hubInfo.ts';
+import { isByoFirebase } from './byoFirebaseConfig.ts';
+import {
+  BYO_WEATHER_UNCONFIGURED_ORIGIN,
+  ByoWeatherNotConfiguredError,
+  byoWeatherBaseFor,
+  isPufworksWeatherOrigin,
+  isUrlUnderByoWeatherEndpoint,
+  isWeatherApiPath,
+} from './byoWeatherEndpoint.ts';
 import { getDesktopBridge, isDesktopShell } from './desktopBridge.ts';
 import { getHubInfo, getHubToken } from './hubIdentity.ts';
 
@@ -162,6 +171,12 @@ function hubCloudBaseFor(path: string): string {
 
 export function apiUrl(path: string): string {
   const p = path.startsWith('/') ? path : `/${path}`;
+  const byoWeather = byoWeatherBaseFor(p, isByoFirebase());
+  if (byoWeather !== undefined) {
+    // BYO weather never falls through to George — missing endpoint is a
+    // non-networkable origin, and apiFetch refuses it before fetch().
+    return `${byoWeather || BYO_WEATHER_UNCONFIGURED_ORIGIN}${p}`;
+  }
   const base = desktopCloudBaseFor(p) || hubCloudBaseFor(p) || getApiBaseUrl();
   return base ? `${base}${p}` : p;
 }
@@ -238,6 +253,12 @@ function isCloudTokenOrigin(url: string): boolean {
           return '';
         }
       });
+    try {
+      const byo = byoWeatherBaseFor('/api/weather/', isByoFirebase());
+      if (typeof byo === 'string' && byo) allowed.push(new URL(byo).origin);
+    } catch {
+      /* invalid cached endpoint — withhold the token */
+    }
     return allowed.includes(target);
   } catch {
     return false;
@@ -259,8 +280,10 @@ async function cloudAuthHeaders(
   if (!idTokenProvider || callerSetAuth) return {};
 
   const path = requestPath(url);
-  if (!DESKTOP_CLOUD_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix))) return {};
-  if (!isCloudTokenOrigin(url)) return {};
+  const cloudFamily = DESKTOP_CLOUD_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix));
+  const byoWeather = isUrlUnderByoWeatherEndpoint(url);
+  if (!cloudFamily && !byoWeather) return {};
+  if (!byoWeather && !isCloudTokenOrigin(url)) return {};
 
   try {
     const token = await idTokenProvider();
@@ -398,6 +421,38 @@ const DEFAULT_API_TIMEOUT_MS = 8000;
  * timeout, so an unroutable LAN address fails in seconds rather than at the
  * platform's leisure, and an error that names the address.
  */
+function resolveApiUrl(url: string): URL | null {
+  try {
+    if (url.startsWith('/')) {
+      const origin =
+        typeof window !== 'undefined' && window.location?.origin
+          ? window.location.origin
+          : DEFAULT_CLOUD_API_BASE;
+      return new URL(url, origin);
+    }
+    return new URL(url);
+  } catch {
+    return null;
+  }
+}
+
+function assertByoWeatherAllowed(url: string): void {
+  if (!isByoFirebase()) return;
+  const resolved = resolveApiUrl(url);
+  if (!resolved) return;
+
+  const weatherPath = isWeatherApiPath(resolved.pathname);
+  const underEndpoint = isUrlUnderByoWeatherEndpoint(resolved.href);
+  if (!weatherPath && !underEndpoint) return;
+
+  if (isPufworksWeatherOrigin(resolved.origin) || resolved.origin === BYO_WEATHER_UNCONFIGURED_ORIGIN) {
+    throw new ByoWeatherNotConfiguredError();
+  }
+  if (!underEndpoint) {
+    throw new ByoWeatherNotConfiguredError();
+  }
+}
+
 export async function apiFetch(
   url: string,
   init?: RequestInit & { timeoutMs?: number },
@@ -405,6 +460,8 @@ export async function apiFetch(
   if (apiHubMissing() && url.startsWith('/')) {
     throw new ApiUnreachableError(url, NO_API_HUB_MESSAGE);
   }
+
+  assertByoWeatherAllowed(url);
 
   const { timeoutMs = DEFAULT_API_TIMEOUT_MS, signal, headers, ...rest } = init ?? {};
 

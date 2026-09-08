@@ -21,6 +21,8 @@ import { setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
 import { createFarmAccount, redeemInvitePin } from '../lib/invitePinAuth';
 import { isByoFirebase } from '../lib/byoFirebaseConfig';
 import { BYO_SESSION_TOKEN } from '../lib/byoFirebaseAuth';
+import { setRuntimeByoWeatherEndpoint } from '../lib/byoWeatherEndpoint';
+import { subscribeByoWeatherSettings } from '../lib/byoWeatherSettings';
 import {
   clearDeviceRememberedFlag,
   getLastFarm,
@@ -219,6 +221,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
     return () => unsub();
+  }, [userData?.farmId]);
+
+  // BYO weather URL lives on their Firestore; cache it so apiUrl is sync.
+  useEffect(() => {
+    if (isMistFarmSessionActive() || !isByoFirebase()) {
+      setRuntimeByoWeatherEndpoint(null);
+      return;
+    }
+    const farmId = userData?.farmId;
+    if (!farmId) {
+      setRuntimeByoWeatherEndpoint(null);
+      return;
+    }
+    return subscribeByoWeatherSettings(farmId);
   }, [userData?.farmId]);
 
   const refreshFarmModules = async () => {

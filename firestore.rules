@@ -445,6 +445,19 @@ service cloud.firestore {
              (!('budbreakDay' in data) || (data.budbreakDay is int && data.budbreakDay >= 1 && data.budbreakDay <= 31));
     }
 
+    function isValidWeatherSettings(data) {
+      return hasOnlyAllowedFields(['weatherEndpoint', 'setAt']) &&
+             data.weatherEndpoint is string &&
+             data.weatherEndpoint.size() > 10 &&
+             data.weatherEndpoint.size() < 500 &&
+             data.weatherEndpoint.matches('^https://[a-zA-Z0-9][a-zA-Z0-9.-]+[a-zA-Z0-9](:[0-9]+)?(/[a-zA-Z0-9._~/-]*)?$') &&
+             !data.weatherEndpoint.matches('[Aa][Mm][.][Pp][Uu][Ff][Ww][Oo][Rr][Kk][Ss][.][Ff][Aa][Rr][Mm]') &&
+             !data.weatherEndpoint.matches('[Pp][Uu][Ff][Oo][Mm]-') &&
+             !data.weatherEndpoint.matches('[Aa][Pp][Ii]-[Kk][Ee][Yy]') &&
+             !data.weatherEndpoint.matches('[Aa][Pp][Ii][Kk][Ee][Yy]') &&
+             (!('setAt' in data) || (data.setAt is string && data.setAt.size() < 40));
+    }
+
     function isValidChillPortionsSettings(data) {
       return hasOnlyAllowedFields([
                'weatherSource', 'latitude',
@@ -956,6 +969,13 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidModelParameters(request.resource.data);
         allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidModelParameters(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
+      }
+
+      match /settings/weather {
+        allow read: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidWeatherSettings(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidWeatherSettings(request.resource.data);
         allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 

@@ -11,6 +11,8 @@
 
 Cloud Functions already use Secret Manager: `firebase functions:secrets:set DPIRD_API_KEY`.
 
+A BYO owner sets that secret in **their** project via [`functions-byo-weather/`](../functions-byo-weather/). PUFworks never stores their key.
+
 Clients never call DPIRD directly — they hit `/api/weather/*` and Firestore `weather_cache`.
 
 ---

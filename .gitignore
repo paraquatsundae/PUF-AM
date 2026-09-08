@@ -1,4 +1,5 @@
 node_modules/
+functions-byo-weather/lib/
 build/
 dist/
 coverage/

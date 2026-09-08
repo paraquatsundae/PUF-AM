@@ -27,6 +27,7 @@ export default tseslint.config(
       'coverage/**',
       'node_modules/**',
       'functions/lib/**',
+      'functions-byo-weather/lib/**',
       'plugins/**/dist/**',
       'units/**/target/**',
       'android/**',

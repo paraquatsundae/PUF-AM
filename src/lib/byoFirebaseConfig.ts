@@ -11,6 +11,7 @@
  */
 
 import builtIn from '../../firebase-applet-config.json';
+import { setRuntimeByoWeatherEndpoint } from './byoWeatherEndpoint';
 
 export const BYO_STORAGE_KEY = 'pufam.byoFirebase.v1';
 export const BYO_DEFAULT_DATABASE = '(default)';
@@ -153,6 +154,7 @@ export function persistByoFirebase(config: ByoFirebaseWebConfig, ackAt = new Dat
 export function clearByoFirebase(): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.removeItem(BYO_STORAGE_KEY);
+  setRuntimeByoWeatherEndpoint(null);
 }
 
 export function persistByoFirebaseAndReload(config: ByoFirebaseWebConfig): void {

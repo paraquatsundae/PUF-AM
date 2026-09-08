@@ -24,5 +24,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "exclude": ["functions", "node_modules", "dist", "desktop"]
+  "exclude": ["functions", "functions-byo-weather", "node_modules", "dist", "desktop"]
 }

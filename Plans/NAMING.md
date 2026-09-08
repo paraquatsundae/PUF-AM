@@ -23,6 +23,7 @@ Related plans (not duplicated here):
 | [`FREENET_HOLES.md`](FREENET_HOLES.md) | Plan for the seven known Freenet operator holes |
 | [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Operational inventory of every local store — contents, authority, how it is cleared |
 | [`DPIRD_CACHE_FRESHNESS.md`](DPIRD_CACHE_FRESHNESS.md) | DPIRD freshness gates: ensure-cache, chill, dryer hourly (design; blight daily already cached) |
+| [`functions-byo-weather/README.md`](../functions-byo-weather/README.md) | Owner-deployed DPIRD weather (Design A — key never on PUFworks) |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Human-readable `farm-export.json` sketch |
 | [`CODERABBIT_SLOP_HUNT.md`](CODERABBIT_SLOP_HUNT.md) | Whole-tree AI Studio / slop / lazy-hot hunt (not a gate) |
 | [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) | Architecture audit, roadmap checklist, mist phase log |

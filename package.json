@@ -24,7 +24,7 @@
     "open:android": "npx cap open android",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "//lint": "Root tsconfig excludes desktop/, so the Electron main process needs its own pass or 2,300 lines go unchecked. functions/ is not here: it has separate node_modules and is typechecked by its own predeploy build.",
+    "//lint": "Root tsconfig excludes desktop/, so the Electron main process needs its own pass or 2,300 lines go unchecked. functions/ and functions-byo-weather/ are not here: each has separate node_modules and is typechecked by its own predeploy build.",
     "lint": "tsc --noEmit && npm run lint:desktop && npm run lint:eslint",
     "lint:desktop": "tsc --noEmit -p desktop/tsconfig.json",
     "//lint:eslint": "Errors only. The ~280 warnings are the accessibility and `any` backlog; see eslint.config.js for why they do not gate yet.",

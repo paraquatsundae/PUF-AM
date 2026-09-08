@@ -16,6 +16,7 @@ import { getDpirdApiKey } from "./envSecrets.ts";
 import {
   fetchDpirdDailySummaries,
 } from "../shared/weather/dpirdClient.ts";
+import { isAllowedDpirdProxyPath } from "../shared/weather/dpirdProxyPaths.ts";
 
 /**
  * The DPIRD paths this app actually asks for — the station directory
@@ -26,8 +27,8 @@ import {
  * rather than whatever `req.params[0]` holds. Concatenating the caller's path
  * onto the upstream base made it a general-purpose credentialed proxy to
  * api.agric.wa.gov.au, reachable on any path the caller cared to name.
+ * Keep in lock-step with `functions-byo-weather` via `dpirdProxyPaths.ts`.
  */
-const DPIRD_PROXY_PATHS = new Set(["stations", "stations/summaries/hourly"]);
 
 // Capacitor, LAN devices, and am.pufworks.farm → local Freenet sidecar call cross-origin.
 const DEFAULT_CORS_ORIGINS = [
@@ -287,7 +288,7 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
     // caller nothing they could not read in the client bundle, and putting it
     // first keeps it testable without minting a token.
     const dpirdPath = String(req.params[0] || "");
-    if (!DPIRD_PROXY_PATHS.has(dpirdPath)) {
+    if (!isAllowedDpirdProxyPath(dpirdPath)) {
       return res.status(404).json({ error: "Unknown DPIRD path" });
     }
 
