@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response } from 'express';
 
 import { isAllowedDpirdProxyPath } from '../../shared/weather/dpirdProxyPaths';
+import { queryStringFromOriginalUrl } from '../../shared/weather/queryStringFromOriginalUrl';
 import { allowedCorsOrigins, isLanClientOrigin } from './constants';
 import { refreshForecastCache, refreshObservedCache } from './refreshStation';
 import type { WeatherCaller } from './requireWeatherCaller';
@@ -30,11 +31,6 @@ function corsMiddleware(req: Request, res: Response, next: express.NextFunction)
     return res.status(204).end();
   }
   return next();
-}
-
-function queryString(req: Request): string {
-  const idx = req.originalUrl.indexOf('?');
-  return idx === -1 ? '' : req.originalUrl.slice(idx + 1);
 }
 
 /**
@@ -133,7 +129,7 @@ export function createByoWeatherApp(deps: ByoWeatherDeps): Express {
       return res.status(503).json({ error: 'DPIRD API key missing on this function' });
     }
 
-    const qs = queryString(req);
+    const qs = queryStringFromOriginalUrl(req.originalUrl);
     const targetUrl = `https://api.agric.wa.gov.au/v2/weather/${dpirdPath}${qs ? `?${qs}` : ''}`;
 
     const controller = new AbortController();

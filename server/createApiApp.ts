@@ -17,6 +17,7 @@ import {
   fetchDpirdDailySummaries,
 } from "../shared/weather/dpirdClient.ts";
 import { isAllowedDpirdProxyPath } from "../shared/weather/dpirdProxyPaths.ts";
+import { queryStringFromOriginalUrl } from "../shared/weather/queryStringFromOriginalUrl.ts";
 
 /**
  * The DPIRD paths this app actually asks for — the station directory
@@ -301,8 +302,8 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
         return res.status(503).json({ error: "DPIRD API key missing on this server" });
       }
 
-      const queryString = new URLSearchParams(req.query as Record<string, string>).toString();
-      const targetUrl = `https://api.agric.wa.gov.au/v2/weather/${dpirdPath}${queryString ? "?" + queryString : ""}`;
+      const qs = queryStringFromOriginalUrl(req.originalUrl);
+      const targetUrl = `https://api.agric.wa.gov.au/v2/weather/${dpirdPath}${qs ? `?${qs}` : ""}`;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 55000);
