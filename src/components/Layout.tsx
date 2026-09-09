@@ -224,7 +224,7 @@ export function Layout() {
                 className="h-8 w-8 rounded-full bg-slate-800"
                 src={
                   user?.photoURL ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.email || 'Workshop')}`
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}`
                 }
                 alt=""
                 referrerPolicy="no-referrer"

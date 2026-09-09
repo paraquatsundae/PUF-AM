@@ -133,7 +133,7 @@ export function registerAccessPinFarmRoutes(app: Express) {
       }
       await db.collection('farms').doc(farmId).set(farmDoc);
 
-      // Empty farm profile — walnut eligibility is Farm setup; install is Settings → Plugins.
+      // Empty farm profile — walnut pack install is Settings → Plugins.
       await db
         .collection('farms')
         .doc(farmId)

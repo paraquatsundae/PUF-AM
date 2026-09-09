@@ -6,7 +6,10 @@ export type WeatherSnap = {
 
 export type WeatherDocRef = {
   get(): Promise<WeatherSnap>;
-  set(data: Record<string, unknown>, opts?: { merge?: boolean }): Promise<void>;
+  set(
+    data: Record<string, unknown>,
+    opts?: { merge?: boolean; mergeFields?: string[] }
+  ): Promise<void>;
 };
 
 export type WeatherCollection = {

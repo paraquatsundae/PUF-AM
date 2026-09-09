@@ -192,6 +192,7 @@ export async function fetchDpirdDailySummaries(
 
     const response = await fetch(dataUrl, {
       headers: { 'api-key': apiKey, Accept: 'application/json' },
+      signal: AbortSignal.timeout(55_000),
     });
 
     if (!response.ok) {
@@ -269,6 +270,7 @@ async function fetchDpirdJsonWithRetry(
   while (true) {
     const response = await fetch(url, {
       headers: { 'api-key': apiKey, Accept: 'application/json' },
+      signal: AbortSignal.timeout(55_000),
     });
     if (response.ok) return response.json();
 

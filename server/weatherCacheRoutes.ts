@@ -106,7 +106,17 @@ export function registerWeatherCacheRoutes(app: Express) {
           weatherData,
           ...(historicBackfilledAt ? { historicBackfilledAt } : {}),
         },
-        { merge: true }
+        {
+          mergeFields: [
+            'stationCode',
+            'stationName',
+            'lastUpdated',
+            'startDate',
+            'endDate',
+            'weatherData',
+            ...(historicBackfilledAt ? (['historicBackfilledAt'] as const) : []),
+          ],
+        }
       );
 
       return res.json({
@@ -175,7 +185,7 @@ export function registerWeatherCacheRoutes(app: Express) {
           forecastData: future,
           forecastUpdatedAt: fetchedAt,
         },
-        { merge: true }
+        { mergeFields: ['stationCode', 'stationName', 'forecastData', 'forecastUpdatedAt'] }
       );
 
       return res.json({

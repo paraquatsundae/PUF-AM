@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, X, ChevronDown, ChevronRight, Weight } from 'lucide-react';
 import { useAuth } from '../../../src/contexts/AuthContext';
@@ -14,6 +14,7 @@ export function Harvest() {
   const { records, loading, saving, createRecord, deleteRecord } = useHarvestRecords(farmId, user?.uid);
   const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null);
   const [logForBlockId, setLogForBlockId] = useState<string | null>(null);
+  const didAutoExpand = useRef(false);
 
   const [formData, setFormData] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -28,10 +29,15 @@ export function Harvest() {
   }, [farmId, isLoaded, loadData]);
 
   useEffect(() => {
-    if (expandedBlockId === null && blocks.length > 0) {
-      setExpandedBlockId(blocks[0].id);
-    }
-  }, [blocks, expandedBlockId]);
+    didAutoExpand.current = false;
+    setExpandedBlockId(null);
+  }, [farmId]);
+
+  useEffect(() => {
+    if (didAutoExpand.current || blocks.length === 0) return;
+    setExpandedBlockId(blocks[0].id);
+    didAutoExpand.current = true;
+  }, [blocks]);
 
   const recordsByBlock = useMemo(
     () => groupHarvestsByBlock(records, blocks.map((b) => b.id)),

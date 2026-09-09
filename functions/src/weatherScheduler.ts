@@ -87,6 +87,7 @@ async function fetchStationWeather(
 
     const response = await fetch(url, {
       headers: { "api-key": apiKey, Accept: "application/json" },
+      signal: AbortSignal.timeout(55_000),
     });
     if (!response.ok) {
       throw new Error(`DPIRD ${stationCode}: HTTP ${response.status}`);
@@ -217,7 +218,18 @@ export const refreshWeatherCache = onSchedule(
             ...(historicBackfilledAt ? { historicBackfilledAt } : {}),
             ...forecastPatch,
           },
-          { merge: true }
+          {
+            mergeFields: [
+              "stationCode",
+              "stationName",
+              "lastUpdated",
+              "startDate",
+              "endDate",
+              "weatherData",
+              ...(historicBackfilledAt ? (["historicBackfilledAt"] as const) : []),
+              ...Object.keys(forecastPatch),
+            ],
+          }
         );
 
         console.log(

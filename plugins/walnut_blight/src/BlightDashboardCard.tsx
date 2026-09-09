@@ -61,6 +61,9 @@ export function BlightDashboardCard() {
       .then((agg) => {
         if (!cancelled && agg) setAggregate(agg);
       })
+      .catch(() => {
+        if (!cancelled) setAggregate(null);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });

@@ -20,8 +20,19 @@ export function memoryWeatherDb() {
             data: () => data,
           };
         },
-        async set(data: Record<string, unknown>, opts?: { merge?: boolean }) {
+        async set(
+          data: Record<string, unknown>,
+          opts?: { merge?: boolean; mergeFields?: string[] }
+        ) {
           const prev = store.get(path) || {};
+          if (opts?.mergeFields) {
+            const next = { ...prev };
+            for (const field of opts.mergeFields) {
+              if (field in data) next[field] = data[field];
+            }
+            store.set(path, next);
+            return;
+          }
           store.set(path, opts?.merge ? { ...prev, ...data } : { ...data });
         },
       };

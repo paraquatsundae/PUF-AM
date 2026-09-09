@@ -273,7 +273,7 @@ export function Admin() {
                           <tr key={u.uid} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <img src={u.photoURL || `https://ui-avatars.com/api/?name=${u.email}`} className="w-8 h-8 rounded-full" alt="" />
+                                <img src={u.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName || 'User')}`} className="w-8 h-8 rounded-full" alt="" referrerPolicy="no-referrer" />
                                 <div>
                                   <p className="text-sm font-bold text-slate-900">{u.displayName}</p>
                                   <p className="text-[10px] text-slate-500">{u.email}</p>
@@ -343,7 +343,7 @@ export function Admin() {
                             <td className="py-4">
                               <div className="flex items-center gap-3">
                                 <img
-                                  src={user.photoURL || `https://ui-avatars.com/api/?name=${user.email}`}
+                                  src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}`}
                                   className="w-10 h-10 rounded-full bg-slate-100"
                                   alt=""
                                   referrerPolicy="no-referrer"
