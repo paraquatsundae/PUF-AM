@@ -260,13 +260,7 @@ npx wrangler login   # or export CLOUDFLARE_API_TOKEN=...
 2. **Firebase Auth** authorized domains — add `am.pufworks.farm` (keep the `*.run.app` host until cutover is proven):  
    https://console.firebase.google.com/project/gen-lang-client-0444791425/authentication/settings
 
-3. **Google Maps** key (`VITE_GOOGLE_MAPS_API_KEY`) → Application restrictions → HTTP referrers → add:
-   - `https://am.pufworks.farm/*`
-   - keep `https://pufom-quby5ye5pa-ts.a.run.app/*` briefly as fallback  
-   https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0444791425  
-   Details: `Plans/API_KEY_SECURITY.md`
-
-4. Marketing site CTAs already point at `https://am.pufworks.farm` (PUFworks-site).
+3. Marketing site CTAs already point at `https://am.pufworks.farm` (PUFworks-site). There is no client Maps key.
 
 ### Checklist
 

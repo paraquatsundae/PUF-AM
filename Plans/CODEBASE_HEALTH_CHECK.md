@@ -12,7 +12,7 @@ Command (procedure A):
 npm test && npm run lint && npm run plugins:verify && npm run audit:codebase
 ```
 
-`npm run lint` is `tsc --noEmit`. Procedure A is green as of the 2026-08-30 thin SoC greps.
+`npm run lint` is `tsc --noEmit` + desktop `tsc` + `eslint --quiet`. Procedure A is green as of 2026-09-08 (1116 tests).
 
 There is now a fifth gate for anything touching the client bundle, because some
 questions only a built artefact can answer:
@@ -20,6 +20,29 @@ questions only a built artefact can answer:
 ```
 npm run build && npm run audit:bundle
 ```
+
+---
+
+## 2026-09-09 — Soon-batch leftovers
+
+**Host:** Linux (Fedora), repo `PUF-AM`, after `e0d1aa6`.
+**Why:** Health + security triage “soon” list — not a peel.
+
+### Code
+
+- Initials avatars no longer put `user.email` on ui-avatars.com (`Layout.tsx`, `Admin.tsx`).
+- `getBlightAggregate` rejection is caught on the farm-home card.
+- Harvest auto-expand runs once; collapsing a block no longer re-opens the first one.
+- Weather `forecastData` / `weatherData` writes use `mergeFields` so Firestore recursive merge cannot keep stale day keys (hosted ensure-cache/forecast, scheduler, BYO refresh).
+- DPIRD `fetch` in the scheduler and `dpirdClient` now uses `AbortSignal.timeout(55s)`.
+
+### Docs
+
+NAMING Maps key row gone. BILLING §3.3 / §6 / §7 match Design A. SETTINGS Economics tab noted removed. HEALTH lint + size appendix. This log entry.
+
+### npm audit
+
+See [`AUDIT_LOG.md`](AUDIT_LOG.md). `browserslist` is pinned via `overrides`. Do not `audit fix --force`.
 
 ---
 

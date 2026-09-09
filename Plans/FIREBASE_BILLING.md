@@ -284,7 +284,7 @@ paste, then to validation, then to rules deployment.
 | **Weather** | `weather_cache/{station}` is filled by George's hourly function using George's `DPIRD_API_KEY`. A fresh project has an empty cache. | **Design A:** the owner deploys [`functions-byo-weather/`](../functions-byo-weather/) in their project. The key stays in *their* Secret Manager. The client reads `farms/{id}/settings/weather.weatherEndpoint` and sends `/api/weather/*` there. Missing endpoint: no call to the hosted key. Settings paste UI is still item 3. |
 | **`chill_cache`** | Same shape — shared aggregates, `allow read, write: if false`, Admin SDK only. | Same owner-deployed weather function, later — not in the first BYO weather package. |
 | **`DPIRD_API_KEY`** | Server-only by rule ([`NAMING.md`](NAMING.md) §3 — never `VITE_*`). | **Never store a BYO owner's key on George's Cloud Run.** They set `DPIRD_API_KEY` in their own Secret Manager. Never `VITE_*`. |
-| **Google Maps** | `VITE_GOOGLE_MAPS_API_KEY` is George's key, restricted by HTTP referrer and `com.sentinut.farm` ([`API_KEY_SECURITY.md`](API_KEY_SECURITY.md)). A BYO farm on George's origin uses George's Maps quota — **George pays for their map tiles.** | Either the wizard takes their Maps key too, or the map falls back to the Esri basemap packs (`sentinut_basemap`) which are already the offline path. Flag this early: it is easy to ship BYO-Firestore and forget Maps is still on George's card. |
+| **Google Maps** | There is no client Maps key. Online tiles are `GET /api/tiles/:z/:x/:y` on whichever PUF-AM server the client already talks to. Offline Esri packs stay in IndexedDB. | A BYO farm on `am.pufworks.farm` still uses George's tile proxy until they point the client at their own API. Landgate licence is a separate parked question. |
 | **Nearby farm discovery** | `farms_public` is one project's collection; `/api/auth/nearby-farms` queries it with the Admin SDK. | Discovery becomes per-project. A BYO farm will not see George's farms and vice versa. Accept it and say so in the wizard — do not silently show an empty list. |
 | **Crew presence, invite PINs, members** | All Firestore/Auth in whichever project the farm lives in. | Work unchanged once #1 and #2 are solved. |
 | **The `.pufom` / LAN / Freenet pipes** | Do not touch Firebase at all. | Unaffected. This is why the XOR holds. |
@@ -468,8 +468,8 @@ In dependency order, each landable alone:
    the fork that determines whether BYO is a wizard step or a self-hosting exercise.
 3. Wizard: disclosure (§4.1) → config paste → rules/indexes template → verification
    probe.
-4. Shared weather/chill endpoint (§3.3) — the one named exception to zero.
-5. Maps key decision (§3.3) — do not let this be discovered after launch.
+4. ~~Shared weather/chill endpoint.~~ **Design A landed 2026-09-08** (`functions-byo-weather/`). Hosted farms still use George's weather. BYO + no endpoint fail-closed. Settings paste UI and BYO chill are still open.
+5. ~~Maps key decision.~~ **Gone.** No `VITE_GOOGLE_MAPS_API_KEY`. Tiles are `/api/tiles`.
 6. §5 item 10, the two loops, so a BYO owner's bill is a few dollars and not $35.
 
 ### Phase 3 — managed paid tier, only if asked for
@@ -496,9 +496,10 @@ metering that agrees with Google's, suspension, tax and a support obligation.
   needing Admin credentials in the target project.
 - **A is only truly zero on the desktop app and the APK**, which serve their own
   assets. A browser user still loads the bundle from George's Hosting. Say so.
-- Weather and chill aggregates stay a **shared service on George's project** — bounded,
-  hourly, and it does not scale with farm count. That is a deliberate exception, not
-  an oversight.
+- Hosted farms still use George's weather/chill (bounded, hourly). **BYO farms do
+  not** — Design A (`95a0a7e`): the owner deploys `functions-byo-weather` and we
+  never hold their DPIRD key. Missing endpoint: no call to `am.pufworks.farm`.
+  Chill on that function is not shipped yet.
 - Nobody chooses cloud without reading, and ticking, what it will cost them.
 
 ---

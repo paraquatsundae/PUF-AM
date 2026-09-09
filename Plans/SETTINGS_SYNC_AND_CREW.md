@@ -113,8 +113,10 @@ Three tabs. The old General tab carried seven cards, five of which were sync.
 | Tab | Contents |
 |-----|----------|
 | **General** | Farm profile · Invite PINs (*admin **and** cloud farm*) **or** the Crew pointer (*Freenet farm*) · Personal unlock PIN · Privacy · Legal |
+| **Plugins** | Crop / generic / network pack list |
 | **Sync** | The cards below |
-| **Economics** | Market & Economics only (renamed from Advanced in BE-03). Blight research knobs → **Blight risk → Sandbox**; orchard inoculum → **Blight risk** ([`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md)) |
+
+The **Economics** tab was removed 2026-09-08 (`7664708`). Market fields stay on `settings/model_params` via `farmEconomicsParams.ts`; there is no Settings surface for them. Blight research knobs stay on **Blight risk → Sandbox**.
 
 Sync, in the order the jobs happen:
 

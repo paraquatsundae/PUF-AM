@@ -1,7 +1,7 @@
 # Blight engine plug-in — settings home
 
 **Product:** PUF-AM — Ag Manager (walnut crop pack)  
-**Status:** Active — BE-00–BE-05 done for settings home + type unify; BE-06 doc split deferred  
+**Status:** Active — BE-00–BE-05 done for settings home + type unify; BE-06 doc split deferred. **Settings → Economics was removed 2026-09-08** (`7664708`); this plan still describes the tab that used to hold market fields.  
 **Date:** 2026-08-11  
 **Companion:** [`BLIGHT_VALIDATION.md`](BLIGHT_VALIDATION.md) (science / Ji track) · [`FARM_TYPES.md`](FARM_TYPES.md) (walnut pack gating) · [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) (Settings tab inventory) · [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) (general pack seam for other packs)  
 **Honesty UI:** [`plugins/walnut_blight/src/BlightEngineScience.tsx`](../plugins/walnut_blight/src/BlightEngineScience.tsx) on Blight risk  

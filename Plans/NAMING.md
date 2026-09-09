@@ -94,9 +94,8 @@ Related plans (not duplicated here):
 | `APP_URL` | Server | Self-referential links, OAuth, deploy canonical URL |
 | `VITE_APP_URL` | Client (build-time) | Published app URL after Cloud Run / custom domain |
 | `VITE_API_BASE_URL` | Client (build-time) | Physical device → LAN IP of dev hub |
-| `VITE_GOOGLE_MAPS_API_KEY` | Client | Restrict to `com.sentinut.farm` + HTTP referrers — see [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md) |
 | `VITE_CAPACITOR` | Build script | Set by `build:android` — not usually in `.env` |
-| `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in** |
+| `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in**. Vite inlines it. A local `.env` with `true` fails `audit:bundle`; Cloud Run must leave it unset (the deploy script does). There is no client Maps key — imagery is `/api/tiles`. |
 | `VITE_REQUIRE_AUTH` | Client | Forces login even if workshop enabled |
 | `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Shows the mist storage chooser on login. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Defaulted to `true` by `scripts/build-desktop-web.mjs` and `scripts/build-android-web.mjs` |
 | `VITE_MIST_FREENET_API` | Client (build-time) | Origin for `/api/mist/freenet/*` when it is not same-origin. On Capacitor this is what makes the runtime `android-hub` instead of `android-no-host` — see [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §7 |

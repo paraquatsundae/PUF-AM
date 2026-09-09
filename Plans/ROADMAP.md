@@ -113,8 +113,8 @@ graph TD
 - [x] Copy `.env.example` → `.env` (local only, never committed)
 - [ ] Populate:
   - `DPIRD_API_KEY` — weather proxy server-only (`server/envSecrets.ts`; never `VITE_`)
-  - `VITE_GOOGLE_MAPS_API_KEY` — map tiles (`GoogleMapsLayer.tsx`; restrict per `Plans/API_KEY_SECURITY.md`)
   - `APP_URL` — `http://localhost:3000` for local dev
+  - There is no `VITE_GOOGLE_MAPS_API_KEY` — tiles are `/api/tiles`
 - [x] Verify `dotenv.config()` in `server.ts` loads server vars
 - [x] Verify Vite exposes `VITE_*` vars to the client build
 - [x] Add a startup check script or server log warning when keys are missing

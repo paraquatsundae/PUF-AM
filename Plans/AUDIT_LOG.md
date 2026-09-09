@@ -54,8 +54,18 @@ Captured after `npm install` in a fresh workspace.
 
 ---
 
-## Re-audit template
+## Re-audit — 9 Sep 2026
+
+`xlsx` is gone from the app. `overrides.browserslist: ">=4.28.7"` cleared the browserslist High.
+
+| Severity | Count | Notes |
+|----------|-------|-------|
+| High | 1 | `@xmldom/xmldom` via html2pdf / jspdf |
+| Moderate | 19 | `qs` / `express` (prod server), firebase-admin / firebase-tools tree |
+| Low | 1 | `esbuild` via `tsx` (Windows dev server) |
+| **Total** | **21** | Do not `npm audit fix --force` (downgrades `firebase-tools`) |
 
 | Date | Total | Critical | High | Notes |
 |------|-------|----------|------|-------|
-| 2026-07-13 | 2 | 0 | 1 | Phase B complete |
+| 2026-09-09 | 21 | 0 | 1 | browserslist pinned. xmldom / qs / esbuild remain. |
+| 2026-07-13 | 2 | 0 | 1 | Phase B complete (`xlsx` High accepted; package since removed) |

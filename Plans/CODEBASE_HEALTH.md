@@ -21,7 +21,7 @@ AuthContext → useOfferedFarmModules ← cropPacks
 - [`shared/auth/farmModules.ts`](../shared/auth/farmModules.ts) must **never** import `cropPacks`.
 - [`src/contexts/AuthContext.tsx`](../src/contexts/AuthContext.tsx) must **never** import pack hooks.
 - Firestore errors live in [`src/lib/firestoreErrors.ts`](../src/lib/firestoreErrors.ts), not Auth. `isBenignFirestoreFailure` is exported — [`src/services/api.ts`](../src/services/api.ts) uses it to return empty/null (or rethrow for the outbox) instead of wrapping.
-- `tsc --noEmit` is the lint gate. `strictNullChecks` is **off** — `if (!result.ok)` does not narrow unions. Use `in` accessors (`pluginPackageIssues`, `parseByoConfigError`, `nativeHostPutErrorMessage`). Do not enable `strict` in a health pass.
+- `npm run lint` is `tsc --noEmit` + desktop `tsc` + `eslint --quiet`. `strictNullChecks` is **off** — `if (!result.ok)` does not narrow unions. Use `in` accessors (`pluginPackageIssues`, `parseByoConfigError`, `nativeHostPutErrorMessage`). Do not enable `strict` in a health pass.
 
 **Settings category ≠ shell menu.** `plugin.json` `category` groups Settings → Plugins (`crop` / `generic` / `network`). `navItems.groupId` is Field / Crop / Records / System. Water is `generic` + Crop nav. Harvest is `generic` + Records. Do not copy one from the other.
 
@@ -177,6 +177,17 @@ If pack is `active` and menu is empty: catalog/grant bug, not a missing route. I
 ## Size appendix
 
 Newest first. Short table here; full command output in [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md).
+
+### 2026-09-09
+
+Procedure A green on 8 Sep (1116 tests). `KNOWN_OVERSIZE` is still Freenet only. In-scope nearest the 600 cap: `mapStore.ts` 599, `mapDrawHelpers.ts` 591.
+
+| Lines | File |
+|------:|------|
+| 1103 | `src/components/MistWorkshopCard.tsx` |
+| 1005 | `src/components/MistFarmSyncCard.tsx` |
+
+Blight lives under `plugins/`. `accessPinRoutes.ts` is a 10-line aggregator. Full log: [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md) 2026-09-08 / 2026-09-09.
 
 ### 2026-08-30
 
