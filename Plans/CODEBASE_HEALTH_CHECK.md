@@ -23,6 +23,18 @@ npm run build && npm run audit:bundle
 
 ---
 
+## 2026-09-09 — npm audit leftovers
+
+**Host:** Linux (Fedora), repo `PUF-AM`.
+**Why:** Close the 21 that remained after the browserslist pin, without `audit fix --force`.
+
+- Overrides: `@xmldom/xmldom` 0.9.12, `qs` >=6.16.0, `morgan` >=1.12.0.
+- Bumps: vitest 4.1.11, tsx 4.23.13, firebase-tools 15.29.0, firebase-admin ^13.10.0, express ^4.22.2.
+- Removed unused `html2pdf.js`.
+- Result: **0 High / 0 Low / 13 Moderate**. The 13 are firebase-tools / firebase-admin nested majors (otel 2.x, csv-parse 7.x, stream-json 3.x, uuid 11 under Google clients). Accepted — see [`AUDIT_LOG.md`](AUDIT_LOG.md).
+
+---
+
 ## 2026-09-09 — Soon-batch leftovers
 
 **Host:** Linux (Fedora), repo `PUF-AM`, after `e0d1aa6`.

@@ -56,16 +56,43 @@ Captured after `npm install` in a fresh workspace.
 
 ## Re-audit — 9 Sep 2026
 
-`xlsx` is gone from the app. `overrides.browserslist: ">=4.28.7"` cleared the browserslist High.
+`xlsx` is gone from the app. First pass: `overrides.browserslist: ">=4.28.7"` cleared the browserslist High (21 left). Second pass closed the rest that do not need a firebase-tools / firebase-admin major.
 
-| Severity | Count | Notes |
-|----------|-------|-------|
-| High | 1 | `@xmldom/xmldom` via html2pdf / jspdf |
-| Moderate | 19 | `qs` / `express` (prod server), firebase-admin / firebase-tools tree |
-| Low | 1 | `esbuild` via `tsx` (Windows dev server) |
-| **Total** | **21** | Do not `npm audit fix --force` (downgrades `firebase-tools`) |
+### Actions taken (second pass)
+
+1. Pin `@xmldom/xmldom` to **0.9.12** (plist under `@capacitor/cli` and `electron-builder`, not html2pdf).
+2. Pin `qs` to **>=6.16.0** and `morgan` to **>=1.12.0**. Express is **4.22.2**.
+3. Bump `vitest` to **4.1.11** (`@vitest/mocker` path-traversal). `npm install vitest@4.1.11` hits an arborist `edgesOut` bug on npm 10.9.8; `--legacy-peer-deps` once, then a normal `npm install` succeeds against the lockfile.
+4. Bump `tsx` to **4.23.13** so its esbuild is **0.28.1** (outside 0.27.3–0.28.0). Vite still has esbuild 0.25.12, which is outside that range — do not globally force esbuild 0.28 onto Vite.
+5. Bump `firebase-tools` to **15.29.0** and `firebase-admin` to **^13.10.0**.
+6. Drop unused `html2pdf.js` (PDFs already go through `jspdf` + `html2canvas`).
+
+Do **not** `npm audit fix --force` — that still downgrades `firebase-tools` to 10.1.1.
+
+### Result
+
+| Severity | After browserslist | After second pass |
+|----------|--------------------|-------------------|
+| Critical | 0 | **0** |
+| High | 1 | **0** |
+| Moderate | 19 | **13** |
+| Low | 1 | **0** |
+| **Total** | **21** | **13** |
+
+### Remaining advisories (accepted)
+
+All 13 are nested under `firebase-tools` / `firebase-admin`. The advertised non-force fix for `stream-json` is a 1.x → 3.x jump; the rest only clear by downgrading tools to 10.1.1.
+
+| Package | Severity | Why left |
+|---------|----------|----------|
+| `@opentelemetry/core` 1.30.1 | Moderate | pubsub wants 1.x; advisory fix is 2.8.0 (major). |
+| `csv-parse` 5.6.0 | Moderate | tools still on 5.x; fix is 7.0.2 (major). |
+| `stream-json` 1.9.1 | Moderate | CLI JSON filter DoS. No 1.x patch; 3.x would be a tools break. |
+| `uuid` 8/9 under gaxios / google-gax / teeny-request / storage | Moderate | v3/v5/v6 buffer bound. Direct `uuid` is already 13. Nested override to 11+ can break the Google clients. |
+| `google-gax` / `@google-cloud/firestore` / `@google-cloud/storage` / `teeny-request` / `retry-request` / `gaxios` | Moderate | Same admin/tools tree. npm’s “fix” is firebase-admin 10.3.0. |
 
 | Date | Total | Critical | High | Notes |
 |------|-------|----------|------|-------|
+| 2026-09-09 | 13 | 0 | 0 | xmldom / qs / vitest / morgan / tsx esbuild closed. 13 firebase nested accepted. |
 | 2026-09-09 | 21 | 0 | 1 | browserslist pinned. xmldom / qs / esbuild remain. |
 | 2026-07-13 | 2 | 0 | 1 | Phase B complete (`xlsx` High accepted; package since removed) |
