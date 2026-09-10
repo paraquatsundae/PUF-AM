@@ -9,6 +9,7 @@ import {
   resolveFarmCropPacks,
 } from '../shared/farm/cropPacks';
 import { defaultModulesWithoutCropPacks } from '../shared/farm/cropPacks';
+import { SYSTEM_PLUGINS } from '../shared/farm/pluginsCatalog';
 import { PACK_UI_REGISTRY, getPackUi } from '../src/packs/registry';
 
 const ROOT = join(__dirname, '..');
@@ -66,7 +67,51 @@ describe('pack golden set', () => {
         expect(ui!.routes.every((r) => pack.modules.includes(r.moduleId))).toBe(true);
       }
     }
-    expect(PACK_UI_REGISTRY.map((p) => p.packId).sort()).toEqual([...CROP_PACK_IDS].sort());
+    expect(PACK_UI_REGISTRY.map((p) => p.packId).sort()).toEqual(
+      [...CROP_PACK_IDS, ...SYSTEM_PLUGINS.map((p) => p.id)].sort()
+    );
+  });
+
+  /**
+   * The network pack (Plans/NETWORK_PACK_PLUGIN.md) is discovered by the same
+   * glob but paired with SYSTEM_PLUGINS, not CROP_PACKS. It owns no farm
+   * module, sits under Network & storage, and mounts through named surfaces —
+   * so a regression here is a Freenet screen silently vanishing.
+   */
+  it('the freenet_host network pack has a manifest, registers UI, and owns no modules', () => {
+    const manifestPath = join(ROOT, 'plugins', 'freenet_host', 'plugin.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      id: string;
+      kind: string;
+      category: string;
+      modules: string[];
+    };
+    expect(manifest.id).toBe('freenet_host');
+    expect(manifest.kind).toBe('network');
+    expect(manifest.category).toBe('network');
+    expect(manifest.modules).toEqual([]);
+    expect(SYSTEM_PLUGINS.map((p) => p.id)).toContain('freenet_host');
+
+    const ui = getPackUi('freenet_host');
+    expect(ui, 'missing PACK_UI_REGISTRY for freenet_host').toBeTruthy();
+    expect(ui!.routes).toEqual([]);
+    expect(ui!.navItems).toEqual([]);
+    expect(ui!.publicRoutes?.map((r) => r.path).sort()).toEqual([
+      '/login/mist-new-farm',
+      '/login/mist-recover',
+    ]);
+    for (const surface of [
+      'farmSession',
+      'sessionGate',
+      'syncCard',
+      'workshopDiagnostics',
+      'loginExplain',
+      'farmSetupNudge',
+      'howItWorks',
+      'pluginTile',
+    ] as const) {
+      expect(ui!.surfaces[surface], `freenet_host missing surface ${surface}`).toBeTruthy();
+    }
   });
 
   it('does not treat Settings category as the shell menu', () => {
@@ -99,9 +144,31 @@ describe('layering', () => {
     expect(src).not.toMatch(/from ['"][^'"]*cropPacks['"]/);
   });
 
-  it('AuthContext does not import pack hooks', () => {
+  it('AuthContext does not import pack hooks or pack folders', () => {
     const src = readFileSync(join(ROOT, 'src/contexts/AuthContext.tsx'), 'utf8');
     expect(src).not.toMatch(/from ['"].*\/hooks\//);
+    expect(src).not.toMatch(/from ['"].*\/plugins\//);
+  });
+
+  it('core reaches plugins/<id>/src only through src/packs/registry.ts', () => {
+    const hits: string[] = [];
+    for (const abs of walkTs(join(ROOT, 'src'))) {
+      if (abs.endsWith(join('src', 'packs', 'registry.ts'))) continue;
+      for (const spec of importSpecifiers(readFileSync(abs, 'utf8'))) {
+        if (/(^|\/)plugins\/[^/]+\/src(\/|$)/.test(spec)) hits.push(`${abs} → ${spec}`);
+      }
+    }
+    expect(hits).toEqual([]);
+  });
+
+  it('the network pack has no React in its pure stores and never imports AuthContext from them', () => {
+    for (const name of ['freenetHostEnable.ts', 'freenetHostReconcile.ts']) {
+      const specs = importSpecifiers(
+        readFileSync(join(ROOT, 'plugins/freenet_host/src', name), 'utf8')
+      );
+      expect(specs.filter((s) => s === 'react' || s.startsWith('react/'))).toEqual([]);
+      expect(specs.filter((s) => /AuthContext/.test(s))).toEqual([]);
+    }
   });
 
   it('src/lib does not import src/components', () => {

@@ -1,7 +1,31 @@
 import { KeyRound, Sprout } from 'lucide-react';
-import type { FreenetOptionState } from '../../lib/loginStorageChoice.ts';
-import { FreenetHowItWorksBody } from '../FreenetHowItWorks';
-import { BackLink, LoginPanel } from './LoginBrand';
+import { useNavigate } from 'react-router-dom';
+import type { FreenetOptionState } from '../../../src/lib/loginStorageChoice.ts';
+import { FreenetHowItWorksBody } from './FreenetHowItWorks';
+import { BackLink, LoginPanel } from '../../../src/components/login/LoginBrand';
+import { MIST_NEW_FARM_PATH, MIST_RECOVER_FARM_PATH } from './paths.ts';
+
+/**
+ * `loginExplain` surface (Plans/NETWORK_PACK_PLUGIN.md § index.ts): the pack
+ * owns its two public routes, so it also owns the navigation to them.
+ */
+export default function FreenetExplainLoginStep({
+  optionState,
+  onBack,
+}: {
+  optionState: FreenetOptionState;
+  onBack: () => void;
+}) {
+  const navigate = useNavigate();
+  return (
+    <FreenetExplain
+      freenetOption={optionState}
+      onStart={() => navigate(MIST_NEW_FARM_PATH)}
+      onJoin={() => navigate(MIST_RECOVER_FARM_PATH)}
+      onBack={onBack}
+    />
+  );
+}
 
 export function FreenetExplain({
   freenetOption,

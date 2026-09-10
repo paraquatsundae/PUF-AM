@@ -4,7 +4,9 @@
  *   npm run audit:codebase
  *
  * Allowed import edges: farmModules → cropPacks → pack UI → nav/App.
- * farmModules must never import cropPacks. AuthContext must never import hooks.
+ * farmModules must never import cropPacks. AuthContext must never import hooks
+ * or a pack folder. Core reaches plugins/<id>/src only via src/packs/registry.ts
+ * (crop packs and the freenet_host network pack alike — Plans/NETWORK_PACK_PLUGIN.md).
  * Thin SoC greps: src/lib ↛ src/components; pages ↛ Leaflet / turf / Firestore.
  *
  * harvest_drying is only allowed in cropPackMigrate.ts (and tests / health docs).
@@ -22,10 +24,14 @@ const NEW_FILE_HARD = 600;
 const EXISTING_WARN = 800;
 const EXISTING_SPLIT = 1200;
 
-/** Files already over the new-file hard limit — do not grow; split tickets exist. */
+/**
+ * Files already over the new-file hard limit — do not grow; split tickets exist.
+ * The two Freenet cards moved into the network pack on 2026-09-10 unchanged
+ * (Plans/FREENET_NETWORK_PACK.md slice A); the split is still owed.
+ */
 const KNOWN_OVERSIZE = new Set([
-  'src/components/MistFarmSyncCard.tsx',
-  'src/components/MistWorkshopCard.tsx',
+  'plugins/freenet_host/src/MistFarmSyncCard.tsx',
+  'plugins/freenet_host/src/MistWorkshopCard.tsx',
 ]);
 
 const HARVEST_DRYING_ALLOW = [
@@ -39,7 +45,8 @@ const HARVEST_DRYING_ALLOW = [
   'scripts/audit-codebase.mjs',
 ];
 
-const SCAN_DIRS = ['src', 'shared', 'server'];
+/** `plugins` joined the size scan with the network pack (2026-09-10) — pack code is app code. */
+const SCAN_DIRS = ['src', 'shared', 'server', 'plugins'];
 const SKIP_DIR = new Set([
   'node_modules',
   'dist',
@@ -159,10 +166,23 @@ function auditPackFolders() {
     const manifest = join(pluginsDir, name, 'plugin.json');
     if (!existsSync(manifest)) continue;
     const json = JSON.parse(readFileSync(manifest, 'utf8'));
-    if (json.kind !== 'crop_pack') continue;
+    // Crop packs and network packs both register UI; anything else is skipped.
+    if (json.kind !== 'crop_pack' && json.kind !== 'network') continue;
     if (json.id !== name) {
       fail(`plugins/${name}/plugin.json id is ${json.id}`);
       failed += 1;
+    }
+    if (json.kind === 'network') {
+      // Plans/NETWORK_PACK_PLUGIN.md § plugin.json: a network pack sits under
+      // Network & storage and owns no farm modules.
+      if (json.category !== 'network') {
+        fail(`plugins/${name}/plugin.json is kind network but category ${json.category}`);
+        failed += 1;
+      }
+      if (Array.isArray(json.modules) && json.modules.length > 0) {
+        fail(`plugins/${name}/plugin.json is a network pack but lists modules`);
+        failed += 1;
+      }
     }
     ids.push(json.id);
     // Every pack finished the Plans/PLUGIN_PACK_LAYOUT.md Phase 1 move, so the
@@ -260,7 +280,23 @@ function auditLayering() {
     fail('AuthContext must never import pack hooks');
     failed += 1;
   }
-  if (failed === 0) ok('farmModules ↛ cropPacks; AuthContext ↛ hooks');
+  if (/from ['"][^'"]*\/plugins\//.test(auth)) {
+    fail('AuthContext must never import a pack folder (Plans/NETWORK_PACK_PLUGIN.md § Forbidden)');
+    failed += 1;
+  }
+  // Core reaches a pack only through src/packs/registry.ts. A direct import of
+  // plugins/<id>/src from src/ is the seam leaking (allowed: the registry glob).
+  for (const abs of walk(join(ROOT, 'src'))) {
+    const rel = relative(ROOT, abs).replace(/\\/g, '/');
+    if (rel === 'src/packs/registry.ts') continue;
+    for (const spec of importSpecifiers(readFileSync(abs, 'utf8'))) {
+      if (/(^|\/)plugins\/[^/]+\/src(\/|$)/.test(spec)) {
+        fail(`${rel} imports ${spec} — core reaches packs through src/packs/registry.ts only`);
+        failed += 1;
+      }
+    }
+  }
+  if (failed === 0) ok('farmModules ↛ cropPacks; AuthContext ↛ hooks / plugins; src ↛ plugins/*/src except registry');
   return failed;
 }
 

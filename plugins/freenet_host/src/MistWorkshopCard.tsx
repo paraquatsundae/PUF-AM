@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Cloud, Copy, Database, FlaskConical, Loader2, Radio, Server } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { getDesktopBridge } from '../lib/desktopBridge.ts';
-import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { getDesktopBridge } from '../../../src/lib/desktopBridge.ts';
+import type { FreenetHostStatus } from '../../../units/puf-freenet-host/src/types.ts';
 import {
   getFarmStoreBackend,
   isMistExperimentalEnabled,
   setFarmStoreBackend,
   type FarmStoreBackendPreference,
-} from '../mist/farmStoreBackend.ts';
-import { readBonesWorkshopSmoke, runBonesWorkshopSmoke } from '../mist/bonesWorkshop.ts';
+} from '../../../src/mist/farmStoreBackend.ts';
+import { readBonesWorkshopSmoke, runBonesWorkshopSmoke } from '../../../src/mist/bonesWorkshop.ts';
 import {
   fetchFreenetPeerStatus,
   publishFarmToFreenet,
@@ -19,7 +19,7 @@ import {
   startFreenetPeer,
   stopFreenetPeer,
   type FreenetPeerStatus,
-} from '../mist/mistFreenetClient.ts';
+} from '../../../src/mist/mistFreenetClient.ts';
 import {
   fetchAndRehydrateFarmFromFreenet,
   formatEntityCounts,
@@ -29,28 +29,28 @@ import {
   recoverLocalFarmFromFreenet,
   refreshFarmUiAfterRecovery,
   wipeLocalFarmForDisasterRecovery,
-} from '../mist/mistDisasterRecovery.ts';
-import { formatJoinTicket } from '../mist/mistJoinTicket.ts';
-import { getMistFreenetApiBaseUrl, usesLocalFreenetSidecar } from '../lib/apiBase.ts';
+} from '../../../src/mist/mistDisasterRecovery.ts';
+import { formatJoinTicket } from '../../../src/mist/mistJoinTicket.ts';
+import { getMistFreenetApiBaseUrl, usesLocalFreenetSidecar } from '../../../src/lib/apiBase.ts';
 import {
   FREENET_NO_HOST_DETAIL,
   canReachFreenetNode,
   detectFreenetReadOnly,
   detectFreenetRuntime,
-} from '../lib/freenetRuntime.ts';
+} from '../../../src/lib/freenetRuntime.ts';
 import {
   FREENET_LOCAL_NODE_DETAIL,
   localFreenetNodeEligible,
   localFreenetWsUrl,
   probeLocalFreenetNode,
-} from '../mist/freenetLocalNode.ts';
+} from '../../../src/mist/freenetLocalNode.ts';
 import {
   getMistHotPublishStatus,
   isMistHotMirrorAvailable,
   publishLocalFarmToMistHot,
   readMistHotCurrent,
   type MistHotPublishStatus,
-} from '../mist/mistHotBridge.ts';
+} from '../../../src/mist/mistHotBridge.ts';
 
 function freenetEndpointSummary(status: FreenetPeerStatus): string | undefined {
   return (

@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { CROP_PACK_IDS } from '../shared/farm/cropPacks';
+import { SYSTEM_PLUGINS } from '../shared/farm/pluginsCatalog';
 import {
   PACK_UI_REGISTRY,
   allPackCultivars,
   allPackNavItems,
+  allPackPublicRoutes,
   allPackRoutes,
   getPackUi,
   packRouteModuleIds,
+  packSurfaces,
 } from '../src/packs/registry';
 import { navGroups } from '../src/lib/navConfig';
 import { WALNUT_BLIGHT_PRIMARY_PATH } from '../plugins/walnut_blight/src/index';
@@ -26,10 +29,25 @@ describe('pack UI registry (CP-04)', () => {
    * This pins the result, because nothing else would notice the menu changing.
    */
   it('follows catalog order, not the alphabetical order the glob returns', () => {
-    expect(PACK_UI_REGISTRY.map((p) => p.packId)).toEqual([...CROP_PACK_IDS]);
+    const catalogOrder = [...CROP_PACK_IDS, ...SYSTEM_PLUGINS.map((p) => p.id)];
+    expect(PACK_UI_REGISTRY.map((p) => p.packId)).toEqual(catalogOrder);
     expect(PACK_UI_REGISTRY.map((p) => p.packId)).not.toEqual(
-      [...CROP_PACK_IDS].sort((a, b) => a.localeCompare(b))
+      [...catalogOrder].sort((a, b) => a.localeCompare(b))
     );
+  });
+
+  it('lists the network pack after every crop pack and exposes its public routes and surfaces', () => {
+    const ids = PACK_UI_REGISTRY.map((p) => p.packId);
+    expect(ids[ids.length - 1]).toBe('freenet_host');
+    expect(allPackPublicRoutes().map((r) => r.path)).toEqual([
+      '/login/mist-new-farm',
+      '/login/mist-recover',
+    ]);
+    // Crop packs register none of the network surfaces, so only Freenet answers.
+    expect(packSurfaces('sessionGate').map((s) => s.packId)).toEqual(['freenet_host']);
+    expect(packSurfaces('pluginTile').map((s) => s.packId)).toEqual(['freenet_host']);
+    // And the network pack adds nothing to the module-gated route table.
+    expect(allPackRoutes().some((r) => r.path.startsWith('login'))).toBe(false);
   });
 
   it('exposes walnut blight route and surfaces', () => {

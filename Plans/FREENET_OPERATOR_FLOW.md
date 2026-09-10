@@ -6,7 +6,7 @@ Exact operator path as the code stands. Cloud XOR Freenet is locked at login —
 
 **Known holes:** §8 below (merged from `archive/FREENET_HOLES.md`, 2026-09-10)  
 **What is on Freenet, sealed, or never on Freenet:** §9 below (merged from `archive/FREENET_CONTRIBUTE_AND_STORAGE.md`, 2026-09-10)  
-**In-app copy:** [`src/components/FreenetHowItWorks.tsx`](../src/components/FreenetHowItWorks.tsx) (login + Settings → Sync + Farm setup → People + join gate)
+**In-app copy:** [`plugins/freenet_host/src/FreenetHowItWorks.tsx`](../plugins/freenet_host/src/FreenetHowItWorks.tsx) (login + Settings → Sync + Farm setup → People + join gate). All Freenet UI lives in the `freenet_host` network pack since 2026-09-10 ([`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md))
 
 The rest of the Freenet instruction set (do not duplicate here):
 
@@ -47,7 +47,7 @@ Welcome → How this works → Start or Join.
 | How this works | `/login` · `freenet-explain` | Farm lives on this device. Sealed copies over Freenet / Wi‑Fi. Start / Join. |
 | Then fork | | Start → `/login/mist-new-farm`. Join → `/login/mist-recover`. |
 
-Desktop with mist off greys the buttons. Workshop hub (`npm run dev`) shows Freenet. **Production web is meant to hide Freenet, and does not yet** — `scripts/deploy-cloudrun.mjs` bakes `VITE_MIST_EXPERIMENTAL=true`, so the chooser shows the option and Cloud Run answers `/api/mist/freenet/*` with 404 (routes never registered on the `cloud` surface). Target after [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 1 (decision 5): the option keys off a host capability and is hidden on web.
+Desktop with mist off greys the buttons. Workshop hub (`npm run dev`) shows Freenet. **Production web hides Freenet (since 2026-09-10).** `freenetOptionState` keys off the shell's host capability (`src/lib/freenetHostCapability.ts`): Electron has one, a browser never does, so `am.pufworks.farm` opens on cloud options with no Freenet chooser however the bundle was built. `scripts/deploy-cloudrun.mjs` stopped baking `VITE_MIST_EXPERIMENTAL=true` and stopped setting `MIST_FREENET_DISABLED=1` (Cloud Run's `cloud` surface never registered `/api/mist/freenet/*` anyway). A tablet APK with the mist gate open still shows the option and reads through a paired hub ([`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §7) until the Android host lands. [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 5, slice A.
 
 ---
 
@@ -169,7 +169,7 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 | 6 | Send card “device PIN for that FarmCode” | Copy | **Now** | **Done** 2026-08-14 — optional PIN, owner Send PIN kept separate |
 | 7 | Privacy / Crew leftovers still say Invite PIN | Copy | **Now** | **Done** 2026-08-14 — `activeFarmPipe()` branches |
 | 2 | FarmCode + ticket is a two-piece handoff | Copy + UX | **Now** | **Done** 2026-08-14 — Send checklist + join-gate second-piece copy |
-| 1 | Send is after farm-setup, not at create | UX | **Soon** | **Done** 2026-08-14 — FarmCode/PIN screens + dismissible Farm setup nudge (`src/components/FreenetSendNudge.tsx`). No auto-publish |
+| 1 | Send is after farm-setup, not at create | UX | **Soon** | **Done** 2026-08-14 — FarmCode/PIN screens + dismissible Farm setup nudge (`plugins/freenet_host/src/FreenetSendNudge.tsx`). No auto-publish |
 | 3 | People list is per hub | Product | **Soon** | **Copy done** 2026-08-14 — empty-state names the hub first. Shared bones ledger still later |
 | 4 | Revoke is not kick | Crypto / product | **Later** | Open — do not fake |
 | 5 | Two tablets, no laptop | Product / APK | **Later** | Open — tracked as E-08 [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md), now Phase 3 of [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md). Needs native PUT + isolated host |
@@ -289,12 +289,12 @@ The guard is the load-bearing part: as a throw inside `put()` it is a rule that 
 
 | Surface | File |
 |---------|------|
-| Login chooser + Freenet explain | `src/pages/Login.tsx`, `src/components/login/FreenetExplain.tsx` |
-| Shared How this works body + in-app button | `src/components/FreenetHowItWorks.tsx` |
-| Start farm | `src/pages/MistNewFarm.tsx` |
-| Recover FarmCode | `src/pages/MistRecoverFarm.tsx` |
-| Send / Join card | `src/components/MistFarmSyncCard.tsx` |
-| Enter join ticket | `src/components/MistJoinTicketGate.tsx` |
+| Login chooser + Freenet explain | `src/pages/Login.tsx` (core, `loginExplain` surface), `plugins/freenet_host/src/FreenetExplain.tsx` |
+| Shared How this works body + in-app button | `plugins/freenet_host/src/FreenetHowItWorks.tsx` |
+| Start farm | `plugins/freenet_host/src/MistNewFarm.tsx` |
+| Recover FarmCode | `plugins/freenet_host/src/MistRecoverFarm.tsx` |
+| Send / Join card | `plugins/freenet_host/src/MistFarmSyncCard.tsx` |
+| Enter join ticket | `plugins/freenet_host/src/MistJoinTicketGate.tsx` |
 | People ledger | `src/components/FarmPeopleCard.tsx` |
 | Ticket mint / parse | `shared/sync/joinTicket.ts`, `shared/sync/joinGrant.ts` |
 | Hub shelf | `server/joinManifestStore.ts`, `server/joinTicketRoutes.ts` |

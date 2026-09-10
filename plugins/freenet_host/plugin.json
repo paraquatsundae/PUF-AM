@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "network",
+  "id": "freenet_host",
+  "version": "0.1.0",
+  "label": "Freenet",
+  "blurb": "Sealed farm copies and join tickets over the Freenet network. Enable it per farm; this device runs one node for every enabled farm it has open. Day-to-day controls live under Sync.",
+  "category": "network",
+  "modules": [],
+  "settingsDocId": null,
+  "author": "PUF-AM",
+  "license": "MIT"
+}

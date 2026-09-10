@@ -8,23 +8,36 @@ import { describe, expect, it } from 'vitest';
 import { freenetOptionState, initialLoginStep } from '../src/lib/loginStorageChoice.ts';
 
 describe('freenetOptionState', () => {
-  it('offers Freenet whenever the mist gate is open', () => {
-    expect(freenetOptionState({ mistEnabled: true, desktop: false })).toBe('available');
-    expect(freenetOptionState({ mistEnabled: true, desktop: true })).toBe('available');
+  it('offers Freenet on the desktop shell when the mist gate is open', () => {
+    expect(freenetOptionState({ capability: 'electron', mistEnabled: true })).toBe('available');
   });
 
   it('points a desktop operator at the Settings toggle instead of hiding it', () => {
-    expect(freenetOptionState({ mistEnabled: false, desktop: true })).toBe('needs-setting');
+    expect(freenetOptionState({ capability: 'electron', mistEnabled: false })).toBe('needs-setting');
   });
 
-  it('hides it entirely on web and Capacitor builds', () => {
-    expect(freenetOptionState({ mistEnabled: false, desktop: false })).toBe('hidden');
+  it('hides it on the hosted web even when the build baked the mist flag (decision 5)', () => {
+    expect(freenetOptionState({ capability: null, mistEnabled: false })).toBe('hidden');
+    expect(freenetOptionState({ capability: null, mistEnabled: true })).toBe('hidden');
   });
 
   it('offers it on a workshop hub so a fresh user can start without Firebase', () => {
-    expect(freenetOptionState({ mistEnabled: false, desktop: false, workshopHub: true })).toBe(
+    expect(freenetOptionState({ capability: null, mistEnabled: false, workshopHub: true })).toBe(
       'available'
     );
+  });
+
+  it('keeps the tablet reader path: an APK with the gate open reads through a hub', () => {
+    expect(
+      freenetOptionState({ capability: null, mistEnabled: true, nativeReader: true })
+    ).toBe('available');
+    expect(
+      freenetOptionState({ capability: null, mistEnabled: false, nativeReader: true })
+    ).toBe('hidden');
+  });
+
+  it('will offer it outright once the Android host exists', () => {
+    expect(freenetOptionState({ capability: 'android', mistEnabled: false })).toBe('available');
   });
 });
 
@@ -41,7 +54,7 @@ describe('initialLoginStep', () => {
     ).toBe('choose');
     expect(
       initialLoginStep({
-        freenet: freenetOptionState({ mistEnabled: false, desktop: false, workshopHub: true }),
+        freenet: freenetOptionState({ capability: null, mistEnabled: false, workshopHub: true }),
         welcomeBack: false,
         backend: 'firebase',
       })

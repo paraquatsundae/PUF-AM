@@ -12,10 +12,10 @@ import {
   formatFarmCodeInput,
   parseFarmCode,
   type ParsedFarmCode,
-} from '../../units/mist-freenet/src/index.ts';
-import { DEFAULT_JOIN_ROLE, JOIN_TICKET_PREFIX } from '../../shared/sync/joinTicket.ts';
-import { APP_NAME } from '../brand';
-import { finishMistFarmSetup } from '../mist/finishMistFarmSetup.ts';
+} from '../../../units/mist-freenet/src/index.ts';
+import { DEFAULT_JOIN_ROLE, JOIN_TICKET_PREFIX } from '../../../shared/sync/joinTicket.ts';
+import { APP_NAME } from '../../../src/brand';
+import { finishMistFarmSetup } from '../../../src/mist/finishMistFarmSetup.ts';
 
 const DEFAULT_FARM_NAME = 'Recovered farm';
 

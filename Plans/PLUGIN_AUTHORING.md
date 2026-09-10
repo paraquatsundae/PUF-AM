@@ -5,7 +5,7 @@
 **Date:** 2026-09-03  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)  
 **Limits / debug / audit:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
-**Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1)  
+**Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1) — a `kind: network` pack follows [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) instead (same folder layout and discovery, no modules, host capability, per-farm enable)  
 **Layout change done (2026-09-03):** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moved every pack's code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, and `registry.ts` now discovers packs instead of listing them — **a pack's code is one folder, and its UI wires itself.** Routes, nav and surfaces need no edit to `src/packs/registry.ts`, `App.tsx` or `navConfig.ts`. You still hand-add the three `shared/` pieces in §2–§4 below — the adapter, the module id, and the catalog row — so "no core edit" is true of the UI wiring, not of the whole job. Folding those in is Phase 2. Still statically compiled: discovery is a build-time glob, so the "Must not → hot-load" rule below **stands**.
 
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.

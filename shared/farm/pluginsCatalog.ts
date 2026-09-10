@@ -2,8 +2,9 @@
  * Unified Settings → Plugins catalog (crop packs + system plugins).
  *
  * Crop packs use Install/Activate lifecycle (`cropPacks.ts`).
- * Freenet is a system plugin: chosen at farm create / shown here for status,
- * managed under Settings → Sync — not via cropPack lifecycle.
+ * Freenet is a system plugin whose manifest says `kind: network` — a network
+ * pack (Plans/NETWORK_PACK_PLUGIN.md): enabled per farm, node per device, and
+ * day-to-day controls under Settings → Sync. Not the cropPack lifecycle.
  */
 
 import {
@@ -12,12 +13,15 @@ import {
   type CropPackDef,
   type CropPackId,
 } from './cropPacks';
+import { FREENET_HOST_PACK_ID, freenetHostManifest } from './freenetHostPackage';
 import {
   PLUGIN_CATEGORIES,
   type PluginCategoryId,
 } from './pluginCategories';
 
-export type SystemPluginId = 'freenet_host';
+export { FREENET_HOST_PACK_ID } from './freenetHostPackage';
+
+export type SystemPluginId = typeof FREENET_HOST_PACK_ID;
 
 export type PluginCatalogKind = 'crop_pack' | 'system';
 
@@ -33,14 +37,13 @@ export type CropPackPluginDef = CropPackDef & { kind: 'crop_pack' };
 
 export type PluginCatalogEntry = CropPackPluginDef | SystemPluginDef;
 
-/** Freenet host — always listed under Network & storage. */
+/** Freenet host — always listed under Network & storage. Copy comes from its `plugin.json`. */
 export const FREENET_HOST_PLUGIN: SystemPluginDef = {
   kind: 'system',
-  id: 'freenet_host',
-  label: 'Freenet',
-  blurb:
-    'Offline network storage for this farm (join tickets, encrypted mist). Chosen when the farm is created; day-to-day controls live under Sync.',
-  category: 'network',
+  id: FREENET_HOST_PACK_ID,
+  label: freenetHostManifest.label,
+  blurb: freenetHostManifest.blurb,
+  category: freenetHostManifest.category,
 };
 
 export const SYSTEM_PLUGINS: readonly SystemPluginDef[] = [FREENET_HOST_PLUGIN];

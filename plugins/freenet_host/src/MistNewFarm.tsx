@@ -6,9 +6,9 @@ import {
   FARM_CODE_VERSION,
   mintFarmCode,
   parseFarmCode,
-} from '../../units/mist-freenet/src/index.ts';
-import { APP_NAME } from '../brand';
-import { finishMistFarmSetup } from '../mist/finishMistFarmSetup.ts';
+} from '../../../units/mist-freenet/src/index.ts';
+import { APP_NAME } from '../../../src/brand';
+import { finishMistFarmSetup } from '../../../src/mist/finishMistFarmSetup.ts';
 
 type Step = 'form' | 'show-code' | 'device-pin';
 

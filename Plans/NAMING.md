@@ -97,11 +97,12 @@ Related plans (not duplicated here):
 | `VITE_CAPACITOR` | Build script | Set by `build:android` — not usually in `.env` |
 | `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in**. Vite inlines it. A local `.env` with `true` fails `audit:bundle`; Cloud Run must leave it unset (the deploy script does). There is no client Maps key — imagery is `/api/tiles`. |
 | `VITE_REQUIRE_AUTH` | Client | Forces login even if workshop enabled |
-| `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Shows the mist storage chooser on login. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Defaulted to `true` by `scripts/build-desktop-web.mjs` and `scripts/build-android-web.mjs` |
+| `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Opens the mist gate. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Defaulted to `true` by `scripts/build-desktop-web.mjs` and `scripts/build-android-web.mjs`. Since 2026-09-10 the login Freenet option also needs a *host capability* (`src/lib/freenetHostCapability.ts`), so `deploy-cloudrun.mjs` no longer bakes it — the hosted web hides Freenet either way (`FREENET_NETWORK_PACK.md` decision 5) |
 | `VITE_MIST_FREENET_API` | Client (build-time) | Origin for `/api/mist/freenet/*` when it is not same-origin. On Capacitor this is what makes the runtime `android-hub` instead of `android-no-host` — see [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §7 |
 | `CAP_PACKAGED` | Build script | `1` drops `server.url` from the Capacitor config so the WebView loads its own assets. Set by `apk:debug`; without it the APK points at the emulator address `http://10.0.2.2:3000` |
 | `CAP_SERVER_URL` | Build script | Live-reload origin for a workshop APK (`npx cap sync`) |
 | `MIST_FREENET` | Server / desktop main | `1` enables the in-process Freenet peer (and, on desktop, starts the bundled node) |
+| `MIST_FREENET_DISABLED` | Server | `1` makes `/api/mist/freenet/*` answer 503 (`server/mistFreenetRoutes.ts`). **Optional since 2026-09-10**: the `cloud` API surface never registers those routes, so the deploy script stopped setting it; the guard stays for a LAN hub that wants Freenet off |
 | `PUF_FREENET_BIN` | Desktop / server | Workshop override for the `freenet` binary — outranks bundled and `PATH` |
 | `PUF_FDEV_BIN` | Desktop / server | Same for `fdev` (still required for PUT on 0.2.118) |
 | `PUF_CLOUD_API_BASE` | Desktop main | Override for cloud-only routes (`/api/auth/*`, `/api/weather/*`); default `https://am.pufworks.farm` |
@@ -167,6 +168,7 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.mist.deviceKey` | `mistDeviceSession.ts` |
 | `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts, FN02 URIs, minted join ticket |
 | `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
+| `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag will live on its farm doc when hybrid lands (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
 
 ### CSS / DOM (non-storage)
 

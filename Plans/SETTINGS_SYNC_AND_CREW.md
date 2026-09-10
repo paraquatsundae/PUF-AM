@@ -128,10 +128,10 @@ Sync, in the order the jobs happen:
 | 2 | **Wi‑Fi (LAN)** | `components/sync/LanSyncCard.tsx` | Always |
 | 2′ | **Farm gateway** (§10) | `components/sync/FarmGatewayCard.tsx` | Devices that are a *client* of a hub — packaged APK |
 | 3 | **Cloud sync** | `components/sync/CloudSyncCard.tsx` | `pipes.cloud` |
-| 3′ | **Send or join a farm over Freenet** | `components/MistFarmSyncCard.tsx` | `showFreenetFarmTools()` |
+| 3′ | **Send or join a farm over Freenet** | `plugins/freenet_host/src/MistFarmSyncCard.tsx` (network pack, `syncCard` surface) | `showFreenetFarmTools()` |
 | 3″ | Crew note | `components/sync/FarmSyncCards.tsx` | `pipes.freenet` |
 | 4 | **Files & backup** (collapsed) | `components/sync/FilesBackupCard.tsx` | Always |
-| 5 | **Workshop diagnostics** | `components/MistWorkshopCard.tsx` | `isWorkshopDiagnosticsEnabled()` |
+| 5 | **Workshop diagnostics** | `plugins/freenet_host/src/MistWorkshopCard.tsx` (network pack, `workshopDiagnostics` surface) | `isWorkshopDiagnosticsEnabled()` |
 
 `components/sync/FarmSyncCards.tsx` is the only place that decides 2–4;
 `Settings.tsx` decides 0, 1 and 5.

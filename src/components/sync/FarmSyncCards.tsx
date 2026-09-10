@@ -14,8 +14,7 @@ import { Link } from 'react-router-dom';
 import { Users } from 'lucide-react';
 
 import { activeFarmPipes, showFreenetFarmTools } from '../../lib/farmPipes';
-import { FreenetHowItWorksButton } from '../FreenetHowItWorks';
-import { MistFarmSyncCard } from '../MistFarmSyncCard';
+import { PackSurfaces } from '../PackSurfaces';
 import { AutoSyncCard } from './AutoSyncCard';
 import { CloudSyncCard } from './CloudSyncCard';
 import { FarmGatewayCard } from './FarmGatewayCard';
@@ -41,7 +40,7 @@ function FreenetCrewNote() {
           Farm setup → People
         </Link>{' '}
         shows them.{' '}
-        <FreenetHowItWorksButton className="inline-flex items-center gap-1 font-semibold text-violet-800 hover:underline border-0 px-0 py-0" />
+        <PackSurfaces surface="howItWorks" className="inline-flex items-center gap-1 font-semibold text-violet-800 hover:underline border-0 px-0 py-0" />
       </p>
     </div>
   );
@@ -69,7 +68,7 @@ export function FarmSyncCards() {
       */}
       {sync.needsHub && <FarmGatewayCard sync={sync} />}
       {pipes.cloud && <CloudSyncCard sync={sync} />}
-      {showFreenetFarmTools() && <MistFarmSyncCard />}
+      {showFreenetFarmTools() && <PackSurfaces surface="syncCard" />}
       {pipes.freenet && <FreenetCrewNote />}
       <FilesBackupCard sync={sync} />
     </>

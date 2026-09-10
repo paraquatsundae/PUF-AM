@@ -8,6 +8,11 @@
  *
  * Prerequisites: gcloud CLI, logged in, billing enabled on the project.
  *
+ * The web bundle this builds hides Freenet: the login option and the plugin
+ * tile key off host capability, and a browser has none. It therefore sets
+ * neither `VITE_MIST_EXPERIMENTAL` nor `MIST_FREENET_DISABLED`
+ * (`Plans/FREENET_NETWORK_PACK.md` decision 5, 2026-09-10).
+ *
  * `--dry-run` resolves gcloud, reads the config, and prints the deploy command
  * without running anything that writes.
  */
@@ -225,8 +230,12 @@ const deployArgs = [
   '0',
   '--max-instances',
   '3',
-  `--set-build-env-vars=VITE_APP_URL=${viteAppUrl},VITE_MIST_EXPERIMENTAL=true`,
-  `--set-env-vars=NODE_ENV=production,FIREBASE_PROJECT_ID=${projectId},FIRESTORE_DATABASE_ID=${firestoreDb},APP_URL=${appUrl},MIST_FREENET_DISABLED=1`,
+  // No VITE_MIST_EXPERIMENTAL and no MIST_FREENET_DISABLED since 2026-09-10:
+  // the hosted web hides Freenet by host capability (it has no node), and the
+  // `cloud` API surface never registers /api/mist/freenet/* in the first place.
+  // Plans/FREENET_NETWORK_PACK.md decision 5.
+  `--set-build-env-vars=VITE_APP_URL=${viteAppUrl}`,
+  `--set-env-vars=NODE_ENV=production,FIREBASE_PROJECT_ID=${projectId},FIRESTORE_DATABASE_ID=${firestoreDb},APP_URL=${appUrl}`,
   `--set-secrets=${DPIRD_SECRET}=${DPIRD_SECRET}:latest,${ENROLL_SECRET}=${ENROLL_SECRET}:latest`,
 ];
 

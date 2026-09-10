@@ -1,16 +1,21 @@
 /**
  * Which storage paths the start screen offers, and where it opens.
  *
- * The login screen has to answer two questions before it draws anything: may
- * this build talk about Freenet at all, and has this device already committed
- * to one of the two backends. Keeping that decision here (rather than inline in
+ * The login screen has to answer two questions before it draws anything: can
+ * this device do Freenet at all, and has this device already committed to one
+ * of the two backends. Keeping that decision here (rather than inline in
  * `Login.tsx`) means the routing can be tested without standing up Firebase.
  *
+ * Since 2026-09-10 (Plans/FREENET_NETWORK_PACK.md decision 5) the first answer
+ * comes from the shell's *host capability*, not from a build flag: the hosted
+ * web bundle has no node, so it hides Freenet however it was built.
+ *
  * See `Plans/reference/MIST_NETWORK_STORAGE.md`, `Plans/FIREBASE_BILLING.md` §2–§4,
- * `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.3.
+ * `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.3, `Plans/NETWORK_PACK_PLUGIN.md`.
  */
 
 import type { FarmStoreBackendPreference } from '../mist/farmStoreBackend.ts';
+import type { FreenetHostCapability } from './freenetHostCapability.ts';
 
 /** How the Freenet (mist) option is presented on the start screen. */
 export type FreenetOptionState =
@@ -22,7 +27,7 @@ export type FreenetOptionState =
    * pretending the feature does not exist.
    */
   | 'needs-setting'
-  /** Plain web / Capacitor build: Firebase is the only path, as in production. */
+  /** No host capability here (hosted web, or an APK with the gate shut): Firebase is the only path. */
   | 'hidden';
 
 export type LoginStep =
@@ -37,17 +42,28 @@ export type LoginStep =
   | 'freenet-explain';
 
 export function freenetOptionState(input: {
+  /** What this shell can host — `getFreenetHostCapability()`. `null` on the web. */
+  capability: FreenetHostCapability;
+  /** The mist experimental gate (`isMistExperimentalEnabled()`). */
   mistEnabled: boolean;
-  desktop: boolean;
   /**
    * `npm run dev` on this laptop. A fresh operator must be able to start a
-   * farm with no Firebase and no enrollment code — the production web build
-   * still hides Freenet unless the mist flag is baked in.
+   * farm with no Firebase and no enrollment code, and the dev server *is* the
+   * node's sidecar — so the workshop hub is a capability of its own.
    */
   workshopHub?: boolean;
+  /**
+   * Capacitor APK. It cannot host a node until Phase 3, but with the mist gate
+   * open it reads a Freenet farm through a paired laptop hub or a sideloaded
+   * node (`Plans/reference/APK_FREENET_PLUGIN.md` §7), so the option stays.
+   */
+  nativeReader?: boolean;
 }): FreenetOptionState {
-  if (input.mistEnabled || input.workshopHub) return 'available';
-  return input.desktop ? 'needs-setting' : 'hidden';
+  if (input.workshopHub) return 'available';
+  if (input.capability === 'electron') return input.mistEnabled ? 'available' : 'needs-setting';
+  if (input.capability === 'android') return 'available';
+  if (input.nativeReader && input.mistEnabled) return 'available';
+  return 'hidden';
 }
 
 /**

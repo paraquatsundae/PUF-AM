@@ -15,8 +15,8 @@ import { FarmSyncCards } from '../components/sync/FarmSyncCards';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
-import { MistWorkshopCard } from '../components/MistWorkshopCard';
 import { PluginsPanel } from '../components/PluginsPanel';
+import { PackSurfaces } from '../components/PackSurfaces';
 import { activeFarmPipe } from '../lib/farmPipes';
 import { isWorkshopDiagnosticsEnabled } from '../lib/workshopMode';
 import {
@@ -101,7 +101,7 @@ export function Settings() {
           <div className="space-y-6">
             <TabletHubCard />
             <FarmSyncCards />
-            {isWorkshopDiagnosticsEnabled() && <MistWorkshopCard />}
+            {isWorkshopDiagnosticsEnabled() && <PackSurfaces surface="workshopDiagnostics" />}
           </div>
         ) : activeTab === 'plugins' ? (
           <PluginsPanel onOpenSync={() => setActiveTab('sync')} />

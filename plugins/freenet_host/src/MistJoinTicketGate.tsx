@@ -15,28 +15,28 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDownToLine, Loader2, Ticket, Wifi } from 'lucide-react';
 
 import { FreenetHowItWorksButton } from './FreenetHowItWorks';
-import { useAuth } from '../contexts/AuthContext';
-import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
-import { isMistFarmSessionActive } from '../mist/mistFarmSession.ts';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { isMistExperimentalEnabled } from '../../../src/mist/farmStoreBackend.ts';
+import { isMistFarmSessionActive } from '../../../src/mist/mistFarmSession.ts';
 import {
   deferMistJoinTicket,
   getMistJoinState,
   getMistSessionMeta,
   mistSessionNeedsPin,
-} from '../mist/mistDeviceSession.ts';
-import { joinFarmWithShortTicket } from '../mist/mistJoinWithTicket.ts';
+} from '../../../src/mist/mistDeviceSession.ts';
+import { joinFarmWithShortTicket } from '../../../src/mist/mistJoinWithTicket.ts';
 import {
   JOIN_TICKET_PREFIX,
   formatJoinTicketInput,
   isJoinTicket,
   joinRoleLabel,
-} from '../../shared/sync/joinTicket.ts';
-import { findJoinPreset } from '../../shared/sync/joinGrant.ts';
+} from '../../../shared/sync/joinTicket.ts';
+import { findJoinPreset } from '../../../shared/sync/joinGrant.ts';
 import {
   fetchFreenetPeerStatus,
   startFreenetPeer,
   type FreenetPeerStatus,
-} from '../mist/mistFreenetClient.ts';
+} from '../../../src/mist/mistFreenetClient.ts';
 import {
   canReachFreenetNode,
   detectFreenetRuntime,
@@ -46,8 +46,8 @@ import {
   FREENET_NO_HOST_DETAIL,
   FREENET_NO_HOST_LABEL,
   type FreenetRuntime,
-} from '../lib/freenetRuntime.ts';
-import { FREENET_LOCAL_NODE_LABEL } from '../mist/freenetLocalNode.ts';
+} from '../../../src/lib/freenetRuntime.ts';
+import { FREENET_LOCAL_NODE_LABEL } from '../../../src/mist/freenetLocalNode.ts';
 
 export function MistJoinTicketGate({ children }: { children: React.ReactNode }) {
   const { userData, logout } = useAuth();

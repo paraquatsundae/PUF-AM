@@ -70,8 +70,10 @@ const sources = files.map((path) => ({ path, code: readFileSync(path, 'utf8') })
 // whose body is `return <gate>() ? <banner JSX> : null`, so locate the banner by
 // its copy, read the name of the function it calls, and check that function's
 // body. Verified against a `VITE_WORKSHOP_MODE=true` build, which yields `!0`.
+// Mangled names may contain `$` (the 2026-09-10 build named the gate `$n`), so
+// the identifier class is `[\w$]`, not `\w`.
 const BANNER_COPY = 'Workshop mode — local UI only';
-const GATED_BANNER = /^function \w+\(\)\{return (\w+)\(\)\?/;
+const GATED_BANNER = /^function [\w$]+\(\)\{return ([\w$]+)\(\)\?/;
 
 let gateChecked = false;
 for (const { code } of sources) {
@@ -91,7 +93,7 @@ for (const { code } of sources) {
     break;
   }
 
-  const gateBody = code.match(new RegExp(`function ${gateName}\\(\\)\\{return([^}]*)\\}`))?.[1];
+  const gateBody = code.match(new RegExp(`function ${gateName.replace(/\$/g, "\\$")}\\(\\)\\{return([^}]*)\\}`))?.[1];
   gateChecked = true;
   if (gateBody === '!1') {
     notes.push(`workshop mode folded to false (${gateName}() → return!1)`);

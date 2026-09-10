@@ -11,20 +11,18 @@ import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { lazyWithRetry } from './lib/lazyWithRetry';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
-import { MistNewFarm } from './pages/MistNewFarm';
-import { MistRecoverFarm } from './pages/MistRecoverFarm';
 import { Dashboard } from './pages/Dashboard';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { TermsOfService } from './pages/TermsOfService';
 import { PrivacyGate } from './components/PrivacyGate';
 import { AppUnlockGate } from './components/AppUnlockGate';
 import { MistUnlockGate } from './components/MistUnlockGate';
-import { MistJoinTicketGate } from './components/MistJoinTicketGate';
+import { PackSessionGates, PackSurfaces } from './components/PackSurfaces';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { WorkshopModeBanner } from './components/WorkshopModeBanner';
 import { isWorkshopMode } from './lib/workshopMode';
 import { ModuleRoute } from './components/ModuleRoute';
-import { allPackRoutes } from './packs/registry';
+import { allPackPublicRoutes, allPackRoutes } from './packs/registry';
 import { startFarmOutboxFlushListener } from './lib/flushFarmOutbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
@@ -85,12 +83,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   
+  // `farmSession` sits outside the gates on purpose: a network pack reconciles
+  // its node while the join-ticket gate is still holding the app back.
   return (
-    <AppUnlockGate>
-      <PrivacyGate>
-        <MistJoinTicketGate>{children}</MistJoinTicketGate>
-      </PrivacyGate>
-    </AppUnlockGate>
+    <>
+      <PackSurfaces surface="farmSession" />
+      <AppUnlockGate>
+        <PrivacyGate>
+          <PackSessionGates>{children}</PackSessionGates>
+        </PrivacyGate>
+      </AppUnlockGate>
+    </>
   );
 }
 
@@ -105,8 +108,10 @@ export default function App() {
           <RouteErrorBoundary>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/login/mist-new-farm" element={<MistNewFarm />} />
-              <Route path="/login/mist-recover" element={<MistRecoverFarm />} />
+              {allPackPublicRoutes().map((publicRoute) => {
+                const PublicPage = publicRoute.Page;
+                return <Route key={publicRoute.path} path={publicRoute.path} element={<PublicPage />} />;
+              })}
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/" element={

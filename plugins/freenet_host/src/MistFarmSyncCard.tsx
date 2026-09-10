@@ -29,10 +29,10 @@ import {
 } from 'lucide-react';
 
 import { FreenetHowItWorksButton } from './FreenetHowItWorks';
-import { useAuth } from '../contexts/AuthContext';
-import { APP_NAME } from '../brand';
-import { getDesktopBridge, isDesktopShell } from '../lib/desktopBridge.ts';
-import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { APP_NAME } from '../../../src/brand';
+import { getDesktopBridge, isDesktopShell } from '../../../src/lib/desktopBridge.ts';
+import type { FreenetHostStatus } from '../../../units/puf-freenet-host/src/types.ts';
 import {
   DEFAULT_JOIN_ROLE,
   JOIN_TICKET_PREFIX,
@@ -40,17 +40,17 @@ import {
   isJoinTicket,
   joinRoleLabel,
   type JoinRole,
-} from '../../shared/sync/joinTicket.ts';
+} from '../../../shared/sync/joinTicket.ts';
 import {
   findJoinPreset,
   joinPresetsForFarm,
   type JoinPreset,
   type JoinPresetId,
-} from '../../shared/sync/joinGrant.ts';
-import { MODULE_LABELS, type FarmModuleId } from '../../shared/auth/farmModules.ts';
-import { packModulesToExclude } from '../../shared/farm/cropPacks.ts';
-import { useCropPackActivation } from '../hooks/useCropPackActivation';
-import { isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
+} from '../../../shared/sync/joinGrant.ts';
+import { MODULE_LABELS, type FarmModuleId } from '../../../shared/auth/farmModules.ts';
+import { packModulesToExclude } from '../../../shared/farm/cropPacks.ts';
+import { useCropPackActivation } from '../../../src/hooks/useCropPackActivation';
+import { isMistExperimentalEnabled } from '../../../src/mist/farmStoreBackend.ts';
 import {
   FREENET_NO_HOST_DETAIL,
   FREENET_NO_HOST_LABEL,
@@ -59,32 +59,32 @@ import {
   detectFreenetRuntime,
   refreshFreenetRuntime,
   type FreenetRuntime,
-} from '../lib/freenetRuntime.ts';
+} from '../../../src/lib/freenetRuntime.ts';
 import {
   FREENET_LOCAL_NODE_DETAIL,
   FREENET_LOCAL_NODE_LABEL,
-} from '../mist/freenetLocalNode.ts';
+} from '../../../src/mist/freenetLocalNode.ts';
 import {
   fetchFreenetPeerStatus,
   publishFarmToFreenet,
   startFreenetPeer,
   type FreenetPeerStatus,
-} from '../mist/mistFreenetClient.ts';
+} from '../../../src/mist/mistFreenetClient.ts';
 import {
   fetchAndRehydrateFarmFromFreenet,
   refreshFarmUiAfterRecovery,
-} from '../mist/mistDisasterRecovery.ts';
-import { joinFarmWithShortTicket } from '../mist/mistJoinWithTicket.ts';
-import { resolveJoinTicket } from '../mist/joinTicketResolver.ts';
-import { formatJoinTicket, parseJoinTicketInput } from '../mist/mistJoinTicket.ts';
+} from '../../../src/mist/mistDisasterRecovery.ts';
+import { joinFarmWithShortTicket } from '../../../src/mist/mistJoinWithTicket.ts';
+import { resolveJoinTicket } from '../../../src/mist/joinTicketResolver.ts';
+import { formatJoinTicket, parseJoinTicketInput } from '../../../src/mist/mistJoinTicket.ts';
 import {
   getMistHotPublishStatus,
   isMistHotMirrorAvailable,
   mistPublishNeedsDevicePin,
-} from '../mist/mistHotBridge.ts';
-import { getMistJoinState, mistSessionNeedsPin } from '../mist/mistDeviceSession.ts';
-import { fetchSyncSelf } from '../lib/mdnsPeers.ts';
-import { ensureSyncHub } from '../lib/syncHub.ts';
+} from '../../../src/mist/mistHotBridge.ts';
+import { getMistJoinState, mistSessionNeedsPin } from '../../../src/mist/mistDeviceSession.ts';
+import { fetchSyncSelf } from '../../../src/lib/mdnsPeers.ts';
+import { ensureSyncHub } from '../../../src/lib/syncHub.ts';
 
 type Mode = 'send' | 'join';
 

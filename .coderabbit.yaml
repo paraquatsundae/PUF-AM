@@ -12,8 +12,8 @@ reviews:
     enabled: true
     drafts: false
   path_filters:
-    - "!src/components/MistWorkshopCard.tsx"
-    - "!src/components/MistFarmSyncCard.tsx"
+    - "!plugins/freenet_host/src/MistWorkshopCard.tsx"
+    - "!plugins/freenet_host/src/MistFarmSyncCard.tsx"
     - "!src/mist/**"
     - "!desktop/**"
     - "!android/**"
@@ -55,6 +55,13 @@ reviews:
       instructions: |
         Installing a pack updates farm enabledModules and the owner admin grant only.
         Do not silently expand existing farmer/viewer PIN grants.
+    - path: "plugins/freenet_host/**"
+      instructions: |
+        Network pack (Plans/NETWORK_PACK_PLUGIN.md), experimental. Core reaches it only
+        through src/packs/registry.ts surfaces; flag any src/ file importing this folder
+        directly. freenetHostEnable.ts and freenetHostReconcile.ts stay React-free. The
+        reconciler must only stop a node it started. Do not suggest App Check or a
+        Vite flag as the gate — host capability is the gate.
 
 knowledge_base:
   code_guidelines:

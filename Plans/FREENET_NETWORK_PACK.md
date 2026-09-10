@@ -50,7 +50,7 @@ The FarmSeed is never written to Firestore, to any PUFworks project, or to the c
 
 ## 4. The pack
 
-### 4.1 Contract — `Plans/NETWORK_PACK_PLUGIN.md` (to write in Phase 1)
+### 4.1 Contract — [`Plans/NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) (written 2026-09-10, slice A)
 
 Sibling of `CROP_PACK_PLUGIN.md`. Same discovery (`plugins/freenet_host/plugin.json` + `src/index.ts` exporting `packUi`, picked up by `src/packs/registry.ts` `import.meta.glob`, compiled in at build — `PLUGIN_PACK_LAYOUT.md` §3 still forbids runtime code loading). Differences from a crop pack:
 
@@ -86,11 +86,20 @@ Sibling of `CROP_PACK_PLUGIN.md`. Same discovery (`plugins/freenet_host/plugin.j
 
 ### Phase 1 — network pack on desktop, no new native code
 
-- [ ] `NETWORK_PACK_PLUGIN.md` contract; `plugins/freenet_host/` folder; `registry.ts` accepts system plugins; `codebaseHealth.test.ts` and `audit-codebase.mjs` pairing checks extended.
-- [ ] Per-farm enable in farm plugin settings; node reconciliation (start/stop by enabled-and-open farms); *not available on this device* state.
-- [ ] Data path through `FreenetHostPlugin.putCiphertext/getCiphertext` on Electron; Express mist routes reduced to LAN relay.
-- [ ] Hybrid: Firestore farm doc gains mist FarmId + enabled flag; Send builds the export envelope from local cache and publishes; join gate distinguishes mirror-join from member-join; `farmPipes.ts` third state.
-- [ ] Web hidden: `deploy-cloudrun.mjs` drops the baked flag and `MIST_FREENET_DISABLED`; `freenetOptionState` keys off host capability; `tests/api/cloudSurface.test.ts` updated (404 stays the documented behaviour).
+**Slice A — done 2026-09-10** (pack skeleton, per-farm enable, device state, web hidden):
+
+- [x] `NETWORK_PACK_PLUGIN.md` contract; `plugins/freenet_host/` folder (`plugin.json` `kind: network`; the eight UI files from §4.2 moved with `git mv`, names kept; `src/index.ts` registers surfaces + public routes); `registry.ts` accepts `SYSTEM_PLUGINS` after crop packs; `codebaseHealth.test.ts`, `packRegistry.test.ts` and `audit-codebase.mjs` pairing checks extended (`plugins/` joins the size scan; core ↛ `plugins/*/src` except the registry).
+- [x] Per-farm enable in farm plugin settings (`pufam.networkPacks.v1.{farmId}` for Freenet-native farms; cloud farms show *Coming with hybrid* — no toggle until slice C); node reconciliation by `useFreenetHostReconciler` (start when the open farm is enabled and the shell is Electron, stop only a node it started, 1.5 s debounce); *not available on this device* state on the tile when `getFreenetHostCapability()` is `null`.
+- [x] Web hidden: `deploy-cloudrun.mjs` drops the baked flag and `MIST_FREENET_DISABLED`; `freenetOptionState` keys off host capability (`src/lib/freenetHostCapability.ts`); `tests/api/cloudSurface.test.ts` unchanged and passing (404 stays the documented behaviour). APK with the mist gate open keeps the option and reads through a hub until Phase 3.
+- Not done in slice A, by design: `MistFarmSyncCard.tsx` / `MistWorkshopCard.tsx` moved whole — the two `audit:codebase` size warnings persist (split still owed); `src/mist/` stays where it is (moves with slice B).
+
+**Slice B — data path** (open):
+
+- [ ] Data path through `FreenetHostPlugin.putCiphertext/getCiphertext` on Electron; Express mist routes reduced to LAN relay; `mistFreenetClient.ts` becomes the pack's host-facing client and the UI-facing parts of `src/mist/` move into the pack.
+
+**Slice C — hybrid** (open):
+
+- [ ] Hybrid: Firestore farm doc gains mist FarmId + enabled flag (the `freenet_host` flag for a cloud farm lives there, replacing the tile's *Coming with hybrid*); Send builds the export envelope from local cache and publishes; join gate distinguishes mirror-join from member-join; `farmPipes.ts` third state.
 - Exit: existing A→B desktop smoke still passes through the pack; a cloud farm on desktop A Sends a mirror that desktop B rehydrates from FarmCode + ticket.
 
 ### Phase 2 — native PUT, single binary, desktop

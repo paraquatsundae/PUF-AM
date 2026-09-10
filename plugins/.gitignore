@@ -19,3 +19,5 @@
 !harvest/**
 !drying/
 !drying/**
+!freenet_host/
+!freenet_host/**

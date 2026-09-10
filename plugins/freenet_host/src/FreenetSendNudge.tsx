@@ -10,9 +10,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Share2, X } from 'lucide-react';
 
-import { useAuth } from '../contexts/AuthContext';
-import { isFreenetFarm } from '../lib/farmPipes';
-import { fetchJoinTicketLedger } from '../lib/joinLedger';
+import { useAuth } from '../../../src/contexts/AuthContext';
+import { isFreenetFarm } from '../../../src/lib/farmPipes';
+import { fetchJoinTicketLedger } from '../../../src/lib/joinLedger';
 import { FreenetHowItWorksButton } from './FreenetHowItWorks';
 
 function dismissKey(farmId: string): string {

@@ -27,6 +27,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 |-----|--------|---------|
 | [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | Live spec | Start here to add a crop pack: files, `plugin.json`, what Install does, **template pack (chill portions)** |
 | [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Live spec | Contract (D1–D15), lifecycle, packaging, acceptance checks |
+| [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) | Live spec | Network pack contract (`kind: network`): host capability, per-farm enable with a per-device node, surfaces, *not available on this device*. Consumer: `plugins/freenet_host/` |
 | [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) | Active plan | Self-contained `plugins/<id>/src/` migration — Phases 0–1 done, Phase 2 open |
 | [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) | Live spec | Walnut blight pack settings home and parameter slices |
 | [`BLIGHT_VALIDATION.md`](BLIGHT_VALIDATION.md) | Active plan | Ji model science track, parity checks, open BV items |

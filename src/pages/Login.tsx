@@ -7,15 +7,14 @@ import { ByoFirebaseSetup } from '../components/login/ByoFirebaseSetup';
 import { ByoFirebaseConfigPaste } from '../components/login/ByoFirebaseConfigPaste';
 import { ByoFirebaseRules } from '../components/login/ByoFirebaseRules';
 import { PufworksSubscribeExplain } from '../components/login/PufworksSubscribeExplain';
-import { FreenetExplain } from '../components/login/FreenetExplain';
+import { PackSurfaces } from '../components/PackSurfaces';
 import { LoginCloudForm } from '../components/login/LoginCloudForm';
 import { LoginRecoveryScreen } from '../components/login/LoginRecoveryScreen';
 import { useLoginFlow } from '../hooks/useLoginFlow';
 
 export function Login() {
   const flow = useLoginFlow();
-  const { loading, navigate, setLocalError, setByoDraftConfig, byoDraftConfig, freenetOption, step, setStep } =
-    flow;
+  const { loading, setLocalError, setByoDraftConfig, byoDraftConfig, freenetOption, step, setStep } = flow;
 
   if (loading) {
     return (
@@ -119,13 +118,9 @@ export function Login() {
   }
 
   if (step === 'freenet-explain') {
+    // The network pack's own explainer; it navigates to its public routes itself.
     return (
-      <FreenetExplain
-        freenetOption={freenetOption}
-        onStart={() => navigate('/login/mist-new-farm')}
-        onJoin={() => navigate('/login/mist-recover')}
-        onBack={() => setStep('choose')}
-      />
+      <PackSurfaces surface="loginExplain" optionState={freenetOption} onBack={() => setStep('choose')} />
     );
   }
 

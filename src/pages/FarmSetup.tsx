@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useMapStore } from '../lib/mapStore';
 import { useFarmDiary, resolveFarmProfile } from '../lib/farmDiary';
 import { FarmPeopleCard } from '../components/FarmPeopleCard';
-import { FreenetSendNudge } from '../components/FreenetSendNudge';
+import { PackSurfaces } from '../components/PackSurfaces';
 import { CropPacksCard } from '../components/CropPacksCard';
 import { cn } from '../lib/utils';
 import {
@@ -158,7 +158,7 @@ export function FarmSetup() {
         </div>
       </div>
 
-      <FreenetSendNudge />
+      <PackSurfaces surface="farmSetupNudge" />
 
       {/* Farm type / enterprises */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">

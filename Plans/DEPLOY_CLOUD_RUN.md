@@ -42,6 +42,13 @@ requirement is `firebase-applet-config.json`; `.env` and `secrets/enrollment-cod
 are read **only** to bootstrap the `DPIRD_API_KEY` / `PUF_ENROLLMENT_CODES` secrets the
 first time, and both are in `.gcloudignore` so they never reach the image.
 
+**Freenet on the hosted web (2026-09-10).** The deploy sets neither `VITE_MIST_EXPERIMENTAL`
+nor `MIST_FREENET_DISABLED` any more. The login Freenet option and the Settings → Plugins
+tile key off host capability (`src/lib/freenetHostCapability.ts`), which a browser never
+has, so the web bundle hides Freenet however it was built; and the `cloud` API surface never
+registers `/api/mist/freenet/*`, so there is nothing for `MIST_FREENET_DISABLED` to close.
+[`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 5.
+
 ## Custom domain: `am.pufworks.farm`
 
 **GCP / Firebase project:** `pufworks-am`  

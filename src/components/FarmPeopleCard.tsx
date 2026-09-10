@@ -28,7 +28,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, Loader2, Ticket, UserPlus, Users } from 'lucide-react';
 
-import { FreenetHowItWorksButton } from './FreenetHowItWorks';
+import { PackSurfaces } from './PackSurfaces';
 import { useAuth } from '../contexts/AuthContext';
 import { activeFarmPipe } from '../lib/farmPipes';
 import { fetchJoinTicketLedger, revokeJoinTicket } from '../lib/joinLedger';
@@ -233,7 +233,7 @@ export function FarmPeopleCard() {
         </div>
         {pipe === 'freenet' && (
           <div className="flex flex-wrap items-center justify-end gap-1.5">
-            <FreenetHowItWorksButton />
+            <PackSurfaces surface="howItWorks" />
             <Link
               to="/settings"
               className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50"

@@ -1,6 +1,6 @@
 ## Crop pack PR
 
-Use this template when adding or changing a **crop pack** (not a Freenet host plugin).
+Use this template when adding or changing a **crop pack** (not a network pack — for `plugins/freenet_host/` see [`Plans/NETWORK_PACK_PLUGIN.md`](../../Plans/NETWORK_PACK_PLUGIN.md)).
 
 **How-to:** [`Plans/PLUGIN_AUTHORING.md`](../../Plans/PLUGIN_AUTHORING.md)  
 **Contract:** [`Plans/CROP_PACK_PLUGIN.md`](../../Plans/CROP_PACK_PLUGIN.md)  

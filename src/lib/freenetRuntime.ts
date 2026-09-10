@@ -106,7 +106,8 @@ export function shouldPollHubPeerStatus(input: {
   return canReachFreenetNode(input.runtime) && !freenetReadsLocally(input.runtime);
 }
 
-function nativePlatform(): boolean {
+/** Running inside the Capacitor APK (as opposed to a browser or Electron). */
+export function isNativePlatform(): boolean {
   try {
     return Capacitor.isNativePlatform();
   } catch {
@@ -116,7 +117,7 @@ function nativePlatform(): boolean {
 }
 
 export function detectFreenetRuntime(): FreenetRuntime {
-  const native = nativePlatform();
+  const native = isNativePlatform();
 
   // A hub baked in at build time was the only way to reach a node from Android,
   // which meant re-building the APK for every shed the tablet visits. A hub

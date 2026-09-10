@@ -10,7 +10,8 @@ import {
 import { getDeviceCoords } from '../lib/deviceLocation';
 import { fetchNearbyFarms, type NearbyFarm } from '../lib/invitePinAuth';
 import { getFarmStoreBackend, isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
-import { isDesktopShell } from '../lib/desktopBridge.ts';
+import { getFreenetHostCapability } from '../lib/freenetHostCapability.ts';
+import { isNativePlatform } from '../lib/freenetRuntime.ts';
 import { freenetOptionState, initialLoginStep, type LoginStep } from '../lib/loginStorageChoice.ts';
 import {
   byoProjectId,
@@ -59,18 +60,17 @@ export function useLoginFlow() {
   const [byoFarmId, setByoFarmId] = useState(() => getLastFarm()?.farmId || '');
   const byoActive = isByoFirebase();
   const byoProject = byoProjectId();
+  // Host capability, not a build flag, decides whether Freenet is on the menu
+  // (Plans/FREENET_NETWORK_PACK.md decision 5). The web bundle hides it.
   const freenetOption = freenetOptionState({
+    capability: getFreenetHostCapability(),
     mistEnabled: isMistExperimentalEnabled(),
-    desktop: isDesktopShell(),
     workshopHub: import.meta.env.DEV,
+    nativeReader: isNativePlatform(),
   });
   const [step, setStep] = useState<LoginStep>(() =>
     initialLoginStep({
-      freenet: freenetOptionState({
-        mistEnabled: isMistExperimentalEnabled(),
-        desktop: isDesktopShell(),
-        workshopHub: import.meta.env.DEV,
-      }),
+      freenet: freenetOption,
       welcomeBack: canShowWelcomeBack(),
       backend: getFarmStoreBackend(),
       byoConfigured: isByoFirebase(),
