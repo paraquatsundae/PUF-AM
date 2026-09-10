@@ -190,6 +190,29 @@ npm run plugins:pack -- plugins/<id>    # → plugins/<id>.zip (gitignored)
 
 ---
 
+## Template pack — chill portions
+
+Merged from `archive/CHILL_PORTIONS_PLUGIN.md` (2026-08-16) on 2026-09-10. Copy this pack, not walnut blight. It was the first extract of a hardcoded core feature (`shared/weather/chillPortions.ts`, `/weather-events` under the dashboard module) into the **`chill_portions`** crop pack under Settings → Plugins → Crop tools.
+
+| Piece | Where |
+|-------|--------|
+| Catalog + defaults | `plugins/chill_portions/plugin.json`, `engine.json` |
+| TS adapter | `shared/farm/chillPortionsPackage.ts` |
+| Farm hourly path (DPIRD) | `shared/weather/chillPortions.ts` — constants/cultivars from the pack |
+| Daily / CSV calculator | `shared/weather/chillCalculator.ts` — port of calculator `app.js` |
+| UI | `plugins/chill_portions/src/` — Weather events page, calculator and science panels, `packUi` registration |
+| Module | `chill` (not `dashboard`) |
+
+The `PUFworks-chill_calculator` folder is **release binaries only** (AppImage / exe / APK). It is not a drop-in PUF-AM zip. Engine logic was recovered from the APK `assets/www/app.js`.
+
+**Farm behaviour:** Install / Activate / Deactivate / Delete like walnut blight. Existing orchard / walnut farms are **migrated** (`migrateLegacyChillPack`) when an admin opens Dashboard or Plugins; until that write, `useChillPack()` still uses the old eligibility helper so the home card does not vanish. Deactivate hides nav + dashboard card and keeps the settings doc; Delete wipes `settings/chill_portions`.
+
+**Engine notes:** farm live totals use observed DPIRD hourly, Mar–Sep Perth window, Firestore `chill_cache`, unchanged API `GET /api/weather/chill-portions`. The calculator panel is daily Tmax/Tmin → solar hourly curve → the same Dynamic Model constants, no API key. SILO / BOM fetch from the standalone app is **not** in (needs a cloud proxy + email). Kelvin offset in `engine.json` is **273.0** (calculator); farm hourly previously used 273.15.
+
+**Not in this pack (open):** Utah model / chill hours · server-side pack gate on the chill API (also in the Lean follow-ups table above) · hot-load of React from the zip (never — see Must not).
+
+---
+
 ## Must not
 
 - Call this a Freenet plugin, or put binaries in `plugins/`

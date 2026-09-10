@@ -3,7 +3,7 @@
  *
  * Cross-platform sibling of `adb-install-debug.ps1` / `.sh`, so `npm run
  * apk:install` means the same thing on the Fedora build box and the Windows one.
- * Plan: `Plans/APK_FREENET_PLUGIN.md` §6.
+ * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` §6.
  */
 
 import { spawnSync } from 'node:child_process';

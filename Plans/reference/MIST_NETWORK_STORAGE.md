@@ -3,12 +3,13 @@
 **Status:** Design workshop — **not** the production path. Pre-Freenet two-laptop FarmCode recovery **succeeded** (~2026-08-03); pre-Freenet workshop decisions **frozen** (~2026-08-03). Cross-device Hot/bones sync and live Freenet wiring **not started**.  
 **Date:** 2026-08-02 (milestone + workshop update 2026-08-03)  
 **Product:** PUF-AM (Ag Manager)
+**Superseded 2026-09-10:** the status line above is stale — cross-device Hot/bones sync over Freenet has been live since 2026-08-04 (see `MIST_TWO_FEDORA_FREENET.md`). § Mobile policy ("mobile runs a client-only peer / no peer") is superseded by [`../FREENET_NETWORK_PACK.md`](../FREENET_NETWORK_PACK.md) decision 3; § Invitation (InviteToken, QR JoinEnvelope, invite index) and § Reticulum were not adopted — the shipped join is paper FarmCode + short ticket (`../SETTINGS_SYNC_AND_CREW.md` §9). Crypto, FarmCode and key layout sections remain the authority. Sections are frozen and cited from code.
 
-**Naming:** [`NAMING.md`](NAMING.md) §7 (mist paths, FarmCode, `pufam-mist-v1` IDB) — product/storage glossary not repeated here.
+**Naming:** [`NAMING.md`](../NAMING.md) §7 (mist paths, FarmCode, `pufam-mist-v1` IDB) — product/storage glossary not repeated here.
 
 Firebase Auth + invite PINs + Firestore remain the **working production stack**. Mist work must land as an **experimental fork** (branch / feature flag / separate package path) so it cannot break PIN login or Cloud Run hosting.
 
-Authoritative short pointer: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Mist (experimental).
+Authoritative short pointer: [`DEVELOPER_NOTES.md`](../../DEVELOPER_NOTES.md) § Mist (experimental).
 
 ---
 
@@ -71,8 +72,8 @@ Freenet replicates each **contract** across peers; it does **not** automatically
 **Freenet peer implementation (intent + pre-Freenet workshop ~2026-08-03):**
 
 - Build a **lightweight Freenet-compatible host/client** suitable for phones and tablets — resource-aware (battery, disk, background execution) and aligned with **§ Mobile peer policy**.
-- **In-process plug-in (frozen):** the Freenet client runs **inside PUF-AM** as a compartmentalized **plug-in unit** — same pattern as [`units/mist-freenet/`](../units/mist-freenet/) today. It is **not** a separate always-on background daemon the farmer must install or manage.
-- **Future fork (frozen):** the client will likely split into its own **PUF-FN** unit/repo later; the in-app plug-in boundary must stay clean for that fork. Product name: [`NAMING.md`](NAMING.md) §1.
+- **In-process plug-in (frozen):** the Freenet client runs **inside PUF-AM** as a compartmentalized **plug-in unit** — same pattern as [`units/mist-freenet/`](../../units/mist-freenet/) today. It is **not** a separate always-on background daemon the farmer must install or manage.
+- **Future fork (frozen):** the client will likely split into its own **PUF-FN** unit/repo later; the in-app plug-in boundary must stay clean for that fork. Product name: [`NAMING.md`](../NAMING.md) §1.
 - **Encrypt before upload (frozen):** all farm payloads are **AEAD-sealed under FarmSeed / contract keys before Freenet insert**. Freenet CHK is transport and content-addressing only — **not** a substitute for farm encryption (aligns with existing Hot AEAD in `hot-crypto.ts`).
 - **KiB-class CHK only (frozen):** Hot, bones, and manifest payloads at KiB scale use the **single-block CHK** path — no Freenet splitfiles/fragmentation for v1 small blobs. Larger assets (tile packs, multi-MiB archives) may use splitfiles later; document when evaluated.
 - **v1 target:** run on the **actual Freenet network** (not a mock or isolated testnet).
@@ -93,7 +94,7 @@ On structure change: bump `map_version`, publish updated bones to mist (versione
 
 1. **Do not** replace Firebase Auth / `access_pins` / Cloud Run in `master` until mist path is proven.
 2. Mist prototypes live under an explicit flag or package path (e.g. `src/mist/` / `Plans` spikes / branch `exp/mist-*`).
-3. Production invite PIN flow ([`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md)) stays source of truth for shipping builds.
+3. Production invite PIN flow ([`AUTH_INVITE_PIN.md`](../AUTH_INVITE_PIN.md)) stays source of truth for shipping builds.
 4. DPIRD / optional online APIs remain temporary enhancements during migration; local data model must not require them.
 
 ### Compartmentalized units (plug-in architecture)
@@ -115,12 +116,12 @@ The experimental fork **must not break shipping builds**: Firebase remains defau
 
 Prototype order:
 
-1. **`FarmStore` contract sketch** + invitation → key derivation → contract keys (**this doc § Invitation**). **Phase 1 (done):** frozen TypeScript contract at [`units/mist-freenet/`](../units/mist-freenet/) — `MistStore`, key helpers, `FarmStoreAdapter`; in-memory stub only. **Phase 2 (done):** `DiskMistStore` + `sealHotPeriod()` — local fake Freenet on disk; no wire yet. **Phase 3 (done, historical):** `FreenetMistStore` + FCP transport (mock + real ClientHello/Put/Get) — disk cache hybrid; app wiring is Phase 4, not this bullet. **Phase 4 (done):** FarmCode (`mist-fc-1`), app `src/mist/` FarmStore factory, mist first-run UI, bones workshop — Firebase default unchanged.
+1. **`FarmStore` contract sketch** + invitation → key derivation → contract keys (**this doc § Invitation**). **Phase 1 (done):** frozen TypeScript contract at [`units/mist-freenet/`](../../units/mist-freenet/) — `MistStore`, key helpers, `FarmStoreAdapter`; in-memory stub only. **Phase 2 (done):** `DiskMistStore` + `sealHotPeriod()` — local fake Freenet on disk; no wire yet. **Phase 3 (done, historical):** `FreenetMistStore` + FCP transport (mock + real ClientHello/Put/Get) — disk cache hybrid; app wiring is Phase 4, not this bullet. **Phase 4 (done):** FarmCode (`mist-fc-1`), app `src/mist/` FarmStore factory, mist first-run UI, bones workshop — Firebase default unchanged.
 2. First-run setup flow + device session (**§ First-run setup**). Phase 4 covers owner create path; crew join / PIN reload → phase 5.
 3. Local event log / CRDT-friendly store.
 4. Farm bones publish/pull on mist + Reticulum map heads-up.
 5. **Freenet Hot contract — local bridge (done):** `src/mist/mistHotBridge.ts` mirrors `pufom_farm_local` diary/issues → `hot/current` (farm-export-shaped payloads, AEAD when FarmSeed unlocked); auto-publish on local save when mist device session active; manual publish in Settings → Mist workshop. Seal cron / Freenet wire deferred.
-6. **Two-laptop FarmCode recovery (done, ~2026-08-03):** Laptop B recover → same `farmId`; bones/Hot per-device. Smoke doc: [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md).
+6. **Two-laptop FarmCode recovery (done, ~2026-08-03):** Laptop B recover → same `farmId`; bones/Hot per-device. Smoke doc: [`archive/MIST_TWO_LAPTOP_SMOKE.md`](../archive/MIST_TWO_LAPTOP_SMOKE.md).
 7. Archive sealing + Manifest (`sealHotPeriod()` exists; app trigger manual).
 8. Lightweight Freenet host/client spike (**§ Freenet peer implementation**, **§ Pre-Freenet workshop decisions**) — **Phase 9 build started** (~2026-08-03): server-hosted FCP peer + workshop Hot publish/pull; live Hyphanet on :9481 still required.
 
@@ -208,7 +209,7 @@ Store `InviteRecord` on the admin device **invite index** (§ Invite index) — 
 
 ### Bridge note (production Firebase)
 
-Today: PIN → SHA-256 → `access_pins` → custom token ([`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md)).  
+Today: PIN → SHA-256 → `access_pins` → custom token ([`AUTH_INVITE_PIN.md`](../AUTH_INVITE_PIN.md)).  
 Mist fork: do **not** replace that path in shipping builds. Optional later bridge: “export FarmCode from admin after PIN login” or dual-write invite material — only after experimental crypto is stable.
 
 ### Record IDs (for Hot merge)
@@ -846,8 +847,8 @@ Captured before wiring live Freenet. **Do not implement the in-app client until 
 |---|----------|--------|
 | 1 | **Encrypt before upload** | Farm bytes are AEAD-sealed under `FarmSeed` / contract keys (`freenet-hot`, `freenet-bones`, …) **before** FCP insert. Freenet CHK is transport + content-addressing only — **not** farm encryption. |
 | 2 | **No splitfiles for KiB-class** | Hot, bones, manifest at KiB scale use **single-block CHK** (`ClientPut` direct). No splitfiles/fragmentation for v1 small payloads. Larger assets (tile packs, multi-MiB archives) may differ later. |
-| 3 | **In-process plug-in client** | Lightweight Freenet host runs **inside PUF-AM** as a compartmentalized plug-in unit — same idea as [`units/mist-freenet/`](../units/mist-freenet/) today. **Not** a separate always-on daemon the farmer installs or manages. |
-| 4 | **Future fork: PUF-FN** | Client likely splits into **PUF-FN** unit/repo later; in-app boundary must allow a clean fork. See [`NAMING.md`](NAMING.md) §1. |
+| 3 | **In-process plug-in client** | Lightweight Freenet host runs **inside PUF-AM** as a compartmentalized plug-in unit — same idea as [`units/mist-freenet/`](../../units/mist-freenet/) today. **Not** a separate always-on daemon the farmer installs or manages. |
+| 4 | **Future fork: PUF-FN** | Client likely splits into **PUF-FN** unit/repo later; in-app boundary must allow a clean fork. See [`NAMING.md`](../NAMING.md) §1. |
 
 **Unchanged from prior milestones:**
 
@@ -855,7 +856,7 @@ Captured before wiring live Freenet. **Do not implement the in-app client until 
 - **Two-laptop FarmCode recovery** succeeded pre-Freenet (~2026-08-03).
 - **Per-device Hot/bones** until Freenet cross-device sync ships.
 
-Pointers: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop · [`units/mist-freenet/README.md`](../units/mist-freenet/README.md) Phase 8+.
+Pointers: [`DEVELOPER_NOTES.md`](../../DEVELOPER_NOTES.md) § Pre-Freenet workshop · [`units/mist-freenet/README.md`](../../units/mist-freenet/README.md) Phase 8+.
 
 ---
 
@@ -881,10 +882,10 @@ Pointers: [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop 
 
 ## Related docs
 
-- [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) — what this design actually publishes today, what `contribute_storage` does in code, and what is not on Freenet.
-- [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) — full local store inventory across browser, APK, desktop, and LAN hub.
+- [`archive/FREENET_CONTRIBUTE_AND_STORAGE.md`](../archive/FREENET_CONTRIBUTE_AND_STORAGE.md) — what this design actually publishes today, what `contribute_storage` does in code, and what is not on Freenet.
+- [`LOCAL_DATA_STORAGE.md`](../LOCAL_DATA_STORAGE.md) — full local store inventory across browser, APK, desktop, and LAN hub.
 - [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) — why § Mobile peer policy's "lightweight phone peer" is not buildable today, and what tablets do instead.
-- [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md) — production PIN auth (do not break).  
-- [`OFFLINE_MAP_APK.md`](OFFLINE_MAP_APK.md) — local basemap packs / device transfer.  
-- [`CREW_PRESENCE.md`](CREW_PRESENCE.md) — live presence (maps to Reticulum telemetry later).  
-- [`ROADMAP.md`](ROADMAP.md) — product roadmap (mist remains experimental until promoted).
+- [`AUTH_INVITE_PIN.md`](../AUTH_INVITE_PIN.md) — production PIN auth (do not break).  
+- [`archive/OFFLINE_MAP_APK.md`](../archive/OFFLINE_MAP_APK.md) — local basemap packs / device transfer.  
+- [`archive/CREW_PRESENCE.md`](../archive/CREW_PRESENCE.md) — live presence (maps to Reticulum telemetry later).  
+- [`ROADMAP.md`](../ROADMAP.md) — product roadmap (mist remains experimental until promoted).

@@ -4,7 +4,7 @@
 **Status:** Active — limits, layering, concern, cost, debug/audit loop  
 **Scope:** web app, `shared/`, `server/`, crop packs. Desktop / APK / Freenet later.  
 **How to add a pack:** [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md)  
-**Check runs (output):** [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md)
+**Check runs (output):** [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md)
 
 This is **limits + one source of truth + concern + cost + a procedure**. It is not a rewrite.
 
@@ -60,6 +60,7 @@ Existing habits to keep: layer sync mutates Leaflet in place ([`useOrchardMapLay
 - **React state:** do not put tile blobs, full weather series, or cloned GeoJSON into React state. Basemap tiles stay IndexedDB ([`CachedTileLayer`](../src/components/map/CachedTileLayer.tsx)).
 - **Re-renders:** do not start a `React.memo` / new object-identity pass. If a peel adds a child, do not pass a fresh inline object/array that forces Leaflet overlays to reset unless the old page already did that.
 - **Lists / map scale:** the old “2,000 polygons” TODO stays a comment, not this pass. No clustering rewrite, no bbox query, no vector tiles.
+- **Presence / bread trails:** publish and LAN poll stay at **500 ms** (`PRESENCE_UPSERT_MS` / `PRESENCE_LAN_POLL_MS`), trail cap 250 points. Do not drop to 0.05–0.1 s — consumer GPS is ~1 Hz, and 10–20 Hz Firestore upserts × N users burn writes, battery and bandwidth. Denser trail shape comes from local appends, not faster cloud writes. (Decided 2026-07-28, [`archive/MAP_OVERLAYS.md`](archive/MAP_OVERLAYS.md) § B.)
 
 ---
 
@@ -153,9 +154,9 @@ If pack is `active` and menu is empty: catalog/grant bug, not a missing route. I
 
 ### D. Recurring (monthly, or every new pack)
 
-- Re-run procedure A; prepend the full output to [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md)
+- Re-run procedure A; prepend the full output to [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md)
 - Paste the size table here (newest first, short)
-- `npm audit` → [`AUDIT_LOG.md`](AUDIT_LOG.md)
+- `npm audit` → [`logs/AUDIT_LOG.md`](logs/AUDIT_LOG.md)
 - Grep stale “Farm setup” for water/dryers/harvest
 - No new `useFooPack` hook; no new hard-coded pack route in `App.tsx` / `navConfig.ts`
 - Optional: one CodeRabbit pass on recent health commits. Note a real SoC/cost hit in the check log. Do not paste the whole review into the size appendix.
@@ -174,9 +175,40 @@ If pack is `active` and menu is empty: catalog/grant bug, not a missing route. I
 
 ---
 
+## Review posture (CodeRabbit and second-model passes)
+
+Merged from `archive/CODERABBIT_SLOP_HUNT.md` on 2026-09-10 — the whole-tree slop / AI Studio hunt itself completed 2026-08-31 ([`archive/CODERABBIT_SLOP_HUNT.md`](archive/CODERABBIT_SLOP_HUNT.md) has the run commands and seed inventory; [`archive/CODERABBIT_SLOP_FINDINGS.md`](archive/CODERABBIT_SLOP_FINDINGS.md) the results). This section is what `.coderabbit.yaml` reads as a guideline. It is a judgment pass, **not** a Procedure A gate and not merge-blocking.
+
+### Dismiss
+
+Do not take these even if a reviewer offers them:
+
+- Enable `strict` / `strictNullChecks`
+- A `React.memo` / why-did-you-render campaign
+- `useOrchardMapPage` or growing `orchardMapPaneTypes.ts` into a second page
+- Remount `MapContainer`; rebuild GeoJSON on pan/zoom; turf-on-pan
+- New `onSnapshot` on OrchardMap / FarmDiary
+- “Simplify” empty `enabledModules` to mean no packs
+- Silently expand farmer/viewer PIN grants
+- A second global store or Map context “for performance”
+
+Prefer **delete or stop the work** over wrapping slop in a hook.
+
+### Flag
+
+*AI Studio trademarks* — near-identical `*Manager.tsx` cards (lucide icon, `rounded-xl shadow-sm`, `window.confirm`, `uuid` ids, `useEffect` + unbounded `onSnapshot` + `setDoc`/`deleteDoc` in one file); dead cards still in the bundle; `ai-studio-*` Firestore database ids, `ai.studio/apps` / `MY_APP_URL` placeholders, `DISABLE_HMR` comments; Gemini / “Predictive Insights” / `aiService` leftovers; operator UI that is mock, simulated, or demo-data when a farm is signed in; prompt-voice comments.
+
+*Lazy / resource-hungry* — full-collection `onSnapshot` / `getDocs` with no `limit` (especially Admin → one listener per user); polling a whole collection to avoid a composite index; `setInterval` without a stated period **and** teardown; tile blobs, full weather series, or cloned GeoJSON in React state; rebuilding Leaflet layers on pan/zoom.
+
+*Poor practice* — `as any` / `(window as any)` except known map-lib / auth race guards; `console.log` on cab paths (keep `console.error` at a real boundary); clone files instead of one parameterized list; fetch in a component that a hook already owns.
+
+After a review: triage take / dismiss / later; prepend a short note to the check log; implement only agreed deletes/stops; Procedure A if the change touches packs, nav, modules, or grants. Do not paste the whole dump into the size appendix.
+
+---
+
 ## Size appendix
 
-Newest first. Short table here; full command output in [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md).
+Newest first. Short table here; full command output in [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md).
 
 ### 2026-09-09
 
@@ -187,13 +219,13 @@ Procedure A green on 8 Sep (1116 tests). `KNOWN_OVERSIZE` is still Freenet only.
 | 1103 | `src/components/MistWorkshopCard.tsx` |
 | 1005 | `src/components/MistFarmSyncCard.tsx` |
 
-Blight lives under `plugins/`. `accessPinRoutes.ts` is a 10-line aggregator. Full log: [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md) 2026-09-08 / 2026-09-09.
+Blight lives under `plugins/`. `accessPinRoutes.ts` is a 10-line aggregator. Full log: [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md) 2026-09-08 / 2026-09-09.
 
 ### 2026-08-30
 
 Thin SoC greps in `audit:codebase` (import specifiers only). `src/lib` ↛ `src/components`; pages ↛ Leaflet / turf / Firestore. No page peel. Procedure A green. Tests 859 passed.
 
-`KNOWN_OVERSIZE` is Freenet only. Full log: [thin SoC greps](CODEBASE_HEALTH_CHECK.md#2026-08-30--thin-soc-greps).
+`KNOWN_OVERSIZE` is Freenet only. Full log: [thin SoC greps](logs/CODEBASE_HEALTH_CHECK.md#2026-08-30--thin-soc-greps).
 
 ### 2026-08-29
 
@@ -210,7 +242,7 @@ In-scope compliance peel. Pages compose-only (no Firestore / Leaflet / turf). Au
 | 150 | `src/pages/FarmDiary.tsx` |
 | 133 | `src/pages/Login.tsx` |
 
-`KNOWN_OVERSIZE` is Freenet only. Full log: [in-scope compliance](CODEBASE_HEALTH_CHECK.md#2026-08-29--in-scope-compliance).
+`KNOWN_OVERSIZE` is Freenet only. Full log: [in-scope compliance](logs/CODEBASE_HEALTH_CHECK.md#2026-08-29--in-scope-compliance).
 
 ### 2026-08-28
 
@@ -218,7 +250,7 @@ SoC + CPU/MEM rules added (page/hook/lib; tablet don’t-add). Next peel must fo
 
 OrchardMap canvas / sheets after viewport / analytics / clicks. Tests 848 passed. Procedure A green. `OrchardMap` 1483→1044→**795**. Off the ≥800 warn list. Still in `KNOWN_OVERSIZE` (over 600).
 
-Full logs: [canvas](CODEBASE_HEALTH_CHECK.md#2026-08-28--orchardmap-canvas--sheets) · [viewport](CODEBASE_HEALTH_CHECK.md#2026-08-28--orchardmap-viewport--analytics--clicks).
+Full logs: [canvas](logs/CODEBASE_HEALTH_CHECK.md#2026-08-28--orchardmap-canvas--sheets) · [viewport](logs/CODEBASE_HEALTH_CHECK.md#2026-08-28--orchardmap-viewport--analytics--clicks).
 
 | Lines | File |
 |------:|------|
@@ -233,7 +265,7 @@ Next: FarmDiary (only in-scope ≥800 page) or keep peeling OrchardMap toward 60
 
 Phase 1 checkpoint → drying/water → blight / diary hooks → BlightRisk JSX → OrchardMap operate → edit modals → edit sidebar → draw handlers → layer sync / chrome → **toolbar / search / basemap**. Tests 845 passed. Procedure A green. `OrchardMap` 4698→4397→3671→3155→2543→1846→1483. Still a split ticket.
 
-Full logs: [toolbar](CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-toolbar) · [layer sync](CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-layer-sync) · [draw handlers](CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-draw-handlers) · [edit sidebar](CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-edit-sidebar) · [edit modals](CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-edit-modals) · [OrchardMap first](CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-first-extract) · [BlightRisk JSX](CODEBASE_HEALTH_CHECK.md#2026-08-27--blightrisk-jsx-extract) · [FarmDiary](CODEBASE_HEALTH_CHECK.md#2026-08-27--farmdiary-extract) · [BlightRisk hooks](CODEBASE_HEALTH_CHECK.md#2026-08-27--blightrisk-extract) · [drying/water](CODEBASE_HEALTH_CHECK.md#2026-08-27--dryingwater-extract) · [tsc nits](CODEBASE_HEALTH_CHECK.md#2026-08-27--remaining-tsc-nits) · [`api.ts`](CODEBASE_HEALTH_CHECK.md#2026-08-27--apits--isbenignfirestorefailure) · [checkpoint](CODEBASE_HEALTH_CHECK.md#2026-08-27--phase-1-checkpoint).
+Full logs: [toolbar](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-toolbar) · [layer sync](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-layer-sync) · [draw handlers](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-draw-handlers) · [edit sidebar](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-edit-sidebar) · [edit modals](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-edit-modals) · [OrchardMap first](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--orchardmap-first-extract) · [BlightRisk JSX](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--blightrisk-jsx-extract) · [FarmDiary](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--farmdiary-extract) · [BlightRisk hooks](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--blightrisk-extract) · [drying/water](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--dryingwater-extract) · [tsc nits](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--remaining-tsc-nits) · [`api.ts`](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--apits--isbenignfirestorefailure) · [checkpoint](logs/CODEBASE_HEALTH_CHECK.md#2026-08-27--phase-1-checkpoint).
 
 | Lines | File |
 |------:|------|

@@ -1,6 +1,6 @@
 /**
  * Frozen mist storage types (phase 1).
- * @see Plans/MIST_NETWORK_STORAGE.md
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md
  */
 
 /** Contract / asset kinds stored on mist. */

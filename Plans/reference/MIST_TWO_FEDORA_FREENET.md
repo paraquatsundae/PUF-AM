@@ -2,15 +2,17 @@
 
 **Status: PASSED on the packaged AppImage (~2026-08-04).** All six pass criteria met with **zero terminals** on either laptop — see [§ AppImage A→B](#appimage-ab-passed-2026-08-04). The `npm run dev` + sidecar route below is kept as the **workshop/web** path; it is no longer how the desktop app is meant to be run.
 
+**Superseded 2026-09-10:** § Production UI (Phase 10b — hosted web as a Freenet client via a local sidecar) is superseded by [`../FREENET_NETWORK_PACK.md`](../FREENET_NETWORK_PACK.md) decision 5 (web hides Freenet). Note also that the production container answers Freenet routes with **404**, not 503 — they are never registered on the `cloud` surface (`server/apiSurface.ts`). § Freenet slot contract and § Short join ticket remain the authority and are cited from code.
+
 **Target:** two Fedora laptops on **real Freenet 0.2 Opennet** — A sets up farm, B joins via FarmCode, B pulls **Hot (diary/issues) + bones (boundaries)** from Freenet.
 
 **Cross-device sync (v2 — current):** **short join ticket, resolved over LAN or Freenet.** Laptop A publishes Hot + farm-geometry bones to Freenet as before, then mints a ticket like `PUF-K7M2-9Q4X`, registers a **join manifest** on its own LAN hub, **and** writes the same manifest to a Freenet **slot** the ticket addresses. Laptop B recovers with the FarmCode, is **immediately** asked for the ticket, and resolves it — LAN first, Freenet second — to get the FN02 URIs, then pulls the farm from Freenet. Freenet carries all farm data; a resolver only supplies the *addresses*.
 
 The raw FN02 ticket (v1, below) survives under **Advanced** on both sides. It is no longer the only off-Wi‑Fi route, but it remains the one that needs no node on the joiner's side beyond the fetch itself.
 
-**Shipped ~2026-08-09 — Freenet slot contract.** A ticket now resolves **without the owner's Wi‑Fi**. A purpose-built Rust/WASM contract takes a derived **slot id** as its `parameters`, so the owner and the joiner compute the same address from the FarmSeed and the ticket alone. LAN stays the first resolver and Freenet is the fallback: [`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts). See [§ Freenet slot contract](#freenet-slot-contract-shipped-2026-08-09).
+**Shipped ~2026-08-09 — Freenet slot contract.** A ticket now resolves **without the owner's Wi‑Fi**. A purpose-built Rust/WASM contract takes a derived **slot id** as its `parameters`, so the owner and the joiner compute the same address from the FarmSeed and the ticket alone. LAN stays the first resolver and Freenet is the fallback: [`src/mist/joinTicketResolver.ts`](../../src/mist/joinTicketResolver.ts). See [§ Freenet slot contract](#freenet-slot-contract-shipped-2026-08-09).
 
-Related: [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md) (pre-Freenet identity), [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Mist network.
+Related: [`archive/MIST_TWO_LAPTOP_SMOKE.md`](../archive/MIST_TWO_LAPTOP_SMOKE.md) (pre-Freenet identity), [`DEVELOPER_NOTES.md`](../../DEVELOPER_NOTES.md) § Mist network.
 
 ---
 
@@ -22,7 +24,7 @@ An operator carries **eight Crockford Base32 symbols** with a `PUF-` prefix:
 PUF-K7M2-9Q4X
 ```
 
-40 bits of randomness. Crockford's alphabet drops `I`, `L`, `O`, `U`, and input is folded on the way in (`O`→`0`, `I`/`L`→`1`, `U`→`V`), so a ticket read off a whiteboard or a phone photo still resolves. Case, spaces, and hyphens are all ignored; `puf k7m2 9q4x` is the same ticket. Format lives in [`shared/sync/joinTicket.ts`](../shared/sync/joinTicket.ts).
+40 bits of randomness. Crockford's alphabet drops `I`, `L`, `O`, `U`, and input is folded on the way in (`O`→`0`, `I`/`L`→`1`, `U`→`V`), so a ticket read off a whiteboard or a phone photo still resolves. Case, spaces, and hyphens are all ignored; `puf k7m2 9q4x` is the same ticket. Format lives in [`shared/sync/joinTicket.ts`](../../shared/sync/joinTicket.ts).
 
 **A ticket is a capability, not a key.** It reveals *where* a farm's blobs sit on Freenet. Those blobs are AEAD-sealed under a FarmSeed-derived key, so the ticket is worthless without the FarmCode — it replaces a copy/paste, never the recovery key.
 
@@ -48,7 +50,7 @@ What a ticket resolves to:
 | Field | Notes |
 |-------|-------|
 | `role` | `owner \| admin \| farmer \| viewer` — the mist vocabulary, and the write ceiling. Default for a shared ticket is **`farmer`**. |
-| `permissions` | The crew preset and the nav modules it grants. Four presets share the `farmer` role, so this is what separates "Field only" from "Crop scout". Values are `boolean \| number \| string` only, hence the comma-joined module list. Absent on tickets minted before ~2026-08-09; those land on the role's defaults. See [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §3b. |
+| `permissions` | The crew preset and the nav modules it grants. Four presets share the `farmer` role, so this is what separates "Field only" from "Crop scout". Values are `boolean \| number \| string` only, hence the comma-joined module list. Absent on tickets minted before ~2026-08-09; those land on the role's defaults. See [`SETTINGS_SYNC_AND_CREW.md`](../SETTINGS_SYNC_AND_CREW.md) §3b. |
 | `expires` | Defaults to **7 days**. A hub refuses to serve an expired manifest and prunes it. |
 
 `role` is an **authority label, not a crypto boundary** — anyone with the FarmCode can decrypt the farm. It decides what the app puts in front of them (the owner's setup wizard vs. the crew's diary).
@@ -62,13 +64,13 @@ What a ticket resolves to:
 | `GET /api/sync/join-ticket/:ticket/resolve?farmId=&base=` | The **joiner's own** hub. Own shelf → owner-address hint → mDNS peers. |
 | `DELETE /api/sync/join-ticket/:ticket` | Owner, to revoke. |
 
-The joiner's browser never fetches the owner's hub directly: `am.pufworks.farm` is HTTPS and cannot fetch `http://192.168.x.x` without being blocked as mixed content. The LAN hop happens in Node, which also keeps CORS out of it. Shelf: [`server/joinManifestStore.ts`](../server/joinManifestStore.ts); routes: [`server/joinTicketRoutes.ts`](../server/joinTicketRoutes.ts).
+The joiner's browser never fetches the owner's hub directly: `am.pufworks.farm` is HTTPS and cannot fetch `http://192.168.x.x` without being blocked as mixed content. The LAN hop happens in Node, which also keeps CORS out of it. Shelf: [`server/joinManifestStore.ts`](../../server/joinManifestStore.ts); routes: [`server/joinTicketRoutes.ts`](../../server/joinTicketRoutes.ts).
 
 **Closed ~2026-08-07 — the AppImage can now be the hub.** This used to read as a known gap: the Electron shell bound loopback only and never advertised on mDNS, so one AppImage could not discover another. It now offers an opt-in LAN bind — *Settings → Tablet hub → Serve tablets on this Wi‑Fi* starts a second listener on `0.0.0.0:3000`, advertises `_pufom-sync._tcp`, and asks a joining device for a one-time pairing code (desktop plan §6.4). The owner-address field and the raw FN02 ticket both still work as fallbacks when multicast is blocked.
 
 ### Freenet resolution (fallback)
 
-When no hub answers, the same ticket is looked up on Freenet at an address derived from the ticket and the FarmSeed — no owner's laptop in the loop. The resolvers run in order (LAN, then Freenet) in [`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts), and the join flow never learns which one answered.
+When no hub answers, the same ticket is looked up on Freenet at an address derived from the ticket and the FarmSeed — no owner's laptop in the loop. The resolvers run in order (LAN, then Freenet) in [`src/mist/joinTicketResolver.ts`](../../src/mist/joinTicketResolver.ts), and the join flow never learns which one answered.
 
 | Route | Who calls it |
 |-------|--------------|
@@ -291,7 +293,7 @@ FREENET_LIVE_WS=1 npm test -- units/mist-freenet/freenet02-slot-live.test.ts
 
 ## Single-laptop regression
 
-Single-machine publish → wipe → recover still works via indexed URI. See [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md).
+Single-machine publish → wipe → recover still works via indexed URI. See [`archive/MIST_TWO_LAPTOP_SMOKE.md`](../archive/MIST_TWO_LAPTOP_SMOKE.md).
 
 ---
 
@@ -351,7 +353,7 @@ An earlier note here said "needs a **mutable** Freenet 0.2 contract", which poin
 | `parameters` is an arbitrary byte blob — conventionally the owner's public key | A 32-byte `HKDF(farmSeed, …)` slot id is a normal thing to put there |
 | `ContractInterface` has `update_state` / `get_state_delta` | Mutability is a property of the **WASM**, not a capability the network withholds |
 
-The blocker was the **bundled pack contract's own convention**: it sets `parameters = blake3(state)` ([`units/mist-freenet/src/freenet02-pack.ts`](../units/mist-freenet/src/freenet02-pack.ts), `packContractInstanceId()`). That makes its address a function of its content, which is exactly right for immutable blobs and fatally wrong for a slot: **a joiner holding only `PUF-XXXX-XXXX` cannot compute where to look, because the address depends on the manifest bytes they are trying to fetch.** It is circular, so no key-derivation scheme on our side rescues it — and note this is a *different* problem from "cannot update in place", which is what the old wording implied.
+The blocker was the **bundled pack contract's own convention**: it sets `parameters = blake3(state)` ([`units/mist-freenet/src/freenet02-pack.ts`](../../units/mist-freenet/src/freenet02-pack.ts), `packContractInstanceId()`). That makes its address a function of its content, which is exactly right for immutable blobs and fatally wrong for a slot: **a joiner holding only `PUF-XXXX-XXXX` cannot compute where to look, because the address depends on the manifest bytes they are trying to fetch.** It is circular, so no key-derivation scheme on our side rescues it — and note this is a *different* problem from "cannot update in place", which is what the old wording implied.
 
 ### How the slot breaks the circle
 
@@ -375,23 +377,23 @@ Three properties this buys, each of which is a decision rather than a side effec
 
 The verifying key has to be in `parameters` rather than in the state — if it lived in the state, anyone could put their own key at the same address. And because the two slots of one farm share a verifying key, the **slot id is inside the signed message**, or a state signed for one ticket would verify in another ticket's slot.
 
-State layout, sequence-number rules, and the byte-for-byte conformance test with the TypeScript encoder are documented in [`units/mist-freenet/contracts/slot-contract/src/lib.rs`](../units/mist-freenet/contracts/slot-contract/src/lib.rs).
+State layout, sequence-number rules, and the byte-for-byte conformance test with the TypeScript encoder are documented in [`units/mist-freenet/contracts/slot-contract/src/lib.rs`](../../units/mist-freenet/contracts/slot-contract/src/lib.rs).
 
 ### What shipped
 
 | Piece | Where |
 |---|---|
-| Rust/WASM slot contract (17 unit tests) | [`units/mist-freenet/contracts/slot-contract`](../units/mist-freenet/contracts/slot-contract) |
+| Rust/WASM slot contract (17 unit tests) | [`units/mist-freenet/contracts/slot-contract`](../../units/mist-freenet/contracts/slot-contract) |
 | Vendored artifact + pinned sha256 / code hash | `units/mist-freenet/assets/slot-contract.wasm`, `scripts/freenet-binaries.json` → `slotContract` |
-| Rebuild + re-pin script | `npm run mist:build:slot` ([`scripts/build-slot-contract.mjs`](../scripts/build-slot-contract.mjs)) |
-| Slot id / signing / state codec (browser-safe) | [`units/mist-freenet/src/freenet02-slot.ts`](../units/mist-freenet/src/freenet02-slot.ts) |
-| AEAD seal for the manifest payload | [`units/mist-freenet/src/join-slot-crypto.ts`](../units/mist-freenet/src/join-slot-crypto.ts) |
-| `fdev` PUT/update path (Node only) | [`units/mist-freenet/src/freenet02-fdev-slot.ts`](../units/mist-freenet/src/freenet02-fdev-slot.ts) |
+| Rebuild + re-pin script | `npm run mist:build:slot` ([`scripts/build-slot-contract.mjs`](../../scripts/build-slot-contract.mjs)) |
+| Slot id / signing / state codec (browser-safe) | [`units/mist-freenet/src/freenet02-slot.ts`](../../units/mist-freenet/src/freenet02-slot.ts) |
+| AEAD seal for the manifest payload | [`units/mist-freenet/src/join-slot-crypto.ts`](../../units/mist-freenet/src/join-slot-crypto.ts) |
+| `fdev` PUT/update path (Node only) | [`units/mist-freenet/src/freenet02-fdev-slot.ts`](../../units/mist-freenet/src/freenet02-fdev-slot.ts) |
 | Hub routes (dumb byte movers) | `POST /api/mist/freenet/slot/publish`, `GET /api/mist/freenet/slot/:instanceId` |
-| Publish on send, resolve on join | [`src/mist/joinSlotFreenet.ts`](../src/mist/joinSlotFreenet.ts) |
-| `FreenetSlotJoinTicketResolver`, second in the walk | [`src/mist/joinTicketResolver.ts`](../src/mist/joinTicketResolver.ts) |
+| Publish on send, resolve on join | [`src/mist/joinSlotFreenet.ts`](../../src/mist/joinSlotFreenet.ts) |
+| `FreenetSlotJoinTicketResolver`, second in the walk | [`src/mist/joinTicketResolver.ts`](../../src/mist/joinTicketResolver.ts) |
 
-**Two pinned hashes, one artifact.** Every slot address is `BLAKE3(code hash ‖ parameters)`, so `SLOT_CONTRACT_CODE_HASH_B58` in `freenet02-slot.ts` and `slotContract.codeHashB58` in `scripts/freenet-binaries.json` must agree with the shipped WASM. If they drift, publishes still succeed and land where nothing looks. Both are checked by `npm run desktop:verify:pack` and by the hermetic [`tests/freenetVendorManifest.test.ts`](../tests/freenetVendorManifest.test.ts). Re-pinning **moves every slot**, so a ticket already read out to a joiner stops resolving over Freenet — `mist:build:slot` refuses to overwrite the pin without `--accept-new-hash` for that reason.
+**Two pinned hashes, one artifact.** Every slot address is `BLAKE3(code hash ‖ parameters)`, so `SLOT_CONTRACT_CODE_HASH_B58` in `freenet02-slot.ts` and `slotContract.codeHashB58` in `scripts/freenet-binaries.json` must agree with the shipped WASM. If they drift, publishes still succeed and land where nothing looks. Both are checked by `npm run desktop:verify:pack` and by the hermetic [`tests/freenetVendorManifest.test.ts`](../../tests/freenetVendorManifest.test.ts). Re-pinning **moves every slot**, so a ticket already read out to a joiner stops resolving over Freenet — `mist:build:slot` refuses to overwrite the pin without `--accept-new-hash` for that reason.
 
 **Rebuilding** needs `cargo`, `rustup target add wasm32-unknown-unknown`, and `fdev`; the build is reproducible on one toolchain, which is why the artifact is committed rather than built during packaging. Verified bit-for-bit against the pin on rustc 1.97.1 / freenet-stdlib 0.8.5 / fdev 0.3.285.
 

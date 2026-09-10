@@ -7,7 +7,7 @@
  * bare WebSocket open with a short deadline, cached, rather than a contract GET
  * through the flatbuffers SDK.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §3a
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §3a
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,6 +1,6 @@
 # PUF-AM desktop installers — Fedora (AppImage + rpm) and Windows (NSIS + portable).
 #
-# Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §8 (targets, bundle layout) and Phase 3.
+# Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8 (targets, bundle layout) and Phase 3.
 # Identifiers here are frozen in `Plans/NAMING.md` §2 — `appId`, `executableName`,
 # and the `release/` output dir in particular. `productName` and `main` stay in
 # package.json because Electron itself reads them.

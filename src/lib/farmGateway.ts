@@ -3,7 +3,7 @@
  * is not limited to the Wi‑Fi the hub happens to be on.
  *
  * The product goal this serves is *no Freenet client app on the tablet at all*
- * (`Plans/APK_FREENET_PLUGIN.md` §8d). A tablet cannot host a Freenet node, so
+ * (`Plans/reference/APK_FREENET_PLUGIN.md` §8d). A tablet cannot host a Freenet node, so
  * something else has to speak Freenet on its behalf, and that something is
  * already built: the desktop LAN hub relays `/api/mist/freenet/*` off a real
  * node and has `fdev` for publishing. Its one gap was reach — the hub was
@@ -43,7 +43,7 @@
  * what we meant. Phase 2 is the TLS story that turns the last two rows into
  * accepted ones — `APK_FREENET_PLUGIN.md` §8d.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §8d
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §8d
  * @see Plans/SETTINGS_SYNC_AND_CREW.md §10
  */
 

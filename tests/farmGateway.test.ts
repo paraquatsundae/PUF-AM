@@ -9,7 +9,7 @@
  * **refused** rather than warned about. These tests are what stop that softening
  * into a dialog somebody can click through.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §8d
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §8d
  */
 
 import { afterEach, describe, expect, it } from 'vitest';

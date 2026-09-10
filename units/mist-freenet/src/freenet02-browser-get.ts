@@ -13,9 +13,9 @@
  *
  * The node is a separate application talking a network protocol over loopback —
  * PUF-AM links nothing of Freenet's into its own process, which is the shape the
- * AGPL carve-out in `Plans/DESKTOP_FREENET_PLUGIN.md` §8.4 describes.
+ * AGPL carve-out in `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.4 describes.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §3a, §7a
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §3a, §7a
  */
 
 import {

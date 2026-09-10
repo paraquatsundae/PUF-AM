@@ -57,4 +57,4 @@ alongside an application that talks to it over a network protocol does not make 
 derivative work — which is exactly PUF-AM's relationship to it (loopback WebSocket, no linkage).
 The license text is fetched into the vendor dir and ships next to the binaries.
 
-Plan: [`Plans/DESKTOP_FREENET_PLUGIN.md`](../Plans/DESKTOP_FREENET_PLUGIN.md) §7.1, §8.4.
+Plan: [`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](../Plans/reference/DESKTOP_FREENET_PLUGIN.md) §7.1, §8.4.

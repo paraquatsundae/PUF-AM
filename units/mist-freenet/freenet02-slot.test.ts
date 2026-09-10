@@ -8,7 +8,7 @@
  * ones asserted in `units/mist-freenet/contracts/slot-contract/src/lib.rs`, so a
  * change on either side has to break a test before it can break a join.
  *
- * @see Plans/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
+ * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
  */
 
 import { readFileSync } from 'node:fs';

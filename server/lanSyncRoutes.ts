@@ -252,7 +252,7 @@ export function registerLanSyncRoutes(app: Express, surface: ApiSurface = 'cloud
     }
   });
 
-  /** Crew presence — in-memory shelf on this hub (CREW_PRESENCE P2). */
+  /** Crew presence — in-memory shelf on this hub (Plans/archive/CREW_PRESENCE.md P2). */
   app.post('/api/presence/:farmId', async (req: Request, res: Response) => {
     try {
       const farmId = String(req.params.farmId || '');
@@ -342,7 +342,7 @@ export function registerLanSyncRoutes(app: Express, surface: ApiSurface = 'cloud
     }
   });
 
-  /** Timed map highlights — in-memory shelf (MAP_OVERLAYS). */
+  /** Timed map highlights — in-memory shelf (Plans/archive/MAP_OVERLAYS.md § A). */
   app.post('/api/highlights/:farmId', async (req: Request, res: Response) => {
     try {
       const farmId = String(req.params.farmId || '');

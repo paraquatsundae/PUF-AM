@@ -14,7 +14,7 @@
  * anything else means the node itself is unusable. `readJoinSlotState()` in
  * `src/mist/joinSlotFreenet.ts` turns each into a different sentence.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §3b
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §3b
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

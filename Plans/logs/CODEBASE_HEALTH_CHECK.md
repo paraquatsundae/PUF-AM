@@ -1,10 +1,10 @@
 # Codebase health check log
 
 **Product:** PUF-AM — Ag Manager  
-**Rules:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
+**Rules:** [`CODEBASE_HEALTH.md`](../CODEBASE_HEALTH.md)  
 **Purpose:** Captured output of procedure A / D. Newest run first. This is a log, not a rewrite of the limits.
 
-**Paths in entries before 2026-09-03 will not open.** The crop packs moved out of `src/` into `plugins/<id>/src/` that day ([`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md)). Links like `../src/components/blight/…` are left as they were written, because each entry records the tree as it stood when the check ran. Look for the file under `plugins/` instead of correcting the log.
+**Paths in entries before 2026-09-03 will not open.** The crop packs moved out of `src/` into `plugins/<id>/src/` that day ([`PLUGIN_PACK_LAYOUT.md`](../PLUGIN_PACK_LAYOUT.md)). Links like `../src/components/blight/…` are left as they were written, because each entry records the tree as it stood when the check ran. Look for the file under `plugins/` instead of correcting the log.
 
 Command (procedure A):
 
@@ -75,17 +75,17 @@ So the property enforced is the one that was actually wanted: **nobody else** ca
 
 ### Change
 
-- [`shared/auth/inviteLimits.ts`](../shared/auth/inviteLimits.ts) — new. `inviteBindsToFirstRedeemer(role)` (admin only, so crew PINs stay shareable for a season gang) and `checkInviteClaim(record, uid)` returning `bind` so the caller knows it must persist the binding in the claiming write.
+- [`shared/auth/inviteLimits.ts`](../../shared/auth/inviteLimits.ts) — new. `inviteBindsToFirstRedeemer(role)` (admin only, so crew PINs stay shareable for a season gang) and `checkInviteClaim(record, uid)` returning `bind` so the caller knows it must persist the binding in the claiming write.
 - `AccessPinRecord` / `JoinTicketDoc` gain `claimedBy` and `claimedDisplayName`.
 - Cloud `redeem-pin`: `uid` is computed **before** the transaction, and the claim check runs **inside** it, in the same `tx.set` that claims the use. Anything less races exactly the way `useCount` did — two people reading `claimedBy` empty and both committing.
 - The existing rollback now also unbinds when that redeem is what bound it. A first attempt that died at `createUser` would otherwise leave the invite claimed by a uid with no account, killing the invite for everyone including its intended holder.
 - BYO redeem was still the old shape — `getDoc`, check, then an `updateDoc` far below, i.e. the pre-transaction bug the cloud path already fixed. Now claims in `runTransaction` before any account write, and signs out if the claim loses so no session is stranded without membership.
-- [`firestore.rules`](../firestore.rules) — `joinTicketBindingHeld()`. On BYO projects the client is not a boundary, so the rule is what actually stops a rebind: an unclaimed admin ticket must be stamped with `request.auth.uid`, and a claimed one may not change. Redeemer updates may now touch the two new keys and nothing more.
+- [`firestore.rules`](../../firestore.rules) — `joinTicketBindingHeld()`. On BYO projects the client is not a boundary, so the rule is what actually stops a rebind: an unclaimed admin ticket must be stamped with `request.auth.uid`, and a claimed one may not change. Redeemer updates may now touch the two new keys and nothing more.
 - The exhausted-PIN message distinguishes single-use from a spent multi-use PIN, and a claimed admin invite names its holder — because "already used by Alex" separates a stolen code from Alex typing their own name differently, which is a real way to miss the binding.
 
 ### `accessPinMemberRoutes.ts` had to be split
 
-`audit:codebase` failed on the way out: the file was 598 lines, two under the 600-line new-file limit, and the binding took it to 631. The three member-roster routes (`/api/auth/members`, `update-member`, `remove-member`) moved to [`server/farmMemberRoutes.ts`](../server/farmMemberRoutes.ts) and register through the existing `accessPinRoutes.ts` aggregator. The seam is real rather than convenient — those three act on members who already exist, the rest act on codes that create them, and the only shared machinery (claims, epoch bumps) already lived in `accessPinAuth.ts`. Checked by diffing the registered route list against `HEAD`: same seven paths before and after.
+`audit:codebase` failed on the way out: the file was 598 lines, two under the 600-line new-file limit, and the binding took it to 631. The three member-roster routes (`/api/auth/members`, `update-member`, `remove-member`) moved to [`server/farmMemberRoutes.ts`](../../server/farmMemberRoutes.ts) and register through the existing `accessPinRoutes.ts` aggregator. The seam is real rather than convenient — those three act on members who already exist, the rest act on codes that create them, and the only shared machinery (claims, epoch bumps) already lived in `accessPinAuth.ts`. Checked by diffing the registered route list against `HEAD`: same seven paths before and after.
 
 ### Verdict
 
@@ -126,19 +126,19 @@ A LAN family on Cloud Run is not merely exposed, it is broken — the shelves li
 
 ### Change
 
-- [`server/apiSurface.ts`](../server/apiSurface.ts) — new. `ApiSurface = 'cloud' | 'hub'`. Default is `'cloud'`, the smaller surface, so a caller that forgets fails closed. `server.ts` keys off `NODE_ENV`; both desktop listeners ask for `'hub'` outright, because a packaged build is `production` and would otherwise lose the LAN hub that is its whole purpose.
+- [`server/apiSurface.ts`](../../server/apiSurface.ts) — new. `ApiSurface = 'cloud' | 'hub'`. Default is `'cloud'`, the smaller surface, so a caller that forgets fails closed. `server.ts` keys off `NODE_ENV`; both desktop listeners ask for `'hub'` outright, because a packaged build is `production` and would otherwise lose the LAN hub that is its whole purpose.
 - Cloud surface drops the mist shelf, mDNS discovery, join tickets, the Freenet family and `HUB_INFO_PATH`. Dropping hub info is what the code already expected — `fetchHubInfo()` documents a 404 as "a Cloud Run deployment".
 - **Kept on cloud:** `/api/sync/lan/*`, `/api/presence/*`, `/api/highlights/*`. Each verifies farm membership, so exposure is not the issue. They do share the per-instance storage problem and are worth revisiting, but pulling them is a functional change, not a security fix.
 - `apiCorsMiddleware(surface)` — an unknown origin now gets **no** `Access-Control-Allow-Origin` at all, plus `Vary: Origin` when one is emitted. Allowlist from `ALLOWED_ORIGINS`, which replaces the built-in pair rather than adding to it so a deploy can be narrowed too. Loopback and `capacitor://localhost` are reflected on `'hub'` only. OPTIONS still 204s.
-- [`server/tileProxyRoutes.ts`](../server/tileProxyRoutes.ts) — new. `GET /api/tiles/:z/:x/:y`, on both surfaces. Landgate SLIP has no tile cache (`singleFusedMapCache: false`, `tileInfo: null`), so this does the XYZ → Web Mercator bbox conversion a tiled service would have done and calls the dynamic `export` endpoint. Bounded LRU (64 MB), single-flight so N clients asking for one tile make one upstream request, upstream concurrency capped at 3 against the client's 6, identifying `User-Agent`, `TILE_UPSTREAM_URL` so a provider swap is a deploy variable.
+- [`server/tileProxyRoutes.ts`](../../server/tileProxyRoutes.ts) — new. `GET /api/tiles/:z/:x/:y`, on both surfaces. Landgate SLIP has no tile cache (`singleFusedMapCache: false`, `tileInfo: null`), so this does the XYZ → Web Mercator bbox conversion a tiled service would have done and calls the dynamic `export` endpoint. Bounded LRU (64 MB), single-flight so N clients asking for one tile make one upstream request, upstream concurrency capped at 3 against the client's 6, identifying `User-Agent`, `TILE_UPSTREAM_URL` so a provider swap is a deploy variable.
 - Client: `tileUrl()` returns `apiUrl('/api/tiles/z/x/y')`; `ESRI_IMAGERY_URL` and the hardcoded `server.arcgisonline.com` layer are gone; `EsriPreviewTileLayer` → `ImageryPreviewTileLayer`; attribution is Landgate/SLIP.
 - **Tiles are rendered by whichever PUF-AM server the client already talks to.** The first cut made `/api/tiles/` cloud-only for desktop and tablet, because Leaflet fetches tiles as `<img src>` and an image element cannot carry the loopback or hub token. That worked, but it made one Cloud Run service the sole consumer of the imagery provider for every install — the wrong shape for an MIT-licensed, self-hostable app, and it puts the whole licence question on one operator. So both local guards now exempt `/api/tiles/` (`LOOPBACK_OPEN_PREFIXES`, `LAN_OPEN_PREFIXES`): the desktop renders its own, and a shed laptop renders for the tablets paired to it. Only browser users at `am.pufworks.farm` still draw through Cloud Run, which is unavoidable — they have no local server.
 - Opening those two routes costs little: no farm data is behind them, the upstream host is fixed in code so the proxy cannot be aimed elsewhere, coordinates are validated and upstream concurrency is capped.
 - `HubInfo.tiles?: boolean` — a hub has to claim imagery rather than disclaim it. `cloudOnlyPrefixes` describes what a hub *refuses*, and a desktop older than the proxy cannot refuse a route it has never heard of, so a tablet paired to one would ask it for tiles and show a grey map. Absent reads as no, and the tablet falls back to the cloud.
 - **Existing packs are left alone.** Tiles are keyed `z/x/y` with no provider in the key, so Esri tiles already on a device keep serving offline; only new fetches change. `BasemapPack.source` records what a pack started as, which is why both `'esri-world-imagery'` and `'landgate-locate'` are live values.
 - Google Maps removed entirely — `GoogleMapsLayer`, `googleMapsKey.ts`, `VITE_GOOGLE_MAPS_API_KEY`, the `$mapsKey` block in `scripts/deploy-cloudrun.ps1` and three props threaded through the map chain. With the proxy there is no client map key, which closes "restrict the map keys" structurally rather than by console policy.
-- [`scripts/audit-bundle.mjs`](../scripts/audit-bundle.mjs) — new, `npm run audit:bundle`.
-- [`Plans/API_KEY_SECURITY.md`](API_KEY_SECURITY.md) — rewritten. Records the Firebase key restriction steps and the open question about production living on the AI Studio project `gen-lang-client-0444791425`.
+- [`scripts/audit-bundle.mjs`](../../scripts/audit-bundle.mjs) — new, `npm run audit:bundle`.
+- [`Plans/API_KEY_SECURITY.md`](../API_KEY_SECURITY.md) — rewritten. Records the Firebase key restriction steps and the open question about production living on the AI Studio project `gen-lang-client-0444791425`.
 
 ### Verdict
 
@@ -171,13 +171,14 @@ Three pre-existing API tests began timing out once the new test files ran alongs
 
 ### Not done, deliberately
 
-**Landgate's public imagery licence is SLIP Transaction Personal Use.** Commercial use needs written agreement from `CustomerExperience@Landgate.wa.gov.au`, and that has not been asked yet.
-
-Two tempting arguments for skipping the question do not hold. **Open-sourcing the code does not distribute the obligation** — that would follow if each user's machine made the requests, but any client drawing tiles from `am.pufworks.farm` makes its operator the single consumer whatever the code's licence says. Pushing tile rendering out to the desktop and LAN hub is what makes the argument true for self-hosters; it cannot help browser users. **And "commercial" almost certainly is not "somebody charged for the app"** — a grower using imagery to plan spraying is using it in a business, with no fork and no money changing hands, which Personal Use likely does not cover even self-hosted.
-
-Worth asking in the same email: offline packs pull up to 20,000 tiles into IndexedDB, and bulk extraction and storage are commonly permissioned separately from viewing.
-
-If the answer is no, `TILE_UPSTREAM_URL` points at a licensed provider and nothing else changes — which is most of why the proxy exists.
+**Landgate's public imagery licence is SLIP Transaction Personal Use.** Decided
+9 Sep 2026: PUFworks is not seeking a commercial agreement and is not contacting
+Landgate. Imagery terms sit with whoever operates a PUF-AM server — each
+deployment is its own consumer of the provider. The reasoning, and what an
+operator should read into it, is in
+[`API_KEY_SECURITY.md`](../API_KEY_SECURITY.md#landgate-licence--decided-9-sep-2026).
+`TILE_UPSTREAM_URL` is the operator's lever if they want a provider with explicit
+commercial terms — which is most of why the proxy exists.
 
 **Zoom is not clamped to the pack range.** The plan said 12–17; the accepted range is 0–19. `CachedTileLayer` is mounted with `minZoom: 0`, so panning out asks for low-z tiles on the same URL, and rejecting them would grey out the map the moment a user zooms past their pack. The open-proxy concern the clamp was meant to answer is handled by the upstream host being fixed in the module: a caller picks a tile, never a target.
 
@@ -190,12 +191,12 @@ If the answer is no, `TILE_UPSTREAM_URL` points at a licensed provider and nothi
 
 ### Change
 
-- [`src/lib/lazyWithRetry.ts`](../src/lib/lazyWithRetry.ts) — new. Three attempts with backoff, parking on the `online` event rather than spending a retry offline (10 s cap). All 22 `React.lazy` sites in `src/App.tsx` and `src/packs/*/index.ts` now go through it.
-- [`src/components/RouteErrorBoundary.tsx`](../src/components/RouteErrorBoundary.tsx) — new, inside the router, `resetKeys={[pathname]}`, Suspense folded in so the pair nests in the only order that works. Handles **only** an unreachable chunk; everything else is rethrown to the app-level boundary, which is where the Firestore cache-clear recovery lives.
+- [`src/lib/lazyWithRetry.ts`](../../src/lib/lazyWithRetry.ts) — new. Three attempts with backoff, parking on the `online` event rather than spending a retry offline (10 s cap). All 22 `React.lazy` sites in `src/App.tsx` and `src/packs/*/index.ts` now go through it.
+- [`src/components/RouteErrorBoundary.tsx`](../../src/components/RouteErrorBoundary.tsx) — new, inside the router, `resetKeys={[pathname]}`, Suspense folded in so the pair nests in the only order that works. Handles **only** an unreachable chunk; everything else is rethrown to the app-level boundary, which is where the Firestore cache-clear recovery lives.
 - `StableEditControl` / `EventMarkerCluster` / `CachedTileLayer` — import `L` from `src/lib/leaflet-setup` instead of `leaflet` plus a bare plugin import. `leaflet-draw` and `leaflet.markercluster` read a global `L` they never import, so the ordering was left to the bundler once `main.tsx` stopped importing the setup module eagerly.
-- [`eslint.config.js`](../eslint.config.js) — `no-restricted-imports` on `leaflet`, `leaflet-draw`, `leaflet.markercluster` under `src/**`, with `allowTypeImports` (the ~12 `import type { Map }` sites are erased before anything runs). Verified by reinstating a raw import and watching it fail.
-- [`src/lib/farmExportSheets.ts`](../src/lib/farmExportSheets.ts) — `downloadFarmExportDiaryCsv`. The diary page passes `includeIssues: false`, so the zip held one real file, and a zip does not open in Sheets on the tablet. The full farm export still zips, because it genuinely has several sheets.
-- [`vitest.config.ts`](../vitest.config.ts) — include `.tsx` tests; a component whose job is what it renders can only be tested by rendering it.
+- [`eslint.config.js`](../../eslint.config.js) — `no-restricted-imports` on `leaflet`, `leaflet-draw`, `leaflet.markercluster` under `src/**`, with `allowTypeImports` (the ~12 `import type { Map }` sites are erased before anything runs). Verified by reinstating a raw import and watching it fail.
+- [`src/lib/farmExportSheets.ts`](../../src/lib/farmExportSheets.ts) — `downloadFarmExportDiaryCsv`. The diary page passes `includeIssues: false`, so the zip held one real file, and a zip does not open in Sheets on the tablet. The full farm export still zips, because it genuinely has several sheets.
+- [`vitest.config.ts`](../../vitest.config.ts) — include `.tsx` tests; a component whose job is what it renders can only be tested by rendering it.
 
 ### Verdict
 
@@ -223,8 +224,8 @@ Reverted each fix in turn (`RETRIES = 0`, `chunkFailed = false`, diary back to t
 
 ### Change
 
-- [`scripts/audit-codebase.mjs`](../scripts/audit-codebase.mjs) — `== SoC greps ==`: `src/lib` ↛ `src/components`; `src/pages` ↛ `leaflet` / `react-leaflet` / turf / `firebase/firestore`
-- [`tests/codebaseHealth.test.ts`](../tests/codebaseHealth.test.ts) — same walk
+- [`scripts/audit-codebase.mjs`](../../scripts/audit-codebase.mjs) — `== SoC greps ==`: `src/lib` ↛ `src/components`; `src/pages` ↛ `leaflet` / `react-leaflet` / turf / `firebase/firestore`
+- [`tests/codebaseHealth.test.ts`](../../tests/codebaseHealth.test.ts) — same walk
 - Procedure A stays the four commands. No page peel. Freenet cards still out.
 
 ### Verdict
@@ -281,8 +282,8 @@ Chained procedure A: **pass**.
 
 ### Change
 
-- [`.coderabbit.yaml`](../.coderabbit.yaml) — path filters (Freenet / Desktop / APK / lockfile), path instructions for pages / lib / hooks / Auth / farmModules / map / cropPacks. Knowledge base reads `Plans/CODEBASE_HEALTH.md`.
-- Procedure A + D in [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md) now say when to run a review and what to dismiss.
+- [`.coderabbit.yaml`](../../.coderabbit.yaml) — path filters (Freenet / Desktop / APK / lockfile), path instructions for pages / lib / hooks / Auth / farmModules / map / cropPacks. Knowledge base reads `Plans/CODEBASE_HEALTH.md`.
+- Procedure A + D in [`CODEBASE_HEALTH.md`](../CODEBASE_HEALTH.md) now say when to run a review and what to dismiss.
 - CLI 0.7.5 installed at `~/.local/bin/coderabbit`. **Signed out** — extension login does not feed the CLI. Run `coderabbit auth login`, then `coderabbit review --uncommitted --include-untracked`. Or use the sidebar: **Review uncommitted changes**.
 
 ### First triage (uncommitted peel, against locked rules)
@@ -361,10 +362,10 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 1044 → 795). **Off the ≥800 warn list.** Still in `KNOWN_OVERSIZE` (over 600).
 
-- [`orchardMapPaneTypes.ts`](../src/components/map/orchardMapPaneTypes.ts) — canvas prop types
-- [`OrchardMapCanvas`](../src/components/map/OrchardMapCanvas.tsx) — tiles, FeatureGroup, overlays, draw bars
-- [`OrchardMapSheets`](../src/components/map/OrchardMapSheets.tsx) — naming, metadata, import, help
-- [`leaflet-draw-window-type.ts`](../src/lib/leaflet-draw-window-type.ts) — leaflet-draw `window.type` shim (imported first from `leaflet-setup`)
+- [`orchardMapPaneTypes.ts`](../../src/components/map/orchardMapPaneTypes.ts) — canvas prop types
+- [`OrchardMapCanvas`](../../src/components/map/OrchardMapCanvas.tsx) — tiles, FeatureGroup, overlays, draw bars
+- [`OrchardMapSheets`](../../src/components/map/OrchardMapSheets.tsx) — naming, metadata, import, help
+- [`leaflet-draw-window-type.ts`](../../src/lib/leaflet-draw-window-type.ts) — leaflet-draw `window.type` shim (imported first from `leaflet-setup`)
 
 Toolbar + sidebar stay on the page. All new files under the 400 soft cap. No Freenet cards.
 
@@ -404,10 +405,10 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 1483 → 1044). **No longer a split ticket** (under 1200). Still known-oversize WARN at 800.
 
-- [`farmMapHit.ts`](../src/lib/farmMapHit.ts) — point-in-paddock + centroid (+ 3 tests)
-- [`useOrchardMapViewport`](../src/hooks/useOrchardMapViewport.ts) — fit farm/block, locate, go home, flyTo track, moveend bounds
-- [`useOrchardMapAnalytics`](../src/hooks/useOrchardMapAnalytics.ts) — harvest fetch, analytics weather, heat rows
-- [`useOrchardMapClicks`](../src/hooks/useOrchardMapClicks.ts) — background/layer click, highlight paint, list scroll
+- [`farmMapHit.ts`](../../src/lib/farmMapHit.ts) — point-in-paddock + centroid (+ 3 tests)
+- [`useOrchardMapViewport`](../../src/hooks/useOrchardMapViewport.ts) — fit farm/block, locate, go home, flyTo track, moveend bounds
+- [`useOrchardMapAnalytics`](../../src/hooks/useOrchardMapAnalytics.ts) — harvest fetch, analytics weather, heat rows
+- [`useOrchardMapClicks`](../../src/hooks/useOrchardMapClicks.ts) — background/layer click, highlight paint, list scroll
 
 `MapContainer`, overlays, and metadata modals stayed on the page.
 
@@ -450,12 +451,12 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 1846 → 1483)
 
-- [`farmMapSearch.ts`](../src/lib/farmMapSearch.ts) — local paddock / track / pin name match (+ 5 tests)
-- [`useOrchardMapSearch`](../src/hooks/useOrchardMapSearch.ts) — search state, flyTo, Nominatim fallback
-- [`useOrchardMapBasemap`](../src/hooks/useOrchardMapBasemap.ts) — Google/Esri choice, pack load/skip/clear, online listener
-- [`OrchardMapToolbar`](../src/components/map/OrchardMapToolbar.tsx) — chrome + edit tabs + sync banner
-- [`OrchardMapBasemapLayers`](../src/components/map/OrchardMapBasemapLayers.tsx) — Cached / Google / Esri / CARTO tiles
-- [`InfraCoverageLayer`](../src/components/map/InfraCoverageLayer.tsx) — weather / soil / irrigation circles
+- [`farmMapSearch.ts`](../../src/lib/farmMapSearch.ts) — local paddock / track / pin name match (+ 5 tests)
+- [`useOrchardMapSearch`](../../src/hooks/useOrchardMapSearch.ts) — search state, flyTo, Nominatim fallback
+- [`useOrchardMapBasemap`](../../src/hooks/useOrchardMapBasemap.ts) — Google/Esri choice, pack load/skip/clear, online listener
+- [`OrchardMapToolbar`](../../src/components/map/OrchardMapToolbar.tsx) — chrome + edit tabs + sync banner
+- [`OrchardMapBasemapLayers`](../../src/components/map/OrchardMapBasemapLayers.tsx) — Cached / Google / Esri / CARTO tiles
+- [`InfraCoverageLayer`](../../src/components/map/InfraCoverageLayer.tsx) — weather / soil / irrigation circles
 
 `MapContainer`, `FeatureGroup`, and `StableEditControl` stayed on the page. Still a split ticket.
 
@@ -498,12 +499,12 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 2543 → 1846)
 
-- [`mapPinIcons.ts`](../src/lib/mapPinIcons.ts) / [`mapPinTooltip.ts`](../src/lib/mapPinTooltip.ts) — DivIcon + tooltip HTML (+ 2 tooltip tests)
-- [`orchardMapLayerSync.ts`](../src/lib/orchardMapLayerSync.ts) — store → FeatureGroup membership
-- [`orchardMapLayerPaint.ts`](../src/lib/orchardMapLayerPaint.ts) — pass-through, pin/track styles, blight/yield heat
-- [`useOrchardMapLayers`](../src/hooks/useOrchardMapLayers.ts) — those effects
-- [`OrchardMapLeafletStyles`](../src/components/map/OrchardMapLeafletStyles.tsx) — draw / location / highlight CSS
-- [`OrchardMapHelp`](../src/components/map/OrchardMapHelp.tsx) — Quick Guide overlay
+- [`mapPinIcons.ts`](../../src/lib/mapPinIcons.ts) / [`mapPinTooltip.ts`](../../src/lib/mapPinTooltip.ts) — DivIcon + tooltip HTML (+ 2 tooltip tests)
+- [`orchardMapLayerSync.ts`](../../src/lib/orchardMapLayerSync.ts) — store → FeatureGroup membership
+- [`orchardMapLayerPaint.ts`](../../src/lib/orchardMapLayerPaint.ts) — pass-through, pin/track styles, blight/yield heat
+- [`useOrchardMapLayers`](../../src/hooks/useOrchardMapLayers.ts) — those effects
+- [`OrchardMapLeafletStyles`](../../src/components/map/OrchardMapLeafletStyles.tsx) — draw / location / highlight CSS
+- [`OrchardMapHelp`](../../src/components/map/OrchardMapHelp.tsx) — Quick Guide overlay
 
 Toolbar, search, basemap, and the MapContainer stayed on the page. Still a split ticket.
 
@@ -546,8 +547,8 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 3155 → 2543)
 
-- [`useOrchardMapDraw`](../src/hooks/useOrchardMapDraw.ts) — Quick Add, internal pad/hazard draw, boundary vertex session, tab-change cancel (408; under 600)
-- [`orchardMapDrawCreated.ts`](../src/lib/orchardMapDrawCreated.ts) — `draw:created` / edited / deleted (451; under 600)
+- [`useOrchardMapDraw`](../../src/hooks/useOrchardMapDraw.ts) — Quick Add, internal pad/hazard draw, boundary vertex session, tab-change cancel (408; under 600)
+- [`orchardMapDrawCreated.ts`](../../src/lib/orchardMapDrawCreated.ts) — `draw:created` / edited / deleted (451; under 600)
 
 Leaflet layer sync, map chrome, and the canvas stayed on the page. Still a split ticket.
 
@@ -590,12 +591,12 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 3671 → 3155)
 
-- [`editMapTypes.ts`](../src/components/map/editMapTypes.ts) / [`editMapTabs.ts`](../src/components/map/editMapTabs.ts) — `MapMode` / `MapSubTab` + tab list
-- [`EditMapSidebar`](../src/components/map/EditMapSidebar.tsx) — backdrop, header, Plus / import / coverage
-- [`EditBlocksSidebar`](../src/components/map/EditBlocksSidebar.tsx) — paddock list + Add pad / hazard
-- [`EditInfraSidebar`](../src/components/map/EditInfraSidebar.tsx) — draw-type chips + pin list
-- [`EditTracksSidebar`](../src/components/map/EditTracksSidebar.tsx) — track list
-- [`EditAnalyticsSidebar`](../src/components/map/EditAnalyticsSidebar.tsx) — risk / yield list
+- [`editMapTypes.ts`](../../src/components/map/editMapTypes.ts) / [`editMapTabs.ts`](../../src/components/map/editMapTabs.ts) — `MapMode` / `MapSubTab` + tab list
+- [`EditMapSidebar`](../../src/components/map/EditMapSidebar.tsx) — backdrop, header, Plus / import / coverage
+- [`EditBlocksSidebar`](../../src/components/map/EditBlocksSidebar.tsx) — paddock list + Add pad / hazard
+- [`EditInfraSidebar`](../../src/components/map/EditInfraSidebar.tsx) — draw-type chips + pin list
+- [`EditTracksSidebar`](../../src/components/map/EditTracksSidebar.tsx) — track list
+- [`EditAnalyticsSidebar`](../../src/components/map/EditAnalyticsSidebar.tsx) — risk / yield list
 
 Leaflet draw handlers, layer sync, and the map canvas stayed on the page. Still a split ticket.
 
@@ -638,11 +639,11 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 4397 → 3671)
 
-- Leaflet delete cleanup in [`src/lib/mapLayerCleanup.ts`](../src/lib/mapLayerCleanup.ts) (`removeMappedLeafletLayer`) + [`src/lib/mapLayerCleanup.test.ts`](../src/lib/mapLayerCleanup.test.ts)
-- [`BlockMetadataModal`](../src/components/map/BlockMetadataModal.tsx) — name, crop, internals, delete, Edit boundary, Add pad / hazard
-- [`PinMetadataModal`](../src/components/map/PinMetadataModal.tsx) — infra metadata + delete
-- [`TrackMetadataModal`](../src/components/map/TrackMetadataModal.tsx) — name / category + delete
-- [`EditMapBanners`](../src/components/map/EditMapBanners.tsx) — internal-boundary banner + Coverage Zones legend
+- Leaflet delete cleanup in [`src/lib/mapLayerCleanup.ts`](../../src/lib/mapLayerCleanup.ts) (`removeMappedLeafletLayer`) + [`src/lib/mapLayerCleanup.test.ts`](../../src/lib/mapLayerCleanup.test.ts)
+- [`BlockMetadataModal`](../../src/components/map/BlockMetadataModal.tsx) — name, crop, internals, delete, Edit boundary, Add pad / hazard
+- [`PinMetadataModal`](../../src/components/map/PinMetadataModal.tsx) — infra metadata + delete
+- [`TrackMetadataModal`](../../src/components/map/TrackMetadataModal.tsx) — name / category + delete
+- [`EditMapBanners`](../../src/components/map/EditMapBanners.tsx) — internal-boundary banner + Coverage Zones legend
 
 `BoundaryImportSheet`, Leaflet draw, and the edit sidebar stayed on the page. Still a split ticket.
 
@@ -685,11 +686,11 @@ Chained procedure A: **pass**.
 
 **OrchardMap** (`OrchardMap.tsx` 4698 → 4397)
 
-- Blight / yield paddock style in [`src/lib/mapBlockAnalytics.ts`](../src/lib/mapBlockAnalytics.ts) (`blockPolygonPathStyle`) + [`src/lib/mapBlockAnalytics.test.ts`](../src/lib/mapBlockAnalytics.test.ts)
-- [`useOrchardMapOperate`](../src/hooks/useOrchardMapOperate.ts) — flags, report draft, `?issue=` deep-link, save / resolve
-- [`MapSoftKeys`](../src/components/map/MapSoftKeys.tsx) — home / locate / flags / check-this / add issue
-- [`OperateMapOverlays`](../src/components/map/OperateMapOverlays.tsx) — banners, operate card, issues / report / highlight sheets
-- [`OperateIssueDetailSheet`](../src/components/map/OperateIssueDetailSheet.tsx) — selected-issue sheet
+- Blight / yield paddock style in [`src/lib/mapBlockAnalytics.ts`](../../src/lib/mapBlockAnalytics.ts) (`blockPolygonPathStyle`) + [`src/lib/mapBlockAnalytics.test.ts`](../../src/lib/mapBlockAnalytics.test.ts)
+- [`useOrchardMapOperate`](../../src/hooks/useOrchardMapOperate.ts) — flags, report draft, `?issue=` deep-link, save / resolve
+- [`MapSoftKeys`](../../src/components/map/MapSoftKeys.tsx) — home / locate / flags / check-this / add issue
+- [`OperateMapOverlays`](../../src/components/map/OperateMapOverlays.tsx) — banners, operate card, issues / report / highlight sheets
+- [`OperateIssueDetailSheet`](../../src/components/map/OperateIssueDetailSheet.tsx) — selected-issue sheet
 
 Leaflet draw, edit sidebar, and metadata modals stayed on the page. Still a split ticket.
 
@@ -732,8 +733,8 @@ Chained procedure A: **pass**.
 
 **BlightRisk** (`BlightRisk.tsx` 1906 → 370)
 
-- PDF in [`src/lib/blightHistoricalPdf.ts`](../src/lib/blightHistoricalPdf.ts)
-- Sandbox series filter in [`src/lib/blightSeason.ts`](../src/lib/blightSeason.ts) (`filterSandboxScenarioDays`)
+- PDF in [`src/lib/blightHistoricalPdf.ts`](../../src/lib/blightHistoricalPdf.ts)
+- Sandbox series filter in [`src/lib/blightSeason.ts`](../../src/lib/blightSeason.ts) (`filterSandboxScenarioDays`)
 - Panels: `BlightPageHeader`, `BlightStatusStrip`, `BlightForecastTab`, `BlightHistoricalTab`, `BlightSandboxTab` + `BlightSandboxSidebar` / `BlightSandboxChart`, `BlightDevCalibPanel`
 - Dropped `BlightRisk.tsx` from `KNOWN_OVERSIZE` (now under the 600 new-file cap)
 
@@ -776,11 +777,11 @@ Chained procedure A: **pass**.
 
 **FarmDiary** (`FarmDiary.tsx` 1432 → 1149)
 
-- Filter / group / CSV in [`src/lib/farmDiaryView.ts`](../src/lib/farmDiaryView.ts) + [`src/lib/farmDiaryView.test.ts`](../src/lib/farmDiaryView.test.ts)
-- [`useFarmDiaryIssues`](../src/hooks/useFarmDiaryIssues.ts) — field issues load, open count, mark / resolve / reopen
-- [`useFarmDiaryPage`](../src/hooks/useFarmDiaryPage.ts) — `?block=` / `?view=`, filter, grouping, CSV + farm JSON/XLSX
-- [`useFarmDiaryComposer`](../src/hooks/useFarmDiaryComposer.ts) — plan / spray / water form, custom products, plan-from-issue
-- Existing [`useFarmDiary`](../src/lib/farmDiary.ts) unchanged (Firestore + outbox)
+- Filter / group / CSV in [`src/lib/farmDiaryView.ts`](../../src/lib/farmDiaryView.ts) + [`src/lib/farmDiaryView.test.ts`](../../src/lib/farmDiaryView.test.ts)
+- [`useFarmDiaryIssues`](../../src/hooks/useFarmDiaryIssues.ts) — field issues load, open count, mark / resolve / reopen
+- [`useFarmDiaryPage`](../../src/hooks/useFarmDiaryPage.ts) — `?block=` / `?view=`, filter, grouping, CSV + farm JSON/XLSX
+- [`useFarmDiaryComposer`](../../src/hooks/useFarmDiaryComposer.ts) — plan / spray / water form, custom products, plan-from-issue
+- Existing [`useFarmDiary`](../../src/lib/farmDiary.ts) unchanged (Firestore + outbox)
 - Page keeps timeline / composer JSX. Off the split-ticket line (≥1200); still WARN over 800
 
 All new files under the 600 hard cap. No OrchardMap. No Freenet cards.
@@ -824,12 +825,12 @@ Chained procedure A: **pass**.
 
 **BlightRisk** (`BlightRisk.tsx` 2862 → 1906)
 
-- Season / filter helpers in [`src/lib/blightSeason.ts`](../src/lib/blightSeason.ts) + [`src/lib/blightSeason.test.ts`](../src/lib/blightSeason.test.ts)
-- [`useBlightModelParams`](../src/hooks/useBlightModelParams.ts) — Firestore `model_params`, debounce, Ctrl+Shift+D
-- [`useBlightWeather`](../src/hooks/useBlightWeather.ts) — DPIRD stations, geolocation, weather fetch
-- [`useBlightSandbox`](../src/hooks/useBlightSandbox.ts) — scenarios, clone, auto-distribute
-- [`useBlightModelSeries`](../src/hooks/useBlightModelSeries.ts) — Ji / legacy runs, filters, forecast + sandbox series
-- Tooltip moved to [`src/components/blight/BlightChartTooltip.tsx`](../src/components/blight/BlightChartTooltip.tsx)
+- Season / filter helpers in [`src/lib/blightSeason.ts`](../../src/lib/blightSeason.ts) + [`src/lib/blightSeason.test.ts`](../../src/lib/blightSeason.test.ts)
+- [`useBlightModelParams`](../../src/hooks/useBlightModelParams.ts) — Firestore `model_params`, debounce, Ctrl+Shift+D
+- [`useBlightWeather`](../../src/hooks/useBlightWeather.ts) — DPIRD stations, geolocation, weather fetch
+- [`useBlightSandbox`](../../src/hooks/useBlightSandbox.ts) — scenarios, clone, auto-distribute
+- [`useBlightModelSeries`](../../src/hooks/useBlightModelSeries.ts) — Ji / legacy runs, filters, forecast + sandbox series
+- Tooltip moved to [`src/components/blight/BlightChartTooltip.tsx`](../../src/components/blight/BlightChartTooltip.tsx)
 - Page keeps tab layout + charts. Still a split ticket (JSX next, not this slice)
 
 All new files under the 600 hard cap. No OrchardMap. No Freenet cards. No FarmDiary this slice.
@@ -873,14 +874,14 @@ Chained procedure A: **pass**.
 
 **Water** (`WaterMonitoring.tsx` 1038 → 113)
 
-- Math in [`src/lib/waterPlanning.ts`](../src/lib/waterPlanning.ts) + [`src/lib/waterPlanning.test.ts`](../src/lib/waterPlanning.test.ts)
-- [`useWaterRecentStats`](../src/hooks/useWaterRecentStats.ts) — 7d ETc / 3d rain fetch
+- Math in [`src/lib/waterPlanning.ts`](../../src/lib/waterPlanning.ts) + [`src/lib/waterPlanning.test.ts`](../../src/lib/waterPlanning.test.ts)
+- [`useWaterRecentStats`](../../src/hooks/useWaterRecentStats.ts) — 7d ETc / 3d rain fetch
 - Panels: `WaterBudgetStrip`, `LogIrrigationPanel`, `RecentIrrigationTable`, `WaterSeasonPlanner` (season + district stay on the page so Used/Remaining still follow the planner)
 
 **Drying** (`DryerPerformance.tsx` 1120 → 74)
 
-- [`useDryerSessionActions`](../src/hooks/useDryerSessionActions.ts) — Firestore writes, ambient fetch, PDF
-- [`DryerSessionList`](../src/components/drying/DryerSessionList.tsx), [`StartDryingSessionModal`](../src/components/drying/StartDryingSessionModal.tsx), [`DryerSessionDetailModal`](../src/components/drying/DryerSessionDetailModal.tsx)
+- [`useDryerSessionActions`](../../src/hooks/useDryerSessionActions.ts) — Firestore writes, ambient fetch, PDF
+- [`DryerSessionList`](../../src/components/drying/DryerSessionList.tsx), [`StartDryingSessionModal`](../../src/components/drying/StartDryingSessionModal.tsx), [`DryerSessionDetailModal`](../../src/components/drying/DryerSessionDetailModal.tsx)
 - Dropped both files from `KNOWN_OVERSIZE` (now under the 600 new-file cap)
 
 No OrchardMap. No Freenet cards.
@@ -959,10 +960,10 @@ Chained procedure A: **pass**.
 
 ### Change
 
-- Exported `isBenignFirestoreFailure` from [`src/lib/firestoreErrors.ts`](../src/lib/firestoreErrors.ts). Predicate unchanged (permission / unauthenticated / failed-precondition / offline / INTERNAL ASSERTION).
-- [`src/services/api.ts`](../src/services/api.ts) imports it from there. Soft-return vs rethrow-for-outbox behavior is the same.
-- Locked: [`tests/firestoreErrors.test.ts`](../tests/firestoreErrors.test.ts) (soft vs hard cases); [`tests/codebaseHealth.test.ts`](../tests/codebaseHealth.test.ts) asserts `api.ts` imports the helper and does not redefine it.
-- [`scripts/audit-codebase.mjs`](../scripts/audit-codebase.mjs): allowlisted this log file for the leftover `harvest_drying` string (first `audit:codebase` after the Phase 1 write failed on that).
+- Exported `isBenignFirestoreFailure` from [`src/lib/firestoreErrors.ts`](../../src/lib/firestoreErrors.ts). Predicate unchanged (permission / unauthenticated / failed-precondition / offline / INTERNAL ASSERTION).
+- [`src/services/api.ts`](../../src/services/api.ts) imports it from there. Soft-return vs rethrow-for-outbox behavior is the same.
+- Locked: [`tests/firestoreErrors.test.ts`](../../tests/firestoreErrors.test.ts) (soft vs hard cases); [`tests/codebaseHealth.test.ts`](../../tests/codebaseHealth.test.ts) asserts `api.ts` imports the helper and does not redefine it.
+- [`scripts/audit-codebase.mjs`](../../scripts/audit-codebase.mjs): allowlisted this log file for the leftover `harvest_drying` string (first `audit:codebase` after the Phase 1 write failed on that).
 
 No Firestore call paths were rewritten.
 
@@ -1071,7 +1072,7 @@ OK    no circular imports in src/ + shared/ + server/
 audit:codebase passed.
 ```
 
-Unchanged vs the 2026-08-26 appendix in [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md).
+Unchanged vs the 2026-08-26 appendix in [`CODEBASE_HEALTH.md`](../CODEBASE_HEALTH.md).
 
 ### Size table (files ≥ 800)
 

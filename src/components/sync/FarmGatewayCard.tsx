@@ -11,7 +11,7 @@
  * one inside the first made it look like another troubleshooting step.
  *
  * @see src/lib/farmGateway.ts — the address rules, including what is refused
- * @see Plans/APK_FREENET_PLUGIN.md §8d
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §8d
  */
 
 import React, { useState } from 'react';

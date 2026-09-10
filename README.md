@@ -4,11 +4,11 @@ Paddock-first farm tools for mixed enterprises — map areas and issues, diary p
 
 **Repo:** [https://github.com/paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM) (local clone folder `PUF-AM`; the npm `name` is still `walnut-farm-manager` — see [`Plans/NAMING.md`](Plans/NAMING.md) §2).
 
-**Brand:** **PUF-AM** = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/NAMING.md`](Plans/NAMING.md) and rebrand checklist [`Plans/RENAME_TO_PUFAM.md`](Plans/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
+**Brand:** **PUF-AM** = **PUF** (Prototype Until Failure workshop) + **AM** (Ag Manager). Formerly PUFOM / Orchard Manager — see [`Plans/NAMING.md`](Plans/NAMING.md) and rebrand checklist [`Plans/archive/RENAME_TO_PUFAM.md`](Plans/archive/RENAME_TO_PUFAM.md). In-app mark is the PUF emu; Android launcher uses a green farm variant so it stays distinct from other PUF apps.
 
 **Display vs technical IDs:** Operators see **PUF-AM**. Wire/sync and storage legacy ids (`com.sentinut.farm`, `.pufom`, `pufom_*`, `sentinut_*`, …) — see [`Plans/NAMING.md`](Plans/NAMING.md).
 
-**Live app:** [https://am.pufworks.farm](https://am.pufworks.farm) (Cloud Run service still named `pufom` until Phase B rename; fallback [*.run.app](https://pufom-quby5ye5pa-ts.a.run.app)). Redeploy: `npm run deploy:cloudrun`. Domain + APK releases: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
+**Live app:** [https://am.pufworks.farm](https://am.pufworks.farm) — Firebase project `pufworks-am`, Cloud Run service `pufom` in `australia-southeast1` (fallback [*.run.app](https://pufom-bg7cou2rcq-ts.a.run.app)). Redeploy: `npm run deploy:cloudrun`. Domain + APK releases: [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md).
 
 **Android APK:** [GitHub Releases latest](https://github.com/paraquatsundae/PUF-AM/releases/latest) (Actions workflow `release-apk.yml`).
 
@@ -97,12 +97,13 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
 * `src/services/` — Firestore/API helpers.
 * `shared/farm/cropPacks.ts` — Pack catalog + Install/Activate/Deactivate/Delete helpers.
 * `shared/weather/` — DPIRD client shared by server and functions.
-* `Plans/` — Roadmap, smoke tests, offline map notes.
+* `Plans/` — Live specs and active plans; `Plans/reference/` finished designs cited from code, `Plans/logs/` append-only logs, `Plans/archive/` closed work. Index in [`Plans/README.md`](Plans/README.md).
 * `DEVELOPER_NOTES.md` — Architecture notes and checklist.
+* `AGENTS.md` — Entry point for AI agents: layout, hard rules, commands.
 
 ## Adding a crop pack
 
-Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They are **not** Freenet host plugins ([`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md)). Unpacking a zip does not register a pack.
+Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They are **not** Freenet host plugins ([`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](Plans/reference/DESKTOP_FREENET_PLUGIN.md)). Unpacking a zip does not register a pack.
 
 **How-to (file list):** [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) — copy **chill portions**, not walnut blight.
 
@@ -110,7 +111,7 @@ Crop packs are **in-app** capabilities (modules, routes, pack settings UI). They
 |-----|-----|
 | [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) | **Start here** — files to add, `plugin.json`, what Install already does |
 | [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) | Contract (D1–D15), farm-admin lifecycle, acceptance checks |
-| [`Plans/CHILL_PORTIONS_PLUGIN.md`](Plans/CHILL_PORTIONS_PLUGIN.md) | Template pack (dedicated settings doc) |
+| [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) § Template pack | Chill portions — the pack to copy (merged 2026-09-10) |
 | [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Walnut blight (legacy shared `model_params`) |
 | [`.github/PULL_REQUEST_TEMPLATE/crop-pack.md`](.github/PULL_REQUEST_TEMPLATE/crop-pack.md) | PR checklist |
 
@@ -118,26 +119,28 @@ On-disk packages: [`plugins/README.md`](plugins/README.md).
 
 ## Development roadmap
 
+Full index (every plan, its status, and where archived docs went): [`Plans/README.md`](Plans/README.md). The live docs most work touches:
+
 | Document | Contents |
 |----------|----------|
-| [`Plans/NAMING.md`](Plans/NAMING.md) | Product, storage keys, export formats, Firestore paths, doc procedures |
-| [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) | Crop-pack developer contract + admin Install/Activate/Deactivate/Delete (not Freenet) |
-| [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Walnut blight pack settings home (reference crop pack) |
-| [`Plans/ROADMAP.md`](Plans/ROADMAP.md) | Full plan: tasks, acceptance criteria, progress |
+| [`Plans/NAMING.md`](Plans/NAMING.md) | Product, storage keys, export formats, Firestore paths, doc procedures — wins on any naming disagreement |
+| [`Plans/ROADMAP.md`](Plans/ROADMAP.md) | Phase summary, open leftovers, Phase D/E trackers, progress log (Steps 1–13 detail in `Plans/archive/ROADMAP_HISTORY.md`) |
 | [`DEVELOPER_NOTES.md`](DEVELOPER_NOTES.md) §5 | Quick-reference checklist |
-| [`Plans/SMOKE_TEST_LOG.md`](Plans/SMOKE_TEST_LOG.md) | Manual smoke tests |
-| [`Plans/OFFLINE_MAP_APK.md`](Plans/OFFLINE_MAP_APK.md) | Offline basemap + Capacitor APK |
+| [`Plans/CODEBASE_HEALTH.md`](Plans/CODEBASE_HEALTH.md) | File-size limits, layering, review posture; gate is `npm run audit:codebase` |
+| [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) | How to add a crop pack (start here); contract in [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) |
+| [`Plans/BLIGHT_ENGINE_PLUGIN.md`](Plans/BLIGHT_ENGINE_PLUGIN.md) | Walnut blight pack settings home (reference crop pack) |
+| [`Plans/API_KEY_SECURITY.md`](Plans/API_KEY_SECURITY.md) | DPIRD key server-only, tile proxy, Firebase key restrictions, BYO weather |
+| [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md) | Cloud Run deploy, `am.pufworks.farm` via Firebase Hosting rewrite, APK releases |
+| [`Plans/FIREBASE_BILLING.md`](Plans/FIREBASE_BILLING.md) | Who pays for a cloud farm: enrolment gate, BYO Firebase, refuse-list |
 | [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md) | Invite PIN auth (production) |
-| [`Plans/MIST_NETWORK_STORAGE.md`](Plans/MIST_NETWORK_STORAGE.md) | Experimental mist: Reticulum + Freenet-style storage (fork; does not replace Firebase auth). Laptop B recovery: `/login/mist-recover` with FarmCode — same `farmId`, local IndexedDB only until Freenet sync. |
-| [`Plans/DESKTOP_FREENET_PLUGIN.md`](Plans/DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers with Freenet running as an in-app plugin (Electron frozen). Fedora AppImage ships a bundled Freenet node; `npm run desktop:dev` runs the shell. Windows installer still needs a Windows host. |
-| [`Plans/MIST_TWO_FEDORA_FREENET.md`](Plans/MIST_TWO_FEDORA_FREENET.md) | Two-laptop Freenet 0.2 Opennet join. **Passed on the AppImage ~2026-08-04** — blank laptop B recovered a farm from a paper FarmCode plus a join ticket, no terminal on either machine. |
-| [`Plans/APK_FREENET_PLUGIN.md`](Plans/APK_FREENET_PLUGIN.md) | Freenet on the tablet APK — two-app reader, hub, gateway, APK build wiring. |
-| [`Plans/APK_FREENET_HOST.md`](Plans/APK_FREENET_HOST.md) | Freenet **network pack** inside the APK (isolated process, Join + Send). Native PUT spike first. |
-| [`Plans/FREENET_CONTRIBUTE_AND_STORAGE.md`](Plans/FREENET_CONTRIBUTE_AND_STORAGE.md) | Contribute vs communicate (`contribute_storage`), what PUF-AM publishes (Hot, bones, join manifests), what is sealed before upload, and what is **not** on Freenet. |
-| [`Plans/FREENET_OPERATOR_FLOW.md`](Plans/FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands today. In-app **How this works** uses the same story. |
-| [`Plans/FREENET_HOLES.md`](Plans/FREENET_HOLES.md) | How we will address the seven known Freenet operator holes (copy first, then UX, then product). |
+| [`Plans/SETTINGS_SYNC_AND_CREW.md`](Plans/SETTINGS_SYNC_AND_CREW.md) | Settings → Sync, join tickets, auto-sync ladder, farm gateway — most-cited plan in source (`§n` references) |
 | [`Plans/LOCAL_DATA_STORAGE.md`](Plans/LOCAL_DATA_STORAGE.md) | Every local store — IndexedDB, localStorage, Firestore paths, Android sandbox, Electron `userData`, LAN shelves — and which are authoritative rather than cache. |
-| [`Plans/DPIRD_CACHE_FRESHNESS.md`](Plans/DPIRD_CACHE_FRESHNESS.md) | DPIRD overcall leftovers: `ensure-cache` 2-hour skip, dryer hourly proxy, chill completed-season freeze. Blight daily is already hourly / 4-station cached. |
+| [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md) § Android dev builds | Emulator / LAN / packaged APK workflows (offline-basemap history archived) |
+| [`Plans/DPIRD_CACHE_FRESHNESS.md`](Plans/DPIRD_CACHE_FRESHNESS.md) | DPIRD overcall leftovers: `ensure-cache` 2-hour skip, dryer hourly proxy, chill completed-season freeze. |
+| [`Plans/FREENET_OPERATOR_FLOW.md`](Plans/FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands today (experimental). Known holes §8; what is on Freenet §9 |
+| [`Plans/FREENET_NETWORK_PACK.md`](Plans/FREENET_NETWORK_PACK.md) | The app's own Freenet client as a per-farm **network pack** on desktop and Android; native PUT everywhere; hybrid mirror for cloud farms. |
+| [`Plans/APK_FREENET_HOST.md`](Plans/APK_FREENET_HOST.md) | Android host detail for the above (isolated process, Join + Send). Native PUT spike GO. |
+| [`Plans/reference/MIST_NETWORK_STORAGE.md`](Plans/reference/MIST_NETWORK_STORAGE.md) · [`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](Plans/reference/DESKTOP_FREENET_PLUGIN.md) · [`Plans/reference/APK_FREENET_PLUGIN.md`](Plans/reference/APK_FREENET_PLUGIN.md) · [`Plans/reference/MIST_TWO_FEDORA_FREENET.md`](Plans/reference/MIST_TWO_FEDORA_FREENET.md) | Experimental mist / Freenet design and build history — done, but cited by section number from source, so kept in place |
 
 ### Tests
 

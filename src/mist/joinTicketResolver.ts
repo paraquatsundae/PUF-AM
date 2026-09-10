@@ -12,7 +12,7 @@
  * Freenet is what makes a ticket work when the owner's laptop is shut, asleep, or
  * three paddocks away.
  *
- * @see Plans/MIST_TWO_FEDORA_FREENET.md § Short join ticket
+ * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Short join ticket
  */
 
 import {

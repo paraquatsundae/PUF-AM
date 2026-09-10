@@ -11,7 +11,7 @@
  *   FarmSeed and FarmId are unchanged because HKDF runs over the raw bytes.
  *
  * Browser-safe — Web Crypto for random bytes; Crockford per plan.
- * @see Plans/MIST_NETWORK_STORAGE.md § FarmCode encoding
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md § FarmCode encoding
  */
 
 import {

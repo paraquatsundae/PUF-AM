@@ -8,7 +8,7 @@
  * node never holds a farm key, which is what makes borrowing someone else's node
  * acceptable at all.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §3a
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §3a
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

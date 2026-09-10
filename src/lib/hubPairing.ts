@@ -7,8 +7,8 @@
  * import `apiBase` back. This one does both, and nothing in the request path
  * imports it.
  *
- * @see Plans/DESKTOP_FREENET_PLUGIN.md §6.4
- * @see Plans/APK_FREENET_PLUGIN.md §8a
+ * @see Plans/reference/DESKTOP_FREENET_PLUGIN.md §6.4
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §8a
  */
 
 import { HUB_INFO_PATH, HUB_PAIR_PATH, isHubInfo, type HubInfo } from '../../shared/sync/hubInfo.ts';

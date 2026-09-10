@@ -1,6 +1,8 @@
 # Freenet known holes — how we address them
 
-**Experimental — not production.** Companion to [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8.
+> **Archived 2026-09-10.** Merged into [`../FREENET_OPERATOR_FLOW.md`](../FREENET_OPERATOR_FLOW.md) §8 (inventory, surviving rules, open holes 4 and 5). Kept for the full per-hole write-ups.
+
+**Experimental — not production.** Companion to [`FREENET_OPERATOR_FLOW.md`](../FREENET_OPERATOR_FLOW.md) §8.
 
 These seven holes are in the code or the plans, not guesses. This file is the plan for each: what we will change, what we will not fake, and in what order.
 
@@ -18,7 +20,7 @@ Do **not** pretend a copy tweak is a crypto change. Roles stay UI bookkeeping; F
 | 1 | Send is after farm-setup, not at create | UX | **Soon** | **Done** 2026-08-14 — FarmCode/PIN screens + dismissible Farm setup nudge. No auto-publish |
 | 3 | People list is per hub | Product | **Soon** | **Copy done** 2026-08-14 — empty-state names the hub first. Shared bones ledger still later |
 | 4 | Revoke is not kick | Crypto / product | **Later** | Open — do not fake |
-| 5 | Two tablets, no laptop | Product / APK | **Later** | Open — tracked as E-08 [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md). Needs native PUT + isolated host |
+| 5 | Two tablets, no laptop | Product / APK | **Later** | Open — tracked as E-08 [`APK_FREENET_HOST.md`](../APK_FREENET_HOST.md). Needs native PUT + isolated host |
 
 ---
 
@@ -107,7 +109,7 @@ These need new machinery. Honest copy is already on the People card. Do not ship
 
 ### Hole 5 — Two tablets, no laptop
 
-**Today:** Only a desktop hosts Freenet and can Send. Two tablets with no laptop cannot hand a farm to each other. Documented in [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md).
+**Today:** Only a desktop hosts Freenet and can Send. Two tablets with no laptop cannot hand a farm to each other. Documented in [`APK_FREENET_PLUGIN.md`](../reference/APK_FREENET_PLUGIN.md).
 
 **Do:** keep pointing at a laptop hub. How this works already says this.
 
@@ -124,4 +126,4 @@ These need new machinery. Honest copy is already on the People card. Do not ship
 3. **People empty-state** — hole 3 copy. Then, if we still need a shared list, a bones-ledger spec.
 4. **Leave 4 and 5 documented** until someone explicitly opens epoch-kick or APK host.
 
-Roadmap tracker: [`ROADMAP.md`](ROADMAP.md) E-07.
+Roadmap tracker: [`ROADMAP.md`](../ROADMAP.md) E-07.

@@ -1,12 +1,12 @@
 # APK Freenet host — network pack in the tablet APK
 
-**Status:** Plan written 2026-08-14. Phase 1 (native PUT spike) started. Phases 2–5 not built.
+**Status:** Plan written 2026-08-14. Phase 1 (native PUT spike) **GO** 2026-08-15 on node 0.2.125. Phases 2–5 not built. **2026-09-10:** this plan is now **Phase 3** of the umbrella [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) — desktop moves to native PUT first (its Phase 2), then the Android host is built against the same `FreenetHostPlugin` seam. Version pin policy: umbrella decision 4.
 **Experimental — not production.** Firebase Auth + invite PIN remains the shipping cloud path.
 **Product:** PUF-AM · **Scope:** one APK that owns a Freenet node and can Join **and** Send.
 
-Companion history (two-app reader, hub, gateway): [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md). This file **reopens** that plan’s option C / §8 phase 4c.
+Companion history (two-app reader, hub, gateway): [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md). This file **reopens** that plan’s option C / §8 phase 4c.
 
-Related: [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) · [`NAMING.md`](NAMING.md) · [`FREENET_HOLES.md`](FREENET_HOLES.md) hole 5 · [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)
+Related: [`reference/DESKTOP_FREENET_PLUGIN.md`](reference/DESKTOP_FREENET_PLUGIN.md) · [`NAMING.md`](NAMING.md) · [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8 hole 5 · [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)
 
 ---
 
@@ -61,7 +61,7 @@ Never implement a crop pack as a Freenet unit, or the reverse.
 
 Tablet Send and desktop “drop `fdev`” are **one** TypeScript PUT job. If the spike fails, ship Join-only (Phases 2–3) and leave Send on a laptop hub.
 
-LAN ticket register stays optional (already try/catch). People on the sending tablet is that tablet’s shelf ([`FREENET_HOLES.md`](FREENET_HOLES.md) hole 3).
+LAN ticket register stays optional (already try/catch). People on the sending tablet is that tablet’s shelf ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8 hole 3).
 
 ---
 
@@ -83,6 +83,8 @@ Prove pack-contract PUT (then slot PUT/UPDATE) over `ws://127.0.0.1:7509` **with
 | [`units/mist-freenet/freenet02-native-slot-live.test.ts`](../units/mist-freenet/freenet02-native-slot-live.test.ts) | Opt-in live slot put→get and update. Skip unless `FREENET_LIVE_WS=1` |
 
 Try against desktop pin **0.2.119** and, when a tablet node is up, **0.2.123**. If only the newer node answers, pin Android there and schedule the desktop bump separately.
+
+*2026-09-10:* the 0.2.119 check was not run (no node binary on the dev machine; 0.2.119 is nine releases behind and an old node is refused with exit 42). It is replaced by [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 4: pin the latest release at the start of the umbrella's Phase 2 and re-run the live PUT/slot checks against it. Last verified: 0.2.125.
 
 Go/no-go: a unique blob PUT returns an `FN02@…` and GET returns the same bytes.
 

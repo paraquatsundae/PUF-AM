@@ -1,5 +1,5 @@
 /**
- * In-memory crew presence shelf for workshop LAN hub (CREW_PRESENCE P2).
+ * In-memory crew presence shelf for workshop LAN hub (Plans/archive/CREW_PRESENCE.md P2).
  * Survives only while the Express process is up — fine for same-WiFi fallback.
  */
 

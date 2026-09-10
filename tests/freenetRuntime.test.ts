@@ -5,7 +5,7 @@
  * has no way to spawn there — so the tablet's only honest answers are "a hub
  * holds the node" or "not on this device yet". Getting this wrong is worse than
  * hiding the feature: an operator in a paddock would read a timeout as a network
- * fault and go looking for signal. Plan: `Plans/APK_FREENET_PLUGIN.md`.
+ * fault and go looking for signal. Plan: `Plans/reference/APK_FREENET_PLUGIN.md`.
  */
 
 import { describe, expect, it } from 'vitest';

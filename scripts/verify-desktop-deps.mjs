@@ -13,7 +13,7 @@
  *   node scripts/verify-desktop-deps.mjs           # verify (packaging gate)
  *   node scripts/verify-desktop-deps.mjs --print   # emit the YAML block to paste
  *
- * Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §8.2, §8.3, Phase 3.
+ * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.2, §8.3, Phase 3.
  */
 
 import { existsSync, readFileSync } from 'node:fs';

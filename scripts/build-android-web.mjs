@@ -13,7 +13,7 @@
  * packaged WebView needs.
  *
  * Firebase-only APK (production shape):  VITE_MIST_EXPERIMENTAL=false
- * Plan: `Plans/APK_FREENET_PLUGIN.md` §6.
+ * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` §6.
  */
 
 import { build } from 'vite';

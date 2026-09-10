@@ -11,13 +11,13 @@ farm" gets one honest answer per backend.
 This is the freeze doc the sync components point at with `@see`. If a decision here
 changes, change it here first.
 
-Related: [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) ·
-[`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) ·
-[`CREW_PRESENCE.md`](CREW_PRESENCE.md) ·
+Related: [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) ·
+[`reference/DESKTOP_FREENET_PLUGIN.md`](reference/DESKTOP_FREENET_PLUGIN.md) ·
+[`archive/CREW_PRESENCE.md`](archive/CREW_PRESENCE.md) ·
 [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md) ·
-[`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy ·
+[`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) § Mobile peer policy ·
 [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) ·
-[`FREENET_HOLES.md`](FREENET_HOLES.md).
+[`archive/FREENET_HOLES.md`](archive/FREENET_HOLES.md).
 
 ---
 
@@ -284,7 +284,7 @@ both paths. Cloud presets are unchanged: the divergence above is still deliberat
 
 ### Two-laptop check for 3b
 
-Runs on top of [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md); only the ticket
+Runs on top of [`archive/MIST_TWO_LAPTOP_SMOKE.md`](archive/MIST_TWO_LAPTOP_SMOKE.md); only the ticket
 step differs.
 
 1. **Laptop A** — Settings → Sync → *Send or join a farm over Freenet* → **Send this
@@ -379,7 +379,7 @@ redemption stamps, farm scoping, revoke by id, pre-preset tickets) and
 
 - **The shelf lives on the hub that minted the ticket.** Two laptops that both publish
   have two ledgers. Federating them is a Freenet-contract problem
-  ([`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md)), not a
+  ([`archive/FREENET_CONTRIBUTE_AND_STORAGE.md`](archive/FREENET_CONTRIBUTE_AND_STORAGE.md)), not a
   People-page problem — the page shows *this hub's* record and says so.
 - **Revoking stops issuance, not access.** Deleting a manifest and rotating the slot
   means no *new* device can resolve that ticket. A device that already pulled the farm
@@ -392,7 +392,7 @@ redemption stamps, farm scoping, revoke by id, pre-preset tickets) and
 
 ### What exists
 
-[`CREW_PRESENCE.md`](CREW_PRESENCE.md) P1 and P2 shipped:
+[`archive/CREW_PRESENCE.md`](archive/CREW_PRESENCE.md) P1 and P2 shipped:
 
 - **P1 cloud** — `farms/{farmId}/presence/{uid}` docs, `src/lib/crewPresence.ts`,
   `CrewPresenceLayer` on the map, privacy switch `pufom_share_crew_location`.
@@ -407,7 +407,7 @@ devices that cannot see each other. That, and only that, is what Freenet is for 
 ### Why this is not live tracking
 
 A Freenet PUT takes seconds to minutes and still goes through `fdev`, a laptop-only
-binary ([`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §2 blocker 4). Presence
+binary ([`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §2 blocker 4). Presence
 upserts every ~8 s. Freenet cannot carry that cadence and is not going to. The
 question it answers is *where was that ute last seen*, not *where is it now*.
 
@@ -423,7 +423,7 @@ question it answers is *where was that ute last seen*, not *where is it now*.
 | Identity | `uid` is meaningless without a cloud account. Key on the **join-ticket entry id** (§4) — the only farm-scoped identity a Freenet farm has. |
 | Privacy | Its own switch, **default off**, separate from `pufom_share_crew_location`. A sealed blob on a public network is a different consent question from a Firestore doc behind rules. |
 | Publishing | A tablet cannot do it at all without a paired hub — same `fdev` limit. Its position reaches Freenet only through a laptop, which the copy must say rather than leave the operator to notice. |
-| Storage policy | `contribute_storage = false` on mobile stays frozen ([`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy). None of this makes a phone a storage peer. |
+| Storage policy | `contribute_storage = false` on mobile stays frozen ([`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) § Mobile peer policy). None of this makes a phone a storage peer. |
 | Ordering | Blocked on §4. Without a personnel record there is no name to put on the marker. |
 
 **Do not** build a second geolocation stack. `UserLocationLayer` is the only GPS
@@ -473,7 +473,7 @@ nothing above changes `FreenetHostPlugin` (`start` / `stop` / `status` /
 | **Android / NSD plugin** | `android/.../PufomNsdPlugin.java`, `src/lib/nsdPeers.ts` | Hub discovery on a tablet. No Freenet node ships in the APK — a tablet either finds a hub or finds a separate node app on the device. |
 | **Runtime probe** | `src/lib/freenetRuntime.ts`, `src/mist/freenetLocalNode.ts` | *Readiness*, never *visibility* (§1). `detectFreenetReadOnly` exists because a node on a tablet can fetch but not publish — PUT still needs laptop-only `fdev`. |
 
-The two rules from [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §5 survive:
+The two rules from [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §5 survive:
 **ciphertext only** (the host never sees a name or a coordinate) and **one-way
 dependency** (`puf-freenet-host` imports nothing from `mist-freenet`). Keeping the
 roster in the hub's own shelf (§4) and presence inside an already-sealed blob (§5) is
@@ -554,7 +554,7 @@ operator is owed a different sentence and because the bytes may be leaving the
 farm on mobile data. LAN is still tried first — §10.
 
 **Rung 3/4 order is not a preference, it is a capability.** `fdev` is not on
-Android and could not be exec'd there if it were (`APK_FREENET_PLUGIN.md` §2), so
+Android and could not be exec'd there if it were (`reference/APK_FREENET_PLUGIN.md` §2), so
 a tablet with its own node gets rung 4 and a laptop gets rung 3. Same predicate
 the send card already uses — `detectFreenetReadOnly()`.
 
@@ -655,7 +655,7 @@ two tablets and no farm machine still cannot sync, and that hole is unchanged.
 
 ### Meshtastic / Reticulum — the roadmap hook
 
-`MIST_NETWORK_STORAGE.md` already names **Reticulum** as the on-farm mesh plane
+`reference/MIST_NETWORK_STORAGE.md` already names **Reticulum** as the on-farm mesh plane
 (LoRa RNodes, multi-hop, no Wi‑Fi infrastructure). The ladder is built so that
 lands as **a rung, not a rewrite**: `SyncPeerState` describes *reachability*, not
 HTTP, and `SyncRoute` is a closed union with one handler each. A LoRa peer becomes
@@ -664,7 +664,7 @@ than Wi‑Fi, and bandwidth-bound in a way neither is.
 
 Two constraints it will inherit, written down now so they are not rediscovered:
 a full `.pufom` bundle is far too big for LoRa (it needs the record-level delta
-`MIST_NETWORK_STORAGE.md` sketches, not this blob), and the sealed-blob rule
+`reference/MIST_NETWORK_STORAGE.md` sketches, not this blob), and the sealed-blob rule
 holds — a mesh peer relays ciphertext or it does not relay.
 
 ### Intervals and failure
@@ -706,13 +706,13 @@ the honest question — how old is what I am looking at — is always answered.
 ## §10 Farm gateway — the hub, reachable from anywhere
 
 **Status:** slice 1 shipped 2026-08-10. Design, security posture and phasing live in
-[`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §8d; this section is the Settings
+[`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §8d; this section is the Settings
 half — what an operator sees and what the copy may claim.
 
 ### Why it is a card and not a field
 
 The tablet's job needs a machine that speaks Freenet for it, because it cannot host
-a node (`APK_FREENET_PLUGIN.md` §2). The hub already did that job and could only be
+a node (`reference/APK_FREENET_PLUGIN.md` §2). The hub already did that job and could only be
 found on the shed Wi‑Fi, which is what pushed tablets towards a sideloaded node app.
 A gateway is **the same paired hub at a remembered second address** — no new
 service, no new credential, nothing on the wire.
@@ -751,7 +751,7 @@ once.
 
 - **The farm still needs one machine that is awake.** The gateway removes the
   requirement that it be *on this Wi‑Fi*, not the requirement that it exist. Farms
-  with no always-on machine are `APK_FREENET_PLUGIN.md` §8d Phase 3, and the
+  with no always-on machine are `reference/APK_FREENET_PLUGIN.md` §8d Phase 3, and the
   sideloaded node (§3b) remains the only path needing no other machine at all.
 - **Plain HTTP is refused off a private network.** Not warned — refused. The rule
   is re-applied when a saved gateway is *read*, so tightening it later reaches

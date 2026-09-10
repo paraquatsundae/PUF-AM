@@ -3,7 +3,7 @@
  *
  * These are opaque storage paths for the MistStore contract — not Firestore
  * paths and not raw HKDF contract key bytes. HKDF labels (`freenet-hot`, …)
- * live in Plans/MIST_NETWORK_STORAGE.md § Invitation.
+ * live in Plans/reference/MIST_NETWORK_STORAGE.md § Invitation.
  */
 
 import { MIST_KINDS, type MistKind } from './types.ts';

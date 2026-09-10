@@ -1,6 +1,6 @@
 # API key security (workshop)
 
-**Last updated:** 1 September 2026
+**Last updated:** 9 September 2026
 
 ## DPIRD (weather) — server only
 
@@ -66,29 +66,28 @@ A hub states `tiles: true` in `/api/hub/info`. Absence means no — a desktop ol
 than the proxy cannot list a route it has never heard of in `cloudOnlyPrefixes`,
 so a tablet paired to one falls back to the cloud instead of collecting 404s.
 
-### Outstanding: Landgate licence
+### Landgate licence — decided 9 Sep 2026
 
-SLIP public imagery is published under **Transaction Personal Use**. Commercial
-use needs Landgate's written agreement — ask
-`CustomerExperience@Landgate.wa.gov.au` **before** this ships to a paying farm.
+PUFworks is not seeking a commercial licence from Landgate and is not contacting
+them. The imagery terms are the responsibility of whoever operates a PUF-AM
+server, in line with the table above: each deployment is its own consumer of the
+provider. A fork that charges is on the forker.
 
-Two things that reasoning has to get right, because both are easy to get wrong:
+What that means for an operator, so nobody reads more into the MIT licence than
+is there:
 
-- **Open-sourcing the code does not distribute the licence obligation.** It would
-  if each user's own machine made the requests. Where a client draws tiles from
-  `am.pufworks.farm`, the provider sees one consumer — whoever runs that host —
-  regardless of what the code's licence says. That is exactly why tile rendering
-  was pushed out to the desktop and LAN hub above; it shrinks the hosted case to
-  browser users, who have no local server and cannot be moved.
-- **"Commercial" is unlikely to mean "somebody charged for the app."** A grower
-  using imagery to plan spraying and keep paddock records is using it in a
-  business, no fork and no money changing hands required. Personal Use probably
-  does not cover that even for a self-hoster.
-
-If the answer is no, point `TILE_UPSTREAM_URL` at a licensed provider; that is
-the whole change. Also worth knowing: offline packs pull up to 20,000 tiles into
-IndexedDB, and bulk extraction and storage are commonly permissioned separately
-from viewing, so that is worth asking about in the same email.
+- **Open-sourcing the code does not shift the imagery terms onto end users.**
+  Where a client draws tiles from a hosted server, the provider sees one
+  consumer — whoever runs that host. That is why tile rendering was pushed out
+  to the desktop and LAN hub above; the hosted case is reduced to browser users
+  and tablets with no hub yet.
+- **"Personal use" is the operator's call to interpret.** Imagery used to plan
+  spraying and keep paddock records is used in a business even when no one
+  paid for the app. An operator who wants a provider with explicit commercial
+  terms points `TILE_UPSTREAM_URL` at one; that is the whole change, with no
+  client release. Offline packs pull up to 20,000 tiles into IndexedDB, and
+  bulk extraction is commonly permissioned separately from viewing — read the
+  chosen provider's terms with that in mind.
 
 ---
 
@@ -167,19 +166,19 @@ grounds:
 Reopen this if signup ever becomes self-serve, if the project stops being one
 operator's, or if Auth abuse shows up in the logs.
 
-### Open question: the AI Studio project
+### Hosted home: `pufworks-am`
 
-Production currently signs in against project **`gen-lang-client-0444791425`**,
-with an `ai-studio-…` auth domain. That is a scratch project Firebase created for
-an AI Studio experiment, and it is now holding real farm data and real accounts.
+Hosted PUF-AM lives on Firebase/GCP project **`pufworks-am`**, Firestore
+`(default)` in `australia-southeast1`, Auth `pufworks-am.firebaseapp.com`.
+`am.pufworks.farm` is the public hostname.
 
-Nothing is broken today, but it is the wrong home: the project name is
-meaningless to anyone who inherits it, its quotas and billing were never chosen,
-and a project created by a tool is a project a tool may reorganise. Moving means
-migrating Firestore, Auth users and custom claims, so it is a deliberate piece of
-work rather than a setting — but it should be decided rather than defaulted into.
+The previous home was AI Studio scratch project
+**`gen-lang-client-0444791425`** (named database `ai-studio-143a17d7-…`). That
+project is kept read-only for rollback after the 9 Sep 2026 migrate, then
+retired. BYO refuse-lists must reject **both** ids forever.
 
-The scratch-project inheritance was not only cosmetic. A 2026-09-07 sweep found
+The scratch-project inheritance was not only cosmetic. A 2026-09-07 sweep of
+the old project found
 **four API keys scoped to `generativelanguage.googleapis.com`** — "Gemini API
 Key" twice, "Default Gemini API Key" and "number 3" — left from the AI Studio
 scaffold, on a project whose app has never called Gemini. Each was spendable
@@ -205,7 +204,7 @@ Cloud Build paths can still touch `gcr.io`.
 
 - [ ] `.env` has `DPIRD_API_KEY=` and **no** `VITE_DPIRD_API_KEY=`
 - [ ] No `VITE_GOOGLE_MAPS_API_KEY` anywhere in `.env`, CI, or the deploy script
-- [ ] Landgate commercial-use question asked and answered
+- [x] Landgate licence position recorded (9 Sep 2026: operator's responsibility; PUFworks not seeking a licence)
 - [x] Firebase web key API-restricted (2026-09-07); referrers deliberately not
       applied, reasoning above
 - [x] Stray Gemini and Maps API keys deleted (2026-09-07)
@@ -213,4 +212,4 @@ Cloud Build paths can still touch `gcr.io`.
 - [ ] Auth authorized domains trimmed to the list above
 - [ ] Unused project APIs disabled — see the list above
 - [ ] Satellite tiles still load on desktop, web and tablet
-- [ ] A decision recorded on the `gen-lang-client-0444791425` project
+- [x] Hosted home recorded: `pufworks-am` (migrated 9 Sep 2026 from `gen-lang-client-0444791425`)

@@ -6,8 +6,8 @@
  * to one of the two backends. Keeping that decision here (rather than inline in
  * `Login.tsx`) means the routing can be tested without standing up Firebase.
  *
- * See `Plans/MIST_NETWORK_STORAGE.md`, `Plans/FIREBASE_BILLING.md` §2–§4,
- * `Plans/DESKTOP_FREENET_PLUGIN.md` §8.3.
+ * See `Plans/reference/MIST_NETWORK_STORAGE.md`, `Plans/FIREBASE_BILLING.md` §2–§4,
+ * `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.3.
  */
 
 import type { FarmStoreBackendPreference } from '../mist/farmStoreBackend.ts';

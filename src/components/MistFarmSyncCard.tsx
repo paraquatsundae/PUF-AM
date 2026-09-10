@@ -11,7 +11,7 @@
  *
  * Rendered only for Freenet farms — see `src/lib/farmPipes.ts`.
  *
- * Plans: `Plans/DESKTOP_FREENET_PLUGIN.md` §14 Phase 4 ·
+ * Plans: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §14 Phase 4 ·
  * `Plans/SETTINGS_SYNC_AND_CREW.md` §1.
  */
 

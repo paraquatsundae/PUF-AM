@@ -11,7 +11,7 @@
  *    pairing; asking for the code again at the second address is exactly the
  *    ceremony this work exists to delete.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §8d
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §8d
  */
 
 import { afterEach, describe, expect, it } from 'vitest';

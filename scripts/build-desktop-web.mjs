@@ -9,7 +9,7 @@
  * the desktop build bakes the flag in here.
  *
  * Set `VITE_MIST_EXPERIMENTAL=false` to package a Firebase-only desktop build.
- * Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §8.3.
+ * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.3.
  */
 
 import { build } from 'vite';

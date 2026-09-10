@@ -11,7 +11,7 @@
  * card returns `null` in a browser and on the APK rather than offering something
  * that cannot work.
  *
- * @see Plans/DESKTOP_FREENET_PLUGIN.md §6.4
+ * @see Plans/reference/DESKTOP_FREENET_PLUGIN.md §6.4
  */
 
 import React, { useCallback, useEffect, useState } from 'react';

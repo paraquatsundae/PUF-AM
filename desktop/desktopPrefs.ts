@@ -12,7 +12,7 @@
  * device token is stored, so this file is not a set of hub credentials.
  *
  * Imports nothing from `electron` so it stays testable in plain Node; `main.ts`
- * supplies the path. See `Plans/DESKTOP_FREENET_PLUGIN.md` §9, §6.4 and §14.
+ * supplies the path. See `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §9, §6.4 and §14.
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';

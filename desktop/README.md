@@ -2,10 +2,10 @@
 
 **Status:** Phase 4 (~2026-08-04) — the Fedora AppImage builds and launches with Freenet running from
 bundled binaries, and has completed a **two-laptop A→B farm join over Freenet 0.2 Opennet with no
-terminal on either machine** ([`Plans/MIST_TWO_FEDORA_FREENET.md`](../Plans/MIST_TWO_FEDORA_FREENET.md)
+terminal on either machine** ([`Plans/reference/MIST_TWO_FEDORA_FREENET.md`](../Plans/reference/MIST_TWO_FEDORA_FREENET.md)
 § AppImage A→B). The loopback API is now behind a per-launch token, and copyable **Windows portable +
 zip** artifacts build here; only the NSIS `.exe` still wants a Windows host.
-**Plan (authoritative):** [`Plans/DESKTOP_FREENET_PLUGIN.md`](../Plans/DESKTOP_FREENET_PLUGIN.md)
+**Plan (authoritative):** [`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](../Plans/reference/DESKTOP_FREENET_PLUGIN.md)
 
 ## Running it
 

@@ -10,7 +10,7 @@
  * start has to be routed correctly, and that is before any handshake could have
  * completed.
  *
- * @see Plans/DESKTOP_FREENET_PLUGIN.md §6.4
+ * @see Plans/reference/DESKTOP_FREENET_PLUGIN.md §6.4
  */
 
 import { afterEach, describe, expect, it } from 'vitest';

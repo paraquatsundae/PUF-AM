@@ -1,8 +1,10 @@
 # Orchard map viewport culling (design, not built)
 
+> **Archived 2026-09-10.** Closed; kept for history. Successor and context: [`INDEX.md`](INDEX.md).
+
 **Status:** not implemented — investigation only, 2026-09-02  
-**Roadmap:** [`ROADMAP.md`](ROADMAP.md) § Step 11  
-**Limits:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md) § Concern and cost ("do not rebuild GeoJSON layers on pan/zoom")  
+**Roadmap:** [`ROADMAP.md`](../ROADMAP.md) § Step 11  
+**Limits:** [`CODEBASE_HEALTH.md`](../CODEBASE_HEALTH.md) § Concern and cost ("do not rebuild GeoJSON layers on pan/zoom")  
 **Shipped instead:** warn-only guard — `src/lib/mapFeatureLoad.ts` + toolbar banner (`f95932f`)
 
 ---

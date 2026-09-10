@@ -30,7 +30,7 @@
  * here too so the FarmSeed never reaches the Express hub. Loading the WASM and
  * talking to `fdev` are Node-only and live in `freenet02-fdev-slot.ts`.
  *
- * @see Plans/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
+ * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
  * @see units/mist-freenet/contracts/slot-contract/src/lib.rs — the other half of this format
  */
 

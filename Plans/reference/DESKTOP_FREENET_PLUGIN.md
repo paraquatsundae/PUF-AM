@@ -2,9 +2,10 @@
 
 **Status:** Phases 0–4 done on Fedora. **Field-validated** ~2026-08-04: two Fedora laptops completed a full A→B farm join over Freenet 0.2 Opennet running **only the AppImage** — bundled Freenet (`source: bundled`), no terminal, no `npm run dev`, no sidecar (§14 Phase 3). Phase 4 closed the loopback API behind a per-launch bearer (§6.3) and produced copyable **Windows portable + zip** artifacts from Fedora (§8.5); the NSIS `.exe` and the first `freenet.exe` launch still want a Windows machine. **~2026-08-07** the deferred Phase 4 item 9 landed: a running AppImage can be the **tablet hub** on the shed LAN — a second, LAN-bound listener behind a pairing code that mints per-device tokens, serving an allowlist of sync/Freenet routes and never the UI (§6.4). Not shipped.
 **Product:** PUF-AM (Ag Manager) · **Scope:** Fedora + Windows desktop installers where the Freenet client runs *inside* PUF-AM.
+**Superseded 2026-09-10:** §4.3 ("drop `fdev` … blocked") by [`../FREENET_NETWORK_PACK.md`](../FREENET_NETWORK_PACK.md) decision 1 (native PUT, `fdev` removed); §5.2's put/get contract goes from frozen-and-unused to the live data seam (decision 2); §11 "phone will not run a peer" by decision 3. Sections below are frozen and cited from code.
 **Experimental:** the mist/Freenet storage path stays experimental. **Firebase + invite PIN remains the shipping cloud path** and is unaffected by this plan.
 
-Related: [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) (mist crypto/contracts) · [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) (current two-laptop workshop flow this replaces) · [`NAMING.md`](NAMING.md) §1–2 (product + build identifiers) · [`units/puf-freenet-host/README.md`](../units/puf-freenet-host/README.md) (plugin unit) · [`desktop/README.md`](../desktop/README.md) (shell).
+Related: [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) (mist crypto/contracts) · [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) (current two-laptop workshop flow this replaces) · [`NAMING.md`](../NAMING.md) §1–2 (product + build identifiers) · [`units/puf-freenet-host/README.md`](../../units/puf-freenet-host/README.md) (plugin unit) · [`desktop/README.md`](../../desktop/README.md) (shell).
 
 ---
 
@@ -122,7 +123,7 @@ export type FreenetHostMode = 'stopped' | 'starting' | 'managed' | 'attached' | 
 
 `putCiphertext` / `getCiphertext` are **ciphertext-only by contract** — the host never sees plaintext and never holds farm keys. Sealing stays in `mist-freenet` (`assertCiphertextForFreenet` still guards `FreenetMistStore.put()`). If no wire client is injected, both throw `FreenetWireUnavailableError` rather than silently no-op.
 
-Full type list: [`units/puf-freenet-host/src/types.ts`](../units/puf-freenet-host/src/types.ts).
+Full type list: [`units/puf-freenet-host/src/types.ts`](../../units/puf-freenet-host/src/types.ts).
 
 ### 5.3 Binary resolution order
 
@@ -200,11 +201,11 @@ Some routes must stay in the cloud because they need server secrets the operator
 | `/api/auth/*` (invite PIN, members, farm create) | **cloud** | Needs a Firebase Admin service account — never ships to an operator machine |
 | `/api/weather/*` (DPIRD, chill, blight) | **cloud** | Needs `DPIRD_API_KEY`, a server-only secret |
 
-Implementation (landed in Phase 1): the preload injects `window.pufamDesktop = { cloudApiBase, freenetApiBase, ... }` ([`src/lib/desktopBridge.ts`](../src/lib/desktopBridge.ts)); `src/lib/apiBase.ts` routes **by path prefix** — `getApiBaseUrl()` returns `''` so everything is same-origin, and `apiUrl()` redirects only `/api/auth/*` and `/api/weather/*` to the cloud. Routing per-path rather than per-base matters: a single cloud base would drag `/api/sync/*` off the machine that *is* the hub. The desktop branch also outranks the LAN-hub picker and `VITE_API_BASE_URL`, which both name *other* machines.
+Implementation (landed in Phase 1): the preload injects `window.pufamDesktop = { cloudApiBase, freenetApiBase, ... }` ([`src/lib/desktopBridge.ts`](../../src/lib/desktopBridge.ts)); `src/lib/apiBase.ts` routes **by path prefix** — `getApiBaseUrl()` returns `''` so everything is same-origin, and `apiUrl()` redirects only `/api/auth/*` and `/api/weather/*` to the cloud. Routing per-path rather than per-base matters: a single cloud base would drag `/api/sync/*` off the machine that *is* the hub. The desktop branch also outranks the LAN-hub picker and `VITE_API_BASE_URL`, which both name *other* machines.
 
 This is the *inverse* of today's hack: instead of "browse the cloud, sidecar for Freenet", it becomes "run locally, cloud only for cloud-only secrets".
 
-The config rides on a command-line flag ([`desktop/desktopConfig.ts`](../desktop/desktopConfig.ts)), not IPC, so `apiBase.ts` can read it synchronously on first paint — before any fetch could target the wrong origin. A missing or corrupt flag falls back to same-origin everywhere, because a local 404 beats silently posting farm data somewhere unintended.
+The config rides on a command-line flag ([`desktop/desktopConfig.ts`](../../desktop/desktopConfig.ts)), not IPC, so `apiBase.ts` can read it synchronously on first paint — before any fetch could target the wrong origin. A missing or corrupt flag falls back to same-origin everywhere, because a local 404 beats silently posting farm data somewhere unintended.
 
 `server/firebaseAdmin.ts` resolves `secrets/` and `firebase-applet-config.json` from `process.cwd()`, which is meaningless in a packaged app — another reason `/api/auth/*` must not be served locally. Desktop builds must **not** bundle `secrets/`.
 
@@ -212,7 +213,7 @@ The config rides on a command-line flag ([`desktop/desktopConfig.ts`](../desktop
 
 Binding an HTTP API to `127.0.0.1` means any local process can reach it. That is **not a regression** relative to `npm run dev` (which binds `0.0.0.0:3000`), but an ephemeral port is obscurity, not a boundary — `ss -ltnp` finds it in one command, and `/api/mist/freenet/*` publishes farm ciphertext.
 
-**Phase 4 landed a per-launch bearer.** [`desktop/loopbackAuth.ts`](../desktop/loopbackAuth.ts) mints 256 bits from the CSPRNG at boot; [`desktop/localApi.ts`](../desktop/localApi.ts) wraps `createApiApp()` in a guard that 401s any `/api/*` request without it.
+**Phase 4 landed a per-launch bearer.** [`desktop/loopbackAuth.ts`](../../desktop/loopbackAuth.ts) mints 256 bits from the CSPRNG at boot; [`desktop/localApi.ts`](../../desktop/localApi.ts) wraps `createApiApp()` in a guard that 401s any `/api/*` request without it.
 
 | Decision | Why |
 |----------|-----|
@@ -229,7 +230,7 @@ Verified on the rebuilt AppImage: from the renderer, `/api/definitely-not-a-rout
 
 §6.3 closed the loopback API so hard that nothing off the machine could reach it, which is correct for a desktop app and useless for a shed. The tablet needs the laptop to be its sync hub: mDNS discovery, join-ticket register/resolve, `/api/sync/*`, and the Freenet routes the tablet already calls. Item 9 was deferred pending "a decision about what authorises a phone against it". This is that decision.
 
-**The listener is separate, not the loopback one widened.** [`desktop/lanApi.ts`](../desktop/lanApi.ts) binds a *second* Express app on `0.0.0.0`, default port 3000 with an incremental search (up to 10 ports) when something else holds it. The loopback listener in `localApi.ts` is untouched: it keeps its ephemeral port, its per-launch bearer, and its static bundle. Widening the existing one would have meant a single middleware deciding between two very different trust levels on every request, and would have put the desktop UI's own token one misconfigured bind away from the network.
+**The listener is separate, not the loopback one widened.** [`desktop/lanApi.ts`](../../desktop/lanApi.ts) binds a *second* Express app on `0.0.0.0`, default port 3000 with an incremental search (up to 10 ports) when something else holds it. The loopback listener in `localApi.ts` is untouched: it keeps its ephemeral port, its per-launch bearer, and its static bundle. Widening the existing one would have meant a single middleware deciding between two very different trust levels on every request, and would have put the desktop UI's own token one misconfigured bind away from the network.
 
 | Decision | Why |
 |----------|-----|
@@ -240,9 +241,9 @@ Verified on the rebuilt AppImage: from the renderer, `/api/definitely-not-a-rout
 | **No static bundle over LAN** | The LAN app mounts API routes only; `GET /` is a 404. Serving the UI would invite someone to browse the farm from a phone that never paired, and the tablet already has its own build |
 | `/api/health`, `/api/hub/info`, `/api/hub/pair` are **open** | Discovery has to work before pairing exists. `hub/info` deliberately reveals only what a joiner needs to route correctly — hub kind, whether pairing is required, which prefixes are local vs cloud. No farm names, no device list |
 | Pairing is **rate-limited and LAN-only** | Wrong codes are throttled per client (429 with `Retry-After`), and `POST /api/hub/pair` refuses any caller that is not on a private address (403). Eight characters is short enough that unmetered guessing would matter |
-| **Off by default**, one toggle in Settings | Binding `0.0.0.0` is the operator's decision, not a side effect of launching the app. [`src/components/TabletHubCard.tsx`](../src/components/TabletHubCard.tsx) shows the code, the LAN URL, the paired-device list, **Rotate code**, and **Forget** per device |
+| **Off by default**, one toggle in Settings | Binding `0.0.0.0` is the operator's decision, not a side effect of launching the app. [`src/components/TabletHubCard.tsx`](../../src/components/TabletHubCard.tsx) shows the code, the LAN URL, the paired-device list, **Rotate code**, and **Forget** per device |
 
-**Wire shape.** [`shared/sync/hubInfo.ts`](../shared/sync/hubInfo.ts) is the contract both sides compile against, so the tablet's routing table comes *from the hub* rather than being hardcoded per hub kind. A `npm run dev` server answers the same endpoint with `kind: 'workshop-dev'` and `pairingRequired: false`, which is why the existing vite-based tablet flow keeps working unchanged.
+**Wire shape.** [`shared/sync/hubInfo.ts`](../../shared/sync/hubInfo.ts) is the contract both sides compile against, so the tablet's routing table comes *from the hub* rather than being hardcoded per hub kind. A `npm run dev` server answers the same endpoint with `kind: 'workshop-dev'` and `pairingRequired: false`, which is why the existing vite-based tablet flow keeps working unchanged.
 
 ```
 tablet                                  laptop (AppImage)
@@ -254,9 +255,9 @@ tablet                                  laptop (AppImage)
   │─────── GET /api/auth/... ──────────────►│  404 + "that one comes from the cloud"
 ```
 
-On the tablet, [`src/lib/hubIdentity.ts`](../src/lib/hubIdentity.ts) keeps the token and the cached `HubInfo` in `localStorage` keyed by hub base, so [`src/lib/apiBase.ts`](../src/lib/apiBase.ts) can decide *synchronously* — before first paint — whether a given path goes to the hub or the cloud. `apiFetch()` attaches the header only when the target is the current hub, the same origin-matching discipline §6.3 uses to keep the desktop token off `am.pufworks.farm`.
+On the tablet, [`src/lib/hubIdentity.ts`](../../src/lib/hubIdentity.ts) keeps the token and the cached `HubInfo` in `localStorage` keyed by hub base, so [`src/lib/apiBase.ts`](../../src/lib/apiBase.ts) can decide *synchronously* — before first paint — whether a given path goes to the hub or the cloud. `apiFetch()` attaches the header only when the target is the current hub, the same origin-matching discipline §6.3 uses to keep the desktop token off `am.pufworks.farm`.
 
-**mDNS now advertises something reachable.** `listLanIpv4()` in [`server/mdnsHub.ts`](../server/mdnsHub.ts) ranks interfaces so a Wi-Fi address beats a USB-tether or virtual-bridge address — the multi-homed laptop trap that made the advertised URL unreachable from the tablet. `main.ts` also re-checks the address periodically and republishes when it changes, which a laptop carried between house and shed does constantly.
+**mDNS now advertises something reachable.** `listLanIpv4()` in [`server/mdnsHub.ts`](../../server/mdnsHub.ts) ranks interfaces so a Wi-Fi address beats a USB-tether or virtual-bridge address — the multi-homed laptop trap that made the advertised URL unreachable from the tablet. `main.ts` also re-checks the address periodically and republishes when it changes, which a laptop carried between house and shed does constantly.
 
 Verified live against the packaged build (§14 Phase 4 item 9): open health and hub/info, 401 on a scoped route without a token, 401 on a wrong code, pair, then a full join-ticket register → resolve round trip through the hub, 404 on `/api/auth/pins`, 404 on `/`, and `avahi-browse` seeing `ip=`/`kind=desktop-lan`/`pair=1` — while the loopback UI still served 200 and its API still 401'd without the desktop token.
 
@@ -285,7 +286,7 @@ Phase 3 confirmed this layout in both the Linux and Windows outputs. `app.asar` 
 
 `pack-contract.wasm` moves out of `app.asar` into `resources/contracts/` because `fdev --code` needs a **real filesystem path** — asar-packed files are not directly readable by a child process. Same reason the binaries live in `extraResources`. The bundled WASM's `fdev inspect` code hash is pinned in `units/mist-freenet/src/freenet02-pack.ts`; **bundled WASM and that constant must be verified together**, or every published URI silently changes.
 
-Phase 2 landed that verification as `npm run desktop:verify:pack` ([`scripts/verify-pack-contract.mjs`](../scripts/verify-pack-contract.mjs)), split by what each half needs:
+Phase 2 landed that verification as `npm run desktop:verify:pack` ([`scripts/verify-pack-contract.mjs`](../../scripts/verify-pack-contract.mjs)), split by what each half needs:
 
 | Check | Needs | On mismatch |
 |-------|-------|-------------|
@@ -350,7 +351,7 @@ Fedora artifacts otherwise build on Fedora, and the NSIS installer on the `C:\Pr
 
 ### 8.2 `electron-builder` config
 
-Lives in [`electron-builder.yml`](../electron-builder.yml) (YAML so the non-obvious entries can carry their reasons). `productName`, `main`, and `desktopName` stay in `package.json` because Electron itself reads them. Identifiers are frozen in [`NAMING.md`](NAMING.md) §2.
+Lives in [`electron-builder.yml`](../../electron-builder.yml) (YAML so the non-obvious entries can carry their reasons). `productName`, `main`, and `desktopName` stay in `package.json` because Electron itself reads them. Identifiers are frozen in [`NAMING.md`](../NAMING.md) §2.
 
 What is worth knowing beyond the obvious:
 
@@ -364,29 +365,29 @@ What is worth knowing beyond the obvious:
 | `nsis.deleteAppDataOnUninstall: false` | `%APPDATA%\PUF-AM` holds the Freenet identity and mist cache; an uninstall must not take the operator's farm data with it |
 | `publish: null` | Workshop builds, no auto-updater (AGENTS.md rule 9) |
 
-The `node_modules` allowlist is the one part that can rot silently, so it is generated rather than curated: [`scripts/verify-desktop-deps.mjs`](../scripts/verify-desktop-deps.mjs) (`npm run desktop:verify:deps`) reads the *built* bundle's external `require()`/`import()` specifiers, walks their dependency closure, and fails the build if the config disagrees — `--print` emits the block to paste. It also fails if the bundle reaches for a `devDependency`, because electron-builder ships production dependencies only and that mistake surfaces as `MODULE_NOT_FOUND` on an operator's machine rather than at build time.
+The `node_modules` allowlist is the one part that can rot silently, so it is generated rather than curated: [`scripts/verify-desktop-deps.mjs`](../../scripts/verify-desktop-deps.mjs) (`npm run desktop:verify:deps`) reads the *built* bundle's external `require()`/`import()` specifiers, walks their dependency closure, and fails the build if the config disagrees — `--print` emits the block to paste. It also fails if the bundle reaches for a `devDependency`, because electron-builder ships production dependencies only and that mistake surfaces as `MODULE_NOT_FOUND` on an operator's machine rather than at build time.
 
 ### 8.3 Native and heavy dependencies
 
 | Dependency | Action |
 |------------|--------|
 | `better-sqlite3` | **Dropped** in Phase 3 (`npm uninstall`). It was unused, and keeping it would force a native rebuild against Electron's ABI for nothing |
-| `firebase-admin` | Excluded — `/api/auth/*` is cloud-only (§6.2). It is a `devDependency`, so electron-builder never ships it; Phase 3 made [`server/firebaseAdmin.ts`](../server/firebaseAdmin.ts) load it **on first use** instead of importing it, because a static import made the packaged main process die at boot rather than degrade. `isAdminSdkReady()` already returns `false` for callers |
+| `firebase-admin` | Excluded — `/api/auth/*` is cloud-only (§6.2). It is a `devDependency`, so electron-builder never ships it; Phase 3 made [`server/firebaseAdmin.ts`](../../server/firebaseAdmin.ts) load it **on first use** instead of importing it, because a static import made the packaged main process die at boot rather than degrade. `isAdminSdkReady()` already returns `false` for callers |
 | `bonjour-service` | Keep; pure JS, powers the LAN hub |
 | `@freenetorg/freenet-stdlib` | Keep; GET path |
 | `vite`, `tsx`, `firebase-tools` | Dev only — must not reach `files` |
 
-Main-process TypeScript needs a build step (Electron cannot execute `.ts`, and the repo uses `.ts` extensions in import specifiers). Phase 1 landed [`scripts/build-desktop.mjs`](../scripts/build-desktop.mjs): esbuild bundles `desktop/main.ts` + `desktop/preload.ts` → `desktop/build/*.cjs`, pulling in `desktop/`, `server/`, `units/`, and `shared/`.
+Main-process TypeScript needs a build step (Electron cannot execute `.ts`, and the repo uses `.ts` extensions in import specifiers). Phase 1 landed [`scripts/build-desktop.mjs`](../../scripts/build-desktop.mjs): esbuild bundles `desktop/main.ts` + `desktop/preload.ts` → `desktop/build/*.cjs`, pulling in `desktop/`, `server/`, `units/`, and `shared/`.
 
 **npm packages stay external** (`packages: 'external'`). Bundling them in would mean flattening `firebase-admin`'s dynamic requires and grpc's native bindings for no benefit — TypeScript is the only thing Electron genuinely cannot load. Electron resolves the rest from `node_modules`, and electron-builder ships production deps into the asar in Phase 3.
 
 One wrinkle worth knowing: `import.meta` is empty in a CJS bundle, and `units/mist-freenet/src/freenet02-pack.ts` reads `import.meta.url` at module load to locate its pack contract. The build defines a `__filename`-based shim so the bundle does not throw on import, **and** `desktop/main.ts` sets `FREENET_PACK_WASM` explicitly — the shim resolves to the bundle, not the asset, so it alone is not enough.
 
-The **renderer** bundle needs its own desktop-specific build for the same class of reason. `isMistExperimentalEnabled()` reads `import.meta.env.VITE_MIST_EXPERIMENTAL`, which Vite inlines at build time: an unset flag becomes `undefined` and the whole gate is dead-code eliminated, so no runtime environment variable can bring the mist UI back. A plain `npm run build` therefore ships a desktop app whose Settings surface hides the workshop even when the operator launched with `MIST_FREENET=1` and a Freenet node is running. [`scripts/build-desktop-web.mjs`](../scripts/build-desktop-web.mjs) (`npm run desktop:build:web`) is the desktop web build and defaults the flag to `true`; `desktop:dist:prep` and `desktop:dev` both use it. Pass `VITE_MIST_EXPERIMENTAL=false` to package a Firebase-only desktop build.
+The **renderer** bundle needs its own desktop-specific build for the same class of reason. `isMistExperimentalEnabled()` reads `import.meta.env.VITE_MIST_EXPERIMENTAL`, which Vite inlines at build time: an unset flag becomes `undefined` and the whole gate is dead-code eliminated, so no runtime environment variable can bring the mist UI back. A plain `npm run build` therefore ships a desktop app whose Settings surface hides the workshop even when the operator launched with `MIST_FREENET=1` and a Freenet node is running. [`scripts/build-desktop-web.mjs`](../../scripts/build-desktop-web.mjs) (`npm run desktop:build:web`) is the desktop web build and defaults the flag to `true`; `desktop:dist:prep` and `desktop:dev` both use it. Pass `VITE_MIST_EXPERIMENTAL=false` to package a Firebase-only desktop build.
 
 ### 8.4 Binary procurement (settled in Phase 2)
 
-**Pinned to `v0.2.119`** in [`scripts/freenet-binaries.json`](../scripts/freenet-binaries.json) — the single source of truth for version, asset names, and checksums. Both platforms come from the *same release tag*: mixing versions is not acceptable, because the pack-contract code hash and the `fdev` PUT path are both version-sensitive.
+**Pinned to `v0.2.119`** in [`scripts/freenet-binaries.json`](../../scripts/freenet-binaries.json) — the single source of truth for version, asset names, and checksums. Both platforms come from the *same release tag*: mixing versions is not acceptable, because the pack-contract code hash and the `fdev` PUT path are both version-sensitive.
 
 | Platform | Assets | Status |
 |----------|--------|--------|
@@ -403,7 +404,7 @@ Upstream publishes a `SHA256SUMS.txt` per release, so the pins are transcribed r
 
 PUF-AM's relationship to the node is exactly the case that text carves out — a loopback WebSocket, no linkage, no modification. So PUF-AM's own licensing is unaffected. The upstream `LICENSE.md` is fetched into the vendor dir and ships beside the binaries in `resources/freenet/`.
 
-**`vendor/` stays gitignored** (~93 MB); the manifest, the fetch script, and [`vendor/README.md`](../vendor/README.md) are what get committed.
+**`vendor/` stays gitignored** (~93 MB); the manifest, the fetch script, and [`vendor/README.md`](../../vendor/README.md) are what get committed.
 
 ```bash
 npm run desktop:vendor          # host platform
@@ -518,9 +519,9 @@ The workshop flow keeps working throughout: `npm run dev` + external `freenet ne
 Landed:
 
 - This document.
-- [`units/puf-freenet-host/`](../units/puf-freenet-host/README.md) — frozen interface, Node implementation (spawn/attach/stop, restart backoff, exit-42 handling, binary resolution, TCP probe), 19 hermetic tests (no node or network needed).
-- [`server/freenetHostWire.ts`](../server/freenetHostWire.ts) — the one glue file wrapping `Freenet02WsTransport` as a `FreenetWireClient`.
-- [`desktop/`](../desktop/README.md) — `main.ts` (single-instance lock, host ownership, IPC), `preload.ts` (`window.pufamDesktop`), `localApi.ts` (loopback ephemeral-port Express + static `dist/`), `tsconfig.json`.
+- [`units/puf-freenet-host/`](../../units/puf-freenet-host/README.md) — frozen interface, Node implementation (spawn/attach/stop, restart backoff, exit-42 handling, binary resolution, TCP probe), 19 hermetic tests (no node or network needed).
+- [`server/freenetHostWire.ts`](../../server/freenetHostWire.ts) — the one glue file wrapping `Freenet02WsTransport` as a `FreenetWireClient`.
+- [`desktop/`](../../desktop/README.md) — `main.ts` (single-instance lock, host ownership, IPC), `preload.ts` (`window.pufamDesktop`), `localApi.ts` (loopback ephemeral-port Express + static `dist/`), `tsconfig.json`.
 - Pointers in `DEVELOPER_NOTES.md`, `NAMING.md` (§1 product names, §2 desktop build ids, §3 env vars), `README.md`, `.env.example`. `vendor/` and `release/` gitignored.
 
 **No `electron` dependency installed yet** and `desktop/` is excluded from the root `tsconfig.json`, so `npm run lint`, `npm test`, `npm run build`, and `npm run build:android` are all unaffected.
@@ -530,11 +531,11 @@ Landed:
 Landed:
 
 - `electron` 43, `electron-builder` 26, `esbuild` in `devDependencies`.
-- [`scripts/build-desktop.mjs`](../scripts/build-desktop.mjs) → `desktop/build/{main,preload}.cjs` (§8.3).
+- [`scripts/build-desktop.mjs`](../../scripts/build-desktop.mjs) → `desktop/build/{main,preload}.cjs` (§8.3).
 - Scripts: **`desktop:build`** (bundle main/preload), **`desktop:start`** (launch), **`desktop:dev`** (build web + main, then launch), **`lint:desktop`**.
 - `package.json` gains `main` and **`productName: "PUF-AM"`** — the latter is what makes `userData` resolve to `~/.config/PUF-AM` instead of `~/.config/walnut-farm-manager`. Set now, before any operator has data under the wrong path.
-- [`desktop/desktopConfig.ts`](../desktop/desktopConfig.ts) — one encode/decode for the main→preload flag, so the two ends cannot drift.
-- [`src/lib/desktopBridge.ts`](../src/lib/desktopBridge.ts) + the `apiBase.ts` route split (§6.2).
+- [`desktop/desktopConfig.ts`](../../desktop/desktopConfig.ts) — one encode/decode for the main→preload flag, so the two ends cannot drift.
+- [`src/lib/desktopBridge.ts`](../../src/lib/desktopBridge.ts) + the `apiBase.ts` route split (§6.2).
 - `main.ts`: `.env` loaded in dev only (never in a packaged app), `MIST_FREENET_ROOT` anchored under `userData` **even when the host fails to start**, external links opened in the operator's browser, SIGINT/SIGTERM → clean quit so a Ctrl-C in `desktop:dev` cannot orphan a managed node.
 - `FreenetHostOptions.repoRoot` — without it, resolution step 4 (§5.3) was unreachable from the host and Phase 2's `vendor/` dir would have silently lost to `PATH`.
 - Tests: 15 new (config flag codec, `apiBase` desktop routing, vendor resolution). No Freenet node or network needed.
@@ -547,10 +548,10 @@ Landed:
 
 Landed:
 
-- [`scripts/freenet-binaries.json`](../scripts/freenet-binaries.json) — the pin: `v0.2.119`, asset names, archive **and** extracted-binary SHA-256 for `linux-x64` and `win-x64`, license digest, pack-contract digest + code hash (§8.4).
-- [`scripts/fetch-freenet-binaries.mjs`](../scripts/fetch-freenet-binaries.mjs) → `vendor/freenet/<os>-<arch>/{freenet,fdev,LICENSE.md,VENDOR.json}`. Double checksum gate, `chmod +x` (upstream ships `0644`), idempotent re-runs, `--verify` for a network-free re-check, `PUF_FREENET_ASSET_DIR` for offline/CI. tar.gz and zip are handled in-process — no new dependency, no shelling out to `tar`.
-- [`scripts/verify-pack-contract.mjs`](../scripts/verify-pack-contract.mjs) — WASM digest always, `fdev inspect` code hash when `fdev` resolves (§7.1).
-- [`scripts/smoke-freenet-host.ts`](../scripts/smoke-freenet-host.ts) (`npm run desktop:smoke:host`) — starts a real node from the resolved binary on a **spare port with throwaway dirs**, asserts `mode: managed` and a non-`PATH` source, then stops. Deliberately `attachIfRunning: false`: attaching to a workshop node on `:7509` would prove nothing about which binary was resolved, and this must never touch that node.
+- [`scripts/freenet-binaries.json`](../../scripts/freenet-binaries.json) — the pin: `v0.2.119`, asset names, archive **and** extracted-binary SHA-256 for `linux-x64` and `win-x64`, license digest, pack-contract digest + code hash (§8.4).
+- [`scripts/fetch-freenet-binaries.mjs`](../../scripts/fetch-freenet-binaries.mjs) → `vendor/freenet/<os>-<arch>/{freenet,fdev,LICENSE.md,VENDOR.json}`. Double checksum gate, `chmod +x` (upstream ships `0644`), idempotent re-runs, `--verify` for a network-free re-check, `PUF_FREENET_ASSET_DIR` for offline/CI. tar.gz and zip are handled in-process — no new dependency, no shelling out to `tar`.
+- [`scripts/verify-pack-contract.mjs`](../../scripts/verify-pack-contract.mjs) — WASM digest always, `fdev inspect` code hash when `fdev` resolves (§7.1).
+- [`scripts/smoke-freenet-host.ts`](../../scripts/smoke-freenet-host.ts) (`npm run desktop:smoke:host`) — starts a real node from the resolved binary on a **spare port with throwaway dirs**, asserts `mode: managed` and a non-`PATH` source, then stops. Deliberately `attachIfRunning: false`: attaching to a workshop node on `:7509` would prove nothing about which binary was resolved, and this must never touch that node.
 - Scripts: `desktop:vendor`, `desktop:vendor:linux`, `desktop:vendor:win`, `desktop:vendor:verify`, `desktop:verify:pack`, `desktop:smoke:host`.
 - `freenetVendorDir()` / `freenetPlatformTag()` exported from the host unit so the vendor layout has one definition, plus 11 new hermetic tests (`tests/freenetVendorManifest.test.ts`, extra cases in `units/puf-freenet-host/resolve-binary.test.ts`) covering manifest ↔ resolver agreement, vendor-beats-`PATH`, bundled-beats-vendor on Windows, and the pack-contract pin. No network, no node, no populated `vendor/`.
 - `.gitignore` narrowed to `vendor/*` with `!vendor/README.md`, so the directory documents itself while the binaries stay out (§8.4).
@@ -567,8 +568,8 @@ The `source` reported in dev is **`vendor`**, not `bundled`: `bundled` means Ele
 
 Landed:
 
-- [`electron-builder.yml`](../electron-builder.yml) (§8.2) — Fedora `AppImage` + `rpm`, Windows `nsis` + `portable`, `extraResources` for the binaries and pack WASM, and the `node_modules` allowlist that keeps the AppImage at **~157 MB** (first package was 164 MB) instead of ~500 MB.
-- [`scripts/verify-desktop-deps.mjs`](../scripts/verify-desktop-deps.mjs) (`npm run desktop:verify:deps`) — derives the packaged runtime closure from the built bundle and fails the build when the allowlist drifts or the bundle reaches for a `devDependency`.
+- [`electron-builder.yml`](../../electron-builder.yml) (§8.2) — Fedora `AppImage` + `rpm`, Windows `nsis` + `portable`, `extraResources` for the binaries and pack WASM, and the `node_modules` allowlist that keeps the AppImage at **~157 MB** (first package was 164 MB) instead of ~500 MB.
+- [`scripts/verify-desktop-deps.mjs`](../../scripts/verify-desktop-deps.mjs) (`npm run desktop:verify:deps`) — derives the packaged runtime closure from the built bundle and fails the build when the allowlist drifts or the bundle reaches for a `devDependency`.
 - Gated scripts: **`desktop:dist`** (host platform), **`desktop:dist:linux`**, **`desktop:dist:linux:appimage`**, **`desktop:dist:win`**, plus `desktop:vendor:verify:linux` / `:win`. Every one runs `desktop:vendor:verify` for the *target* platform, `desktop:verify:pack --require-fdev`, a fresh `desktop:build:web` (the Vite build with the mist flag baked in, §8.3) and main/preload bundle, then `desktop:verify:deps` — a stale `vendor/`, a drifted pack-contract hash, or a stale allowlist all stop the build before electron-builder starts.
 - `server/firebaseAdmin.ts` loads the Admin SDK lazily; `better-sqlite3` dropped (§8.3); app icon committed at `desktop/resources/icon.png`.
 
@@ -603,10 +604,10 @@ The Phase 3 pass proved the flow exists. Phase 4 is about making it something a 
 | 1 | Two-machine A→B join-ticket smoke using **installers only** | **done** ~2026-08-04 (Phase 3 note above) |
 | 2 | Mark the `am.pufworks.farm` sidecar section *workshop/web only* | **done** — [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) |
 | 3 | Desktop never resolves `am.pufworks.farm` for `/api/mist/freenet/*` | **done** — `getMistFreenetApiBaseUrl()` now *refuses* a non-loopback base on desktop instead of trusting the config flag, and `usesLocalFreenetSidecar()` is hard-false in the shell. Covered in `tests/apiBaseDesktop.test.ts` |
-| 4 | **Mist opt-in from Settings** — no `MIST_FREENET=1` on the launch | **done** — persisted in `<userData>/desktop-prefs.json` ([`desktop/desktopPrefs.ts`](../desktop/desktopPrefs.ts)), read at boot by `main.ts`, toggled over `puf-desktop:*-mist-preference` IPC. Turning it on starts the node in the same session; `MIST_FREENET` survives as a workshop override that reports itself in the UI |
-| 5 | **One-card join UX** — publish/copy on A, paste/fetch on B | **done** — [`src/components/MistFarmSyncCard.tsx`](../src/components/MistFarmSyncCard.tsx) above the workshop card in Settings |
+| 4 | **Mist opt-in from Settings** — no `MIST_FREENET=1` on the launch | **done** — persisted in `<userData>/desktop-prefs.json` ([`desktop/desktopPrefs.ts`](../../desktop/desktopPrefs.ts)), read at boot by `main.ts`, toggled over `puf-desktop:*-mist-preference` IPC. Turning it on starts the node in the same session; `MIST_FREENET` survives as a workshop override that reports itself in the UI |
+| 5 | **One-card join UX** — publish/copy on A, paste/fetch on B | **done** — [`src/components/MistFarmSyncCard.tsx`](../../src/components/MistFarmSyncCard.tsx) above the workshop card in Settings |
 | 6 | Plain-language status instead of peer/port jargon | **done** — one readiness line plus a single **Connect** button; the UDP-vs-WebSocket note folds away behind a disclosure in the diagnostics card |
-| 7 | Loopback guard — bearer token and/or IPC-only Freenet calls (§6.3) | **done** — per-launch token in [`desktop/loopbackAuth.ts`](../desktop/loopbackAuth.ts), injected by the session so the renderer never holds it. 14 hermetic tests + a live AppImage check (§6.3) |
+| 7 | Loopback guard — bearer token and/or IPC-only Freenet calls (§6.3) | **done** — per-launch token in [`desktop/loopbackAuth.ts`](../../desktop/loopbackAuth.ts), injected by the session so the renderer never holds it. 14 hermetic tests + a live AppImage check (§6.3) |
 | 8 | Windows: copyable artifact + first `freenet.exe` launch | **half done** — `portable` + `zip` now build on Fedora (§8.1.1, §8.5). The NSIS `.exe` and the first `freenet.exe` launch still need the Windows machine |
 | 9 | mDNS LAN-hub advertising from the shell | **done** — second LAN-bound listener behind a pairing code, off by default, one toggle in Settings (§6.4) |
 
@@ -647,12 +648,12 @@ Move `units/puf-freenet-host/` to its own repo, publish as a private package, co
 
 ## 16. References
 
-- [`units/puf-freenet-host/README.md`](../units/puf-freenet-host/README.md) — plugin unit API and lifecycle
-- [`desktop/README.md`](../desktop/README.md) — shell layout, build commands (Phase 1+)
-- [`vendor/README.md`](../vendor/README.md) — how to populate the bundled binaries, and why they are not committed
-- [`scripts/freenet-binaries.json`](../scripts/freenet-binaries.json) — the version pin and every checksum
-- [`units/mist-freenet/README.md`](../units/mist-freenet/README.md) — mist storage, ws02 transport, pack-contract addressing
+- [`units/puf-freenet-host/README.md`](../../units/puf-freenet-host/README.md) — plugin unit API and lifecycle
+- [`desktop/README.md`](../../desktop/README.md) — shell layout, build commands (Phase 1+)
+- [`vendor/README.md`](../../vendor/README.md) — how to populate the bundled binaries, and why they are not committed
+- [`scripts/freenet-binaries.json`](../../scripts/freenet-binaries.json) — the version pin and every checksum
+- [`units/mist-freenet/README.md`](../../units/mist-freenet/README.md) — mist storage, ws02 transport, pack-contract addressing
 - [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) — mist crypto, FarmCode, Hot/bones/Archive
 - [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) — two-laptop Opennet flow and the sidecar pattern being retired for desktop
-- [`NAMING.md`](NAMING.md) §1–2 — PUF-AM / PUF-FN naming, desktop build identifiers
-- [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Mist network & storage — phase log
+- [`NAMING.md`](../NAMING.md) §1–2 — PUF-AM / PUF-FN naming, desktop build identifiers
+- [`DEVELOPER_NOTES.md`](../../DEVELOPER_NOTES.md) § Mist network & storage — phase log

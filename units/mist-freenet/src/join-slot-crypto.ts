@@ -12,7 +12,7 @@
  * revoking a ticket does not hand its old readers a key that still opens the
  * next one.
  *
- * @see Plans/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
+ * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
  */
 
 import { bytesToHex, hexToBytes, hkdfSha256, MIST_HKDF_SALT } from './farm-seed.ts';

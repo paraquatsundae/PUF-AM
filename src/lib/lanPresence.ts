@@ -1,5 +1,5 @@
 /**
- * Workshop LAN crew presence via Express hub (CREW_PRESENCE P2).
+ * Workshop LAN crew presence via Express hub (Plans/archive/CREW_PRESENCE.md P2).
  * Uses the same sync peer base as .pufom LAN sync.
  */
 import { auth } from '../firebase';

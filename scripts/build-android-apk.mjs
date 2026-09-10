@@ -20,7 +20,7 @@
  *   node scripts/build-android-apk.mjs --release    assembleRelease (unsigned)
  *
  * Needs a JDK and the Android SDK — `android/local.properties` must point at it.
- * Plan: `Plans/APK_FREENET_PLUGIN.md` §6.
+ * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` §6.
  */
 
 import { spawnSync } from 'node:child_process';

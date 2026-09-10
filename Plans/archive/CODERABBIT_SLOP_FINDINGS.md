@@ -1,5 +1,7 @@
 # CodeRabbit slop-hunt findings
 
+> **Archived 2026-09-10.** Closed; kept for history. Successor and context: [`INDEX.md`](INDEX.md).
+
 **Brief:** [`CODERABBIT_SLOP_HUNT.md`](CODERABBIT_SLOP_HUNT.md)  
 **Not a Procedure A gate.** Prefer delete/stop over wrapping slop.
 

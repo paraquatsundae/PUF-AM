@@ -1,5 +1,7 @@
 # How PUF-AM contributes to and communicates over Freenet
 
+> **Archived 2026-09-10.** Merged into [`../FREENET_OPERATOR_FLOW.md`](../FREENET_OPERATOR_FLOW.md) §9 (contribute vs communicate, payloads, sealing, not-on-Freenet, authoritative vs cache). Kept for the sequence diagrams and the 2026-08-05 local-state snapshot; [`../LOCAL_DATA_STORAGE.md`](../LOCAL_DATA_STORAGE.md) is the live store inventory. Note: the join manifest now also lives in the Freenet join slot (2026-08-09), superseding §2 “not on Freenet” for that row.
+
 **Status:** Description of what is built as of ~2026-08-05, not a proposal. Field-validated on two Fedora laptops over Opennet (~2026-08-04).
 **Date:** 2026-08-05
 **Product:** PUF-AM (Ag Manager)
@@ -7,7 +9,7 @@
 
 This document answers three questions that keep getting conflated: what PUF-AM *puts on* Freenet, what it *keeps locally* to make that work, and what is **not** on Freenet at all.
 
-Related: [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) (crypto, FarmCode, Hot/Archive design) · [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) (the node lifecycle) · [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) (why tablets are out) · [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) (the full local inventory) · [`NAMING.md`](NAMING.md) §7.
+Related: [`MIST_NETWORK_STORAGE.md`](../reference/MIST_NETWORK_STORAGE.md) (crypto, FarmCode, Hot/Archive design) · [`DESKTOP_FREENET_PLUGIN.md`](../reference/DESKTOP_FREENET_PLUGIN.md) (the node lifecycle) · [`APK_FREENET_PLUGIN.md`](../reference/APK_FREENET_PLUGIN.md) (why tablets are out) · [`LOCAL_DATA_STORAGE.md`](../LOCAL_DATA_STORAGE.md) (the full local inventory) · [`NAMING.md`](../NAMING.md) §7.
 
 ---
 
@@ -39,11 +41,11 @@ So `contribute_storage = true` currently means *"try harder to make my own inser
 
 ### Who should contribute, once it means something
 
-Frozen in [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Mobile peer policy:
+Frozen in [`MIST_NETWORK_STORAGE.md`](../reference/MIST_NETWORK_STORAGE.md) § Mobile peer policy:
 
 | Class | Default | Note |
 |-------|---------|------|
-| Phone / tablet | **`false`** | And `allow_mobile_contribute` must be set by an admin before a device may even opt in. Moot today — tablets have no node at all ([`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md)) |
+| Phone / tablet | **`false`** | And `allow_mobile_contribute` must be set by an admin before a device may even opt in. Moot today — tablets have no node at all ([`APK_FREENET_PLUGIN.md`](../reference/APK_FREENET_PLUGIN.md)) |
 | Desktop / shed pin / always-on hub | **`true`** recommended | The intended durability anchor: mains power, unmetered link, real disk |
 
 ---
@@ -54,13 +56,13 @@ Three payload kinds reach Freenet today. All three are **AEAD-sealed before inse
 
 | Payload | MistStore key | Contents | Published when |
 |---------|---------------|----------|----------------|
-| **Hot** | `mist/v1/farm/{farmId}/hot/current` | Rolling window of diary events, field issues, archived issues — farm-export-shaped, mirrored from `pufom_farm_local` by [`src/mist/mistHotBridge.ts`](../src/mist/mistHotBridge.ts) | Operator presses **Send this farm**; auto-mirrored locally on each save while a mist session is unlocked |
-| **Bones** | `mist/v1/farm/{farmId}/bones/{assetId}` | Farm structure: block boundaries, pins, tracks, saved viewport — [`src/mist/bonesGeometry.ts`](../src/mist/bonesGeometry.ts) | Same publish action |
+| **Hot** | `mist/v1/farm/{farmId}/hot/current` | Rolling window of diary events, field issues, archived issues — farm-export-shaped, mirrored from `pufom_farm_local` by [`src/mist/mistHotBridge.ts`](../../src/mist/mistHotBridge.ts) | Operator presses **Send this farm**; auto-mirrored locally on each save while a mist session is unlocked |
+| **Bones** | `mist/v1/farm/{farmId}/bones/{assetId}` | Farm structure: block boundaries, pins, tracks, saved viewport — [`src/mist/bonesGeometry.ts`](../../src/mist/bonesGeometry.ts) | Same publish action |
 | **Join manifest** | not a mist key — a LAN shelf entry | `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket }` — resolves a short `PUF-XXXX-XXXX` ticket to the two FN02 URIs | When a short join ticket is minted |
 
-**The join manifest is the one that is *not* on Freenet.** It lives on the owner's LAN hub (`tmp/lan-sync/join-manifests.json`, routes under `/api/sync/join-ticket`) because pack-contract URIs are immutable: there is no mutable Freenet slot to update with "the current Hot for this farm", so a short ticket has to be resolved somewhere the owner controls. That is why joining still needs the owner's Wi-Fi. A mutable Freenet contract is what lifts that restriction, and it is Option B in [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md).
+**The join manifest is the one that is *not* on Freenet.** It lives on the owner's LAN hub (`tmp/lan-sync/join-manifests.json`, routes under `/api/sync/join-ticket`) because pack-contract URIs are immutable: there is no mutable Freenet slot to update with "the current Hot for this farm", so a short ticket has to be resolved somewhere the owner controls. That is why joining still needs the owner's Wi-Fi. A mutable Freenet contract is what lifts that restriction, and it is Option B in [`MIST_TWO_FEDORA_FREENET.md`](../reference/MIST_TWO_FEDORA_FREENET.md).
 
-**Not yet published:** Archive contracts and the Manifest. `sealHotPeriod()` exists and the shapes are designed ([`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) § Hot → Archive seal lifecycle), but nothing triggers a seal-and-publish. Everything currently rides in Hot.
+**Not yet published:** Archive contracts and the Manifest. `sealHotPeriod()` exists and the shapes are designed ([`MIST_NETWORK_STORAGE.md`](../reference/MIST_NETWORK_STORAGE.md) § Hot → Archive seal lifecycle), but nothing triggers a seal-and-publish. Everything currently rides in Hot.
 
 ---
 
@@ -108,7 +110,7 @@ sequenceDiagram
   Hub-->>B: { farmId, hotUri, bonesUri, role }
 ```
 
-The ticket says *where* the farm is; the FarmCode is what decrypts it. A ticket alone grants nothing ([`NAMING.md`](NAMING.md) §7).
+The ticket says *where* the farm is; the FarmCode is what decrypts it. A ticket alone grants nothing ([`NAMING.md`](../NAMING.md) §7).
 
 ### 3.3 Pull a farm onto a new device (laptop B)
 
@@ -147,7 +149,7 @@ sequenceDiagram
 
 The guard is the load-bearing part. "Encrypt before upload" as a rule in a document is a rule someone eventually forgets; as a throw inside `put()` it is a rule that fails the test suite. Tests may bypass it only through the explicit `allowPlaintextForTests` option.
 
-What an observer of the Freenet network can see: that a KiB-class block exists at some CHK. Not the farm, not the owner, not the record count. What a **hub** relaying for a tablet would see (§ [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §4) is the same — sealed bytes it cannot read.
+What an observer of the Freenet network can see: that a KiB-class block exists at some CHK. Not the farm, not the owner, not the record count. What a **hub** relaying for a tablet would see (§ [`APK_FREENET_PLUGIN.md`](../reference/APK_FREENET_PLUGIN.md) §4) is the same — sealed bytes it cannot read.
 
 ---
 
@@ -171,7 +173,7 @@ What an observer of the Freenet network can see: that a KiB-class block exists a
 
 ## 6. Where Freenet-related state is kept locally
 
-Full inventory in [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md); this is the Freenet-relevant subset.
+Full inventory in [`LOCAL_DATA_STORAGE.md`](../LOCAL_DATA_STORAGE.md); this is the Freenet-relevant subset.
 
 ### Browser / WebView
 
@@ -213,7 +215,7 @@ Rooted at `MIST_FREENET_ROOT`, which the desktop sets to `<userData>/mist-freene
 
 ### Android
 
-**Nothing Freenet-specific.** The APK has the browser stores above and no node, no `MIST_FREENET_ROOT`, no binaries — see [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md).
+**Nothing Freenet-specific.** The APK has the browser stores above and no node, no `MIST_FREENET_ROOT`, no binaries — see [`APK_FREENET_PLUGIN.md`](../reference/APK_FREENET_PLUGIN.md).
 
 ---
 

@@ -4,7 +4,7 @@
  * v1 is a **managed child process**, not a linked library: Freenet 0.2 ships as
  * a Rust binary with a loopback WebSocket API. The operator never installs,
  * configures, or sees it — PUF-AM starts and stops it. See
- * `Plans/DESKTOP_FREENET_PLUGIN.md` §4.
+ * `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §4.
  *
  * Node-only (`node:child_process`, `node:net`, `node:fs`). Never import from
  * renderer/browser code.

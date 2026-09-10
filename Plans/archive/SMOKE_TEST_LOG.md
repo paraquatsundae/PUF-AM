@@ -1,6 +1,8 @@
 # Smoke Test Log
 
-**Purpose:** Record manual smoke test results for [ROADMAP Step 3](./ROADMAP.md#step-3--smoke-test-dev-server-against-firebase).
+> **Archived 2026-09-10.** Closed; kept for history. Successor and context: [`INDEX.md`](INDEX.md).
+
+**Purpose:** Record manual smoke test results for [ROADMAP Step 3](../ROADMAP.md#step-3--smoke-test-dev-server-against-firebase).
 
 Update this file each time Step 3 (or a re-verification) is run.
 

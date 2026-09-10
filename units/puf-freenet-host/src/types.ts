@@ -7,7 +7,7 @@
  *
  * Deliberately has **no import of mist-freenet**: the wire client is injected.
  * This surface is the fork boundary for PUF-FN — keep it narrow.
- * Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §5.
+ * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §5.
  */
 
 /** Where a resolved binary came from — surfaced so the workshop knows what it tested. */

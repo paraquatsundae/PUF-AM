@@ -1,7 +1,7 @@
 /**
  * FarmSeed / FarmId derivation (mist-v1) via HKDF-SHA-256.
  * Pure JS (RFC 5869) so FarmCode works on LAN HTTP without a secure context.
- * @see Plans/MIST_NETWORK_STORAGE.md § Invitation
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md § Invitation
  */
 
 import { hmacSha256 } from './hash.ts';

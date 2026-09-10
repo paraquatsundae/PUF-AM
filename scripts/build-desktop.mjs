@@ -10,7 +10,7 @@
  * need — the TypeScript is the only thing Electron genuinely cannot load.
  *
  * CJS output on purpose: no ESM/`__dirname` friction in Electron main.
- * Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §8.3.
+ * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.3.
  */
 
 import { build } from 'esbuild';

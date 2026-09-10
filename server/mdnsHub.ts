@@ -250,7 +250,7 @@ export function startPufomMdns(port: number, options?: PufomMdnsOptions): void {
       // The prefix matters as much as the suffix: on a Linux box avahi-daemon
       // already owns `<hostname>.local`, and publishing a second A record for it
       // from this process is a conflict that costs us the name altogether. This
-      // one is ours. Plan: `Plans/APK_FREENET_PLUGIN.md`.
+      // one is ours. Plan: `Plans/reference/APK_FREENET_PLUGIN.md`.
       host: `pufom-${hostLabel}.local`,
       // The address, in the payload that survives a failed host lookup — a
       // client that cannot resolve the name can still reach the hub.

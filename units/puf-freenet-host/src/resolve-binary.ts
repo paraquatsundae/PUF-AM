@@ -1,7 +1,7 @@
 /**
  * Locate the `freenet` / `fdev` binaries the host supervises.
  *
- * Resolution order (first hit wins) — see `Plans/DESKTOP_FREENET_PLUGIN.md` §5.3:
+ * Resolution order (first hit wins) — see `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §5.3:
  *   1. explicit `binaryPath` option
  *   2. `PUF_FREENET_BIN` / `PUF_FDEV_BIN` env override (workshop)
  *   3. `searchPaths` — Electron passes `${process.resourcesPath}/freenet`

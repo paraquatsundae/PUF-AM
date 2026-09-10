@@ -7,7 +7,7 @@
  * cannot switch it on. The preload bridge carries that launch flag at runtime,
  * which is what keeps the workshop UI reachable in the shell that owns the node.
  *
- * See `Plans/DESKTOP_FREENET_PLUGIN.md` §8.3.
+ * See `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.3.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';

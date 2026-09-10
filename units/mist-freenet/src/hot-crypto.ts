@@ -7,7 +7,7 @@
  * Plaintext JSON HotState (no envelope) is accepted on decrypt for seal-hot
  * workshop tests and pre-crypto blobs.
  *
- * @see Plans/MIST_NETWORK_STORAGE.md § Invitation
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md § Invitation
  */
 
 import { bytesToHex, hexToBytes, hkdfSha256, MIST_HKDF_SALT } from './farm-seed.ts';

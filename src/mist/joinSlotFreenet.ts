@@ -19,7 +19,7 @@
  * not the requirement to be on a network at all. A tablet with no hub is still a
  * tablet that cannot reach Opennet.
  *
- * @see Plans/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
+ * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
  * @see units/mist-freenet/contracts/slot-contract — the contract at the far end
  */
 

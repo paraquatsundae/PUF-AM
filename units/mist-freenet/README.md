@@ -59,7 +59,7 @@ Phase 3 does **not** wire the React app, Firebase auth, or ship a Freenet node b
 | `src/freenet02-fdev-slot.ts` | `fdev` PUT / update for a slot (**Node only**) |
 | `contracts/slot-contract/` | The Rust/WASM slot contract itself — see § Join slot contract |
 
-Key naming follows [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_STORAGE.md) (farm-scoped mist keys, not Firestore paths). HKDF contract labels (`freenet-hot`, `freenet-bones`, etc.) are documented in the plan; this unit uses **storage key strings** only.
+Key naming follows [`Plans/reference/MIST_NETWORK_STORAGE.md`](../../Plans/reference/MIST_NETWORK_STORAGE.md) (farm-scoped mist keys, not Firestore paths). HKDF contract labels (`freenet-hot`, `freenet-bones`, etc.) are documented in the plan; this unit uses **storage key strings** only.
 
 ## Phase 3 architecture — Freenet adapter
 
@@ -180,7 +180,7 @@ VITE_MIST_EXPERIMENTAL=true MIST_FREENET=1 npm run dev
 
 ### Phase 8+ (remaining — not started)
 
-Workshop captured design constraints before live Freenet wiring. **Do not implement the in-app client in this pass** — document-only freeze. Full checklist: [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_STORAGE.md) § Pre-Freenet workshop decisions.
+Workshop captured design constraints before live Freenet wiring. **Do not implement the in-app client in this pass** — document-only freeze. Full checklist: [`Plans/reference/MIST_NETWORK_STORAGE.md`](../../Plans/reference/MIST_NETWORK_STORAGE.md) § Pre-Freenet workshop decisions.
 
 **Frozen architecture (Freenet client):**
 
@@ -340,6 +340,6 @@ npm run desktop:verify:pack
 
 ## References
 
-- [`Plans/MIST_NETWORK_STORAGE.md`](../../Plans/MIST_NETWORK_STORAGE.md)
+- [`Plans/reference/MIST_NETWORK_STORAGE.md`](../../Plans/reference/MIST_NETWORK_STORAGE.md)
 - [`DEVELOPER_NOTES.md`](../../DEVELOPER_NOTES.md) § Mist (experimental)
 - [Hyphanet FCPv2 wiki](https://github.com/hyphanet/wiki/wiki/FCPv2)

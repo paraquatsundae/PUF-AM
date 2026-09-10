@@ -13,7 +13,7 @@
  *      skipped with a warning when it is absent unless `--require-fdev`.
  *
  * Usage: node scripts/verify-pack-contract.mjs [--require-fdev]
- * Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §7.1, Phase 2.
+ * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §7.1, Phase 2.
  */
 
 import { execFileSync } from 'node:child_process';

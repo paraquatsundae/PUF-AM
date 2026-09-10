@@ -16,11 +16,11 @@
  *      advertises itself, so the tablet needs no address typed at all.
  *   3. The **farm gateway** — the same hub at a remembered non-LAN address, so a
  *      tablet away from the shed Wi‑Fi still has something that speaks Freenet on
- *      its behalf (`farmGateway.ts`, `Plans/APK_FREENET_PLUGIN.md` §8d).
+ *      its behalf (`farmGateway.ts`, `Plans/reference/APK_FREENET_PLUGIN.md` §8d).
  *   4. The emulator alias, but only if something actually answers on it. That
  *      keeps the emulator workflow working without inflicting it on hardware.
  *
- * Plan: `Plans/APK_FREENET_PLUGIN.md` — Option A, the shed/LAN hub, and §8d for
+ * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` — Option A, the shed/LAN hub, and §8d for
  * the gateway rung that gives it reach.
  */
 

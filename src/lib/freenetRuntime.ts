@@ -13,7 +13,7 @@
  * the page can read from it directly. That is `android-local-node`, and it is a
  * reader: GET works, publishing still needs `fdev` on a laptop.
  *
- * Plan: `Plans/APK_FREENET_PLUGIN.md` §3a, §7.
+ * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` §3a, §7.
  */
 
 import { Capacitor } from '@capacitor/core';
@@ -154,4 +154,4 @@ export const FREENET_NO_HOST_LABEL =
 
 /** The follow-up an operator needs once they have read the label. */
 export const FREENET_NO_HOST_DETAIL =
-  'Freenet 0.2 is a native binary PUF-AM cannot start on Android, so this build has no node of its own. Hold the farm here and work on it as usual. To send or join, borrow the node on a PUF-AM laptop: put both on the same Wi‑Fi, start PUF-AM there, then use Settings → Sync → Wi‑Fi (LAN) → Scan for hubs on this tablet (or type the laptop address). Once a hub answers, sending and joining work from here. If a separate Freenet node app is installed on this tablet, open it and wait for it to connect — joining then works here with no laptop at all. See Plans/APK_FREENET_PLUGIN.md.';
+  'Freenet 0.2 is a native binary PUF-AM cannot start on Android, so this build has no node of its own. Hold the farm here and work on it as usual. To send or join, borrow the node on a PUF-AM laptop: put both on the same Wi‑Fi, start PUF-AM there, then use Settings → Sync → Wi‑Fi (LAN) → Scan for hubs on this tablet (or type the laptop address). Once a hub answers, sending and joining work from here. If a separate Freenet node app is installed on this tablet, open it and wait for it to connect — joining then works here with no laptop at all. See Plans/reference/APK_FREENET_PLUGIN.md.';

@@ -3,29 +3,29 @@
 **Authoritative naming reference for this repo.**  
 **Product:** PUF-AM (Ag Manager) · **Repo:** [paraquatsundae/PUF-AM](https://github.com/paraquatsundae/PUF-AM)
 
-When display names, wire formats, storage keys, or doc titles disagree, **this file wins** for PUF-AM. Cross-repo cab/sprayer rules live in the PUFworks workspace `AGENTS.md`, which sits outside this repository and so is not linkable from a clone; they do not override identifiers listed here.
+When display names, wire formats, storage keys, or doc titles disagree, **this file wins** for PUF-AM. The repo-root [`AGENTS.md`](../AGENTS.md) (added 2026-09-10) is the agent entry point — orientation, hard rules and commands — and defers to this file for identifiers. Cross-repo cab/sprayer rules live in the separate PUFworks *workspace* `AGENTS.md`, which sits outside this repository and so is not linkable from a clone; they do not override identifiers listed here.
 
 Related plans (not duplicated here):
 
 | Doc | Scope |
 |-----|--------|
-| [`RENAME_TO_PUFAM.md`](RENAME_TO_PUFAM.md) | Phase A/B rebrand checklist (UI done; infra deferred) |
-| [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) | Mist crypto, FarmCode, Hot/Archive, pre-Freenet workshop decisions (experimental) |
-| [`MIST_TWO_LAPTOP_SMOKE.md`](MIST_TWO_LAPTOP_SMOKE.md) | Pre-Freenet two-laptop smoke — recovery pass done ~2026-08-03 |
-| [`DESKTOP_FREENET_PLUGIN.md`](DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers; Freenet as an in-app plugin (Electron frozen) |
-| [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) | Android/Capacitor: two-app reader, hub, gateway (history). Host-in-APK is [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) |
+| [`archive/RENAME_TO_PUFAM.md`](archive/RENAME_TO_PUFAM.md) | Phase A/B rebrand checklist (archived 2026-09-10; UI done, infra deferred — open items tracked in `ROADMAP.md` D-06) |
+| [`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) | Mist crypto, FarmCode, Hot/Archive, pre-Freenet workshop decisions (experimental) |
+| [`archive/MIST_TWO_LAPTOP_SMOKE.md`](archive/MIST_TWO_LAPTOP_SMOKE.md) | Pre-Freenet two-laptop smoke — recovery pass done ~2026-08-03 (archived; superseded by `reference/MIST_TWO_FEDORA_FREENET.md`) |
+| [`reference/DESKTOP_FREENET_PLUGIN.md`](reference/DESKTOP_FREENET_PLUGIN.md) | Fedora + Windows desktop installers; Freenet as an in-app plugin (Electron frozen) |
+| [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) | Android/Capacitor: two-app reader, hub, gateway (history). Host-in-APK is [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) |
 | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | Freenet **network pack** inside the APK — isolated process, Join + Send; native PUT spike |
 | [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | How to add a crop pack (file list). Start here; contract is `CROP_PACK_PLUGIN.md` |
 | [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Crop-pack UI/settings seam (not Freenet) — gates, modules, pack surfaces |
 | [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) | Walnut blight pack settings home (reference crop pack) |
-| [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) | Contribute vs communicate, what is published, what is sealed, what is not on Freenet |
+| [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §9 | Contribute vs communicate, what is published, what is sealed, what is not on Freenet (merged 2026-09-10; original archived) |
 | [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Start / send / join / People as the code stands (experimental) |
-| [`FREENET_HOLES.md`](FREENET_HOLES.md) | Plan for the seven known Freenet operator holes |
+| [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8 | The seven known Freenet operator holes (merged 2026-09-10; original archived) |
 | [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Operational inventory of every local store — contents, authority, how it is cleared |
 | [`DPIRD_CACHE_FRESHNESS.md`](DPIRD_CACHE_FRESHNESS.md) | DPIRD freshness gates: ensure-cache, chill, dryer hourly (design; blight daily already cached) |
 | [`functions-byo-weather/README.md`](../functions-byo-weather/README.md) | Owner-deployed DPIRD weather (Design A — key never on PUFworks) |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Human-readable `farm-export.json` sketch |
-| [`CODERABBIT_SLOP_HUNT.md`](CODERABBIT_SLOP_HUNT.md) | Whole-tree AI Studio / slop / lazy-hot hunt (not a gate) |
+| [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md) § Review posture | CodeRabbit dismiss / flag lists (hunt itself complete 2026-08-31, archived) |
 | [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) | Architecture audit, roadmap checklist, mist phase log |
 
 ---
@@ -98,7 +98,7 @@ Related plans (not duplicated here):
 | `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in**. Vite inlines it. A local `.env` with `true` fails `audit:bundle`; Cloud Run must leave it unset (the deploy script does). There is no client Maps key — imagery is `/api/tiles`. |
 | `VITE_REQUIRE_AUTH` | Client | Forces login even if workshop enabled |
 | `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Shows the mist storage chooser on login. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Defaulted to `true` by `scripts/build-desktop-web.mjs` and `scripts/build-android-web.mjs` |
-| `VITE_MIST_FREENET_API` | Client (build-time) | Origin for `/api/mist/freenet/*` when it is not same-origin. On Capacitor this is what makes the runtime `android-hub` instead of `android-no-host` — see [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) §7 |
+| `VITE_MIST_FREENET_API` | Client (build-time) | Origin for `/api/mist/freenet/*` when it is not same-origin. On Capacitor this is what makes the runtime `android-hub` instead of `android-no-host` — see [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §7 |
 | `CAP_PACKAGED` | Build script | `1` drops `server.url` from the Capacitor config so the WebView loads its own assets. Set by `apk:debug`; without it the APK points at the emulator address `http://10.0.2.2:3000` |
 | `CAP_SERVER_URL` | Build script | Live-reload origin for a workshop APK (`npx cap sync`) |
 | `MIST_FREENET` | Server / desktop main | `1` enables the in-process Freenet peer (and, on desktop, starts the bundled node) |
@@ -182,7 +182,7 @@ Three distinct formats — **do not conflate**:
 |--------|---------------|----------------------|---------|
 | **PUFOM bundle** | `format: "pufom"`, magic `PUFOM1\n`, gzip JSON | `.pufom` | Device-to-device / LAN sync; geometry + diary + issues (`pufomSync.ts`, `shared/sync/pufomBundle.ts`) |
 | **Farm export** | `format: "farm-export"`, `v: 1` | `*_farm-export.json` | Human-readable archive → Excel — see [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) |
-| **Mist join envelope** | (mist-v1) | `.pufam-join` (sketch) | Air-gapped crew join — see [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) |
+| **Mist join envelope** | (mist-v1) | `.pufam-join` (sketch) | Air-gapped crew join — see [`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) |
 
 **Rules:**
 
@@ -258,7 +258,10 @@ Top-level collections (production):
 
 | Location | Use for |
 |----------|---------|
-| **`Plans/*.md`** | Durable design, roadmaps, acceptance criteria, naming-adjacent specs |
+| **`Plans/*.md`** | Durable design, roadmaps, acceptance criteria, naming-adjacent specs — the **live** set (see folder convention below) |
+| **`Plans/reference/`** | Finished designs the code still cites by `§` number and that an agent needs to read, not act on (Freenet desktop / APK plugin, mist storage, two-Fedora join) |
+| **`Plans/logs/`** | Append-only records: audit output, health-check runs |
+| **`Plans/archive/`** | Closed work kept for history; every entry has a line in `archive/INDEX.md` naming the live doc that absorbed it |
 | **`DEVELOPER_NOTES.md`** | Architecture audit, quick checklist, pointers to Plans — **not** a second naming glossary |
 | **`README.md`** | Operator/dev onboarding, links into Plans |
 | **`.github/PULL_REQUEST_TEMPLATE/`** | PR checklists (e.g. `crop-pack.md` for new/changed crop packs) |
@@ -268,12 +271,26 @@ Top-level collections (production):
 
 ### Adding or updating a plan
 
-1. **Filename:** `SCREAMING_SNAKE.md` for topic plans (`FARM_EXPORT_JSON_XLSX.md`); short verb phrases OK (`RENAME_TO_PUFAM.md`).
+1. **Filename:** `SCREAMING_SNAKE.md` for topic plans (`FARM_EXPORT_JSON_XLSX.md`); short verb phrases OK (`RENAME_TO_PUFAM.md`, now archived).
 2. **Header block:** Status, date, product name **PUF-AM**, one-line scope.
 3. **Cross-link:** Add row to README “Development roadmap” table and a pointer in `DEVELOPER_NOTES.md` if the plan affects architecture or checklist.
-4. **Experimental vs production:** Plans for mist, pre-release spikes, or workshop-only paths must state **“experimental — not production”** in the first screen (see [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md)). Production auth remains [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md).
+4. **Experimental vs production:** Plans for mist, pre-release spikes, or workshop-only paths must state **“experimental — not production”** in the first screen (see [`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md)). Production auth remains [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md).
 5. **Naming changes:** Update **this file** first, then dependent plans — not the reverse.
 6. **Commits:** Commit docs in the **same PR** as the feature they describe (user policy: no drive-by doc-only commits unless requested).
+7. **Index:** Add the row to [`README.md`](README.md) (Plans index) in the same change. A plan that is not in the index does not exist to the next agent.
+
+### Folder convention (2026-09-10)
+
+| Folder | Holds | Rule |
+|--------|-------|------|
+| `Plans/` (top level) | Live specs, active plans, the roadmap, this file | Anything an agent may need to **act on**. Keep it small; when a plan closes, move it |
+| `Plans/reference/` | Finished designs still cited from source comments (`Plans/reference/X.md §n`) | Content frozen: headings, `§` numbers and titles do not change. Only link paths may be edited |
+| `Plans/logs/` | Append-only logs (`AUDIT_LOG.md`, `CODEBASE_HEALTH_CHECK.md`) | Prepend the newest entry; never rewrite older entries. `scripts/audit-codebase.mjs` allowlists these paths |
+| `Plans/archive/` | Closed plans, superseded designs, decision records, moved-out history | Add a `> **Archived <date>.**` banner naming the successor, and a row in `archive/INDEX.md`. Do not delete |
+
+**Moving a doc that code cites.** Source comments cite plans by path and section (`Plans/reference/APK_FREENET_PLUGIN.md §3a`, `SETTINGS_SYNC_AND_CREW.md §9`). Before moving or renaming any plan, `rg` the whole repo — `src/`, `server/`, `shared/`, `desktop/`, `functions*/`, `plugins/`, `units/`, `scripts/`, `tests/`, `.github/`, `.coderabbit.yaml`, `*.json`, `*.yml` — for the filename, and update every code comment, script string, config path and CI message **in the same commit** as the move. If a citation lives somewhere that cannot be edited safely (a compiled artefact), do not move the file. Never renumber a `§` in a doc that code cites; append new sections after the existing numbered ones instead.
+
+**Merging a doc.** Keep every decision, dated line and open item; drop only duplication and superseded narrative. Leave a tombstone at the old path only if a code comment cites it and cannot be updated; otherwise `git mv` into `archive/` and record the absorbing doc in `archive/INDEX.md`.
 
 ### When to touch `DEVELOPER_NOTES.md`
 
@@ -305,7 +322,7 @@ Top-level collections (production):
 
 ## 11. Code rename backlog (docs only — not this pass)
 
-Track in [`RENAME_TO_PUFAM.md`](RENAME_TO_PUFAM.md) Phase B. High-impact items:
+Track in [`archive/RENAME_TO_PUFAM.md`](archive/RENAME_TO_PUFAM.md) Phase B. High-impact items:
 
 - Cloud Run service + URL alias
 - mDNS `_pufam-sync._tcp` dual-advertise

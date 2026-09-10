@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "$FIREBASE_APPLET_CONFIG" ]; then
-            echo "::error::Repo secret FIREBASE_APPLET_CONFIG is missing. Set it to the JSON contents of firebase-applet-config.json (see Plans/OFFLINE_MAP_APK.md)."
+            echo "::error::Repo secret FIREBASE_APPLET_CONFIG is missing. Set it to the JSON contents of firebase-applet-config.json (see Plans/DEPLOY_CLOUD_RUN.md § Android APK releases)."
             exit 1
           fi
           printf '%s\n' "$FIREBASE_APPLET_CONFIG" > firebase-applet-config.json

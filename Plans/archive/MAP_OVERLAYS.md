@@ -1,5 +1,7 @@
 # Farm Map overlays — highlights, bread trails, paddock names
 
+> **Archived 2026-09-10.** Decision record — highlights, bread trails and paddock names implemented 2026-07-28. The one live rule (500 ms publish/poll, 250-point trail cap, do not go faster) is restated in [`../CODEBASE_HEALTH.md`](../CODEBASE_HEALTH.md) § CPU / memory. Kept for the piece/path tables and field rules.
+
 **Status:** implemented 2026-07-28 (cloud + LAN for highlights/trails). FieldOps PathTrace removed 2026-08-13.  
 **Related:** `CREW_PRESENCE.md`, Farm Map operate mode
 

@@ -13,7 +13,7 @@
  * blobs are AEAD sealed under a FarmSeed-derived key, so the ticket is useless
  * without the FarmCode. It replaces a copy/paste, not the recovery key.
  *
- * @see Plans/MIST_TWO_FEDORA_FREENET.md § Short join ticket
+ * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Short join ticket
  */
 
 import {

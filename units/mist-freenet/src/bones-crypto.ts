@@ -4,7 +4,7 @@
  * Contract key: HKDF(FarmSeed, salt, info = "freenet-bones") → AES-256-GCM.
  * Envelope shape matches hot-crypto (`{ v, alg, iv, ct }`).
  *
- * @see Plans/MIST_NETWORK_STORAGE.md § Invitation
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md § Invitation
  */
 
 import { bytesToHex, hexToBytes, hkdfSha256, MIST_HKDF_SALT } from './farm-seed.ts';

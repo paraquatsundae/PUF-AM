@@ -20,7 +20,7 @@ let runtimeApiBase: string | null = null;
  * Routes the desktop shell must not serve itself: they need a Firebase Admin
  * service account or `DPIRD_API_KEY`, which never ship to an operator machine.
  * Everything else — Freenet, LAN sync, presence — is local by design.
- * See `Plans/DESKTOP_FREENET_PLUGIN.md` §6.2.
+ * See `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §6.2.
  *
  * Imagery is deliberately **not** in this list. The desktop ships its own copy of
  * the tile proxy, so it renders its own tiles and is its own consumer of the

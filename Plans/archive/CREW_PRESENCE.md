@@ -1,5 +1,7 @@
 # Crew presence on the farm map
 
+> **Archived 2026-09-10.** Decision record — P1 cloud and P2 LAN presence shipped 2026-07-27; P2b coarse Freenet position is a frozen later design (`SETTINGS_SYNC_AND_CREW.md` §5); P3 mesh remains open as [`../ROADMAP.md`](../ROADMAP.md) D-07. Kept for the piece/path tables and acceptance criteria.
+
 **Status:** P1 + P2 done (2026-07-27); P3 mesh still planned  
 **Goal:** Show other signed-in farm users live on the map when devices can reach each other (internet, LAN, or device-to-device relay).
 
@@ -39,7 +41,7 @@ Discovery: Offline & sync peers / last hub (`mdnsPeers.ts`). Tablet must point a
 For a farm with no cloud and no shared Wi‑Fi. **Not live tracking** — a Freenet PUT is
 seconds-to-minutes, so this is a "last seen" point, ≥5 min apart, geohash‑7, latest only, inside
 the sealed Hot blob. Design frozen in
-[`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §5; LAN presence above stays the live path
+[`SETTINGS_SYNC_AND_CREW.md`](../SETTINGS_SYNC_AND_CREW.md) §5; LAN presence above stays the live path
 on Freenet farms.
 
 ### P3 — Mesh / device relay (no hub)

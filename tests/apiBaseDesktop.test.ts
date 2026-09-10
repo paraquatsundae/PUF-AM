@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * The desktop route split (Plans/DESKTOP_FREENET_PLUGIN.md §6.2): Electron serves
+ * The desktop route split (Plans/reference/DESKTOP_FREENET_PLUGIN.md §6.2): Electron serves
  * the renderer from its own loopback Express, so everything is same-origin except
  * the routes that need server-only secrets.
  */

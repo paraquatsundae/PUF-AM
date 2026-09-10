@@ -3,7 +3,7 @@
  *
  * Owns the lifecycle of a bundled `freenet` node inside a PUF app. No import of
  * `units/mist-freenet`: the ciphertext wire client is injected, keeping this the
- * clean fork boundary for PUF-FN. Plan: `Plans/DESKTOP_FREENET_PLUGIN.md`.
+ * clean fork boundary for PUF-FN. Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md`.
  */
 
 export {

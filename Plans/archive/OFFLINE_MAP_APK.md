@@ -1,5 +1,7 @@
 # Offline Map + Android APK Roadmap
 
+> **Archived 2026-09-10.** Phases 1–3 done (2026-07-27). Current Android dev / CI how-tos moved to [`../DEPLOY_CLOUD_RUN.md`](../DEPLOY_CLOUD_RUN.md) § Android dev builds and § Android APK releases; the “still later” items are in [`../ROADMAP.md`](../ROADMAP.md) § Out of scope. Kept for the module tables and phase history.
+
 **Created:** 13 July 2026  
 **Last updated:** 27 July 2026  
 **Status:** Phase 1–3 done for workshop (NSD + photo queue + weather IDB); later: SQLite / PWA / NearMap
@@ -184,7 +186,7 @@ Device outbox ──► Firebase Firestore (current)
 | LAN shelf API | `server/lanSyncRoutes.ts` → `POST/GET /api/sync/lan/:farmId` |
 | Native NSD + hub scan | `PufomNsdPlugin.java`, `nsdPeers.ts`, `mdnsPeers.ts` |
 | Offline weather IDB | `weatherCacheIdb.ts` + Settings → Sync → Files & backup **Cache weather** |
-| Settings UI | `src/components/sync/` (`FarmSyncCards`, `LanSyncCard`, `FilesBackupCard`) — see [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §2 |
+| Settings UI | `src/components/sync/` (`FarmSyncCards`, `LanSyncCard`, `FilesBackupCard`) — see [`SETTINGS_SYNC_AND_CREW.md`](../SETTINGS_SYNC_AND_CREW.md) §2 |
 | Listener cost (issues + archive) | poll + cache instead of live `onSnapshot` |
 
 ### Workshop LAN flow

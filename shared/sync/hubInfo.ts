@@ -17,8 +17,8 @@
  * Unauthenticated on purpose — it is the discovery handshake, and everything in
  * it is already visible to anyone who can reach the port.
  *
- * @see Plans/DESKTOP_FREENET_PLUGIN.md §6.4
- * @see Plans/APK_FREENET_PLUGIN.md §8a
+ * @see Plans/reference/DESKTOP_FREENET_PLUGIN.md §6.4
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §8a
  */
 
 export const HUB_INFO_PATH = '/api/hub/info';

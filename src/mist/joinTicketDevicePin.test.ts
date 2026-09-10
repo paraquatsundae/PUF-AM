@@ -7,7 +7,7 @@
  * is the normal state after FarmCode recovery. That made the Freenet route
  * unreachable from the one screen built to use it.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §7a
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §7a
  */
 
 import { describe, expect, it, vi } from 'vitest';

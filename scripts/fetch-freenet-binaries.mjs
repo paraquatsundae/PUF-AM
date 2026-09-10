@@ -16,7 +16,7 @@
  * Offline / mirrored builds: set `PUF_FREENET_ASSET_DIR` to a directory holding
  * the release archives and nothing is fetched.
  *
- * Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` §7.1, §8.4, Phase 2.
+ * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §7.1, §8.4, Phase 2.
  */
 
 import { createHash } from 'node:crypto';

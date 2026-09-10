@@ -3,7 +3,7 @@
  *
  * Cross-platform replacement for `sync-android-lan.ps1`, so `npm run
  * sync:android:lan` means the same thing on Fedora and Windows.
- * Plan: `Plans/OFFLINE_MAP_APK.md`.
+ * Plan: `Plans/DEPLOY_CLOUD_RUN.md` § Android dev builds (history: `Plans/archive/OFFLINE_MAP_APK.md`).
  *
  * Requires: `npm run dev` already running on port 3000; phone/tablet on the same Wi-Fi.
  */

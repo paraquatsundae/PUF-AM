@@ -4,7 +4,7 @@
 lifecycle so the operator never installs, launches, or configures Freenet separately.
 
 **Status:** Phase 2 (~2026-08-04) — interface frozen, wired into the Electron shell, supervising the pinned `freenet` 0.2.119 out of `vendor/`.
-**Plan:** [`Plans/DESKTOP_FREENET_PLUGIN.md`](../../Plans/DESKTOP_FREENET_PLUGIN.md)
+**Plan:** [`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](../../Plans/reference/DESKTOP_FREENET_PLUGIN.md)
 **Fork target:** this package becomes **PUF-FN** ([`Plans/NAMING.md`](../../Plans/NAMING.md) §1). Its public surface is the fork boundary — keep it narrow.
 
 ---
@@ -135,6 +135,6 @@ Tests inject `spawn` / `probe` / `readVersion`, so **no Freenet node or network 
 
 ## References
 
-- [`Plans/DESKTOP_FREENET_PLUGIN.md`](../../Plans/DESKTOP_FREENET_PLUGIN.md) — shell choice, packaging, phases
+- [`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](../../Plans/reference/DESKTOP_FREENET_PLUGIN.md) — shell choice, packaging, phases
 - [`units/mist-freenet/README.md`](../mist-freenet/README.md) — mist storage, ws02 transport, pack-contract
 - [`desktop/README.md`](../../desktop/README.md) — Electron shell that loads this plugin

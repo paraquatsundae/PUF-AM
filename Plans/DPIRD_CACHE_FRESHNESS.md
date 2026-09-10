@@ -3,7 +3,7 @@
 **Product:** PUF-AM — Ag Manager  
 **Status:** Design only — no code yet  
 **Date:** 2026-08-24  
-**Companion:** [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md) · [`CHILL_PORTIONS_PLUGIN.md`](CHILL_PORTIONS_PLUGIN.md) · [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) · [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md)
+**Companion:** [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md) · [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack · [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) · [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md)
 
 Walnut blight’s **daily** path is already conservative. This note is the remaining DPIRD overcall surface: workshop `ensure-cache`, chill’s first-fill / completed-season leaks, and the dryer raw hourly proxy.
 

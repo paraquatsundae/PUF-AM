@@ -224,7 +224,7 @@ George's project, Stripe, per-farm subscription, usage metered against it.
 
 ### B — George's project with hard quotas, farm caps and a kill switch
 
-Everyone lives on `gen-lang-client-0444791425`; George bounds the damage with budget
+Everyone lives on `pufworks-am`; George bounds the damage with budget
 alerts, per-farm caps, App Check and a switch that turns it all off.
 
 **This fails the stated requirement, and it should be said plainly.**
@@ -284,7 +284,7 @@ paste, then to validation, then to rules deployment.
 | **Weather** | `weather_cache/{station}` is filled by George's hourly function using George's `DPIRD_API_KEY`. A fresh project has an empty cache. | **Design A:** the owner deploys [`functions-byo-weather/`](../functions-byo-weather/) in their project. The key stays in *their* Secret Manager. The client reads `farms/{id}/settings/weather.weatherEndpoint` and sends `/api/weather/*` there. Missing endpoint: no call to the hosted key. Settings paste UI is still item 3. |
 | **`chill_cache`** | Same shape — shared aggregates, `allow read, write: if false`, Admin SDK only. | Same owner-deployed weather function, later — not in the first BYO weather package. |
 | **`DPIRD_API_KEY`** | Server-only by rule ([`NAMING.md`](NAMING.md) §3 — never `VITE_*`). | **Never store a BYO owner's key on George's Cloud Run.** They set `DPIRD_API_KEY` in their own Secret Manager. Never `VITE_*`. |
-| **Google Maps** | There is no client Maps key. Online tiles are `GET /api/tiles/:z/:x/:y` on whichever PUF-AM server the client already talks to. Offline Esri packs stay in IndexedDB. | A BYO farm on `am.pufworks.farm` still uses George's tile proxy until they point the client at their own API. Landgate licence is a separate parked question. |
+| **Google Maps** | There is no client Maps key. Online tiles are `GET /api/tiles/:z/:x/:y` on whichever PUF-AM server the client already talks to. Offline Esri packs stay in IndexedDB. | A BYO farm on `am.pufworks.farm` still uses George's tile proxy until they point the client at their own API. Imagery terms are the operator's responsibility — see `API_KEY_SECURITY.md`. |
 | **Nearby farm discovery** | `farms_public` is one project's collection; `/api/auth/nearby-farms` queries it with the Admin SDK. | Discovery becomes per-project. A BYO farm will not see George's farms and vice versa. Accept it and say so in the wizard — do not silently show an empty list. |
 | **Crew presence, invite PINs, members** | All Firestore/Auth in whichever project the farm lives in. | Work unchanged once #1 and #2 are solved. |
 | **The `.pufom` / LAN / Freenet pipes** | Do not touch Firebase at all. | Unaffected. This is why the XOR holds. |

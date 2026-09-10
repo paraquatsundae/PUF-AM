@@ -6,7 +6,7 @@
 
 Every place PUF-AM keeps data on a device, what is in it, and — the question that actually matters during a recovery — **whether it is authoritative or a cache**.
 
-**Naming policy lives in [`NAMING.md`](NAMING.md)** §4–5 and wins on identifiers. This file is the operational view: contents, lifetime, blast radius, and how each store is cleared. Freenet-specific state is described in more depth in [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) §6.
+**Naming policy lives in [`NAMING.md`](NAMING.md)** §4–5 and wins on identifiers. This file is the operational view: contents, lifetime, blast radius, and how each store is cleared. Freenet-specific state is described in more depth in [`archive/FREENET_CONTRIBUTE_AND_STORAGE.md`](archive/FREENET_CONTRIBUTE_AND_STORAGE.md) §6.
 
 ---
 
@@ -17,7 +17,7 @@ Every place PUF-AM keeps data on a device, what is in it, and — the question t
 | **IndexedDB `pufom_farm_local`** | Diary, issues, archived issues on a **local-first or mist** farm | Also the outbox for a Firebase farm |
 | **IndexedDB `sentinut_farm_geometry`** | Map geometry on a local-first or mist farm | Cloud mirror in Firestore for Firebase farms |
 | **Firestore** | Everything on a **Firebase** farm | The shipping path |
-| **Freenet** | Nothing, ever | Durability + transfer only ([`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) §7) |
+| **Freenet** | Nothing, ever | Durability + transfer only ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §9.5) |
 | **Paper FarmCode** | Mist recovery root | Never on any device by design |
 | Everything else below | — | Cache, session, queue, or preference |
 
@@ -74,7 +74,7 @@ Browser, Capacitor WebView, and Electron renderer all use the same set — Elect
 | `sentinut_diary_events_{farmId}` | Legacy diary | Legacy |
 | `sentinut_local_map_{farmId}` | Legacy map store | Legacy |
 
-Legacy keys are still read so an operator upgrading from an old APK does not lose records. Folding them into `pufom_farm_local` is Phase B ([`RENAME_TO_PUFAM.md`](RENAME_TO_PUFAM.md)).
+Legacy keys are still read so an operator upgrading from an old APK does not lose records. Folding them into `pufom_farm_local` is Phase B ([`archive/RENAME_TO_PUFAM.md`](archive/RENAME_TO_PUFAM.md)).
 
 ### `pufam.*` — mist and new UI
 
@@ -127,7 +127,7 @@ Firebase Storage holds issue photos, uploaded from `pufom_photo_outbox`.
 
 ## 4. Capacitor / Android
 
-The APK stores nothing outside the standard WebView sandbox — there is no Capacitor Filesystem or Preferences plugin in the dependency list, and no Freenet state of any kind ([`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md)).
+The APK stores nothing outside the standard WebView sandbox — there is no Capacitor Filesystem or Preferences plugin in the dependency list, and no Freenet state of any kind ([`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md)).
 
 | Path (under `/data/data/com.sentinut.farm/`) | Contents | Authority |
 |----------------------------------------------|----------|-----------|
@@ -235,8 +235,8 @@ Relative to the hub process's `process.cwd()` — the repo root under `npm run d
 ## 10. Related
 
 - [`NAMING.md`](NAMING.md) §4–5, §8 — authoritative names for every store and key
-- [`FREENET_CONTRIBUTE_AND_STORAGE.md`](FREENET_CONTRIBUTE_AND_STORAGE.md) — what is published, what is sealed, what is not on Freenet
-- [`APK_FREENET_PLUGIN.md`](APK_FREENET_PLUGIN.md) — why the Android column has no Freenet rows
-- [`MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) — mist key design, FarmCode, Hot/Archive
-- [`OFFLINE_MAP_APK.md`](OFFLINE_MAP_APK.md) — basemap packs and device transfer
+- [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §9 — what is published, what is sealed, what is not on Freenet (merged from `archive/FREENET_CONTRIBUTE_AND_STORAGE.md`)
+- [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) — why the Android column has no Freenet rows
+- [`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) — mist key design, FarmCode, Hot/Archive
+- [`archive/OFFLINE_MAP_APK.md`](archive/OFFLINE_MAP_APK.md) — basemap packs and device transfer (archived; dev-build how-tos in [`DEPLOY_CLOUD_RUN.md`](DEPLOY_CLOUD_RUN.md))
 - [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) — the human-readable export that reads all of the above

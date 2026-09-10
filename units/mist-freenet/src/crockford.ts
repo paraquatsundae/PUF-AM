@@ -1,6 +1,6 @@
 /**
  * Crockford Base32 (mist-v1) — browser-safe encode/decode + optional check symbol.
- * @see Plans/MIST_NETWORK_STORAGE.md § FarmCode encoding
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md § FarmCode encoding
  */
 
 /** 32-symbol encoding alphabet (no I, L, O, U). */

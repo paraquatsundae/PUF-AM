@@ -20,12 +20,12 @@ SOURCES
 - README.md
 - Plans/NAMING.md (authoritative naming)
 - src/brand.ts
-- Plans/RENAME_TO_PUFAM.md
+- Plans/archive/RENAME_TO_PUFAM.md
 - Plans/ROADMAP.md (status header)
 - Plans/FARM_TYPES.md
 - Plans/CROP_PACK_PLUGIN.md
-- Plans/FREENET_CONTRIBUTE_AND_STORAGE.md
-- Plans/MIST_NETWORK_STORAGE.md
+- Plans/FREENET_OPERATOR_FLOW.md (§9 — what is on Freenet)
+- Plans/reference/MIST_NETWORK_STORAGE.md
 
 NOTES FOR EDITOR
 - Do **not** link the public site card or /pufam/ showcase at github.com/paraquatsundae/PUF-AM (repo stays private / workshop). APK CTA may still use GitHub Releases.

@@ -13,7 +13,7 @@
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
     "build": "vite build",
-    "//build:android": "Vite build for Capacitor + `cap sync`. Bakes VITE_MIST_EXPERIMENTAL=true so the mist storage chooser reaches the APK, the same way desktop:build:web does for the Electron shell — Android has no preload bridge to un-gate it at runtime. See Plans/APK_FREENET_PLUGIN.md §6.",
+    "//build:android": "Vite build for Capacitor + `cap sync`. Bakes VITE_MIST_EXPERIMENTAL=true so the mist storage chooser reaches the APK, the same way desktop:build:web does for the Electron shell — Android has no preload bridge to un-gate it at runtime. See Plans/reference/APK_FREENET_PLUGIN.md §6.",
     "build:android": "node scripts/build-android-web.mjs && npx cap sync android",
     "build:android:firebase": "node scripts/build-android-web.mjs --no-mist && npx cap sync android",
     "//apk:debug": "One command from a clean tree to android/app/build/outputs/apk/debug/app-debug.apk. Needs a JDK + Android SDK (android/local.properties).",

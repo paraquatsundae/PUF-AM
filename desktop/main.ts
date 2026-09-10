@@ -5,7 +5,7 @@
  * main owns, so the operator never runs `freenet network` or `npm run dev`.
  *
  * Window chrome, menus, and tray still come later. Plan:
- * `Plans/DESKTOP_FREENET_PLUGIN.md` §6 and Phase 1.
+ * `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §6 and Phase 1.
  */
 
 import { existsSync } from 'node:fs';

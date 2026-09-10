@@ -1,6 +1,6 @@
 /**
  * What this device knows about the hubs it uses — the tablet half of the desktop
- * LAN hub (`Plans/DESKTOP_FREENET_PLUGIN.md` §6.4, `Plans/APK_FREENET_PLUGIN.md` §8a).
+ * LAN hub (`Plans/reference/DESKTOP_FREENET_PLUGIN.md` §6.4, `Plans/reference/APK_FREENET_PLUGIN.md` §8a).
  *
  * A tablet can point at two shapes of hub, and it cannot tell them apart by
  * address:

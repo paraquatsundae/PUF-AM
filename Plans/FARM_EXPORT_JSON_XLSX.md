@@ -271,7 +271,7 @@ flowchart LR
 
 1. **Build JSON** (always): read `listLocalEntities(farmId, 'diary'|'issues'|'issues_archive')`; optionally refresh from Firestore when online (same as diary load); **include all local diary rows** (no default 90-day window); resolve `blockId` → `blockName` from geometry cache; `JSON.stringify(obj, null, 2)` → download or share. Optional **photo sidecar zip** (§2.4) when user requests issue photos.
 2. **JSON → xlsx** (derived):
-   - **Preferred:** reuse existing **`xlsx`** dependency (`package.json`) — already used for nutrition uploads; add a small `jsonToFarmExportXlsx()` helper. Accept documented audit risk (`Plans/AUDIT_LOG.md`) or migrate to **SheetJS CE** when nutrition parser moves.
+   - **Preferred:** reuse existing **`xlsx`** dependency (`package.json`) — already used for nutrition uploads; add a small `jsonToFarmExportXlsx()` helper. Accept documented audit risk (`Plans/logs/AUDIT_LOG.md`) or migrate to **SheetJS CE** when nutrition parser moves.
    - **Alternative:** **exceljs** if multi-sheet styling or row limits matter later (heavier bundle).
    - **Offline script:** Node CLI `scripts/farm-export-to-xlsx.mjs farm-export.json` for workshop / accountant workflows (no browser).
 3. **CSV:** Diary already has **client CSV** (`FarmDiary.handleExport`) with a **narrower** column set. Keep it for quick diary-only dumps; full farm export CSV = export each sheet as `{name}.csv` or zip — not required for v1 if xlsx works.
@@ -295,7 +295,7 @@ Export does **not** flush outbox or mutate stores. Pending cloud ops remain visi
 
 ## 6. Relation to mist (pointer only)
 
-[`Plans/MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md) defines **Hot** (≈90-day rolling) and **Archive** (sealed yearly) record bags with `{ id, type, ts, payload }` wrappers.
+[`Plans/reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) defines **Hot** (≈90-day rolling) and **Archive** (sealed yearly) record bags with `{ id, type, ts, payload }` wrappers.
 
 **Intent:** When mist diary path ships, **Hot merge** and **Archive seal** should read/write **`DiaryEvent` / `FieldIssue` objects compatible with this export** — i.e. `payload` in mist records = same shape as rows in `farm-export.json` arrays, and a mist export adapter sets `source: "mist"`.
 

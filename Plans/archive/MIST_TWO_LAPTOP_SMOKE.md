@@ -1,6 +1,8 @@
 # Mist two-laptop smoke (pre-Freenet)
 
-**Status (2026-08-03):** **Recovery pass achieved** — two-laptop FarmCode recovery succeeded on localhost (Laptop A create → Laptop B recover → same `farmId`). Bones and Hot remain per-device; no cross-laptop sync yet. **Live Freenet is not next** without a pre-Freenet workshop ([`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop).
+> **Archived 2026-09-10.** Closed; kept for history. Successor and context: [`INDEX.md`](INDEX.md).
+
+**Status (2026-08-03):** **Recovery pass achieved** — two-laptop FarmCode recovery succeeded on localhost (Laptop A create → Laptop B recover → same `farmId`). Bones and Hot remain per-device; no cross-laptop sync yet. **Live Freenet is not next** without a pre-Freenet workshop ([`DEVELOPER_NOTES.md`](../../DEVELOPER_NOTES.md) § Pre-Freenet workshop).
 
 Validate **FarmCode identity**, **IndexedDB mist store**, and **local → Hot bridge** on two Fedora laptops **without** a Hyphanet/Freenet node. Each browser profile keeps its own IndexedDB and `localStorage`; there is no cross-device sync until Freenet ships.
 
@@ -207,9 +209,9 @@ Operator workshop: after publish → wipe → recover, **3 diary** entries rehyd
 |------|--------|
 | FarmCode identity recovery (B → same `farmId`) | **Done** (~2026-08-03) |
 | Per-device bones / Hot on localhost | **Done** (expected isolation) |
-| Cross-device Hot/bones replication (A → B) | **Workshop Option A** — FN02 URI handoff; see [`MIST_TWO_FEDORA_FREENET.md`](MIST_TWO_FEDORA_FREENET.md) |
+| Cross-device Hot/bones replication (A → B) | **Workshop Option A** — FN02 URI handoff; see [`MIST_TWO_FEDORA_FREENET.md`](../reference/MIST_TWO_FEDORA_FREENET.md) |
 | Live Hyphanet / FCP go-live | **Blocked** — team workshop on remaining items first |
-| Workshop outcome capture | **Pending** — paste team discussion notes into [`DEVELOPER_NOTES.md`](../DEVELOPER_NOTES.md) § Pre-Freenet workshop when ready |
+| Workshop outcome capture | **Pending** — paste team discussion notes into [`DEVELOPER_NOTES.md`](../../DEVELOPER_NOTES.md) § Pre-Freenet workshop when ready |
 
 ---
 
@@ -219,4 +221,4 @@ Operator workshop: after publish → wipe → recover, **3 diary** entries rehyd
 - B pulls A’s Hot/bones via FCP CHK inserts
 - `sealHotPeriod()` app trigger + archive/manifest on network
 
-See [`units/mist-freenet/README.md`](../units/mist-freenet/README.md) and [`Plans/MIST_NETWORK_STORAGE.md`](MIST_NETWORK_STORAGE.md).
+See [`units/mist-freenet/README.md`](../../units/mist-freenet/README.md) and [`Plans/reference/MIST_NETWORK_STORAGE.md`](../reference/MIST_NETWORK_STORAGE.md).

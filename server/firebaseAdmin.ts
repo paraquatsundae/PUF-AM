@@ -4,7 +4,7 @@
  *
  * The SDK is loaded on first use rather than imported, because the packaged
  * desktop build deliberately does not ship it — `/api/auth/*` and
- * `/api/weather/*` are cloud-only there (`Plans/DESKTOP_FREENET_PLUGIN.md` §6.2),
+ * `/api/weather/*` are cloud-only there (`Plans/reference/DESKTOP_FREENET_PLUGIN.md` §6.2),
  * and a static import would make the Electron main process fail at boot instead.
  * Callers already treat `isAdminSdkReady() === false` as "route unavailable".
  */

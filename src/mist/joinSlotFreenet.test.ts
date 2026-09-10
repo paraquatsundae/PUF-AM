@@ -8,7 +8,7 @@
  * all three on the way back — happens in the page, so a round trip through this
  * stub is a real test of the join and not of the stub.
  *
- * @see Plans/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
+ * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

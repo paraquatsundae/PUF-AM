@@ -4,7 +4,7 @@
  * Operates on any MistStore. Hot contract v1 is a **single blob** at
  * `hotKey(farmId, 'current')` — JSON Hot state, not a per-record key space.
  *
- * @see Plans/MIST_NETWORK_STORAGE.md § Hot → Archive seal lifecycle
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md § Hot → Archive seal lifecycle
  */
 
 import { sha256Hex } from './hash.ts';

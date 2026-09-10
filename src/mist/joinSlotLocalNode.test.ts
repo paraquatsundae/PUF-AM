@@ -10,7 +10,7 @@
  * The fake node here is deliberately dumb, exactly as the stubbed hub is: an
  * address-to-bytes map. Everything that makes the join safe happens in the page.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §3a, §7a
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §3a, §7a
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

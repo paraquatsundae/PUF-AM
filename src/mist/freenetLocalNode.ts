@@ -18,7 +18,7 @@
  *   a second route for no gain. Only a Capacitor build prefers this path, unless
  *   `VITE_LOCAL_FREENET_WS` names an endpoint explicitly for a workshop bench.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §3a, §7a
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §3a, §7a
  */
 
 import { Capacitor } from '@capacitor/core';

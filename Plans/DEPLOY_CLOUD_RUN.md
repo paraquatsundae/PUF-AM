@@ -1,11 +1,12 @@
 # Deploy PUF-AM live (Cloud Run + custom domain)
 
-> Service name may still be `pufom` until rename Phase B (see `RENAME_TO_PUFAM.md`).
+> Service name stays `pufom` (rename Phase B deferred — `ROADMAP.md` D-06; history in `archive/RENAME_TO_PUFAM.md`).
 
 | Surface | URL |
 |--------|-----|
-| **Canonical live app** | `https://am.pufworks.farm` |
-| Cloud Run default (fallback) | `https://pufom-quby5ye5pa-ts.a.run.app` |
+| **Canonical live app** | `https://am.pufworks.farm` (live on `pufworks-am` since 10 Sep 2026) |
+| Cloud Run default (fallback) | `https://pufom-bg7cou2rcq-ts.a.run.app` (project `pufworks-am`) |
+| Old project service (rollback only) | `https://pufom-quby5ye5pa-ts.a.run.app` on `gen-lang-client-0444791425` — keep ~14 days after 10 Sep 2026, then delete |
 | Marketing page | `https://pufworks.farm/pufam/` (PUFworks-site) |
 | Android APK | [GitHub Releases](https://github.com/paraquatsundae/PUF-AM/releases/latest) |
 
@@ -20,7 +21,7 @@
 2. Log in and pick the Firebase/GCP project:
    ```bash
    gcloud auth login
-   gcloud config set project gen-lang-client-0444791425
+   gcloud config set project pufworks-am
    ```
 3. Ensure billing is enabled on that project (Cloud Run requires it).
 4. Keep `firebase-applet-config.json` locally (not committed).
@@ -43,9 +44,9 @@ first time, and both are in `.gcloudignore` so they never reach the image.
 
 ## Custom domain: `am.pufworks.farm`
 
-**GCP / Firebase project:** `gen-lang-client-0444791425`  
+**GCP / Firebase project:** `pufworks-am`  
 **Cloud Run:** service `pufom`, region `australia-southeast1`  
-**Fallback (keep until cutover proven):** `https://pufom-quby5ye5pa-ts.a.run.app`
+**Fallback:** `https://pufom-bg7cou2rcq-ts.a.run.app` (same service, `pufworks-am`). The old-project URL `pufom-quby5ye5pa-ts.a.run.app` is rollback-only for ~14 days from 10 Sep 2026.
 
 Cloudflare DNS alone is **not** enough. Google also requires the **base domain** to be **verified for the same Google account** used by `gcloud` (Search Console / Webmaster). Until then, domain mapping fails with:
 
@@ -66,7 +67,7 @@ You currently have no verified domains.
 # SDK may live at ~/google-cloud-sdk after install
 export PATH="$HOME/google-cloud-sdk/bin:$PATH"
 gcloud auth login          # browser machine; or --no-browser + remote-bootstrap
-gcloud config set project gen-lang-client-0444791425
+gcloud config set project pufworks-am
 gcloud auth list
 ```
 
@@ -77,7 +78,7 @@ Cloudflare / Firebase CLIs also need login (`npx wrangler login`, `npx firebase 
 Verify **`pufworks.farm`** (base domain) with the **same account** as `gcloud auth list` (currently `georgecarmody@gmail.com`). Verifying the apex covers `am.pufworks.farm`.
 
 ```bash
-gcloud domains list-user-verified --project=gen-lang-client-0444791425
+gcloud domains list-user-verified --project=pufworks-am
 # Expect empty until verified
 
 # Opens Search Console ownership UI for the base domain:
@@ -97,7 +98,7 @@ gcloud domains verify pufworks.farm
 4. Back in Search Console → **Verify**. Wait 1–5 minutes if DNS is fresh; re-check with:
 
 ```bash
-gcloud domains list-user-verified --project=gen-lang-client-0444791425
+gcloud domains list-user-verified --project=pufworks-am
 # Should list pufworks.farm (or similar)
 ```
 
@@ -182,7 +183,7 @@ In a **separate** hosting config folder (not required to live inside the Vite ap
 
 ```bash
 npx firebase login
-npx firebase deploy --only hosting --project gen-lang-client-0444791425
+npx firebase deploy --only hosting --project pufworks-am
 # Then Firebase Console → Hosting → Add custom domain → am.pufworks.farm
 ```
 
@@ -202,7 +203,7 @@ See [Set up a global external Application Load Balancer with Cloud Run](https://
 If Google later enables mappings in Sydney, or the service moves to a supported region:
 
 ```bash
-gcloud config set project gen-lang-client-0444791425
+gcloud config set project pufworks-am
 
 # Confirm ownership first:
 gcloud domains list-user-verified
@@ -220,7 +221,7 @@ gcloud beta run domain-mappings describe \
 Google usually wants **CNAME `am` → `ghs.googlehosted.com`**. Confirm with `describe` before changing DNS.
 
 Console: Cloud Run → pufom → Integrations / custom domains:  
-https://console.cloud.google.com/run/detail/australia-southeast1/pufom/integrations?project=gen-lang-client-0444791425
+https://console.cloud.google.com/run/detail/australia-southeast1/pufom/integrations?project=pufworks-am
 
 ### B) DNS in Cloudflare (`pufworks.farm` zone) — after mapping or Firebase/LB
 
@@ -258,21 +259,21 @@ npx wrangler login   # or export CLOUDFLARE_API_TOKEN=...
    `npm run deploy:cloudrun` now sets runtime `APP_URL` and passes `VITE_APP_URL` as a **build** env var — required because `.env*` is in `.gcloudignore`. (There is no Maps key any more; imagery goes through `/api/tiles` — see [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md).)
 
 2. **Firebase Auth** authorized domains — add `am.pufworks.farm` (keep the `*.run.app` host until cutover is proven):  
-   https://console.firebase.google.com/project/gen-lang-client-0444791425/authentication/settings
+   https://console.firebase.google.com/project/pufworks-am/authentication/settings
 
 3. Marketing site CTAs already point at `https://am.pufworks.farm` (PUFworks-site). There is no client Maps key.
 
 ### Checklist
 
-- [ ] `gcloud auth login` (and wrangler/firebase login if using CLIs)
-- [ ] `pufworks.farm` verified in Search Console for the gcloud account (`gcloud domains list-user-verified`)
-- [ ] Custom hostname path chosen: Firebase Hosting rewrite **or** HTTPS LB (native domain-mappings **not** in `australia-southeast1`)
+- [x] `gcloud auth login` (and wrangler/firebase login if using CLIs) (10 Sep 2026, pufworks-am)
+- [x] `pufworks.farm` verified in Search Console for the gcloud account (`gcloud domains list-user-verified`) (10 Sep 2026, pufworks-am)
+- [x] Custom hostname path chosen: **Firebase Hosting rewrite** (A′) — native domain-mappings **not** in `australia-southeast1` (10 Sep 2026, pufworks-am)
 - [ ] `GET /api/admin/client-ip` through the custom domain: last forwarded entry reads `"trusted": true`, else add its range to `TRUSTED_PROXY_CIDRS`
-- [ ] Cloudflare DNS for `am` → target from that path (**DNS only**, not proxied) — leave `puf.works` redirect alone
-- [ ] HTTPS loads on `https://am.pufworks.farm` (not 525)
-- [ ] `APP_URL` / `VITE_APP_URL` set; service redeployed via `npm run deploy:cloudrun`
-- [ ] Firebase authorized domain added
-- [ ] Maps referrer updated
+- [x] Cloudflare DNS for `am` → Firebase Hosting target (**DNS only**, not proxied) — `puf.works` redirect left alone (10 Sep 2026, pufworks-am)
+- [x] HTTPS loads on `https://am.pufworks.farm` (not 525) (10 Sep 2026, pufworks-am)
+- [ ] `APP_URL` / `VITE_APP_URL` = `https://am.pufworks.farm` confirmed on the `pufworks-am` service (redeploy via `npm run deploy:cloudrun` if not)
+- [x] Firebase authorized domain added (10 Sep 2026, pufworks-am)
+- [x] ~~Maps referrer updated~~ — no client Maps key any more; imagery goes through `/api/tiles` (see [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md))
 - [ ] Invite PIN / login smoke on custom domain
 - [x] `puf.works` → `pufworks.farm` path redirect left alone (verified)
 
@@ -341,7 +342,28 @@ Without secrets the workflow ships a **debug** APK (fine for workshop sideload).
 | `ANDROID_KEY_ALIAS` | Key alias |
 | `ANDROID_KEY_PASSWORD` | Key password |
 
-Never commit the keystore. See also `Plans/OFFLINE_MAP_APK.md` § CI releases.
+Never commit the keystore. Public downloads come from GitHub Releases, not PUFworks-site `public/downloads/`. The CI build bakes API URL `https://am.pufworks.farm`; watch a dispatched run with `gh run watch`.
+
+## Android dev builds (emulator, LAN, packaged)
+
+Merged from `archive/OFFLINE_MAP_APK.md` § Phase 2 on 2026-09-10 (the offline-basemap and sync-adapter build history is in [`archive/OFFLINE_MAP_APK.md`](archive/OFFLINE_MAP_APK.md)). Tiles and farm geometry live in **IndexedDB** on the tablet; Filesystem migration only if quota bites.
+
+| Item | Value |
+|------|--------|
+| App ID | `com.sentinut.farm` (frozen — install continuity) |
+| App name | PUFAM (Ag Manager) |
+| Launcher icon | `PUFom_icon.png` → `assets/pufom-apk-icon-master.png` |
+| Config / native project / web dir | `capacitor.config.ts` · `android/` · `dist` (Vite `base: './'`) |
+
+**Workshop build:** `npm run build:android && npm run open:android`, then run on a device/emulator from Android Studio. Set `VITE_WORKSHOP_MODE=true` in `.env` before `build:android` for demos without sign-in — never in a release build (`npm run audit:bundle` catches it).
+
+**Emulator with live API:** Capacitor live-loads from the PC (`http://10.0.2.2:3000`) so invite-PIN `/api` works. Keep `npm run dev` running (listens on `0.0.0.0:3000`), `npx cap sync android` (or `build:android`), Run ▶. The emulator needs network while signing in. Packaged shell without a live server: `CAP_PACKAGED=1 npx cap sync android` — `apiBase.ts` then uses `http://10.0.2.2:3000`.
+
+**Physical tablet on the same Wi-Fi:** keep `npm run dev` running, then `npm run sync:android:lan && npm run open:android`. That detects the PC's Wi-Fi IP and sets Capacitor `server.url` (skips container bridges, prefers the wireless interface). Manual: `CAP_SERVER_URL="http://<pc-lan-ip>:3000" npx cap sync android`. A phone browser can simply open `http://<pc-lan-ip>:3000`. Packaged APK against a LAN server: `CAP_PACKAGED=1` before sync and `VITE_API_BASE_URL=http://<pc-lan-ip>:3000` before `vite build`.
+
+**mDNS hub discovery:** the dev server advertises `_pufom-sync._tcp` (`server/mdnsHub.ts`; wire name stays `pufom` until rename Phase B). `PUFOM_MDNS=0` disables advertise/browse. Windows: allow Node.js through the firewall for private networks (UDP 5353 + TCP app port). Browsers cannot browse mDNS themselves — clients ask the current Express hub to scan, so the first tablet connection still needs a LAN IP / `sync:android:lan`.
+
+**Airplane-mode check:** online, open Orchard Map and download a pack for a tight place (e.g. Manjimup WA); enable airplane mode; imagery still paints inside the pack bounds (missing tiles stay dark); previously synced blocks/issues still load from local caches.
 
 ## Firestore rules / scheduled functions
 

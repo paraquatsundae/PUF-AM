@@ -1,9 +1,11 @@
 # CodeRabbit slop / AI Studio hunt
 
+> **Archived 2026-09-10.** Hunt complete 2026-08-31. The review posture (Dismiss / Flag) now lives in [`../CODEBASE_HEALTH.md`](../CODEBASE_HEALTH.md) § Review posture, which `.coderabbit.yaml` reads. Kept for the run commands and seed inventory. Results: [`CODERABBIT_SLOP_FINDINGS.md`](CODERABBIT_SLOP_FINDINGS.md).
+
 **Product:** PUF-AM — Ag Manager  
-**Status:** Open — judgment pass, not a Procedure A gate  
-**Limits / SoC:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
-**Check log:** [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md)
+**Status:** Complete (2026-08-31) — findings and second-model verdict in [`archive/CODERABBIT_SLOP_FINDINGS.md`](CODERABBIT_SLOP_FINDINGS.md). Archived 2026-09-10 — the Dismiss / Flag posture moved to `CODEBASE_HEALTH.md` § Review posture, which is what `.coderabbit.yaml` reads now; judgment pass, not a Procedure A gate  
+**Limits / SoC:** [`CODEBASE_HEALTH.md`](../CODEBASE_HEALTH.md)  
+**Check log:** [`CODEBASE_HEALTH_CHECK.md`](../logs/CODEBASE_HEALTH_CHECK.md)
 
 This pass is **not** another size peel. It is a whole-tree hunt for:
 
@@ -24,18 +26,18 @@ Review current `HEAD` as “every file added”:
 
 ```
 coderabbit auth login
-coderabbit review --committed --base-commit 4b825dc642cb6eb9a060e54bf8d69288fbee4904 --agent --use-credits -c Plans/CODERABBIT_SLOP_HUNT.md
+coderabbit review --committed --base-commit 4b825dc642cb6eb9a060e54bf8d69288fbee4904 --agent --use-credits -c Plans/archive/CODERABBIT_SLOP_HUNT.md
 ```
 
 `4b825dc642cb6eb9a060e54bf8d69288fbee4904` is git’s empty tree. If the CLI rejects a non-ancestor, slice instead:
 
 ```
-coderabbit review --committed --base-commit 4b825dc642cb6eb9a060e54bf8d69288fbee4904 --agent --use-credits --dir src/components -c Plans/CODERABBIT_SLOP_HUNT.md
+coderabbit review --committed --base-commit 4b825dc642cb6eb9a060e54bf8d69288fbee4904 --agent --use-credits --dir src/components -c Plans/archive/CODERABBIT_SLOP_HUNT.md
 ```
 
 Repeat `--dir` for `src/lib`, `src/hooks`, `src/pages`, `src/services`, `server`, `shared`, `functions`.
 
-[`.coderabbit.yaml`](../.coderabbit.yaml) still path-filters Freenet / Desktop / APK / lockfile for health reviews. This hunt should **include** those trees unless a slice says otherwise. Do not review `node_modules`, `dist`, `release`, or baked `android/app/src/main/assets`.
+[`.coderabbit.yaml`](../../.coderabbit.yaml) still path-filters Freenet / Desktop / APK / lockfile for health reviews. This hunt should **include** those trees unless a slice says otherwise. Do not review `node_modules`, `dist`, `release`, or baked `android/app/src/main/assets`.
 
 ---
 
@@ -105,5 +107,5 @@ Financials no longer mounts the `*Manager` cards. Deleting the seven files is th
 ## After both reviews
 
 1. Triage: take / dismiss / later. Do not paste the whole CodeRabbit dump into the size appendix.
-2. Prepend a short note to [`CODEBASE_HEALTH_CHECK.md`](CODEBASE_HEALTH_CHECK.md).
+2. Prepend a short note to [`CODEBASE_HEALTH_CHECK.md`](../logs/CODEBASE_HEALTH_CHECK.md).
 3. Implement only agreed deletes/stops. Procedure A if the change touches packs, nav, modules, or grants.

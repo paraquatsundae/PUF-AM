@@ -1,6 +1,6 @@
 # npm Audit Log
 
-**Purpose:** Record vulnerability scan output for [ROADMAP Step 8](./ROADMAP.md#step-8--npm-audit-and-critical-vulnerability-remediation).
+**Purpose:** Record vulnerability scan output for [ROADMAP Step 8](../ROADMAP.md#step-8--npm-audit-and-critical-vulnerability-remediation).
 
 ---
 

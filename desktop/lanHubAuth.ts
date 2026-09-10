@@ -194,7 +194,7 @@ export function isHubId(raw: unknown): raw is string {
  *
  * **`100.64.0.0/10` is included** because that is where a Tailscale/WireGuard
  * peer appears, and reaching the hub over the farm's tailnet is the whole point
- * of a remote gateway (`Plans/APK_FREENET_PLUGIN.md` §8d). It is carrier-grade
+ * of a remote gateway (`Plans/reference/APK_FREENET_PLUGIN.md` §8d). It is carrier-grade
  * NAT space, so in principle an ISP could place a stranger there — but only on an
  * interface this listener is bound to, and pairing still needs the code off the
  * laptop's screen and still counts failures per client.

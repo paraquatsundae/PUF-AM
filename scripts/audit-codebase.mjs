@@ -34,7 +34,7 @@ const HARVEST_DRYING_ALLOW = [
   'tests/cropPacks.test.ts',
   'tests/codebaseHealth.test.ts',
   'Plans/CODEBASE_HEALTH.md',
-  'Plans/CODEBASE_HEALTH_CHECK.md',
+  'Plans/logs/CODEBASE_HEALTH_CHECK.md',
   'Plans/CROP_PACK_PLUGIN.md',
   'scripts/audit-codebase.mjs',
 ];

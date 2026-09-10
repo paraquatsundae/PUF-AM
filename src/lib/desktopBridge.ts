@@ -4,7 +4,7 @@
  * Web, Cloud Run, and Capacitor builds never see this object, so every accessor
  * here must be safe to call — and give a web-shaped answer — when it is absent.
  * The renderer keeps `contextIsolation` on and no Node access; this is the whole
- * surface. See `Plans/DESKTOP_FREENET_PLUGIN.md` §6.2.
+ * surface. See `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §6.2.
  */
 
 import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';

@@ -6,7 +6,7 @@
  * `units/mist-freenet` owns sealing and addressing and knows nothing about
  * process supervision. Keeping the glue here is what makes the PUF-FN fork cheap.
  *
- * See `Plans/DESKTOP_FREENET_PLUGIN.md` §5.1.
+ * See `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §5.1.
  */
 
 import {

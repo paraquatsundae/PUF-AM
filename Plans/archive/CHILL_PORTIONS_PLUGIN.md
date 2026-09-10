@@ -1,9 +1,11 @@
 # Chill portions crop pack
 
+> **Archived 2026-09-10.** Merged into [`../PLUGIN_AUTHORING.md`](../PLUGIN_AUTHORING.md) § Template pack — chill portions. Kept as the dated original.
+
 **Product:** PUF-AM  
 **Status:** Active — first extract of hardcoded chill into a crop-pack plugin  
 **Date:** 2026-08-16  
-**Companion:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) · standalone binaries in `PUFworks-chill_calculator/`
+**Companion:** [`CROP_PACK_PLUGIN.md`](../CROP_PACK_PLUGIN.md) · standalone binaries in `PUFworks-chill_calculator/`
 
 ## What changed
 

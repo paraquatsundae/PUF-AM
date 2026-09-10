@@ -3,7 +3,7 @@
  *
  * Does not publish. Skip leaves the farm on this computer on purpose.
  *
- * @see Plans/FREENET_HOLES.md hole 1
+ * @see Plans/FREENET_OPERATOR_FLOW.md §8 hole 1 (merged from FREENET_HOLES.md, 2026-09-10)
  */
 
 import { useEffect, useState } from 'react';

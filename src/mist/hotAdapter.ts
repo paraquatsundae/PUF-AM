@@ -4,7 +4,7 @@
  * Hot records wrap export-shaped payloads so one schema serves export and mist.
  *
  * @see Plans/FARM_EXPORT_JSON_XLSX.md
- * @see Plans/MIST_NETWORK_STORAGE.md § Hot
+ * @see Plans/reference/MIST_NETWORK_STORAGE.md § Hot
  */
 
 import type { HotRecord, HotState } from '../../units/mist-freenet/src/seal-hot.ts';

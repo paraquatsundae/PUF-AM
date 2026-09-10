@@ -7,7 +7,7 @@
  * advertised — and printed in Settings — an address reachable only from the phone
  * plugged into it, so a tablet that discovered the hub could not reach it.
  *
- * @see Plans/APK_FREENET_PLUGIN.md §8a
+ * @see Plans/reference/APK_FREENET_PLUGIN.md §8a
  */
 
 import { describe, expect, it } from 'vitest';

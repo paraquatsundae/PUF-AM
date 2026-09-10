@@ -1,7 +1,7 @@
 /**
  * Prove the vendored Freenet binary actually runs under the host, without Electron.
  *
- * This is the Phase 2 acceptance check (`Plans/DESKTOP_FREENET_PLUGIN.md` Phase 2).
+ * This is the Phase 2 acceptance check (`Plans/reference/DESKTOP_FREENET_PLUGIN.md` Phase 2).
  * It runs a **second, throwaway node**, which takes more isolation than it looks:
  * spare WS API port, throwaway config/data/log dirs, *and* a spare
  * `--network-port`. The last one is not optional — Freenet's peer-to-peer UDP

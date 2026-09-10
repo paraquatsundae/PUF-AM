@@ -13,7 +13,7 @@
  *   node scripts/build-slot-contract.mjs --accept-new-hash   # vendor a new artifact and re-pin
  *
  * Needs: cargo, `rustup target add wasm32-unknown-unknown`, and fdev on PATH
- * (or PUF_FDEV_BIN / FDEV_BIN). See Plans/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract.
+ * (or PUF_FDEV_BIN / FDEV_BIN). See Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract.
  */
 
 import { execFileSync } from 'node:child_process';

@@ -5,7 +5,7 @@
  * a unit that must not import repo scripts — so the agreement is asserted here.
  *
  * Hermetic: reads only committed files. No network, no Freenet node, no `vendor/`.
- * Plan: `Plans/DESKTOP_FREENET_PLUGIN.md` Phase 2.
+ * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` Phase 2.
  */
 
 import { createHash } from 'node:crypto';
