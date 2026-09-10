@@ -6,13 +6,14 @@ if (!admin.apps.length) {
 }
 
 /**
- * This AI Studio project has no `(default)` Firestore database — it uses a named
- * database (mirrors the Cloud Run server's FIRESTORE_DATABASE_ID). Every function
- * must target it explicitly, both at runtime (getDb) and for Firestore triggers
- * (the `database` option), or reads/writes and deploys hit a nonexistent DB.
+ * Hosted PUF-AM lives on `pufworks-am` with a normal `(default)` Firestore.
+ * The retired AI Studio project used a named database; do not point this file
+ * at that id. Triggers must still pass `database: FIRESTORE_DATABASE_ID`.
  */
+export const HOSTED_FUNCTIONS_REGION = "australia-southeast1";
+
 export const FIRESTORE_DATABASE_ID =
-  process.env.FIRESTORE_DATABASE_ID || "ai-studio-143a17d7-b431-4490-8302-3a5ff176bb96";
+  process.env.FIRESTORE_DATABASE_ID || "(default)";
 
 export function getDb() {
   const app = admin.app();

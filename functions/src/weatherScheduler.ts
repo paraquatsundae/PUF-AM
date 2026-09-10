@@ -2,7 +2,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import { estimateWetnessHoursProxy } from "./jiBlightModel";
 import { fetchMetnoDailyForecast } from "./metnoForecast";
-import { getDb } from "./db";
+import { getDb, HOSTED_FUNCTIONS_REGION } from "./db";
 
 const db = getDb();
 const dpirdApiKey = defineSecret("DPIRD_API_KEY");
@@ -130,6 +130,7 @@ async function fetchStationWeather(
  */
 export const refreshWeatherCache = onSchedule(
   {
+    region: HOSTED_FUNCTIONS_REGION,
     schedule: "every 60 minutes",
     timeZone: "Australia/Perth",
     secrets: [dpirdApiKey],

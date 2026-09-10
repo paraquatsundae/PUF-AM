@@ -35,6 +35,12 @@ describe('refuseHostedProject', () => {
   });
 
   it('refuses the PUFworks hosted project', () => {
+    const result = run({ GCLOUD_PROJECT: 'pufworks-am' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Refusing to deploy');
+  });
+
+  it('refuses the retired AI Studio hosted project', () => {
     const result = run({ GCLOUD_PROJECT: 'gen-lang-client-0444791425' });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('Refusing to deploy');

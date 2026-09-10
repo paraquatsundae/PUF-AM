@@ -16,6 +16,15 @@ import { setRuntimeByoWeatherEndpoint } from './byoWeatherEndpoint';
 export const BYO_STORAGE_KEY = 'pufam.byoFirebase.v1';
 export const BYO_DEFAULT_DATABASE = '(default)';
 export const PUFWORKS_PROJECT_ID = builtIn.projectId;
+/** Retired AI Studio home — still refuse a paste of that config. */
+export const PUFWORKS_LEGACY_PROJECT_ID = 'gen-lang-client-0444791425';
+export const PUFWORKS_HOSTED_PROJECT_IDS = Array.from(
+  new Set([PUFWORKS_PROJECT_ID, PUFWORKS_LEGACY_PROJECT_ID].filter(Boolean)),
+);
+
+export function isPufworksHostedProjectId(projectId: string): boolean {
+  return PUFWORKS_HOSTED_PROJECT_IDS.includes(projectId);
+}
 
 export const BILLING_ACK_TEXT =
   'I understand I am connecting my own Firebase project and that I am responsible for its billing.';
@@ -90,7 +99,7 @@ export function parseByoFirebaseConfig(raw: string): ParseByoConfigResult {
       error: 'Need apiKey, authDomain, projectId and appId from Project settings → Your apps.',
     };
   }
-  if (projectId === PUFWORKS_PROJECT_ID) {
+  if (isPufworksHostedProjectId(projectId)) {
     return {
       ok: false,
       error:
@@ -124,7 +133,7 @@ export function readStoredByoFirebase(): ByoFirebaseStored | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ByoFirebaseStored;
     if (parsed?.v !== 1 || !parsed.config?.projectId || !parsed.config.apiKey) return null;
-    if (parsed.config.projectId === PUFWORKS_PROJECT_ID) return null;
+    if (isPufworksHostedProjectId(parsed.config.projectId)) return null;
     return parsed;
   } catch {
     return null;
@@ -140,7 +149,7 @@ export function byoProjectId(): string | null {
 }
 
 export function persistByoFirebase(config: ByoFirebaseWebConfig, ackAt = new Date().toISOString()): void {
-  if (config.projectId === PUFWORKS_PROJECT_ID) {
+  if (isPufworksHostedProjectId(config.projectId)) {
     throw new Error('Refusing to persist the PUFworks project as bring-your-own.');
   }
   const stored: ByoFirebaseStored = {

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   BYO_DEFAULT_DATABASE,
   BYO_STORAGE_KEY,
+  PUFWORKS_LEGACY_PROJECT_ID,
   PUFWORKS_PROJECT_ID,
   clearByoFirebase,
   parseByoConfigError,
@@ -58,6 +59,19 @@ describe('parseByoFirebaseConfig', () => {
         apiKey: 'k',
         authDomain: 'x.firebaseapp.com',
         projectId: PUFWORKS_PROJECT_ID,
+        appId: '1:1:web:x',
+      })
+    );
+    expect(result.ok).toBe(false);
+    expect(parseByoConfigError(result)).toMatch(/PUFworks project/);
+  });
+
+  it('refuses the retired AI Studio project', () => {
+    const result = parseByoFirebaseConfig(
+      JSON.stringify({
+        apiKey: 'k',
+        authDomain: 'x.firebaseapp.com',
+        projectId: PUFWORKS_LEGACY_PROJECT_ID,
         appId: '1:1:web:x',
       })
     );

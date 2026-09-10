@@ -21,7 +21,7 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const isWindows = process.platform === 'win32';
 const dryRun = process.argv.includes('--dry-run');
 
-const projectId = process.env.GCLOUD_PROJECT || 'gen-lang-client-0444791425';
+const projectId = process.env.GCLOUD_PROJECT || 'pufworks-am';
 const region = process.env.CLOUD_RUN_REGION || 'australia-southeast1';
 const service = process.env.CLOUD_RUN_SERVICE || 'pufom';
 
@@ -178,7 +178,7 @@ for (const secret of [DPIRD_SECRET, ENROLL_SECRET]) {
   );
 }
 
-let firestoreDb = 'ai-studio-143a17d7-b431-4490-8302-3a5ff176bb96';
+let firestoreDb = '(default)';
 try {
   const cfg = JSON.parse(readFileSync(join(repoRoot, 'firebase-applet-config.json'), 'utf8'));
   if (cfg.firestoreDatabaseId) firestoreDb = String(cfg.firestoreDatabaseId);

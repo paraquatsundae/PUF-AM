@@ -2,7 +2,7 @@
  * Stop a deploy that would land on PUFworks' hosted Firebase.
  * Design A: George never holds a third-party DPIRD key.
  */
-const HOSTED = 'gen-lang-client-0444791425';
+const HOSTED = new Set(['pufworks-am', 'gen-lang-client-0444791425']);
 const PLACEHOLDER = 'YOUR_FIREBASE_PROJECT_ID';
 
 const project =
@@ -20,7 +20,7 @@ if (!project || project === PLACEHOLDER) {
   process.exit(1);
 }
 
-if (project === HOSTED) {
+if (HOSTED.has(project)) {
   console.error(
     '[byo-weather] Refusing to deploy to the PUFworks hosted project.\n' +
       'This package holds YOUR DPIRD key in YOUR Secret Manager. Use firebase use --add on your own project.'

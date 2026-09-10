@@ -9,5 +9,21 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "blocks",
+      "fieldPath": "geojson",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "pins",
+      "fieldPath": "geojson",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "tracks",
+      "fieldPath": "geojson",
+      "indexes": []
+    }
+  ]
 }

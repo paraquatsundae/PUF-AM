@@ -1,6 +1,6 @@
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { FieldValue } from "firebase-admin/firestore";
-import { getDb, FIRESTORE_DATABASE_ID } from "./db";
+import { getDb, FIRESTORE_DATABASE_ID, HOSTED_FUNCTIONS_REGION } from "./db";
 
 const db = getDb();
 
@@ -31,7 +31,7 @@ function applyTransactionToAggregate(
 
 /** Maintains farms/{farmId}/aggregates/financials on transaction writes (Step 12). */
 export const syncFinancialAggregates = onDocumentWritten(
-  { document: "farms/{farmId}/financial_transactions/{txId}", database: FIRESTORE_DATABASE_ID },
+  { document: "farms/{farmId}/financial_transactions/{txId}", database: FIRESTORE_DATABASE_ID, region: HOSTED_FUNCTIONS_REGION },
   async (event) => {
     const farmId = event.params.farmId;
     const before = event.data?.before?.data();

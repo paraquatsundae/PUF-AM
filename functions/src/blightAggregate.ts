@@ -11,7 +11,7 @@ import {
   type RiskBand,
   type SeriesWeatherDay,
 } from "./jiBlightModel";
-import { getDb, FIRESTORE_DATABASE_ID } from "./db";
+import { getDb, FIRESTORE_DATABASE_ID, HOSTED_FUNCTIONS_REGION } from "./db";
 import { blightSeasonStart, perthCivilDate, toPerthISOString } from "./perthDate";
 
 const db = getDb();
@@ -111,6 +111,7 @@ async function computeFarmBlightAggregate(farmId: string) {
 /** Nightly blight aggregate refresh for all farms (Step 12). */
 export const refreshBlightAggregates = onSchedule(
   {
+    region: HOSTED_FUNCTIONS_REGION,
     schedule: "every day 05:00",
     timeZone: "Australia/Perth",
   },
@@ -132,7 +133,7 @@ export const refreshBlightAggregates = onSchedule(
  * farm activity. Settings (inoculum, budbreak) are handled by onModelParamsWrite.
  */
 export const onDiaryEventWrite = onDocumentWritten(
-  { document: "farms/{farmId}/events/{eventId}", database: FIRESTORE_DATABASE_ID },
+  { document: "farms/{farmId}/events/{eventId}", database: FIRESTORE_DATABASE_ID, region: HOSTED_FUNCTIONS_REGION },
   async (event) => {
     const farmId = event.params.farmId;
     try {
@@ -148,7 +149,7 @@ export const onDiaryEventWrite = onDocumentWritten(
  * Without this the dashboard card lags the Blight Risk page until 05:00 Perth.
  */
 export const onModelParamsWrite = onDocumentWritten(
-  { document: "farms/{farmId}/settings/model_params", database: FIRESTORE_DATABASE_ID },
+  { document: "farms/{farmId}/settings/model_params", database: FIRESTORE_DATABASE_ID, region: HOSTED_FUNCTIONS_REGION },
   async (event) => {
     const farmId = event.params.farmId;
     try {

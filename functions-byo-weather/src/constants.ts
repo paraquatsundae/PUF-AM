@@ -2,10 +2,15 @@
 export const BYO_WEATHER_REGION = 'australia-southeast1';
 
 /**
- * George's hosted Firebase. This package must never deploy there — that would
- * put a third-party DPIRD key (or a confused owner's secret) on PUFworks infra.
+ * George's hosted Firebase (current and retired). This package must never
+ * deploy there — that would put a third-party DPIRD key on PUFworks infra.
  */
-export const PUFWORKS_HOSTED_PROJECT_ID = 'gen-lang-client-0444791425';
+export const PUFWORKS_HOSTED_PROJECT_ID = 'pufworks-am';
+export const PUFWORKS_LEGACY_HOSTED_PROJECT_ID = 'gen-lang-client-0444791425';
+export const PUFWORKS_HOSTED_PROJECT_IDS = [
+  PUFWORKS_HOSTED_PROJECT_ID,
+  PUFWORKS_LEGACY_HOSTED_PROJECT_ID,
+] as const;
 
 export const WEATHER_MAX_CALLS = 60;
 export const WEATHER_WINDOW_MS = 15 * 60 * 1000;
