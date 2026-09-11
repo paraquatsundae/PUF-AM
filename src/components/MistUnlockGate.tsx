@@ -116,7 +116,7 @@ export function MistUnlockGate({ children }: { children: React.ReactNode }) {
             onClick={() => void logout()}
             className="w-full text-xs text-slate-400 hover:text-slate-700"
           >
-            Sign out — clears this device&apos;s session and the farm held on it
+            Leave this farm on this device — records stay; Join a farm is next
           </button>
         </div>
       </div>

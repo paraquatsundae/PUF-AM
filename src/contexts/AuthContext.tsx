@@ -12,24 +12,14 @@ import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
 import { isWorkshopMode } from '../lib/workshopMode';
 import { isMistFarmSessionActive, tryLoadMistFarmSession } from '../mist/mistFarmSession.ts';
-import {
-  clearMistDeviceSession,
-  hasMistDeviceSession,
-  mistSessionCloudFarmId,
-} from '../mist/mistDeviceSession.ts';
 import { ensureBrowserMistStore, resetBrowserMistStore } from '../mist/createFarmStore.ts';
-import { setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
+import { leaveFarmSession } from '../lib/leaveFarmSession.ts';
 import { createFarmAccount, redeemInvitePin } from '../lib/invitePinAuth';
 import { isByoFirebase } from '../lib/byoFirebaseConfig';
 import { BYO_SESSION_TOKEN } from '../lib/byoFirebaseAuth';
 import { setRuntimeByoWeatherEndpoint } from '../lib/byoWeatherEndpoint';
 import { subscribeByoWeatherSettings } from '../lib/byoWeatherSettings';
-import {
-  clearDeviceRememberedFlag,
-  getLastFarm,
-  markDeviceRemembered,
-} from '../lib/deviceSession';
-import { clearSessionUnlock } from '../lib/unlockPin';
+import { getLastFarm, markDeviceRemembered } from '../lib/deviceSession';
 import { subscribeAuthSession } from '../lib/authSessionListen';
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import {
@@ -301,31 +291,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      // A hybrid member device (Plans/FREENET_NETWORK_PACK.md §3) is a Firebase
-      // login that also holds the sealed key to its farm's Freenet mirror. Signing
-      // out is the cloud sign-out; the sealed seed stays, as it does for a Freenet
-      // farm between launches, so the next sign-in can still Send. Only a mist
-      // session that *is* the login — a Freenet farm, a mirror device, or a
-      // leftover seed with no cloud farm behind it — is cleared here.
-      const hybridMember = !isMistFarmSessionActive() && mistSessionCloudFarmId() !== null;
-      if (!hybridMember && (isMistFarmSessionActive() || hasMistDeviceSession())) {
-        clearMistDeviceSession();
-        await resetBrowserMistStore(true);
-        setFarmStoreBackend('firebase');
-        setUser(null);
-        setUserData(null);
-        setIsAdmin(false);
-        setIsPlatformAdmin(false);
-        setMistLocked(false);
-        clearSessionUnlock();
-        return;
+      // Session keys first so a remount cannot welcome-back or re-enter mist.
+      // IDB farm records stay — Sign out is not wipeLocalFarmForDisasterRecovery.
+      leaveFarmSession();
+      await resetBrowserMistStore(false);
+      setUser(null);
+      setUserData(null);
+      setIsAdmin(false);
+      setIsPlatformAdmin(false);
+      setMistLocked(false);
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.warn('[Auth] Firebase sign-out skipped or failed:', err);
       }
-      clearDeviceRememberedFlag();
-      clearSessionUnlock();
-      await signOut(auth);
     } catch (error) {
       console.error('Error signing out', error);
       throw error;
+    } finally {
+      // Remount AuthProvider so subscribeAuthSession leaves the mist-only
+      // branch and /login can draw Join (`useLoginFlow` L83–87).
+      if (typeof window !== 'undefined') {
+        window.location.assign('/login');
+      }
     }
   };
 

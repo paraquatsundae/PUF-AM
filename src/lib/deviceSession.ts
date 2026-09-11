@@ -53,7 +53,7 @@ export function markDeviceRemembered(
   }
 }
 
-/** Clears the remembered-device flag on logout; keeps last name + farm for welcome-back. */
+/** Clears the remembered-device flag. Sign-out uses `clearRememberedLoginHints` so Join is not skipped. */
 export function clearDeviceRememberedFlag(): void {
   storage()?.removeItem(REMEMBERED_KEY);
 }

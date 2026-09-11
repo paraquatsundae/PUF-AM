@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { InvitePinManager } from '../components/InvitePinManager';
 import { FarmSyncCards } from '../components/sync/FarmSyncCards';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
+import { SettingsLeaveFarmCard } from '../components/SettingsLeaveFarmCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
 import { PluginsPanel } from '../components/PluginsPanel';
@@ -133,6 +134,8 @@ export function Settings() {
                 </div>
               </div>
             </div>
+
+            <SettingsLeaveFarmCard />
 
             {/*
               Invite PINs are a Firebase mechanism — the code is minted and

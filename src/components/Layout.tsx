@@ -23,6 +23,7 @@ import { useFarmDiary } from '../lib/farmDiary';
 import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
 import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
+import { isFarmCodeSession } from '../lib/farmPipes';
 
 /** Below xl: overlay drawer (phone + tablet). xl+: permanent sidebar. */
 const NAV_DRAWER_MQ = '(max-width: 1279px)';
@@ -81,8 +82,8 @@ export function Layout() {
       <aside
         id="app-nav-sidebar"
         className={cn(
-          // Stop above the persistent BottomNav (< lg) so Sign out stays tappable.
-          'fixed top-0 bottom-20 left-0 z-[5004] w-72 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out lg:bottom-0 xl:translate-x-0 xl:static xl:flex-shrink-0',
+          // Stop above BottomNav + Samsung/home-indicator inset so Sign out stays tappable.
+          'fixed top-0 left-0 z-[5004] w-72 bg-slate-900 text-slate-300 transform transition-transform duration-200 ease-in-out bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:bottom-0 xl:translate-x-0 xl:static xl:flex-shrink-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
         aria-label="Main navigation"
@@ -239,11 +240,11 @@ export function Layout() {
             </div>
             <button
               type="button"
-              onClick={logout}
+              onClick={() => void logout()}
               className="flex items-center w-full px-2 py-2 text-sm font-medium text-slate-300 rounded-md hover:bg-slate-800 hover:text-white transition-colors"
             >
               <IconLogout className="mr-3 h-5 w-5" stroke={1.75} />
-              Sign out
+              {isFarmCodeSession() ? 'Leave this farm' : 'Sign out'}
             </button>
           </div>
         </div>

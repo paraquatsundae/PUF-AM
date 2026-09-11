@@ -31,7 +31,7 @@ export async function ensureBrowserMistStore(): Promise<IndexedDbMistStore> {
   return browserMistStoreReady;
 }
 
-/** Reset mist store singleton and optionally wipe IndexedDB (sign-out). */
+/** Reset mist store singleton and optionally wipe IndexedDB (disaster recovery, not Sign out). */
 export async function resetBrowserMistStore(clearData = true): Promise<void> {
   if (browserMistStore && clearData) {
     await browserMistStore.clearAll();
