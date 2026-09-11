@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  FDEV_BINARY,
+  BINARY_ENV_VARS,
   FREENET_BINARY,
   freenetBinaryFileName,
   freenetOsTag,
@@ -133,15 +133,9 @@ describe('resolveFreenetBinary', () => {
     });
   });
 
-  it('resolves fdev out of the same vendor dir as freenet', () => {
-    const result = resolveFreenetBinary(FDEV_BINARY, {
-      ...linux,
-      repoRoot: '/repo',
-      env: { PATH: '/home/op/.local/bin' },
-      isExecutable: presence('/repo/vendor/freenet/linux-x64/fdev', '/home/op/.local/bin/fdev'),
-    });
-
-    expect(result.binary).toEqual({ path: '/repo/vendor/freenet/linux-x64/fdev', source: 'vendor' });
+  it('knows one binary and one env override since fdev left the bundle (Phase 2)', () => {
+    expect(Object.keys(BINARY_ENV_VARS)).toEqual([FREENET_BINARY]);
+    expect(BINARY_ENV_VARS[FREENET_BINARY]).toBe('PUF_FREENET_BIN');
   });
 
   it('finds bundled Windows binaries under the packaged resources dir', () => {
@@ -174,14 +168,14 @@ describe('resolveFreenetBinary', () => {
   });
 
   it('splits PATH with the target platform delimiter and appends .exe', () => {
-    const result = resolveFreenetBinary(FDEV_BINARY, {
+    const result = resolveFreenetBinary(FREENET_BINARY, {
       platform: 'win32',
       arch: 'x64',
       env: { PATH: 'C:\\tools;C:\\freenet' },
-      isExecutable: presence('C:\\freenet\\fdev.exe'),
+      isExecutable: presence('C:\\freenet\\freenet.exe'),
     });
 
-    expect(result.binary).toEqual({ path: 'C:\\freenet\\fdev.exe', source: 'path' });
+    expect(result.binary).toEqual({ path: 'C:\\freenet\\freenet.exe', source: 'path' });
   });
 
   it('reports the candidate trail when nothing resolves', () => {

@@ -1,5 +1,7 @@
-# `fdev build` writes the compiled WASM here; the shipped copy is the vendored
-# one at units/mist-freenet/assets/slot-contract.wasm, pinned in
-# scripts/freenet-binaries.json. Committing both would let them drift.
+# `cargo build` writes the compiled module under target/; the shipped copy is the
+# packaged one at units/mist-freenet/assets/slot-contract.wasm, written by
+# scripts/build-slot-contract.mjs and pinned in scripts/freenet-binaries.json.
+# Committing both would let them drift. (`build/` is where the old `fdev build`
+# flow wrote; kept ignored so a stale checkout stays clean.)
 /target
 /build

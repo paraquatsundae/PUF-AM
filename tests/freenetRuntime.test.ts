@@ -89,16 +89,17 @@ describe('freenetReadsLocally', () => {
 });
 
 /**
- * GET works from any client on 0.2; PUT still goes through `fdev`, which is a
- * laptop binary. A tablet beside a node app therefore joins farms it cannot send,
- * and the UI has to disable sending rather than let it fail at the last step.
+ * GET works from any client on 0.2; the page's PUT still goes through a host's
+ * Express, which a tablet beside a node app does not have. It therefore joins
+ * farms it cannot send, and the UI has to disable sending rather than let it
+ * fail at the last step.
  */
 describe('freenetIsReadOnlyHere', () => {
   it('holds sending back on a tablet whose only node is the local one', () => {
     expect(freenetIsReadOnlyHere('android-local-node', false)).toBe(true);
   });
 
-  it('lifts as soon as a hub is paired, because that laptop has fdev', () => {
+  it('lifts as soon as a hub is paired, because that laptop can publish', () => {
     expect(freenetIsReadOnlyHere('android-local-node', true)).toBe(false);
   });
 

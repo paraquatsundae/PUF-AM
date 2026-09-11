@@ -1,8 +1,10 @@
 /**
  * Freenet 0.2 URI scheme for mist pack-contract instances.
  *
- * Legacy FCP uses `CHK@…`; 0.2 uses immutable pack contracts:
+ * Freenet 0.2 addresses immutable pack contracts as
  *   FN02@<base58-contract-instance-id>
+ * (`CHK@…` is the Hyphanet-era form; `freenet-uri-normalize.ts` still accepts
+ * it so an old index entry parses, but nothing publishes one any more.)
  *
  * The instance id is the Freenet contract key (BLAKE3(BLAKE3(wasm) || blake3(blob))).
  */

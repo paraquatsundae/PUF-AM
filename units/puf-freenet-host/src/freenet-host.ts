@@ -487,12 +487,14 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
 
 /**
  * Environment the mist transport expects, derived from a live host status.
- * `units/mist-freenet` reads these unchanged — see plan §5.5.
+ * `units/mist-freenet` reads these unchanged — see plan §5.5. `FREENET_WS_URL`
+ * is what both the flatbuffers GET and the native PUT clients open; the two
+ * WASM paths are read off disk by the Node-side publish helpers, because a
+ * bundled CJS main cannot derive them from `import.meta.url`.
  */
 export function freenetHostEnv(
   status: FreenetHostStatus,
   extras: {
-    fdevBin?: string;
     packWasm?: string;
     /** Join-slot contract — what makes a short ticket resolve off the owner's Wi-Fi. */
     slotWasm?: string;
@@ -500,11 +502,9 @@ export function freenetHostEnv(
   } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {
-    FREENET_TRANSPORT: 'ws02',
     FREENET_WS_URL: status.wsUrl,
     FREENET_WS_PORT: String(status.wsPort),
   };
-  if (extras.fdevBin) env.FDEV_BIN = extras.fdevBin;
   if (extras.packWasm) env.FREENET_PACK_WASM = extras.packWasm;
   if (extras.slotWasm) env.FREENET_SLOT_WASM = extras.slotWasm;
   if (extras.mistRoot) env.MIST_FREENET_ROOT = extras.mistRoot;

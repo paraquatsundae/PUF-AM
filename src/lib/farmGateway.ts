@@ -6,7 +6,7 @@
  * (`Plans/reference/APK_FREENET_PLUGIN.md` §8d). A tablet cannot host a Freenet node, so
  * something else has to speak Freenet on its behalf, and that something is
  * already built: the desktop LAN hub relays `/api/mist/freenet/*` off a real
- * node and has `fdev` for publishing. Its one gap was reach — the hub was
+ * node and publishes through it. Its one gap was reach — the hub was
  * findable on the shed Wi‑Fi and nowhere else, so a tablet in a paddock, in the
  * ute or at the worker's house had no gateway at all and the operator was told
  * to sideload a node app.

@@ -1,8 +1,10 @@
 /**
- * Freenet-backed MistStore — disk cache + FCP transport (phase 3).
+ * Freenet-backed MistStore — disk cache + Freenet 0.2 WebSocket transport.
  *
  * **Node-only.** Wraps `DiskMistStore` for local latency/offline reads and uses
- * `FreenetTransport` for CHK insert/fetch against a local Hyphanet node.
+ * a `FreenetTransport` (`Freenet02WsTransport`, native PUT / flatbuffers GET)
+ * for pack-contract put/fetch against the local node. Hosted by the Express LAN
+ * relay's `FreenetPeer`; the Electron host wire talks to the transport directly.
  *
  * When the node is down:
  * - put/get/list/watch still work against the disk cache
@@ -36,7 +38,7 @@ import type {
 export type FreenetMistStoreOptions = DiskMistStoreOptions & {
   backendId?: string;
   transport: FreenetTransport;
-  /** Attempt FCP connect on init (default false — connect on first insert). */
+  /** Attempt the node connect on init (default false — connect on first insert). */
   connectOnInit?: boolean;
   /** Vitest only — skip encrypt-before-upload guard. */
   allowPlaintextForTests?: boolean;

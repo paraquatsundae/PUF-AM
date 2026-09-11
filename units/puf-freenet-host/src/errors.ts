@@ -1,4 +1,4 @@
-/** No `freenet` (or `fdev`) binary found in any resolution source. */
+/** No `freenet` binary found in any resolution source. */
 export class FreenetBinaryNotFoundError extends Error {
   readonly code = 'FREENET_BINARY_NOT_FOUND' as const;
   readonly binaryName: string;

@@ -7,62 +7,59 @@
  * constant ever disagree, publishes keep succeeding but land at addresses nothing
  * will look up — so this runs before packaging, not after a field report.
  *
- * Two checks per contract, deliberately split by what they need:
- *   1. SHA-256 of the WASM against the manifest — always runs, no tools needed.
- *   2. `fdev inspect <wasm> code` against the manifest code hash — needs `fdev`,
- *      skipped with a warning when it is absent unless `--require-fdev`.
+ * Two checks per contract, both hermetic:
+ *   1. SHA-256 of the packaged file against the manifest.
+ *   2. BLAKE3 of the raw WASM (the 40-byte contract package header stripped, the
+ *      same way `unpackContractWasm` in units/mist-freenet does before a PUT)
+ *      against the manifest code hash. This is exactly what `fdev inspect … code`
+ *      used to print; computing it here is what let Phase 2 of
+ *      Plans/FREENET_NETWORK_PACK.md drop the `fdev` CLI from the toolset.
  *
- * Usage: node scripts/verify-pack-contract.mjs [--require-fdev]
+ * Usage: node scripts/verify-pack-contract.mjs
  * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §7.1, Phase 2.
  */
 
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { accessSync, constants, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { blake3 } from '@noble/hashes/blake3.js';
+import bs58 from 'bs58';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(
   readFileSync(path.join(REPO_ROOT, 'scripts', 'freenet-binaries.json'), 'utf8'),
 );
 
-const requireFdev = process.argv.slice(2).includes('--require-fdev');
-
-function osTag(platform) {
-  if (platform === 'win32') return 'win';
-  if (platform === 'darwin') return 'mac';
-  return 'linux';
-}
-
-function isExecutable(candidate) {
-  try {
-    accessSync(candidate, process.platform === 'win32' ? constants.F_OK : constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const WASM_MAGIC = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
+/** `[u64 LE api version][32-byte BLAKE3 of wasm]` precedes the module in a packaged contract. */
+const PACKAGE_HEADER_BYTES = 40;
 
 /**
- * Same precedence as the host unit's resolver, minus the Electron resources dir:
- * env override → vendor/ → PATH. Kept as a short list rather than importing the
- * TypeScript unit, which plain `node` cannot load.
+ * Code hash of a contract file, packaged or raw. Mirrors `unpackContractWasm`
+ * (units/mist-freenet/src/freenet02-pack-id.ts) — kept as plain JS because this
+ * script runs under `node`, which cannot load the TypeScript unit.
  */
-function resolveFdev() {
-  const fileName = process.platform === 'win32' ? 'fdev.exe' : 'fdev';
-  const platformTag = `${osTag(process.platform)}-${process.arch}`;
-  const candidates = [
-    process.env.PUF_FDEV_BIN?.trim(),
-    process.env.FDEV_BIN?.trim(),
-    path.join(REPO_ROOT, manifest.vendorDirTemplate.replace('{platformTag}', platformTag), fileName),
-    ...(process.env.PATH ?? '')
-      .split(process.platform === 'win32' ? ';' : ':')
-      .filter(Boolean)
-      .map((dir) => path.join(dir, fileName)),
-  ].filter(Boolean);
-
-  return candidates.find(isExecutable);
+function contractCodeHashB58(bytes) {
+  if (bytes.subarray(0, 4).equals(WASM_MAGIC)) {
+    return { codeHash: bs58.encode(blake3(bytes)), packaged: false };
+  }
+  if (
+    bytes.length > PACKAGE_HEADER_BYTES &&
+    bytes.subarray(PACKAGE_HEADER_BYTES, PACKAGE_HEADER_BYTES + 4).equals(WASM_MAGIC)
+  ) {
+    const wasm = bytes.subarray(PACKAGE_HEADER_BYTES);
+    const digest = blake3(wasm);
+    // The header carries its own copy of the hash; a disagreement means the
+    // package was hand-edited or truncated, not merely re-pinned.
+    const headerHash = bytes.subarray(8, PACKAGE_HEADER_BYTES);
+    if (!Buffer.from(digest).equals(headerHash)) {
+      throw new Error('package header hash does not match BLAKE3 of the module it wraps');
+    }
+    return { codeHash: bs58.encode(digest), packaged: true };
+  }
+  throw new Error('not a WASM module or a packaged contract');
 }
 
 /**
@@ -86,17 +83,6 @@ const CONTRACTS = [
   },
 ];
 
-const fdev = resolveFdev();
-if (!fdev) {
-  const message =
-    'fdev not found — skipping every code-hash check. Run `npm run desktop:vendor` first, or set PUF_FDEV_BIN.';
-  if (requireFdev) {
-    console.error(message);
-    process.exit(1);
-  }
-  console.log(`${message}\n`);
-}
-
 let failed = false;
 
 for (const { label, pin, constant, breakage } of CONTRACTS) {
@@ -115,39 +101,34 @@ for (const { label, pin, constant, breakage } of CONTRACTS) {
   if (actualSha !== pin.sha256) {
     console.error(
       `\nWASM changed without a manifest bump.\n  expected sha256 ${pin.sha256}\n  actual   sha256 ${actualSha}\n` +
-        `\nIf this is intentional, re-run \`fdev inspect ${pin.path} code\`, update both\n` +
-        `scripts/freenet-binaries.json and ${constant},\n` +
-        `and note that ${breakage}.`,
+        `\nIf this is intentional, update both scripts/freenet-binaries.json and ${constant}\n` +
+        `to the code hash this script prints, and note that ${breakage}.`,
     );
     failed = true;
     continue;
   }
   console.log(`  sha256    ${actualSha}  (pinned)`);
 
-  if (!fdev) {
-    console.log('  code hash skipped: no fdev');
-    continue;
-  }
-
-  const output = execFileSync(fdev, ['inspect', wasmPath, 'code'], { encoding: 'utf8' });
-  const codeHash = /code hash:\s*(\S+)/.exec(output)?.[1];
-  if (!codeHash) {
-    console.error(`\nCould not parse a code hash out of \`fdev inspect\`:\n${output}`);
+  let codeHash;
+  let packaged;
+  try {
+    ({ codeHash, packaged } = contractCodeHashB58(wasm));
+  } catch (err) {
+    console.error(`\n${label}: ${err instanceof Error ? err.message : err}`);
     failed = true;
     continue;
   }
 
   if (codeHash !== pin.codeHashB58) {
     console.error(
-      `\nCode hash mismatch — this fdev disagrees with the pin.\n  expected ${pin.codeHashB58}\n  actual   ${codeHash}\n` +
-        `\nThe WASM matched its checksum, so the likely cause is an fdev from a different release than\n` +
-        `${manifest.releaseTag}. Check \`${fdev} --version\` against ${manifest.toolVersions.fdev}.`,
+      `\nCode hash mismatch — the file's BLAKE3 disagrees with the pin.\n  expected ${pin.codeHashB58}\n  actual   ${codeHash}\n` +
+        `\nThe WASM matched its checksum, so the manifest's codeHashB58 (or ${constant}) is what drifted.`,
     );
     failed = true;
     continue;
   }
 
-  console.log(`  code hash ${codeHash}  (pinned, via ${path.relative(REPO_ROOT, fdev) || fdev})`);
+  console.log(`  code hash ${codeHash}  (pinned, BLAKE3 of the ${packaged ? 'unwrapped' : 'raw'} module)`);
 }
 
 if (failed) process.exit(1);

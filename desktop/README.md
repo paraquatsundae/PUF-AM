@@ -10,7 +10,7 @@ zip** artifacts build here; only the NSIS `.exe` still wants a Windows host.
 ## Running it
 
 ```bash
-npm run desktop:vendor           # once: fetch the pinned freenet + fdev (~93 MB)
+npm run desktop:vendor           # once: fetch the pinned freenet node (~57 MB)
 npm run desktop:dev              # vite build + bundle main/preload + launch
 MIST_FREENET=1 npm run desktop:dev   # ...and start the Freenet host
 ```
@@ -26,12 +26,13 @@ relative asset paths that break on SPA sub-routes.
 
 | Script | Does |
 |--------|------|
-| `desktop:vendor` | Fetch + checksum the pinned `freenet`/`fdev` for this platform |
+| `desktop:vendor` | Fetch + checksum the pinned `freenet` for this platform |
 | `desktop:vendor:linux` / `:win` | Same, for a named platform (cross-fetch is fine — files are only staged) |
 | `desktop:vendor:verify` | Re-check `vendor/` against the pins, no network (`:linux` / `:win` for a named platform) |
-| `desktop:verify:pack` | Bundled `pack-contract.wasm` still matches its pinned code hash |
+| `desktop:verify:pack` | Bundled `pack-contract.wasm` / `slot-contract.wasm` still match their pinned code hashes (hermetic BLAKE3) |
 | `desktop:verify:deps` | The packaged `node_modules` allowlist still matches what the bundle requires |
 | `desktop:smoke:host` | Start a real node from the resolved binary on a spare port, assert `managed`, stop |
+| `mist:smoke:native` | Same throwaway node, then the live native PUT / slot / GET suites against it; one verdict line with the node version |
 | `desktop:build` | esbuild `main.ts` + `preload.ts` → `desktop/build/*.cjs` |
 | `desktop:start` | `electron .` — assumes `dist/` and `desktop/build/` are current |
 | `desktop:dev` | `build` + `desktop:build` + `desktop:start` |
@@ -63,9 +64,9 @@ npm run desktop:dist:win              # Windows: + the NSIS installer — needs 
 npm run desktop:dist                  # host platform, whatever that is
 ```
 
-Every one of those gates packaging on the vendored binaries for the *target* platform, the
-pack-contract code hash (with `fdev` mandatory), a fresh web + main bundle, and the `node_modules`
-allowlist. Do not call `electron-builder` directly — that is how a stale `vendor/` ships.
+Every one of those gates packaging on the vendored binary for the *target* platform, both contract
+code hashes, a fresh web + main bundle, and the `node_modules` allowlist. Do not call
+`electron-builder` directly — that is how a stale `vendor/` ships.
 
 ### Running the Fedora artifact
 
@@ -107,14 +108,14 @@ sudo dnf install ./release/puf-am-0.1.0.x86_64.rpm
 `release/` is gitignored, so these are copied off the build box by hand (USB, share, `scp`).
 
 Only the **NSIS installer** still needs a Windows host, and only because NSIS builds its uninstaller
-by *running* a Windows stub executable. Everything else — the asar, `freenet.exe`, `fdev.exe`, the
-pack WASM, `makensis` itself, and the no-op signing step — works natively on Linux. Don't bother with
+by *running* a Windows stub executable. Everything else — the asar, `freenet.exe`, the contract
+WASMs, `makensis` itself, and the no-op signing step — works natively on Linux. Don't bother with
 electron-builder's `toolsets.wine: '1.0.1'` bundle: it downloads, but ships no `kernel32.dll` and
 cannot boot a prefix. On the Windows box:
 
 ```powershell
 npm ci
-npm run desktop:vendor:win     # once: fetch the pinned freenet.exe + fdev.exe
+npm run desktop:vendor:win     # once: fetch the pinned freenet.exe
 npm run desktop:dist:win       # → release\PUF-AM Setup 0.1.0.exe (+ portable + zip)
 ```
 
@@ -134,13 +135,15 @@ your PC"* on first launch — **More info → Run anyway**.
    pick **Join a farm** and enter FarmCode, device PIN, ticket.
 
 `freenet.exe` has never been launched. Treat the first Windows run as new information, and flip
-`win-x64` to `verified` in `scripts/freenet-binaries.json` once it spawns a node.
+`win-x64` to `verified` in `scripts/freenet-binaries.json` once it spawns a node. The same applies to
+`linux-x64` after a pin bump: it sits at `pending-live-check` until `npm run mist:smoke:native` passes
+against the new binary (0.2.135 pinned 2026-09-11, check pending).
 
 ## Why Electron
 
 Every Node-side piece PUF-AM desktop needs — the Freenet peer (`units/mist-freenet/src/node.ts`),
-the Express API (`server/createApiApp.ts`), the mDNS LAN hub, `fdev` spawning — already exists in
-TypeScript on Node. Electron makes that the main process for free. Tauri would need a Node
+the Express API (`server/createApiApp.ts`), the mDNS LAN hub, the native PUT clients — already
+exists in TypeScript on Node. Electron makes that the main process for free. Tauri would need a Node
 sidecar to reuse any of it, which is the sidecar shape this whole effort exists to remove.
 Full comparison: plan §3.
 
@@ -298,7 +301,7 @@ If a node is already listening on the WS port — a workshop `freenet network`, 
 - **CJS output on purpose** — no ESM/`__dirname` friction in Electron main.
 - `main.ts` imports `.ts` specifiers (repo convention). esbuild resolves them; Electron never sees TypeScript. That is the *only* reason this build step exists.
 - **npm packages stay external.** Bundling them would flatten `firebase-admin`'s dynamic requires and grpc's native bindings for no gain. The cost is that the packaged asar has to carry the main process's runtime closure explicitly, which is what `desktop:verify:deps` keeps honest.
-- `import.meta` is empty in CJS, and `units/mist-freenet` reads `import.meta.url` at module load. The build shims it from `__filename` so the bundle does not throw, and `main.ts` sets `FREENET_PACK_WASM` explicitly because the shim points at the bundle, not the asset.
+- `import.meta` is empty in CJS, and `units/mist-freenet` reads `import.meta.url` at module load. The build shims it from `__filename` so the bundle does not throw, and `main.ts` sets `FREENET_PACK_WASM` / `FREENET_SLOT_WASM` explicitly because the shim points at the bundle, not the assets.
 - `desktop/build/` is gitignored.
 - `better-sqlite3` is gone from the repo (unused, and it would have forced an Electron ABI rebuild). `firebase-admin` is cloud-only and never packaged, which is why `server/firebaseAdmin.ts` loads it on first use instead of importing it — a static import made the packaged main process die at boot.
 

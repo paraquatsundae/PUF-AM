@@ -440,8 +440,10 @@ devices that cannot see each other. That, and only that, is what Freenet is for 
 
 ### Why this is not live tracking
 
-A Freenet PUT takes seconds to minutes and still goes through `fdev`, a laptop-only
-binary ([`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §2 blocker 4). Presence
+A Freenet PUT takes seconds to minutes and still goes through a laptop's node
+(a tablet has no node of its own until [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 3;
+the `fdev` blocker in [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §2 was
+cleared 2026-09-11 by native PUT). Presence
 upserts every ~8 s. Freenet cannot carry that cadence and is not going to. The
 question it answers is *where was that ute last seen*, not *where is it now*.
 
@@ -456,7 +458,7 @@ question it answers is *where was that ute last seen*, not *where is it now*.
 | Freshness | Same 45 s `PRESENCE_STALE_MS` prune, so a Freenet marker mostly reads as stale. Show a "last seen" label, never a live dot. |
 | Identity | `uid` is meaningless without a cloud account. Key on the **join-ticket entry id** (§4) — the only farm-scoped identity a Freenet farm has. |
 | Privacy | Its own switch, **default off**, separate from `pufom_share_crew_location`. A sealed blob on a public network is a different consent question from a Firestore doc behind rules. |
-| Publishing | A tablet cannot do it at all without a paired hub — same `fdev` limit. Its position reaches Freenet only through a laptop, which the copy must say rather than leave the operator to notice. |
+| Publishing | A tablet cannot do it at all without a paired hub — it has no node and no Express of its own. Its position reaches Freenet only through a laptop, which the copy must say rather than leave the operator to notice. |
 | Storage policy | `contribute_storage = false` on mobile stays frozen ([`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) § Mobile peer policy). None of this makes a phone a storage peer. |
 | Ordering | Blocked on §4. Without a personnel record there is no name to put on the marker. |
 
@@ -505,7 +507,7 @@ nothing above changes `FreenetHostPlugin` (`start` / `stop` / `status` /
 |------|---------------|---------|
 | **Desktop bridge** | `src/lib/desktopBridge.ts` ↔ `desktop/preload.ts` / `main.ts` | Node lifecycle (`freenet.start/stop/status/onState`), LAN hub. Absent → `getDesktopBridge()` is `null` and node controls do not render. |
 | **Android / NSD plugin** | `android/.../PufomNsdPlugin.java`, `src/lib/nsdPeers.ts` | Hub discovery on a tablet. No Freenet node ships in the APK — a tablet either finds a hub or finds a separate node app on the device. |
-| **Runtime probe** | `src/lib/freenetRuntime.ts`, `src/mist/freenetLocalNode.ts` | *Readiness*, never *visibility* (§1). `detectFreenetReadOnly` exists because a node on a tablet can fetch but not publish — PUT still needs laptop-only `fdev`. |
+| **Runtime probe** | `src/lib/freenetRuntime.ts`, `src/mist/freenetLocalNode.ts` | *Readiness*, never *visibility* (§1). `detectFreenetReadOnly` exists because a node app on a tablet can fetch but not publish — the page's publish path runs through a host's Express, which the tablet lacks until Phase 3. |
 
 The two rules from [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §5 survive:
 **ciphertext only** (the host never sees a name or a coordinate) and **one-way
@@ -559,8 +561,8 @@ could not use Wi‑Fi at all.** Every `/api/sync/lan/*` route calls
 A Freenet farm has no cloud account, so `pushLanBundle` threw *"Sign in to use LAN
 sync"* before it reached the network. The pipe §1 calls **always available** was,
 on the farms this whole line of work is for, never available. Freenet was left
-carrying shed-to-ute traffic it is bad at: a PUT is minutes, through a laptop-only
-`fdev`.
+carrying shed-to-ute traffic it is bad at: a PUT is minutes, through a laptop's
+node.
 
 ### The ladder (frozen)
 
@@ -587,9 +589,11 @@ route against the identical hub; it is a separate `SyncPeerState` only because t
 operator is owed a different sentence and because the bytes may be leaving the
 farm on mobile data. LAN is still tried first — §10.
 
-**Rung 3/4 order is not a preference, it is a capability.** `fdev` is not on
-Android and could not be exec'd there if it were (`reference/APK_FREENET_PLUGIN.md` §2), so
-a tablet with its own node gets rung 4 and a laptop gets rung 3. Same predicate
+**Rung 3/4 order is not a preference, it is a capability.** A tablet beside a
+sideloaded node app has no publish path — the page publishes through a host's
+Express, which Android lacks until `FREENET_NETWORK_PACK.md` Phase 3 (the original
+`fdev` reasoning in `reference/APK_FREENET_PLUGIN.md` §2 was cleared by native PUT
+on 2026-09-11) — so a tablet with its own node gets rung 4 and a laptop gets rung 3. Same predicate
 the send card already uses — `detectFreenetReadOnly()`.
 
 **A hub found but not paired does not stop the ladder.** It falls through to
@@ -601,7 +605,7 @@ its own does not have to wait for a code to be read out.
 | | Wi‑Fi rungs | Freenet rungs |
 |--|--|--|
 | Merge | `applyPufomBundle` — LWW per entity, both sides keep their own work | `rehydrateLocalFarmFromHot` — **replaces** each kind wholesale |
-| Cost | Seconds; a no-op when the digest matches | Minutes; a PUT through `fdev` |
+| Cost | Seconds; a no-op when the digest matches | Minutes; a PUT through the node |
 | Side effects | None | Re-issues the join ticket the owner read out |
 
 Any one of those three would be enough. A background task that can silently

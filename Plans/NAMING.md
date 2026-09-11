@@ -104,7 +104,10 @@ Related plans (not duplicated here):
 | `MIST_FREENET` | Server / desktop main | `1` enables the in-process Freenet peer (and, on desktop, starts the bundled node) |
 | `MIST_FREENET_DISABLED` | Server | `1` makes `/api/mist/freenet/*` answer 503 (`server/mistFreenetRoutes.ts`). **Optional since 2026-09-10**: the `cloud` API surface never registers those routes, so the deploy script stopped setting it; the guard stays for a LAN hub that wants Freenet off |
 | `PUF_FREENET_BIN` | Desktop / server | Workshop override for the `freenet` binary — outranks bundled and `PATH` |
-| `PUF_FDEV_BIN` | Desktop / server | Same for `fdev` (still required for PUT on 0.2.118) |
+| `FREENET_WS_URL` / `FREENET_WS_AUTH` | Server / desktop main | The node's WS API endpoint and optional token; the same socket carries GET and PUT. Desktop main sets `FREENET_WS_URL` from the host it started (`freenetHostEnv`) |
+| `FREENET_WS_PORT` | Desktop main | Port the bundled node binds; default 7509, moved to spawn beside a workshop node |
+| `FREENET_PACK_WASM` / `FREENET_SLOT_WASM` | Server / desktop main | Paths to the pinned contract WASMs the native PUT clients read; set by desktop main because a bundled CJS main cannot derive them from `import.meta.url` |
+| ~~`FREENET_TRANSPORT`~~, ~~`FDEV_BIN`~~, ~~`PUF_FDEV_BIN`~~, ~~`FREENET_FCP_HOST`~~, ~~`FREENET_FCP_PORT`~~ | — | **Removed 2026-09-11** (`FREENET_NETWORK_PACK.md` Phase 2). There is one wire, so no transport selector; PUT is the app's own WS client, so no `fdev`; the Hyphanet FCP backend is deleted. Setting any of them does nothing |
 | `PUF_CLOUD_API_BASE` | Desktop main | Override for cloud-only routes (`/api/auth/*`, `/api/weather/*`); default `https://am.pufworks.farm` |
 | `DPIRD_API_KEY` | **Server only** | Never `VITE_*` — would bake into APK |
 
@@ -169,6 +172,8 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts, FN02 URIs, minted join ticket |
 | `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
 | `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag lives on its farm doc instead — `farms/{farmId}.networkPacks.freenet_host`, §8 below (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
+| `pufam.mist.joinTicketDraft.v1` | `sessionStorage`, ticket only (`PUF-XXXX-XXXX`). Written by the login Freenet join step when a ticket was typed before the FarmCode; the join-ticket gate reads then clears it. **Never the FarmCode.** Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
+| `pufam.freenetHost.farmCodePromptDismissed.v1` | `localStorage` JSON map of cloud `farmId` → ISO time. Hides the post-sign-in “enter the FarmCode” prompt on that device for that farm. Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
 
 ### CSS / DOM (non-storage)
 
@@ -218,6 +223,7 @@ Two layers — do not confuse:
 - Resolves to a **join manifest v2** `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket, hotContentHash?, bonesContentHash?, cloudFarmId? }`. `cloudFarmId` (added 2026-09-11) is set only when the farm is a **hybrid** — a Firestore farm whose sealed mirror sits on Freenet — and names that Firestore farm so a joiner lands in a read-only mirror rather than believing it owns the farm. The sealed Hot blob carries the same id as `HotState.meta.cloud_farm_id`.
 - Roles use the mist vocabulary **`owner | admin | farmer | viewer`** — never `worker`. Default for a shared ticket: `farmer`.
 - **Join ticket ≠ FarmCode.** The ticket says *where* the farm is on Freenet; the FarmCode is what decrypts it. A ticket alone grants nothing.
+- **Classifier (login join box, 2026-09-11).** A bare 8-symbol string overlaps invite PIN, a prefix-dropped ticket body, and today's unprefixed hub pairing code (~60% of PINs sit in the alphabet intersection). The box **defaults to PIN** unless the string contains a non-PIN symbol (`0 1 I O`) or carries a `PUF-` / `HUB-` prefix. Unprefixed pairing codes are never classified as hub pairing; if pairing is ever offered at login, mint `HUB-XXXX-XXXX` as a new format (`LOGIN_JOIN_SINGLE_BOX.md`).
 - **Short join ticket ≠ raw Freenet ticket** — the v1 `{ hotUri, bonesUri }` JSON is the *Advanced* fallback, not the thing operators are taught.
 - LAN shelf: `tmp/lan-sync/join-manifests.json`; routes under `/api/sync/join-ticket`.
 

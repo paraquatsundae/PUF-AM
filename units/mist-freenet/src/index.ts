@@ -169,6 +169,9 @@ export {
 } from './freenet02-native-bincode.ts';
 export type { NativeHostPutResult, NativePackPutFrame } from './freenet02-native-bincode.ts';
 
+export { FreenetNativeWsError, defaultNativeWebSocket, sendNativeRequest } from './freenet02-native-ws.ts';
+export type { NativeWebSocketConstructor, SendNativeRequestOptions } from './freenet02-native-ws.ts';
+
 export {
   BrowserFreenetSlotClient,
   FreenetNativeSlotError,

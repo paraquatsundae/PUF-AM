@@ -2,7 +2,7 @@
   "name": "@pufam/mist-freenet",
   "private": true,
   "version": "0.1.0",
-  "description": "PUF-AM mist unit — Freenet-style encrypted farm storage (phase 3: FCP adapter)",
+  "description": "PUF-AM mist unit — encrypted farm storage over Freenet 0.2 (native PUT, flatbuffers GET)",
   "type": "module",
   "scripts": {
     "lint": "tsc --noEmit -p tsconfig.json",

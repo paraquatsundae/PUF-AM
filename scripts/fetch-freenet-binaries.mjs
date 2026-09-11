@@ -1,11 +1,15 @@
 /**
- * Populate `vendor/freenet/<os>-<arch>/` with the pinned Freenet binaries.
+ * Populate `vendor/freenet/<os>-<arch>/` with the pinned Freenet node binary.
  *
  * Build input, not source: `vendor/` is gitignored, this script and
  * `freenet-binaries.json` are what get committed. Every download is checked
  * against a pinned SHA-256 twice — once on the archive, once on the extracted
- * binary — because a silent version drift changes the pack-contract code hash
- * and therefore every mist URI ever published.
+ * binary — because a silent version drift changes what the node accepts and
+ * therefore whether anything the app publishes lands.
+ *
+ * Only `freenet` is fetched. Since Phase 2 of `Plans/FREENET_NETWORK_PACK.md`
+ * PUT is the app's own WebSocket client, so the `fdev` CLI is neither pinned
+ * nor bundled; the manifest's `platforms[*].binaries` list is what decides.
  *
  * Usage:
  *   node scripts/fetch-freenet-binaries.mjs                 # host platform
@@ -191,6 +195,9 @@ async function main() {
   );
   if (platform.status !== 'verified') {
     console.log(`  note: ${args.platformTag} is pinned but marked "${platform.status}" in the manifest.`);
+    if (platform.status === 'pending-live-check') {
+      console.log(`        run \`npm run mist:smoke:native\` against it and flip the status to "verified".`);
+    }
   }
 
   if (args.verify) return verifyOnly(args.platformTag, platform, vendorDir);

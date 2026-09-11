@@ -2,7 +2,7 @@
  * Mist key ↔ Freenet URI mapping (v1).
  *
  * Strategy:
- * - Ciphertext blobs are inserted as **CHK** (FCP) or **FN02@…** (Freenet 0.2 pack-contract).
+ * - Ciphertext blobs are inserted as **FN02@…** (Freenet 0.2 pack-contract instances).
  * - Local index maps mist key → URI + content_hash (see FreenetMistStore index).
  * - Mutable contracts (hot/current, manifest) are re-put as new blobs; the mist
  *   key always points at the latest URI in the local index. USK/SSK updates are deferred.
@@ -10,7 +10,8 @@
  *   (`pullByUri`) — B's freenet-index is empty after FarmCode recovery. See
  *   Plans/reference/MIST_TWO_FEDORA_FREENET.md.
  *
- * Browsers cannot run a full Freenet node; only Node/Electron main may use FCP.
+ * This index lives on disk beside the Node-hosted store (Express relay, Electron
+ * main); the page keeps its own URI memory in `pufam.mist.hotPublish.v1.*`.
  */
 
 export type FreenetKeyRecord = {
@@ -18,7 +19,7 @@ export type FreenetKeyRecord = {
   content_hash: string;
   /** Unix ms when last successfully inserted on Freenet. */
   insertedAt?: number;
-  /** True when cached locally but FCP insert not yet confirmed. */
+  /** True when cached locally but the Freenet put has not yet been confirmed. */
   pending?: boolean;
 };
 

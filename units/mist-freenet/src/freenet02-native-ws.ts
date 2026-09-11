@@ -2,6 +2,11 @@
  * One native-encoded request on a short-lived WebSocket.
  *
  * Pack PUT and slot PUT/UPDATE share this so neither pulls the flatbuffers SDK.
+ *
+ * The socket class is injectable rather than assumed: a WebView, Node ≥ 22 and
+ * Electron's main process all provide `globalThis.WebSocket`, which is the
+ * default; an older Node runtime passes the `ws` package's class instead of
+ * patching a global (Plans/FREENET_NETWORK_PACK.md decision 1).
  */
 
 import { encodeNativeAuthenticate, encodeNativeClose, toNativeFreenetWsUrl } from './freenet02-native-bincode.ts';
@@ -9,6 +14,15 @@ import { DEFAULT_LOCAL_FREENET_WS_URL } from './freenet02-browser-get-url.ts';
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 6_000;
 export const NATIVE_WS_DEFAULT_TIMEOUT_MS = 45_000;
+
+/** The subset of the WHATWG `WebSocket` constructor the native request needs. */
+export type NativeWebSocketConstructor = new (url: string) => WebSocket;
+
+/** The runtime's own `WebSocket`, or `undefined` when it has none. */
+export function defaultNativeWebSocket(): NativeWebSocketConstructor | undefined {
+  const ctor = (globalThis as { WebSocket?: unknown }).WebSocket;
+  return typeof ctor === 'function' ? (ctor as NativeWebSocketConstructor) : undefined;
+}
 
 export class FreenetNativeWsError extends Error {
   readonly hung: boolean;
@@ -26,6 +40,8 @@ export type SendNativeRequestOptions = {
   connectTimeoutMs?: number;
   requestTimeoutMs?: number;
   frame: Uint8Array;
+  /** Socket class to open; defaults to the runtime's `globalThis.WebSocket`. */
+  webSocket?: NativeWebSocketConstructor;
 };
 
 async function messageBytes(data: unknown): Promise<Uint8Array> {
@@ -41,7 +57,11 @@ export async function sendNativeRequest(options: SendNativeRequestOptions): Prom
   const wsUrl = toNativeFreenetWsUrl(options.wsUrl ?? DEFAULT_LOCAL_FREENET_WS_URL);
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   const requestTimeoutMs = options.requestTimeoutMs ?? NATIVE_WS_DEFAULT_TIMEOUT_MS;
-  const socket = await openSocket(wsUrl, connectTimeoutMs);
+  const socket = await openSocket(
+    wsUrl,
+    connectTimeoutMs,
+    options.webSocket ?? defaultNativeWebSocket(),
+  );
 
   try {
     if (options.authToken) socket.send(encodeNativeAuthenticate(options.authToken));
@@ -52,10 +72,17 @@ export async function sendNativeRequest(options: SendNativeRequestOptions): Prom
   }
 }
 
-function openSocket(wsUrl: string, connectTimeoutMs: number): Promise<WebSocket> {
-  const Ctor = globalThis.WebSocket;
+function openSocket(
+  wsUrl: string,
+  connectTimeoutMs: number,
+  Ctor: NativeWebSocketConstructor | undefined,
+): Promise<WebSocket> {
   if (!Ctor) {
-    return Promise.reject(new FreenetNativeWsError('WebSocket is not available in this runtime'));
+    return Promise.reject(
+      new FreenetNativeWsError(
+        'WebSocket is not available in this runtime — pass `webSocket` (e.g. the `ws` package) to the native client',
+      ),
+    );
   }
 
   return new Promise((resolve, reject) => {
@@ -150,9 +177,12 @@ function readBinary(socket: WebSocket, wsUrl: string, timeoutMs: number): Promis
   });
 }
 
+/** `WebSocket.OPEN` per the WHATWG constants; read off the instance so an injected class works too. */
+const WS_OPEN = 1;
+
 function closeSocket(socket: WebSocket): void {
   try {
-    if (socket.readyState === WebSocket.OPEN) {
+    if (socket.readyState === WS_OPEN) {
       socket.send(encodeNativeClose());
     }
     socket.close();

@@ -1,15 +1,16 @@
 /**
- * In-process Freenet peer plug-in — FCP transport + FreenetMistStore lifecycle.
+ * In-process Freenet peer — Freenet 0.2 WebSocket transport + FreenetMistStore
+ * lifecycle, hosted by the Express LAN relay (`server/freenetPeerHost.ts`).
  *
- * Node-only (`node:net`, `node:fs`). Browser code talks to a server-hosted peer
- * via authenticated local API routes; import status types from `./index.ts`.
+ * Node-only (`node:fs`). Browser code talks to a server-hosted peer via
+ * authenticated local API routes; import status types from `./index.ts`.
  *
  * Future fork boundary for PUF-FN — keep this module narrow.
  */
 
 import path from 'node:path';
 
-import { createFreenetTransport, describeFreenetTransportKind, resolveFreenetTransportKind } from './create-freenet-transport.ts';
+import { createFreenetTransport, describeFreenetTransportKind } from './create-freenet-transport.ts';
 import { FreenetMistStore } from './freenet-mist-store.ts';
 import type { FreenetTransport } from './freenet-transport.ts';
 import type { MistHealth, MistStats } from './types.ts';
@@ -20,9 +21,9 @@ export type FreenetPeerStatus = {
   connected: boolean;
   contribute: boolean;
   backendId: string;
-  /** Wire backend: fcp | ws02 | mock */
+  /** Wire backend: ws02 | mock */
   transportId?: string;
-  /** Human label, e.g. Freenet 0.2 WebSocket vs Hyphanet FCP */
+  /** Human label, e.g. "Freenet 0.2 WebSocket" */
   transportLabel?: string;
   freenet: 'connected' | 'disconnected' | 'connecting';
   host?: string;
@@ -38,7 +39,7 @@ export type FreenetPeerStatus = {
 
 export type FreenetPeerOptions = {
   rootDir: string;
-  /** When omitted, uses env-selected transport (FCP or Freenet 0.2 WS). */
+  /** When omitted, the Freenet 0.2 WebSocket transport at `FREENET_WS_URL`. */
   transport?: FreenetTransport;
   contribute?: boolean;
   /** Attempt connect on start (default true). */
@@ -72,7 +73,6 @@ export function createFreenetPeer(options: FreenetPeerOptions): FreenetPeer {
   }
 
   const rootDir = path.resolve(options.rootDir);
-  const transportKind = resolveFreenetTransportKind();
   const transport = options.transport ?? createFreenetTransport();
   const connectOnStart = options.connectOnStart ?? true;
   let running = false;
@@ -89,14 +89,14 @@ export function createFreenetPeer(options: FreenetPeerOptions): FreenetPeer {
 
   async function buildStatus(health: MistHealth, stats?: MistStats): Promise<FreenetPeerStatus> {
     const transportHealth = await transport.health();
-    const tid = transportHealth.transportId ?? transportKind;
+    const tid = transportHealth.transportId ?? 'ws02';
     return {
       running,
       connected: health.freenet === 'connected',
       contribute: health.contribute,
       backendId: health.backendId,
       transportId: tid,
-      transportLabel: describeFreenetTransportKind(tid === 'ws02' ? 'ws02' : 'fcp'),
+      transportLabel: tid === 'mock' ? 'mock transport' : describeFreenetTransportKind(),
       freenet: health.freenet ?? 'disconnected',
       host: transportHealth.host,
       port: transportHealth.port,

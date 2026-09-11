@@ -6,8 +6,8 @@
  */
 
 export {
+  DEFAULT_FREENET_WS_URL,
   DiskMistStore,
-  FcpFreenetTransport,
   Freenet02WsTransport,
   FreenetMistStore,
   MistStorageFullError,
@@ -16,14 +16,13 @@ export {
   createFreenetTransport,
   describeFreenetTransportKind,
   encodeFreenet02Uri,
+  loadSlotContractWasm,
   mockChkUriFromContent,
-  putJoinSlotViaFdev,
-  resolveFreenetTransportKind,
+  putJoinSlotNative,
   resolveSlotContractWasmPath,
 } from './freenet.ts';
 export type {
   DiskMistStoreOptions,
-  FcpFreenetTransportOptions,
   Freenet02WsTransportOptions,
   CreateFreenetTransportOptions,
   FreenetTransportKind,
@@ -39,5 +38,6 @@ export type {
   FreenetTransport,
   FreenetTransportHealth,
   MockFreenetTransportOptions,
+  PutJoinSlotOptions,
   SlotPutResult,
 } from './freenet.ts';

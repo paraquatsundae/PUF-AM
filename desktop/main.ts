@@ -44,11 +44,9 @@ import {
   ipcSlotPutArgs,
 } from './freenetIpcInput.ts';
 import {
-  FDEV_BINARY,
   createFreenetHost,
   freenetHostEnv,
   freenetWsUrl,
-  resolveFreenetBinary,
   type FreenetHostPlugin,
   type FreenetHostStatus,
 } from '../units/puf-freenet-host/src/index.ts';
@@ -468,36 +466,29 @@ function userDataPaths() {
   };
 }
 
-/** Bundled binaries and the pack contract live outside app.asar — `fdev` needs real paths. */
+/** The bundled node binary lives outside app.asar — a spawned process needs a real path. */
 function bundledFreenetDir(): string {
   const { resourcesPath } = process as NodeJS.Process & { resourcesPath?: string };
   return path.join(resourcesPath ?? app.getAppPath(), 'freenet');
 }
 
 /**
- * Resolve the assets the mist PUT paths need.
+ * Resolve the contract WASMs the native PUT paths read off disk.
  *
- * Phase 1 bundles nothing, so all of them fall back to the dev tree or `PATH`. Only
- * report a path that actually exists: `mist-freenet` has working defaults for each,
- * and handing it a missing bundled path would break publishing outright rather than
- * quietly degrading. The WASM paths in particular *must* be set here, because
- * `mist-freenet` derives its own defaults from `import.meta.url`, which does not
- * survive bundling into a CJS Electron main.
+ * Only report a path that actually exists: `mist-freenet` has working defaults
+ * for each in the dev tree, and handing it a missing bundled path would break
+ * publishing outright rather than quietly degrading. They *must* be set here in
+ * a packaged build, because `mist-freenet` derives its own defaults from
+ * `import.meta.url`, which does not survive bundling into a CJS Electron main.
  *
  * Both contracts, not just the pack one: a short join ticket is published to the
  * **slot** contract, and a packaged build that cannot find that WASM still mints
  * tickets — they just never resolve anywhere but the owner's own Wi-Fi.
  */
-function resolveMistAssets(): { fdevBin?: string; packWasm?: string; slotWasm?: string } {
+function resolveMistAssets(): { packWasm?: string; slotWasm?: string } {
   const appPath = app.getAppPath();
   const { resourcesPath } = process as NodeJS.Process & { resourcesPath?: string };
   const resources = resourcesPath ?? appPath;
-
-  const fdev = resolveFreenetBinary(FDEV_BINARY, {
-    searchPaths: [bundledFreenetDir()],
-    repoRoot: appPath,
-    env: process.env,
-  });
 
   const contractWasm = (name: string) =>
     [
@@ -506,7 +497,6 @@ function resolveMistAssets(): { fdevBin?: string; packWasm?: string; slotWasm?: 
     ].find((candidate) => existsSync(candidate));
 
   return {
-    fdevBin: fdev.binary?.path,
     packWasm: contractWasm('pack-contract.wasm'),
     slotWasm: contractWasm('slot-contract.wasm'),
   };
@@ -562,11 +552,11 @@ function applyMistRootEnv(): void {
 
 /**
  * Publish the node's coordinates before anything in `units/mist-freenet` loads,
- * so its transport and `fdev` PUT path pick up the app-owned node (plan §5.5).
+ * so its transport and native PUT clients pick up the app-owned node (plan §5.5).
  */
 function applyFreenetEnv(status: FreenetHostStatus): void {
-  const { fdevBin, packWasm, slotWasm } = resolveMistAssets();
-  Object.assign(process.env, freenetHostEnv(status, { fdevBin, packWasm, slotWasm }), {
+  const { packWasm, slotWasm } = resolveMistAssets();
+  Object.assign(process.env, freenetHostEnv(status, { packWasm, slotWasm }), {
     MIST_FREENET: '1',
   });
 }

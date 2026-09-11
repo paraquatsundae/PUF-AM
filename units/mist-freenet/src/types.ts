@@ -44,7 +44,7 @@ export type MistHealth = {
   ok: boolean;
   backendId: string;
   contribute: boolean;
-  /** Present on Freenet-backed stores — local Hyphanet node reachability. */
+  /** Present on Freenet-backed stores — reachability of the local Freenet 0.2 node. */
   freenet?: 'connected' | 'disconnected' | 'connecting';
 };
 

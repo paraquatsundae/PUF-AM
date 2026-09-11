@@ -11,11 +11,16 @@
  * Nothing here can read a slot. The address, the signature and the AEAD seal are
  * all produced in the page from the FarmSeed; this publishes and fetches bytes it
  * could not forge (Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot
- * contract). The publish still rides `fdev` until Phase 2 — this module is about
- * who calls whom, not the wire encoding.
+ * contract). Since Phase 2 (decision 1) the publish is the app's own native
+ * client — `putJoinSlotNative` → `BrowserFreenetSlotClient`: PUT, and on an
+ * "already exists" answer `UpdateData::State` with the real code hash. No CLI.
  */
 
-import { putJoinSlotViaFdev, type SlotPutResult } from '../units/mist-freenet/src/freenet02-fdev-slot.ts';
+import {
+  putJoinSlotNative,
+  type PutJoinSlotOptions,
+  type SlotPutResult,
+} from '../units/mist-freenet/src/freenet02-slot-publish.ts';
 import { encodeFreenet02Uri } from '../units/mist-freenet/src/freenet02-uri.ts';
 import type { FreenetTransport } from '../units/mist-freenet/src/freenet-transport.ts';
 
@@ -37,13 +42,21 @@ export type JoinSlotPublishResult = SlotPutResult;
 export type JoinSlotPutFn = (input: JoinSlotPublishInput) => Promise<JoinSlotPublishResult>;
 
 /**
+ * The native slot publish bound to one node. The host wire passes the node it
+ * supervises; the relay passes nothing and lets `FREENET_WS_URL` decide.
+ */
+export function nativeJoinSlotPut(options: PutJoinSlotOptions = {}): JoinSlotPutFn {
+  return (input) => putJoinSlotNative(input, options);
+}
+
+/**
  * Publish or refresh a slot. Structural checks (parameters length, `PUFSLOT1`
  * magic) happen inside the put, before anything leaves the machine. `put` is
- * injectable so the wire can be tested without spawning `fdev`.
+ * injectable so the wire can be tested without a node.
  */
 export async function publishJoinSlot(
   input: JoinSlotPublishInput,
-  put: JoinSlotPutFn = putJoinSlotViaFdev,
+  put: JoinSlotPutFn = nativeJoinSlotPut(),
 ): Promise<JoinSlotPublishResult> {
   if (!isJoinSlotInstanceId(input.instanceIdBase58)) {
     throw new Error('slot put: instanceIdBase58 must be a base58 contract instance id');

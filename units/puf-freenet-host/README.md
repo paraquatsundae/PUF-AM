@@ -19,8 +19,9 @@ library or WASM peer today. So "plugin" here means **ownership, not linkage**:
 - the WS port binds loopback; nothing but PUF-AM talks to it
 - no separate installer, window, tray icon, or service unit
 
-The path to a genuinely embedded peer (drop `fdev`, then Rust/NAPI, then WASM) is behind this
-same interface — see the plan §4.3.
+The path to a genuinely embedded peer (Rust/NAPI, then WASM) is behind this same interface —
+see the plan §4.3. The first step on it, dropping the `fdev` CLI for the app's own WebSocket PUT,
+landed with Phase 2 of `Plans/FREENET_NETWORK_PACK.md` (2026-09-11).
 
 ## Boundaries
 
@@ -87,7 +88,7 @@ what it actually exercised.
 | # | `source` | Where |
 |---|----------|-------|
 | 1 | `option` | explicit `binaryPath` |
-| 2 | `env` | `PUF_FREENET_BIN` / `PUF_FDEV_BIN` |
+| 2 | `env` | `PUF_FREENET_BIN` |
 | 3 | `bundled` | `binarySearchPaths` — Electron's `${process.resourcesPath}/freenet` |
 | 4 | `vendor` | `<repoRoot>/vendor/freenet/<os>-<arch>/` (dev; gitignored) |
 | 5 | `path` | `PATH` — today's `~/.local/bin/freenet` |
@@ -108,12 +109,13 @@ Electron and without touching a workshop node on `:7509`.
 ## Env contract for mist
 
 `freenetHostEnv(status, extras)` produces exactly what `units/mist-freenet` already reads —
-`FREENET_TRANSPORT=ws02`, `FREENET_WS_URL`, `FREENET_WS_PORT`, plus optional `FDEV_BIN`,
-`FREENET_PACK_WASM`, `MIST_FREENET_ROOT`. No change to `mist-freenet` is required.
+`FREENET_WS_URL`, `FREENET_WS_PORT`, plus optional `FREENET_PACK_WASM`, `FREENET_SLOT_WASM`,
+`MIST_FREENET_ROOT`. No change to `mist-freenet` is required.
 
-`fdev` is still needed for **PUT** on 0.2.x (the flatbuffers PUT path hangs); it is spawned
-transiently per put by `mist-freenet`, not supervised here. It is pinned from the same release tag
-as `freenet` — a mismatched pair is a real failure mode, not a theoretical one.
+The `freenet` node is the only binary. PUT is `mist-freenet`'s own native-encoded request on the
+same WebSocket the node already serves (`BrowserFreenetPutClient` / `BrowserFreenetSlotClient`), so
+there is nothing else to spawn, pin or version-match. `npm run mist:smoke:native` starts a throwaway
+node from the resolved binary and proves that PUT against it.
 
 ## Modules
 

@@ -8,7 +8,12 @@
 import { blake3 } from '@noble/hashes/blake3.js';
 import bs58 from 'bs58';
 
-/** fdev inspect code hash for bundled pack-contract.wasm (not raw BLAKE3(wasm)). */
+/**
+ * Code hash of the bundled pack-contract.wasm: BLAKE3 of the raw module *after*
+ * the 40-byte package header is stripped — not BLAKE3 of the file on disk.
+ * `scripts/verify-pack-contract.mjs` recomputes it; `tests/freenetVendorManifest.test.ts`
+ * pins it against the manifest.
+ */
 export const PACK_CONTRACT_CODE_HASH_B58 = '5Piu7V1PjjcPVnTvUbyMdDiyvwoBprBPZ4GFUHfabyzW';
 
 /** KiB single-blob limit for mist workshop (no splitfiles). */
@@ -54,9 +59,11 @@ function hasWasmMagic(bytes: Uint8Array, offset = 0): boolean {
 }
 
 /**
- * Bytes `fdev` actually ships as `ContractCode.data`.
+ * Bytes the node expects as `ContractCode.data`.
  *
- * `fdev build` wraps WASM as `[u64 version][32-byte code hash][raw wasm]`.
+ * A packaged contract (what `fdev build` used to emit, and what
+ * `scripts/build-slot-contract.mjs` now writes) wraps the module as
+ * `[u64 version][32-byte code hash][raw wasm]`.
  * Sending that wrapper as code makes the node hand metadata to wasmtime
  * (`compile: input bytes aren't valid utf-8`). Raw `\0asm` is used as-is.
  */
@@ -74,7 +81,7 @@ export function unpackContractWasm(bytes: Uint8Array): {
     const wasm = bytes.subarray(40);
     return { wasm, codeHash: blake3Bytes(wasm) };
   }
-  throw new Error('not a WASM module or fdev-packaged contract');
+  throw new Error('not a WASM module or a packaged contract');
 }
 
 /** Pack-contract parameters = BLAKE3-32 of the state blob. */

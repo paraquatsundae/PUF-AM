@@ -1,5 +1,5 @@
 /**
- * Node-only Freenet / FCP entry — phase 3 wire backends.
+ * Node-only Freenet entry — the Freenet 0.2 wire backend and disk-backed store.
  *
  * Electron main / workshop tests import from here. Browser bundles use `./index.ts`.
  */
@@ -11,14 +11,12 @@ export { FreenetMistStore } from './freenet-mist-store.ts';
 export type { FreenetMistStoreOptions } from './freenet-mist-store.ts';
 
 export type { FreenetTransport, FreenetPutOptions, FreenetPutResult, FreenetTransportHealth } from './freenet-transport.ts';
-export { FcpFreenetTransport } from './fcp-freenet-transport.ts';
-export type { FcpFreenetTransportOptions } from './fcp-freenet-transport.ts';
 export { Freenet02WsTransport } from './freenet02-ws-transport.ts';
 export type { Freenet02WsTransportOptions } from './freenet02-ws-transport.ts';
 export {
+  DEFAULT_FREENET_WS_URL,
   createFreenetTransport,
   describeFreenetTransportKind,
-  resolveFreenetTransportKind,
 } from './create-freenet-transport.ts';
 export type { CreateFreenetTransportOptions, FreenetTransportKind } from './create-freenet-transport.ts';
 export { encodeFreenet02Uri, parseFreenet02Uri, isFreenet02Uri, FREENET02_URI_PREFIX } from './freenet02-uri.ts';
@@ -68,10 +66,12 @@ export type {
 } from './freenet02-native-put.ts';
 export {
   DEFAULT_SLOT_CONTRACT_WASM,
-  putJoinSlotViaFdev,
+  loadSlotContractWasm,
+  putJoinSlotNative,
+  resetSlotContractWasmCache,
   resolveSlotContractWasmPath,
-} from './freenet02-fdev-slot.ts';
-export type { SlotPutResult } from './freenet02-fdev-slot.ts';
+} from './freenet02-slot-publish.ts';
+export type { PutJoinSlotOptions, SlotPutResult } from './freenet02-slot-publish.ts';
 export { MockFreenetTransport, mockChkUriFromContent } from './mock-freenet-transport.ts';
 export type { MockFreenetTransportOptions } from './mock-freenet-transport.ts';
 

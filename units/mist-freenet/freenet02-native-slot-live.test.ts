@@ -1,9 +1,14 @@
 /**
- * Optional live native slot PUT/UPDATE — the remaining Phase 1 go/no-go.
+ * Optional live native slot PUT/UPDATE against a real 0.2 node.
  *
  *   FREENET_LIVE_WS=1 npm test -- units/mist-freenet/freenet02-native-slot-live.test.ts
+ *   npm run mist:smoke:native     # starts the vendored node first, then runs this
  *
- * Same claims as `freenet02-slot-live.test.ts`, without spawning `fdev`.
+ * This is the one test that proves the claim the join ticket makes — that a
+ * short ticket resolves off-LAN — because it is the only place where the derived
+ * address, the vendored WASM's code hash and a real node's idea of where a
+ * contract lives all have to agree. Spike GO on 0.2.125 (2026-08-15); since
+ * Phase 2 it is the cross-version check for the pinned node.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -81,7 +86,7 @@ describe.skipIf(!LIVE)('BrowserFreenetSlotClient (live node)', () => {
     } catch (error) {
       if (error instanceof FreenetNativeSlotError && error.hung) {
         throw new Error(
-          `SPIKE NO-GO: native slot PUT hung (${error.message}). Tablet Send stays on fdev/hub.`,
+          `NO-GO: native slot PUT hung (${error.message}) — the pinned node does not accept the app's slot publish.`,
         );
       }
       throw error;
@@ -129,9 +134,9 @@ describe.skipIf(!LIVE)('BrowserFreenetSlotClient (live node)', () => {
     expect(first.mode).toBe('put');
 
     // 0.2.125 accepted a second PUT as an upsert, so the already-published
-    // fallback may never run. Drive UPDATE explicitly — that is the frame
-    // `fdev execute update --as-state` speaks, and the one a re-send needs
-    // when the node does refuse a duplicate put.
+    // fallback may never run. Drive UPDATE explicitly — `UpdateData::State`
+    // with the real code hash is the frame a re-send needs when the node does
+    // refuse a duplicate put.
     const afterPayload = await encryptJoinSlotManifest(
       new TextEncoder().encode(JSON.stringify({ v: 1, ticket, farmName: 'after' })),
       farmSeed,

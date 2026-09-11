@@ -1,8 +1,11 @@
 /**
  * Server-side singleton for the in-process Freenet peer (PUF-AM Express host).
  *
- * Supports Hyphanet FCP (:9481) or Freenet 0.2 WebSocket (:7509) via env.
- * This module is the Freenet *client* hosted inside PUF-AM — not a separate daemon.
+ * Talks to a Freenet 0.2 node over its WebSocket API (`FREENET_WS_URL`, default
+ * :7509). This is the Freenet *client* behind the LAN relay routes
+ * (`mistFreenetRoutes.ts`) — the node itself is a separate process, supervised
+ * on desktop by `units/puf-freenet-host` or started by the operator for the
+ * `npm run dev` workshop hub.
  */
 
 import { join } from 'node:path';

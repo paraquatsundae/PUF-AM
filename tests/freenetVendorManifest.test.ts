@@ -15,7 +15,6 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
-  FDEV_BINARY,
   FREENET_BINARY,
   freenetBinaryFileName,
   freenetPlatformTag,
@@ -66,9 +65,18 @@ const NODE_PLATFORM: Record<string, { platform: string; arch: string }> = {
 const platformTags = Object.keys(manifest.platforms);
 
 describe('freenet-binaries.json', () => {
-  it('pins linux-x64 as verified and stubs win-x64 (Fedora-first, plan §8.4)', () => {
-    expect(manifest.platforms['linux-x64']?.status).toBe('verified');
+  // `pending-live-check` is the state between a pin bump and the first
+  // `npm run mist:smoke:native` pass against that binary (FREENET_NETWORK_PACK.md
+  // Phase 2). Anything else on linux-x64 means the Fedora-first path is broken.
+  it('pins linux-x64 as verified or pending live check, and stubs win-x64 (Fedora-first, plan §8.4)', () => {
+    expect(manifest.platforms['linux-x64']?.status).toMatch(/^(verified|pending-live-check)$/);
     expect(manifest.platforms['win-x64']).toBeDefined();
+  });
+
+  it('pins the node the native PUT clients were written against (0.2.135, 2026-09-11)', () => {
+    expect(manifest.version).toBe('0.2.135');
+    expect(manifest.toolVersions.freenet).toBe(manifest.version);
+    expect(manifest.toolVersions.fdev).toBeUndefined();
   });
 
   it('keeps every asset on one release tag — mixed versions change the pack code hash', () => {
@@ -77,9 +85,9 @@ describe('freenet-binaries.json', () => {
     expect(manifest.license.url).toContain(manifest.releaseTag);
   });
 
-  it.each(platformTags)('%s pins both binaries the host needs', (tag) => {
+  it.each(platformTags)('%s pins exactly the one binary the host spawns — no fdev', (tag) => {
     const names = manifest.platforms[tag]!.binaries.map((entry) => entry.name);
-    expect(names).toEqual([FREENET_BINARY, FDEV_BINARY]);
+    expect(names).toEqual([FREENET_BINARY]);
   });
 
   it.each(platformTags)('%s uses the file names the resolver looks for', (tag) => {
@@ -185,5 +193,10 @@ describe('slot contract pin', () => {
     );
     expect(manifest.slotContract.builtWith.rustc).toMatch(/^\d+\.\d+/);
     expect(manifest.slotContract.builtWith.freenetStdlib).toMatch(/^\d+\.\d+/);
+    // `builtWith.fdev` is a historical record of what packaged the pinned copy;
+    // it is allowed to stay, but it must not leak back into the fetched toolset.
+    expect(Object.keys(manifest.toolVersions).filter((k) => !k.startsWith('//'))).toEqual([
+      'freenet',
+    ]);
   });
 });

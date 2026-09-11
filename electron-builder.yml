@@ -48,18 +48,22 @@ files:
   - node_modules/{side-channel-list,side-channel-map,side-channel-weakmap,statuses,thunky}/**
   - node_modules/{toidentifier,type-is,unpipe,utils-merge,vary,ws}/**
 
-# Outside the asar on purpose: `fdev --code` and the spawned `freenet` node need
-# real filesystem paths, which asar-packed files do not have (plan §7.1). The
-# resolver looks for `${process.resourcesPath}/freenet`, which is what makes a
-# packaged launch report `binary.source: bundled` instead of `vendor`.
+# Outside the asar on purpose: the spawned `freenet` node needs a real filesystem
+# path, which asar-packed files do not have (plan §7.1). The resolver looks for
+# `${process.resourcesPath}/freenet`, which is what makes a packaged launch
+# report `binary.source: bundled` instead of `vendor`. Since Phase 2 of
+# Plans/FREENET_NETWORK_PACK.md the vendor dir holds only `freenet` + LICENSE.md —
+# PUT is the app's own WebSocket client, no `fdev`.
 extraResources:
   - from: vendor/freenet/${os}-${arch}
     to: freenet
+  # The contract WASMs are read off disk by the native PUT clients (the bundled
+  # CJS main cannot derive `import.meta.url` defaults). Both contracts: a short
+  # join ticket is published to the **slot** contract, and a packaged build that
+  # cannot find that WASM still mints tickets — they just never resolve anywhere
+  # but the owner's own Wi-Fi.
   - from: units/mist-freenet/assets/pack-contract.wasm
     to: contracts/pack-contract.wasm
-  # The join-slot contract, for the same reason: publishing a short ticket to a
-  # slot is an `fdev put --code <wasm>`, and without a real path on disk a
-  # packaged build can mint tickets that only ever resolve on its own Wi-Fi.
   - from: units/mist-freenet/assets/slot-contract.wasm
     to: contracts/slot-contract.wasm
 
@@ -125,7 +129,7 @@ portable:
 
 nsis:
   # Not a one-click installer: an operator choosing the install directory is worth
-  # more here than a fast install, because the bundled Freenet node is ~93 MB.
+  # more here than a fast install, because the bundled Freenet node is ~50 MB.
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

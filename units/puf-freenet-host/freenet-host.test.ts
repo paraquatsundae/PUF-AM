@@ -298,16 +298,15 @@ describe('freenetHostEnv', () => {
 
     expect(
       freenetHostEnv(status, {
-        fdevBin: '/opt/bundled/fdev',
         packWasm: '/opt/contracts/pack-contract.wasm',
+        slotWasm: '/opt/contracts/slot-contract.wasm',
         mistRoot: '/home/op/.config/PUF-AM/mist-freenet',
       }),
     ).toEqual({
-      FREENET_TRANSPORT: 'ws02',
       FREENET_WS_URL: 'ws://127.0.0.1:7609/v1/contract/command',
       FREENET_WS_PORT: '7609',
-      FDEV_BIN: '/opt/bundled/fdev',
       FREENET_PACK_WASM: '/opt/contracts/pack-contract.wasm',
+      FREENET_SLOT_WASM: '/opt/contracts/slot-contract.wasm',
       MIST_FREENET_ROOT: '/home/op/.config/PUF-AM/mist-freenet',
     });
   });

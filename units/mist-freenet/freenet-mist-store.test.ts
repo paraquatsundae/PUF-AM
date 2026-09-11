@@ -18,19 +18,6 @@ import {
 
 const FARM = 'farm-freenet-test';
 
-describe('FcpProtocol', () => {
-  it('round-trips ClientHello and EndMessage frames', async () => {
-    const { encodeClientHello, parseFcpStream } = await import('./src/fcp-protocol.ts');
-    const hello = encodeClientHello('test-client');
-    const chunk = new TextEncoder().encode(hello);
-    const { messages, state } = parseFcpStream({ buffer: new Uint8Array(0) }, chunk);
-    expect(messages).toHaveLength(1);
-    expect(messages[0]?.name).toBe('ClientHello');
-    expect(messages[0]?.fields.Name).toBe('test-client');
-    expect(state.buffer.byteLength).toBe(0);
-  });
-});
-
 describe('FreenetMistStore (mock transport)', () => {
   let rootDir: string;
   let transport: MockFreenetTransport;
@@ -236,21 +223,4 @@ describe('sealHotPeriod on FreenetMistStore', () => {
       await rm(rootDir, { recursive: true, force: true });
     }
   });
-});
-
-describe.skipIf(!process.env.FREENET_FCP_HOST)('FcpFreenetTransport (live node)', () => {
-  it('puts and gets a small blob against a running Hyphanet node', async () => {
-    const { FcpFreenetTransport } = await import('./src/fcp-freenet-transport.ts');
-    const transport = new FcpFreenetTransport();
-    await transport.connect();
-
-    const data = new TextEncoder().encode(`pufam-mist-live-${Date.now()}`);
-    const { uri } = await transport.putBlob(data, { identifier: 'live-test-put' });
-    expect(uri.startsWith('CHK@')).toBe(true);
-
-    const fetched = await transport.getBlob(uri);
-    expect(new TextDecoder().decode(fetched!)).toBe(new TextDecoder().decode(data));
-
-    await transport.disconnect();
-  }, 180_000);
 });

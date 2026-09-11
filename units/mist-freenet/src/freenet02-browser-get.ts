@@ -2,13 +2,14 @@
  * Freenet 0.2 GET from a page, straight at a node on this device's own loopback.
  *
  * `Freenet02WsTransport` is the same conversation with a Node runtime wrapped
- * around it: `process.env` for the endpoint, `fdev` for PUT, a disk-backed index
- * for the URIs. None of that exists in a WebView, and none of it is needed to
- * *read*. GET is the one flatbuffers path that works end to end on 0.2, which is
- * why a tablet beside a sideloaded Freenet Android node can **join** a farm long
- * before it could publish one.
+ * around it: `process.env` for the endpoint, the WASM read off disk for PUT, a
+ * disk-backed index for the URIs. None of that exists in a WebView, and none of
+ * it is needed to *read*. GET is the one flatbuffers path that works end to end
+ * on 0.2, which is why a tablet beside a sideloaded Freenet Android node can
+ * **join** a farm long before it could publish one.
  *
- * Read-only on purpose. Publishing still goes through `fdev` on a laptop, so
+ * Read-only on purpose. Publishing is `BrowserFreenetPutClient` /
+ * `BrowserFreenetSlotClient` (native bincode), reached through the host seam —
  * there is deliberately no `putBlob` here to be reached for by mistake.
  *
  * The node is a separate application talking a network protocol over loopback —

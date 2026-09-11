@@ -27,8 +27,9 @@
  *   signed for one ticket would verify in another ticket's slot.
  *
  * Browser-safe on purpose — the joiner runs this in the page, and the owner signs
- * here too so the FarmSeed never reaches the Express hub. Loading the WASM and
- * talking to `fdev` are Node-only and live in `freenet02-fdev-slot.ts`.
+ * here too so the FarmSeed never reaches the Express hub. Publishing is
+ * `freenet02-native-slot.ts` (any shell); loading the WASM off disk for it is
+ * `freenet02-slot-publish.ts` (Node only).
  *
  * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Freenet slot contract
  * @see units/mist-freenet/contracts/slot-contract/src/lib.rs — the other half of this format
@@ -42,7 +43,8 @@ import { hkdfSha256, MIST_HKDF_SALT } from './farm-seed.ts';
 import { encodeFreenet02Uri } from './freenet02-uri.ts';
 
 /**
- * `fdev inspect` code hash of the bundled `assets/slot-contract.wasm`.
+ * Code hash of the bundled `assets/slot-contract.wasm` — BLAKE3 of the raw
+ * module inside the package header (`unpackContractWasm`), base58.
  *
  * This is load-bearing arithmetic, not metadata: every slot address is
  * `BLAKE3(code_hash ‖ parameters)`. If it drifts from the shipped WASM, publishes
@@ -159,7 +161,7 @@ export function joinSlotInstanceId(codeHash: Uint8Array, parameters: Uint8Array)
 export type JoinSlotAddress = {
   slotId: Uint8Array;
   verifyingKey: Uint8Array;
-  /** What `fdev execute put --parameters` is handed. */
+  /** The contract `parameters` the PUT frame carries (slot id ‖ verifying key). */
   parameters: Uint8Array;
   instanceId: Uint8Array;
   instanceIdBase58: string;

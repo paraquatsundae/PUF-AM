@@ -22,7 +22,7 @@
  *    because it is the long way round to the same machine. See
  *    `src/lib/farmGateway.ts`.
  * 2. **Freenet.** The farm moves between devices that cannot see each other.
- *    One press, never a timer: publishing goes through `fdev` on a laptop, and
+ *    One press, never a timer: publishing goes through a laptop's node, and
  *    a Freenet pull *replaces* local records rather than merging them
  *    (`rehydrateLocalFarmFromHot`), which is not something to do to a device
  *    while nobody is looking.
@@ -50,7 +50,7 @@ export type SyncPeerState =
 
 /** What this device can do with Freenet, which is not the same as whether it has it. */
 export type FreenetNodeState =
-  /** A node this device can publish through — desktop shell, or a paired hub with `fdev`. */
+  /** A node this device can publish through — desktop shell, or a paired hub with a node. */
   | 'publish'
   /** A node app on this device: lookups and downloads work, PUT does not. */
   | 'read-only'

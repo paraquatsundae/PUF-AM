@@ -1,10 +1,14 @@
 /**
- * Optional live native PUT against a real 0.2 node — the APK host spike go/no-go.
+ * Optional live native PUT against a real 0.2 node.
  *
  *   FREENET_LIVE_WS=1 npm test -- units/mist-freenet/freenet02-native-put-live.test.ts
+ *   npm run mist:smoke:native     # starts the vendored node first, then runs this
  *
  * Uses the bundled pack-contract.wasm and the node on :7509 (or FREENET_WS_URL).
- * A hang is a recorded failure (`hung: true`), not an infinite wait.
+ * A hang is a recorded failure (`hung: true`), not an infinite wait. Spike GO on
+ * 0.2.125 (2026-08-15); since Phase 2 this is the cross-version check for the
+ * pinned node in `scripts/freenet-binaries.json` — the same client the desktop
+ * wire publishes with.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -49,7 +53,7 @@ describe.skipIf(!LIVE)('BrowserFreenetPutClient (live node)', () => {
     } catch (error) {
       if (error instanceof FreenetNativePutError && error.hung) {
         throw new Error(
-          `SPIKE NO-GO: native bincode PUT hung (${error.message}). Tablet Send stays on fdev/hub.`,
+          `NO-GO: native bincode PUT hung (${error.message}) — the pinned node does not accept the app's PUT; re-pin or fix before shipping.`,
         );
       }
       throw error;

@@ -1,13 +1,17 @@
 /**
- * Freenet 0.2 pack-contract PUT from a page — no `fdev`, no Node.
+ * Freenet 0.2 pack-contract PUT — the app's own client, on every shell.
  *
- * GET already works over the stdlib flatbuffers path. Flatbuffers PUT hangs
- * on 0.2.11x (desktop still uses `fdev`). This client speaks the same native
- * bincode `fdev` uses on `encodingProtocol=native`.
+ * GET works over the stdlib flatbuffers path. Flatbuffers PUT hangs on 0.2.x,
+ * so PUT speaks the node's native bincode `ClientRequest` on
+ * `encodingProtocol=native` instead (the encoding the upstream `fdev` CLI
+ * uses). Since Phase 2 of Plans/FREENET_NETWORK_PACK.md (decision 1) this is
+ * the only publish path: `Freenet02WsTransport` calls it on desktop, and the
+ * Android host will call it from the WebView.
  *
- * WASM is injected: this file must stay importable from a WebView.
+ * WASM and the WebSocket class are injected: this file must stay importable
+ * from a WebView and from Electron's main process alike.
  *
- * @see Plans/APK_FREENET_HOST.md §1
+ * @see Plans/APK_FREENET_HOST.md §1 (spike GO, node 0.2.125, 2026-08-15)
  */
 
 import {
@@ -28,7 +32,11 @@ import {
   nativeHostPutErrorMessage,
   toNativeFreenetWsUrl,
 } from './freenet02-native-bincode.ts';
-import { FreenetNativeWsError, sendNativeRequest } from './freenet02-native-ws.ts';
+import {
+  FreenetNativeWsError,
+  sendNativeRequest,
+  type NativeWebSocketConstructor,
+} from './freenet02-native-ws.ts';
 import {
   packContractCodeHashBytes,
   packContractInstanceId,
@@ -58,11 +66,13 @@ export type BrowserFreenetPutClientOptions = {
   connectTimeoutMs?: number;
   putTimeoutMs?: number;
   clientName?: string;
+  /** Socket class; defaults to the runtime's `globalThis.WebSocket`. */
+  webSocket?: NativeWebSocketConstructor;
 };
 
 export type NativePackPutInput = {
   data: Uint8Array;
-  /** Bundled pack-contract.wasm bytes (raw or fdev-packaged). */
+  /** Bundled pack-contract.wasm bytes (raw, or with the upstream package header). */
   wasm: Uint8Array;
 };
 
@@ -114,12 +124,14 @@ export class BrowserFreenetPutClient {
   private readonly authToken: string;
   private readonly connectTimeoutMs: number;
   private readonly putTimeoutMs: number;
+  private readonly webSocket: NativeWebSocketConstructor | undefined;
 
   constructor(options: BrowserFreenetPutClientOptions = {}) {
     this.wsUrl = toNativeFreenetWsUrl(options.wsUrl ?? DEFAULT_LOCAL_FREENET_WS_URL);
     this.authToken = options.authToken ?? '';
     this.connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
     this.putTimeoutMs = options.putTimeoutMs ?? NATIVE_PUT_DEFAULT_TIMEOUT_MS;
+    this.webSocket = options.webSocket;
   }
 
   isConnected(): boolean {
@@ -145,6 +157,7 @@ export class BrowserFreenetPutClient {
         connectTimeoutMs: this.connectTimeoutMs,
         requestTimeoutMs: this.putTimeoutMs,
         frame: frame.bytes,
+        webSocket: this.webSocket,
       });
       const decoded = decodeNativeHostResult(reply);
       if (!decoded.ok) {

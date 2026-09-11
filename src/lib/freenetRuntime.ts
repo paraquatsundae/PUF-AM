@@ -11,7 +11,7 @@
  * There is now a third. A **separate**, sideloaded Freenet Android app can hold
  * a real node and bind the ordinary 0.2 WS API on this device's loopback, and
  * the page can read from it directly. That is `android-local-node`, and it is a
- * reader: GET works, publishing still needs `fdev` on a laptop.
+ * reader: GET works, publishing still goes through a laptop's Express.
  *
  * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` §3a, §7.
  */
@@ -73,10 +73,12 @@ export function freenetReadsLocally(runtime: FreenetRuntime): boolean {
 /**
  * True when this device can fetch a farm over Freenet but has no way to send one.
  *
- * The asymmetry is upstream's, not ours: 0.2's flatbuffers GET works from any
- * client, while a PUT still goes through the `fdev` CLI — a second native binary
- * that is not on the tablet and could not be exec'd there if it were. A paired
- * hub lifts it, because that laptop still has `fdev`.
+ * The asymmetry is where the publish path lives, not the wire: since Phase 2 of
+ * `Plans/FREENET_NETWORK_PACK.md` a PUT is the app's own WS client, but the page
+ * reaches it through Express (`publishFarmToFreenet` POSTs to the host), and a
+ * tablet beside a sideloaded node app has no Express of its own. A paired hub
+ * lifts it, because that laptop does. Phase 3 (a node inside the APK) is what
+ * makes the tablet publish for itself.
  */
 export function freenetIsReadOnlyHere(runtime: FreenetRuntime, hubAvailable: boolean): boolean {
   return freenetReadsLocally(runtime) && !hubAvailable;

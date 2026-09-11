@@ -415,8 +415,8 @@ export function registerMistFreenetRoutes(app: Express): void {
         });
       }
 
-      // Started so the node is up and the publish has somewhere to go; `fdev`
-      // talks to the same node on its own socket.
+      // Started so the node is up and the publish has somewhere to go; the
+      // native slot client opens its own short-lived socket to the same node.
       await ensureFreenetPeer({ start: true });
 
       const result = await publishJoinSlot({

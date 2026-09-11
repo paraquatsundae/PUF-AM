@@ -22,12 +22,17 @@ import {
   type Freenet02WsTransportOptions,
 } from '../units/mist-freenet/src/node.ts';
 import type { FreenetWireClient } from '../units/puf-freenet-host/src/index.ts';
-import { publishJoinSlot, readJoinSlotState, type JoinSlotPutFn } from './freenetSlotOps.ts';
+import {
+  nativeJoinSlotPut,
+  publishJoinSlot,
+  readJoinSlotState,
+  type JoinSlotPutFn,
+} from './freenetSlotOps.ts';
 
 export type MistFreenetWireOptions = Freenet02WsTransportOptions & {
   /** Tests: stand in for the WebSocket transport. */
   transport?: FreenetTransport;
-  /** Tests: stand in for the `fdev` slot publish. */
+  /** Tests: stand in for the native slot publish. */
   slotPut?: JoinSlotPutFn;
 };
 
@@ -40,10 +45,24 @@ export type MistFreenetWireOptions = Freenet02WsTransportOptions & {
  * (Plans/FREENET_OPERATOR_FLOW.md §9.3). The `identifier` doubles as the mist
  * storage key when the caller has one, which only sharpens the refusal message —
  * a blob with no key is still held to the AEAD envelope shape.
+ *
+ * Both puts are the app's own native clients (Phase 2, decision 1): blobs via
+ * `Freenet02WsTransport.putBlob` → `BrowserFreenetPutClient`, slots via
+ * `putJoinSlotNative` → `BrowserFreenetSlotClient`, pointed at the same node
+ * the host supervises (`wsUrl`). The page signs; the host moves bytes.
  */
 export function createMistFreenetWire(options: MistFreenetWireOptions = {}): FreenetWireClient {
-  const { transport: injected, slotPut, ...transportOptions } = options;
+  const { transport: injected, slotPut: injectedSlotPut, ...transportOptions } = options;
   const transport = injected ?? new Freenet02WsTransport(transportOptions);
+  const slotPut =
+    injectedSlotPut ??
+    nativeJoinSlotPut({
+      wsUrl: transportOptions.wsUrl,
+      authToken: transportOptions.authToken,
+      connectTimeoutMs: transportOptions.connectTimeoutMs,
+      requestTimeoutMs: transportOptions.requestTimeoutMs,
+      webSocket: transportOptions.webSocket,
+    });
 
   return {
     async putCiphertext(bytes, putOptions) {

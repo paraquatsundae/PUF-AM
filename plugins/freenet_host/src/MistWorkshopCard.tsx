@@ -61,11 +61,7 @@ function freenetEndpointSummary(status: FreenetPeerStatus): string | undefined {
 
 function freenetDisconnectedHint(status: FreenetPeerStatus): string {
   const ep = freenetEndpointSummary(status);
-  const isWs02 = status.transportId === 'ws02';
-  if (isWs02) {
-    return ep ? `Freenet 0.2 not reachable @ ${ep}` : 'Freenet 0.2 node not on :7509?';
-  }
-  return ep ? `Hyphanet FCP not reachable @ ${ep}` : 'Hyphanet not on :9481?';
+  return ep ? `Freenet 0.2 not reachable @ ${ep}` : 'Freenet 0.2 node not on :7509?';
 }
 
 function freenetStatusLabel(status: FreenetPeerStatus | null): string {
@@ -718,11 +714,10 @@ export function MistWorkshopCard() {
           <p className="text-xs font-semibold text-slate-700">Freenet peer (in-process)</p>
         </div>
         <p className="text-[11px] text-slate-500">
-          Transport runs inside this app&apos;s Node server. Default:{' '}
-          <strong>Freenet 0.2</strong> WebSocket at{' '}
-          <code className="font-mono text-[10px]">127.0.0.1:7509</code> (ws02). Legacy Hyphanet FCP
-          at <code className="font-mono text-[10px]">127.0.0.1:9481</code> when{' '}
-          <code className="font-mono text-[10px]">FREENET_TRANSPORT=fcp</code>.
+          Transport runs inside this app&apos;s Node server: <strong>Freenet 0.2</strong> WebSocket
+          at <code className="font-mono text-[10px]">127.0.0.1:7509</code> (ws02), or{' '}
+          <code className="font-mono text-[10px]">FREENET_WS_URL</code>. Publishing is the same
+          socket — no CLI on the laptop.
         </p>
         {!hasFreenetNode ? (
           <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -757,10 +752,7 @@ export function MistWorkshopCard() {
             Production UI — Freenet API calls go to local sidecar{' '}
             <code className="font-mono text-[10px]">{freenetApiBase}</code>. On this laptop run{' '}
             <code className="font-mono text-[10px]">freenet network</code> plus{' '}
-            <code className="font-mono text-[10px]">
-              FREENET_TRANSPORT=ws02 MIST_FREENET=1 npm run dev
-            </code>{' '}
-            (laptop A also needs <code className="font-mono text-[10px]">fdev</code> for publish).
+            <code className="font-mono text-[10px]">MIST_FREENET=1 npm run dev</code>.
           </p>
         ) : null}
         <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
@@ -1019,7 +1011,7 @@ export function MistWorkshopCard() {
           <p className="text-[11px] text-slate-500">
             End-to-end: publish Hot to Freenet → simulate local loss → pull + rehydrate diary/issues.
             Two-laptop: copy <strong>FN02 URI</strong> on A, paste on B, then <strong>Pull Hot by URI</strong> or step 3.
-            Freenet peer must be connected (<code className="font-mono">FREENET_TRANSPORT=ws02</code>, node on{' '}
+            Freenet peer must be connected (<code className="font-mono">MIST_FREENET=1</code>, node on{' '}
             <code className="font-mono">localhost:7509</code>).
           </p>
           <div className="flex flex-wrap gap-2">

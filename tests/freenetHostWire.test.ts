@@ -166,7 +166,7 @@ describe('freenetSlotOps helpers shared with the relay routes', () => {
     expect(isJoinSlotCallerError('parameters must be 64 bytes')).toBe(true);
     expect(isJoinSlotCallerError('state does not start with PUFSLOT1')).toBe(true);
     expect(isJoinSlotCallerError('refusing to publish: hot URI missing')).toBe(true);
-    expect(isJoinSlotCallerError('fdev exited with code 1')).toBe(false);
+    expect(isJoinSlotCallerError('Freenet native slot PUT failed: operation timed out')).toBe(false);
   });
 
   it('publishJoinSlot forwards to the given put once the id is sane', async () => {

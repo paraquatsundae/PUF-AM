@@ -1,6 +1,6 @@
 # APK Freenet host — network pack in the tablet APK
 
-**Status:** Plan written 2026-08-14. Phase 1 (native PUT spike) **GO** 2026-08-15 on node 0.2.125. Phases 2–5 not built. **2026-09-10:** this plan is now **Phase 3** of the umbrella [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) — desktop moves to native PUT first (its Phase 2), then the Android host is built against the same `FreenetHostPlugin` seam. Version pin policy: umbrella decision 4.
+**Status:** Plan written 2026-08-14. Phase 1 (native PUT spike) **GO** 2026-08-15 on node 0.2.125. Phases 2–5 not built. **2026-09-10:** this plan is now **Phase 3** of the umbrella [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) — desktop moves to native PUT first (its Phase 2), then the Android host is built against the same `FreenetHostPlugin` seam. Version pin policy: umbrella decision 4. **2026-09-11:** umbrella Phase 2 built — desktop now publishes through the same `BrowserFreenetPutClient` / `BrowserFreenetSlotClient` this spike produced (§1 below), `fdev` is gone from every shell, and the node is pinned at 0.2.135 (live check pending). The Android host inherits those clients unchanged; what Phase 3 adds is the node process, not a PUT path.
 **Experimental — not production.** Firebase Auth + invite PIN remains the shipping cloud path.
 **Product:** PUF-AM · **Scope:** one APK that owns a Freenet node and can Join **and** Send.
 
@@ -20,7 +20,7 @@ Related: [`reference/DESKTOP_FREENET_PLUGIN.md`](reference/DESKTOP_FREENET_PLUGI
 | 4 | **Process shape** | Same APK, **isolated** `android:process=":freenet"` + loopback WS. Not JNI in the WebView |
 | 5 | **Interface** | `FreenetHostPlugin` (`start` / `stop` / `status` / put / get). Android is a new adapter |
 | 6 | **AGPL** | Publish the Android host/fork. PUF-AM talks over WS — same carve-out as desktop §8.4 |
-| 7 | **Milestone** | Join **and** Send from the tablet. Send is blocked on native PUT (no `fdev` in the APK) |
+| 7 | **Milestone** | Join **and** Send from the tablet. Send was blocked on native PUT (no `fdev` in the APK); native PUT is now the only path on every shell (umbrella Phase 2, 2026-09-11), so Send waits only on the in-APK node |
 | 8 | **Storage** | Mobile `contribute_storage = false`. Ciphertext only. FarmCode stays the crypto boundary |
 | 9 | **Small APK** | Keep `apk:debug:firebase` (~7.5 MB). Freenet flavor will be ~100 MB |
 
@@ -57,9 +57,9 @@ Never implement a crop pack as a Freenet unit, or the reverse.
 
 ## Why Send needs a spike first
 
-[`publishFarmToFreenet`](../src/mist/mistFreenetClient.ts) POSTs Hot, bones, and the join slot through Express. A tablet has no Express. Desktop PUT uses `fdev` because `@freenetorg/freenet-stdlib` flatbuffers PUT hung on 0.2.11x.
+[`publishFarmToFreenet`](../src/mist/mistFreenetClient.ts) POSTs Hot, bones, and the join slot through Express. A tablet has no Express. Desktop PUT *used* `fdev` because `@freenetorg/freenet-stdlib` flatbuffers PUT hung on 0.2.11x.
 
-Tablet Send and desktop “drop `fdev`” are **one** TypeScript PUT job. If the spike fails, ship Join-only (Phases 2–3) and leave Send on a laptop hub.
+Tablet Send and desktop “drop `fdev`” were **one** TypeScript PUT job. The spike passed and the desktop half landed 2026-09-11 (umbrella Phase 2): the clients below are what every shell publishes with. Had the spike failed, the fallback was Join-only (Phases 2–3) with Send left on a laptop hub.
 
 LAN ticket register stays optional (already try/catch). People on the sending tablet is that tablet’s shelf ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8 hole 3).
 

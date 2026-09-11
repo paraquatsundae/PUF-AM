@@ -3,8 +3,8 @@
  *
  * The renderer is the only caller, but IPC arguments are still untrusted at the
  * process boundary: anything that reaches `FreenetHostPlugin` from here goes on
- * to spawn `fdev` or hit the node's WebSocket, so shapes and sizes are checked
- * in main before either happens (Plans/FREENET_NETWORK_PACK.md Phase 1 slice B).
+ * to open the node's WebSocket, so shapes and sizes are checked in main before
+ * that happens (Plans/FREENET_NETWORK_PACK.md Phase 1 slice B).
  * Pure — no Electron import — so it is tested without a shell.
  *
  * What is *not* checked here: whether the bytes are ciphertext. That is the

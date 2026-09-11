@@ -1,15 +1,18 @@
 /**
- * Join-slot PUT / UPDATE from a page — no `fdev`, no Node.
+ * Join-slot PUT / UPDATE — the app's own client, on every shell.
  *
  * Same native bincode as pack PUT. A slot address does not move when its
- * contents do, so a re-send has to UPDATE the same instance. `fdev` tries
- * put first and falls back to `update --as-state`; this client does that
- * over the WebSocket instead of spawning a CLI.
+ * contents do, so a re-send has to reach the same instance: this tries PUT
+ * first and, when the node answers that the contract already exists, sends
+ * `UpdateData::State` with the **real** code hash (a zero hash misses the
+ * instance — `missing contract` on 0.2.125). Since Phase 2 of
+ * Plans/FREENET_NETWORK_PACK.md (decision 1) this is the only slot publish
+ * path: `server/freenetSlotOps.ts` calls it for the host wire and the relay.
  *
- * WASM is injected. The caller hands over already-signed state — this file
- * is a byte mover, so FarmSeed never reaches it.
+ * WASM and the WebSocket class are injected. The caller hands over
+ * already-signed state — this file is a byte mover, so FarmSeed never reaches it.
  *
- * @see Plans/APK_FREENET_HOST.md §1
+ * @see Plans/APK_FREENET_HOST.md §1 (spike GO, node 0.2.125, 2026-08-15)
  */
 
 import bs58 from 'bs58';
@@ -23,7 +26,11 @@ import {
   nativeHostPutErrorMessage,
   toNativeFreenetWsUrl,
 } from './freenet02-native-bincode.ts';
-import { FreenetNativeWsError, sendNativeRequest } from './freenet02-native-ws.ts';
+import {
+  FreenetNativeWsError,
+  sendNativeRequest,
+  type NativeWebSocketConstructor,
+} from './freenet02-native-ws.ts';
 import { unpackContractWasm } from './freenet02-pack-id.ts';
 import {
   JOIN_SLOT_HEADER_BYTES,
@@ -50,6 +57,8 @@ export type BrowserFreenetSlotClientOptions = {
   authToken?: string;
   connectTimeoutMs?: number;
   requestTimeoutMs?: number;
+  /** Socket class; defaults to the runtime's `globalThis.WebSocket`. */
+  webSocket?: NativeWebSocketConstructor;
 };
 
 export type NativeSlotPutInput = {
@@ -57,7 +66,7 @@ export type NativeSlotPutInput = {
   state: Uint8Array;
   /** Base58 instance id the caller derived — used for the update fallback. */
   instanceIdBase58: string;
-  /** Bundled slot-contract.wasm bytes (raw or fdev-packaged). */
+  /** Bundled slot-contract.wasm bytes (raw, or with the upstream package header). */
   wasm: Uint8Array;
 };
 
@@ -101,18 +110,20 @@ export class BrowserFreenetSlotClient {
   private readonly authToken: string;
   private readonly connectTimeoutMs: number;
   private readonly requestTimeoutMs: number;
+  private readonly webSocket: NativeWebSocketConstructor | undefined;
 
   constructor(options: BrowserFreenetSlotClientOptions = {}) {
     this.wsUrl = toNativeFreenetWsUrl(options.wsUrl ?? DEFAULT_LOCAL_FREENET_WS_URL);
     this.authToken = options.authToken ?? '';
     this.connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
     this.requestTimeoutMs = options.requestTimeoutMs ?? NATIVE_SLOT_DEFAULT_TIMEOUT_MS;
+    this.webSocket = options.webSocket;
   }
 
   async updateJoinSlot(input: {
     instanceIdBase58: string;
     state: Uint8Array;
-    /** Real code hash when the caller has the WASM — zeros are what `fdev` sends. */
+    /** Real code hash — required by the node; a zero hash comes back `missing contract`. */
     codeHash?: Uint8Array;
     wasm?: Uint8Array;
   }): Promise<NativeSlotPutResult> {
@@ -233,6 +244,7 @@ export class BrowserFreenetSlotClient {
       connectTimeoutMs: this.connectTimeoutMs,
       requestTimeoutMs: this.requestTimeoutMs,
       frame,
+      webSocket: this.webSocket,
     });
   }
 }

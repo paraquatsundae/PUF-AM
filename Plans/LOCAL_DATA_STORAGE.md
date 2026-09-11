@@ -169,8 +169,8 @@ Shipped read-only beside the app:
 
 | Path | Contents |
 |------|----------|
-| `resources/freenet/{freenet,fdev,LICENSE.md}` | Pinned 0.2.119 binaries |
-| `resources/contracts/pack-contract.wasm` | Pinned pack contract — outside the asar because `fdev --code` needs a real path |
+| `resources/freenet/{freenet,LICENSE.md}` | Pinned node binary (0.2.135 since 2026-09-11; `fdev` no longer ships — PUT is the app's own WS client) |
+| `resources/contracts/{pack,slot}-contract.wasm` | Pinned contracts — outside the asar because the native PUT clients read them off disk (`FREENET_PACK_WASM` / `FREENET_SLOT_WASM`) |
 | `resources/app.asar` | Renderer bundle + main + inlined `server/`, `units/` |
 
 `nsis.deleteAppDataOnUninstall: false` — an uninstall must not take the Freenet identity and mist cache with it.

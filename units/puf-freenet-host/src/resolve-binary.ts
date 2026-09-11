@@ -1,15 +1,20 @@
 /**
- * Locate the `freenet` / `fdev` binaries the host supervises.
+ * Locate the `freenet` binary the host supervises.
  *
  * Resolution order (first hit wins) — see `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §5.3:
  *   1. explicit `binaryPath` option
- *   2. `PUF_FREENET_BIN` / `PUF_FDEV_BIN` env override (workshop)
+ *   2. `PUF_FREENET_BIN` env override (workshop)
  *   3. `searchPaths` — Electron passes `${process.resourcesPath}/freenet`
  *   4. `<repoRoot>/vendor/freenet/<os>-<arch>/` (dev; gitignored build input)
  *   5. `PATH`
  *
  * The winning `source` is reported in status so the workshop knows whether it
  * exercised the bundled binary or a stray one on PATH.
+ *
+ * `freenet` is the only binary since Phase 2 of Plans/FREENET_NETWORK_PACK.md
+ * (2026-09-11): PUT is the app's own WebSocket client, so the `fdev` CLI and its
+ * `PUF_FDEV_BIN` override are gone. The resolver stays name-keyed so a second
+ * binary could be added without changing the search order.
  */
 
 import { accessSync, constants } from 'node:fs';
@@ -19,12 +24,10 @@ import { FreenetBinaryNotFoundError } from './errors.ts';
 import type { FreenetBinaryInfo, FreenetBinarySource } from './types.ts';
 
 export const FREENET_BINARY = 'freenet';
-export const FDEV_BINARY = 'fdev';
 
 /** Workshop env overrides, per binary name. */
 export const BINARY_ENV_VARS: Record<string, string> = {
   [FREENET_BINARY]: 'PUF_FREENET_BIN',
-  [FDEV_BINARY]: 'PUF_FDEV_BIN',
 };
 
 export type ResolveBinaryOptions = {

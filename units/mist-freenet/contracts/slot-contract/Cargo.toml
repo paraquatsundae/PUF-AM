@@ -23,7 +23,7 @@ default = ["freenet-main-contract"]
 freenet-main-contract = []
 trace = ["freenet-stdlib/trace"]
 
-# `fdev build` compiles release; a slot state is under 2 KiB so size beats speed.
+# scripts/build-slot-contract.mjs compiles release; a slot state is under 2 KiB so size beats speed.
 [profile.release]
 opt-level = "z"
 lto = true

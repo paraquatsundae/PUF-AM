@@ -10,8 +10,10 @@
  *
  * Two deliberate limits:
  *
- * - **Reads only.** Publishing needs `fdev`, which is not on the tablet and could
- *   not be exec'd if it were, so the send path is untouched and still wants a hub.
+ * - **Reads only.** The page's publish path goes through a host's Express
+ *   (`publishFarmToFreenet`), which a tablet beside a node app does not have, so
+ *   the send path is untouched and still wants a hub until Phase 3 of
+ *   `Plans/FREENET_NETWORK_PACK.md` puts a node inside the APK.
  *
  * - **Not on desktop.** The Electron shell owns a bundled node and reaches it
  *   through its own Express; probing loopback there would find that same node by

@@ -5,7 +5,11 @@ import {
   FREENET02_MAX_BLOB_BYTES,
   packParametersFromBlob,
 } from './src/freenet02-pack.ts';
-import { resolveFreenetTransportKind } from './src/create-freenet-transport.ts';
+import {
+  createFreenetTransport,
+  describeFreenetTransportKind,
+} from './src/create-freenet-transport.ts';
+import { Freenet02WsTransport } from './src/freenet02-ws-transport.ts';
 
 describe('freenet02-uri', () => {
   it('round-trips base58 instance ids', () => {
@@ -18,25 +22,27 @@ describe('freenet02-uri', () => {
   });
 });
 
-describe('resolveFreenetTransportKind', () => {
-  it('defaults to ws02 (Freenet 0.2 workshop path)', () => {
-    expect(resolveFreenetTransportKind({})).toBe('ws02');
+describe('createFreenetTransport', () => {
+  // Phase 2 of Plans/FREENET_NETWORK_PACK.md removed the Hyphanet FCP backend and
+  // the FREENET_TRANSPORT selector: there is one wire, and nothing in the
+  // environment can pick another.
+  it('always builds the Freenet 0.2 WebSocket transport', async () => {
+    const transport = createFreenetTransport();
+    expect(transport).toBeInstanceOf(Freenet02WsTransport);
+    expect((await transport.health()).transportId).toBe('ws02');
   });
 
-  it('selects fcp only when explicitly requested', () => {
-    expect(resolveFreenetTransportKind({ FREENET_TRANSPORT: 'fcp' })).toBe('fcp');
-    expect(resolveFreenetTransportKind({ FREENET_TRANSPORT: 'hyphanet' })).toBe('fcp');
+  it('honours a ws02 endpoint option', async () => {
+    const transport = createFreenetTransport({
+      ws02: { wsUrl: 'ws://127.0.0.1:7609/v1/contract/command' },
+    });
+    const health = await transport.health();
+    expect(health.port).toBe(7609);
+    expect(health.endpoint).toBe('ws://127.0.0.1:7609/v1/contract/command');
   });
 
-  it('selects ws02 from FREENET_TRANSPORT', () => {
-    expect(resolveFreenetTransportKind({ FREENET_TRANSPORT: 'ws02' })).toBe('ws02');
-    expect(resolveFreenetTransportKind({ FREENET_TRANSPORT: 'ws' })).toBe('ws02');
-  });
-
-  it('selects ws02 when FREENET_WS_URL is set', () => {
-    expect(
-      resolveFreenetTransportKind({ FREENET_WS_URL: 'ws://127.0.0.1:7509/v1/contract/command' }),
-    ).toBe('ws02');
+  it('labels the one backend it has', () => {
+    expect(describeFreenetTransportKind()).toBe('Freenet 0.2 WebSocket');
   });
 });
 

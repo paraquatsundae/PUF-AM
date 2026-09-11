@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { blake3Bytes, packContractCodeHashBytes } from './freenet02-pack-id.ts';
+import { packContractCodeHashBytes } from './freenet02-pack-id.ts';
 
 export {
   PACK_CONTRACT_CODE_HASH_B58,
@@ -34,11 +34,6 @@ export const DEFAULT_PACK_CONTRACT_WASM = path.join(
 let cachedWasm: Uint8Array | null = null;
 let cachedWasmPath: string | null = null;
 let cachedWasmCodeHash: Uint8Array | null = null;
-
-/** @deprecated Use packContractCodeHashBytes — kept for tests comparing blob digests. */
-export function wasmCodeHash(wasm: Uint8Array): Uint8Array {
-  return blake3Bytes(wasm);
-}
 
 export function resolvePackContractWasmPath(): string {
   const fromEnv = process.env.FREENET_PACK_WASM?.trim();

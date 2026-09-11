@@ -5,7 +5,7 @@
  * seconds across the shed, no internet, LWW merge on arrival — and a Freenet
  * farm could never use it, because every one of its routes wants a Firebase ID
  * token this farm has no account to mint. Freenet was left carrying traffic it
- * is bad at: a PUT is minutes of work through a laptop-only `fdev`.
+ * is bad at: a PUT is minutes of work through a laptop's node.
  *
  * So the same bundle goes over the same Wi‑Fi, AEAD-sealed with the FarmSeed
  * before it leaves this device. The hub stores bytes it cannot read, which is

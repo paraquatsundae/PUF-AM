@@ -239,9 +239,10 @@ export function MistFarmSyncCard() {
   const hasNode = canReachFreenetNode(runtime);
 
   /**
-   * A Freenet node on this tablet can fetch a farm but not publish one: PUT still
-   * goes through `fdev`, which is a laptop-only binary. Sending stays available
-   * when a hub is also paired, because that laptop can still do it.
+   * A Freenet node on this tablet can fetch a farm but not publish one: the
+   * page's publish path goes through a host's Express, which a tablet does not
+   * have. Sending stays available when a hub is also paired, because that
+   * laptop can still do it.
    */
   const readOnly = detectFreenetReadOnly(runtime);
 

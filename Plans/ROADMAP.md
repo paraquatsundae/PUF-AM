@@ -153,6 +153,7 @@ Record every status change here (newest first). Rows dated 2026-07-13 (Phases A�
 
 | Date | Step | Action | Notes |
 |------|------|--------|-------|
+| 2026-09-11 | E-08 | Network pack Phase 2 (hermetic) | Native PUT is the only PUT on every shell (`BrowserFreenetPutClient` / `BrowserFreenetSlotClient`); `fdev` and Hyphanet FCP deleted; node pinned 0.2.135; `npm run mist:smoke:native` added. Live check, Windows first launch and native A→B still pending — `FREENET_NETWORK_PACK.md` §5 Phase 2 |
 | 2026-09-10 | E-08 | Freenet network pack plan | `FREENET_NETWORK_PACK.md` — decisions: native PUT on every shell (drop `fdev`), `FreenetHostPlugin` as the data seam, isolated `:freenet` process on Android, one node pin, web hidden, per-farm enable, hybrid for cloud farms. Read-only assessment preceded it |
 | 2026-09-10 | Docs | `Plans/` consolidation | Index + `AGENTS.md`; `reference/` and `logs/` folders; Freenet holes + storage merged into `FREENET_OPERATOR_FLOW.md` §8–9; chill pack into `PLUGIN_AUTHORING.md`; review posture into `CODEBASE_HEALTH.md`; Steps 1–13 detail → `archive/ROADMAP_HISTORY.md` |
 | 2026-09-10 | Deploy | Custom domain live | `am.pufworks.farm` on Firebase project `pufworks-am` via Hosting rewrite to Cloud Run `pufom`; hosted Cloud Functions not yet deployed there (STEP-09 leftovers) |

@@ -18,7 +18,6 @@ export {
 
 export {
   BINARY_ENV_VARS,
-  FDEV_BINARY,
   FREENET_BINARY,
   freenetBinaryFileName,
   freenetOsTag,

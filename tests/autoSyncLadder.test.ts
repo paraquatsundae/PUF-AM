@@ -119,7 +119,7 @@ describe('planFarmSync — the Freenet rung', () => {
   });
 
   it('never runs a Freenet route unattended', () => {
-    // A publish is minutes through a laptop-only `fdev` and re-issues the join
+    // A publish is minutes through a laptop's node and re-issues the join
     // ticket; a pull replaces local records rather than merging them.
     expect(planFarmSync(conditions({ freenet: 'publish' })).auto).toBe(false);
     expect(planFarmSync(conditions({ freenet: 'read-only' })).auto).toBe(false);

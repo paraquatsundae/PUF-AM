@@ -1,7 +1,8 @@
 /**
  * Freenet transport abstraction — phase 3 wire boundary.
  *
- * Implementations talk to a local Hyphanet/Freenet node (FCP) or an in-memory mock.
+ * Implementations talk to a local Freenet 0.2 node over its WebSocket API
+ * (`Freenet02WsTransport`) or to an in-memory mock.
  */
 
 export type FreenetConnectionStatus = 'connected' | 'disconnected' | 'connecting';
@@ -23,7 +24,7 @@ export type FreenetTransportHealth = {
   host?: string;
   port?: number;
   nodeVersion?: string;
-  /** `fcp` | `ws02` | `mock` — which wire backend is active. */
+  /** `ws02` | `mock` — which wire backend is active. */
   transportId?: string;
   /** Full endpoint when useful (e.g. ws://127.0.0.1:7509/v1/contract/command). */
   endpoint?: string;

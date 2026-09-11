@@ -1,8 +1,15 @@
 /**
- * Freenet 0.2 WebSocket transport — pack-contract put/get via local node WS API.
+ * Freenet 0.2 WebSocket transport — pack-contract put/get against the node's
+ * WS API (`freenet network`, ws-api-port 7509 by default). Node-only: this is
+ * what `server/freenetHostWire.ts` and the Express relay's `FreenetPeer` use.
  *
- * Talks to `freenet network` on ws-api-port (default 7509), not Hyphanet FCP :9481.
- * Each blob is an immutable pack-contract instance (content-addressed via BLAKE3-32).
+ * Each blob is an immutable pack-contract instance (content-addressed via
+ * BLAKE3-32). GET rides `@freenetorg/freenet-stdlib`'s flatbuffers API on a
+ * held-open socket; PUT rides `BrowserFreenetPutClient` — the app's own native
+ * bincode client, one short-lived socket per put — because flatbuffers PUT
+ * hangs on 0.2.x (Plans/APK_FREENET_HOST.md §1 spike log). Since Phase 2 of
+ * Plans/FREENET_NETWORK_PACK.md (decision 1) that native client is the only
+ * publish path; no CLI is spawned.
  */
 
 import {
@@ -13,7 +20,9 @@ import {
   type ResponseHandler,
 } from '@freenetorg/freenet-stdlib';
 
-import { putBlobViaFdev } from './freenet02-fdev-put.ts';
+import { BrowserFreenetPutClient } from './freenet02-native-put.ts';
+import type { NativeWebSocketConstructor } from './freenet02-native-ws.ts';
+import { loadPackContractWasm } from './freenet02-pack.ts';
 import { parseFreenet02Uri } from './freenet02-uri.ts';
 import type {
   FreenetConnectionStatus,
@@ -27,8 +36,13 @@ export type Freenet02WsTransportOptions = {
   wsUrl?: string;
   authToken?: string;
   connectTimeoutMs?: number;
+  /** Ceiling for one native PUT before it is reported as hung. */
   requestTimeoutMs?: number;
   clientName?: string;
+  /** Socket class for the native PUT; defaults to the runtime's `globalThis.WebSocket`. */
+  webSocket?: NativeWebSocketConstructor;
+  /** Tests: pack-contract WASM bytes instead of the disk read. */
+  packWasm?: Uint8Array;
 };
 
 const DEFAULT_WS_URL = 'ws://127.0.0.1:7509/v1/contract/command';
@@ -67,6 +81,8 @@ export class Freenet02WsTransport implements FreenetTransport {
   private connecting: Promise<void> | null = null;
   private lastError: string | undefined;
   private readonly endpointMeta: ReturnType<typeof parseWsEndpoint>;
+  private readonly putClient: BrowserFreenetPutClient;
+  private readonly packWasm: Uint8Array | undefined;
 
   constructor(options: Freenet02WsTransportOptions = {}) {
     const raw = options.wsUrl ?? process.env.FREENET_WS_URL ?? DEFAULT_WS_URL;
@@ -75,6 +91,14 @@ export class Freenet02WsTransport implements FreenetTransport {
     this.authToken = options.authToken ?? process.env.FREENET_WS_AUTH ?? '';
     this.connectTimeoutMs = options.connectTimeoutMs ?? 8_000;
     this.clientName = options.clientName ?? 'PUF-AM-mist';
+    this.packWasm = options.packWasm;
+    this.putClient = new BrowserFreenetPutClient({
+      wsUrl: this.wsBaseUrl,
+      authToken: this.authToken,
+      connectTimeoutMs: this.connectTimeoutMs,
+      putTimeoutMs: options.requestTimeoutMs,
+      webSocket: options.webSocket,
+    });
   }
 
   isConnected(): boolean {
@@ -105,10 +129,23 @@ export class Freenet02WsTransport implements FreenetTransport {
     this.connected = false;
   }
 
+  /**
+   * Native bincode PUT of one pack-contract instance. The flatbuffers `api` is
+   * not involved: the put opens its own `encodingProtocol=native` socket to the
+   * same node, so a node that answers GET but refuses PUT fails here with the
+   * node's reason rather than timing out inside the SDK.
+   */
   async putBlob(data: Uint8Array, options: FreenetPutOptions = {}): Promise<FreenetPutResult> {
-    await this.connect();
-    // Flatbuffers PUT via SDK hangs on 0.2.118; fdev uses native WS encoding on the same node.
-    return putBlobViaFdev(data, options);
+    const identifier = options.identifier ?? `native-put-${Date.now()}`;
+    const wasm = this.packWasm ?? (await loadPackContractWasm());
+    try {
+      const result = await this.putClient.putPackBlob({ data, wasm });
+      this.lastError = undefined;
+      return { uri: result.uri, identifier };
+    } catch (err) {
+      this.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
+    }
   }
 
   async getBlob(uri: string, _identifier?: string): Promise<Uint8Array | null> {
