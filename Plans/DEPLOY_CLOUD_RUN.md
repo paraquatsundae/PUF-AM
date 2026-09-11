@@ -362,7 +362,7 @@ Merged from `archive/OFFLINE_MAP_APK.md` § Phase 2 on 2026-09-10 (the offline-b
 | Launcher icon | `PUFom_icon.png` → `assets/pufom-apk-icon-master.png` |
 | Config / native project / web dir | `capacitor.config.ts` · `android/` · `dist` (Vite `base: './'`) |
 
-**Workshop build:** `npm run build:android && npm run open:android`, then run on a device/emulator from Android Studio. Set `VITE_WORKSHOP_MODE=true` in `.env` before `build:android` for demos without sign-in — never in a release build (`npm run audit:bundle` catches it).
+**Workshop build:** `npm run build:android && npm run open:android`, then run on a device/emulator from Android Studio. Workshop mode (`VITE_WORKSHOP_MODE=true`) is for `npm run dev` only — `build-android-web.mjs` forces the flag off so a local `.env` cannot bake the orange banner into a packaged APK. `npm run audit:bundle` also fails if the gate folded true.
 
 **Emulator with live API:** Capacitor live-loads from the PC (`http://10.0.2.2:3000`) so invite-PIN `/api` works. Keep `npm run dev` running (listens on `0.0.0.0:3000`), `npx cap sync android` (or `build:android`), Run ▶. The emulator needs network while signing in. Packaged shell without a live server: `CAP_PACKAGED=1 npx cap sync android` — `apiBase.ts` then uses `http://10.0.2.2:3000`.
 

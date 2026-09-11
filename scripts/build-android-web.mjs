@@ -13,12 +13,20 @@
  * packaged WebView needs.
  *
  * Firebase-only APK (production shape):  VITE_MIST_EXPERIMENTAL=false
+ *
+ * `VITE_WORKSHOP_MODE` is forced off. Vite inlines any `VITE_*` already in
+ * `process.env` or a local `.env`; a workshop machine's `.env` with `true`
+ * would otherwise bake the orange banner and the fake signed-in admin into
+ * every APK. Process env beats `.env`, so this assignment wins. Workshop UI
+ * stays on `npm run dev`. See `Plans/NAMING.md` §3.
+ *
  * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` §6.
  */
 
 import { build } from 'vite';
 
 process.env.VITE_CAPACITOR = '1';
+process.env.VITE_WORKSHOP_MODE = 'false';
 
 if (process.argv.includes('--no-mist')) {
   process.env.VITE_MIST_EXPERIMENTAL = 'false';
@@ -27,7 +35,7 @@ if (process.argv.includes('--no-mist')) {
 }
 
 console.log(
-  `[android] web build — VITE_CAPACITOR=1 VITE_MIST_EXPERIMENTAL=${process.env.VITE_MIST_EXPERIMENTAL}`,
+  `[android] web build — VITE_CAPACITOR=1 VITE_MIST_EXPERIMENTAL=${process.env.VITE_MIST_EXPERIMENTAL} VITE_WORKSHOP_MODE=${process.env.VITE_WORKSHOP_MODE}`,
 );
 
 await build();

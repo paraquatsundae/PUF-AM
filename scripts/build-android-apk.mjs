@@ -98,7 +98,11 @@ if (major > 21) {
 }
 console.log(`[apk] JDK ${major} (${java})`);
 
-run(process.execPath, ['scripts/build-android-web.mjs', ...(noMist ? ['--no-mist'] : [])]);
+run(process.execPath, ['scripts/build-android-web.mjs', ...(noMist ? ['--no-mist'] : [])], {
+  // Belt-and-suspenders with build-android-web.mjs: a workshop .env must not
+  // fold isWorkshopMode() true into a tablet APK (Plans/NAMING.md §3).
+  env: { VITE_WORKSHOP_MODE: 'false' },
+});
 run(windows ? 'npx.cmd' : 'npx', ['cap', 'sync', 'android'], {
   env: live ? {} : { CAP_PACKAGED: '1' },
 });
