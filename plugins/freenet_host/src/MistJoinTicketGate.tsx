@@ -12,6 +12,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowDownToLine, Loader2, Ticket, Wifi } from 'lucide-react';
 
 import { FreenetHowItWorksButton } from './FreenetHowItWorks';
@@ -49,13 +50,15 @@ import {
   type FreenetRuntime,
 } from '../../../src/lib/freenetRuntime.ts';
 import { FREENET_LOCAL_NODE_LABEL } from '../../../src/mist/freenetLocalNode.ts';
+import { takeJoinTicketDraft } from '../../../src/lib/joinTicketDraft.ts';
 
 export function MistJoinTicketGate({ children }: { children: React.ReactNode }) {
   const { userData, logout } = useAuth();
+  const navigate = useNavigate();
   const farmId = userData?.farmId;
 
   const [pending, setPending] = useState(() => Boolean(getMistJoinState()?.joinTicketPending));
-  const [ticket, setTicket] = useState('');
+  const [ticket, setTicket] = useState(() => takeJoinTicketDraft() ?? '');
   const [ownerBase, setOwnerBase] = useState('');
   const [showOwnerBase, setShowOwnerBase] = useState(false);
   const [devicePin, setDevicePin] = useState('');
@@ -310,7 +313,19 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
               </>
             ) : (
               <>
-                <strong>{FREENET_NO_HOST_LABEL}</strong> {FREENET_NO_HOST_DETAIL}
+                <strong>{FREENET_NO_HOST_LABEL}</strong> {FREENET_NO_HOST_DETAIL}{' '}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    deferMistJoinTicket();
+                    setPending(false);
+                    navigate('/settings?tab=sync');
+                  }}
+                  className="font-semibold text-emerald-700 hover:underline disabled:opacity-50"
+                >
+                  Find the laptop hub
+                </button>
               </>
             )}
             {freenetReachable && !localNode && peer && peer.freenet !== 'connected' ? (

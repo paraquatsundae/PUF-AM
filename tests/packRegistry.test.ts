@@ -46,6 +46,8 @@ describe('pack UI registry (CP-04)', () => {
     // Crop packs register none of the network surfaces, so only Freenet answers.
     expect(packSurfaces('sessionGate').map((s) => s.packId)).toEqual(['freenet_host']);
     expect(packSurfaces('pluginTile').map((s) => s.packId)).toEqual(['freenet_host']);
+    expect(packSurfaces('loginJoin').map((s) => s.packId)).toEqual(['freenet_host']);
+    expect(packSurfaces('postSignInPrompt').map((s) => s.packId)).toEqual(['freenet_host']);
     // And the network pack adds nothing to the module-gated route table.
     expect(allPackRoutes().some((r) => r.path.startsWith('login'))).toBe(false);
   });

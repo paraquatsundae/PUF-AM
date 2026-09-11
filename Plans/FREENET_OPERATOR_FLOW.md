@@ -39,15 +39,18 @@ The rest of the Freenet instruction set (do not duplicate here):
 
 ## 1. Login ladder
 
-Welcome → How this works → Start or Join.
+Join box → FarmCode step → ticket gate. Create is a secondary path (WelcomeChooser is Create's screen 2). **FarmCode-first** since 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`): a ticket typed in the box is held, never merged with the FarmCode.
 
 | Screen | Route / state | Operator sees |
 |--------|---------------|---------------|
-| Welcome | `/login` · choose | **Freenet network · Free** — your devices, your paper FarmCode. No account and no bill. |
-| How this works | `/login` · `freenet-explain` | Farm lives on this device. Sealed copies over Freenet / Wi‑Fi. Start / Join. |
-| Then fork | | Start → `/login/mist-new-farm`. Join → `/login/mist-recover`. |
+| Join a farm | `/login` · `join` | One box. PIN, paper FarmCode, or `PUF-` ticket. |
+| Your name | `join` · cloud-name | Invite PIN path. Name + Join farm. Nearby farms on tap. |
+| Freenet farm | `join` · `loginJoin` | FarmCode accepted (id only). Name. Continue to join ticket. |
+| Web refusal | `join` · freenet-unavailable | Hosted web: install desktop / pair a tablet. No mist path. |
+| How this works | `/login` · `freenet-explain` | **Create** only. Start → `/login/mist-new-farm`. |
+| Then ticket | gate | `PUF-XXXX-XXXX`. Prefills a ticket held from the join box. |
 
-Desktop with mist off greys the buttons. Workshop hub (`npm run dev`) shows Freenet. **Production web hides Freenet (since 2026-09-10).** `freenetOptionState` keys off the shell's host capability (`src/lib/freenetHostCapability.ts`): Electron has one, a browser never does, so `am.pufworks.farm` opens on cloud options with no Freenet chooser however the bundle was built. `scripts/deploy-cloudrun.mjs` stopped baking `VITE_MIST_EXPERIMENTAL=true` and stopped setting `MIST_FREENET_DISABLED=1` (Cloud Run's `cloud` surface never registered `/api/mist/freenet/*` anyway). A tablet APK with the mist gate open still shows the option and reads through a paired hub ([`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §7) until the Android host lands. [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 5, slice A.
+Desktop with mist off no longer dead-ends Join — typing a FarmCode is the opt-in. Workshop hub (`npm run dev`) treats Freenet as a host. **Production web hides Freenet (since 2026-09-10) and refuses a FarmCode/ticket in the join box (decision 5).** `freenetOptionState` still keys the *create* chooser off the shell's host capability (`src/lib/freenetHostCapability.ts`): Electron has one, a browser never does. `scripts/deploy-cloudrun.mjs` stopped baking `VITE_MIST_EXPERIMENTAL=true` and stopped setting `MIST_FREENET_DISABLED=1` (Cloud Run's `cloud` surface never registered `/api/mist/freenet/*` anyway). A tablet APK that is handed a FarmCode opens the reader path and reads through a paired hub ([`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §7) until the Android host lands. [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 5, slice A.
 
 ---
 
@@ -194,10 +197,10 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 
 **Decisions — 2026-09-10** ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) §2; recorded here because they change how holes 4 and 5 are read):
 
-1. Native bincode PUT from the app's own WS client on every shell; `fdev` leaves the desktop bundle.
+1. Native bincode PUT from the app's own WS client on every shell; `fdev` leaves the desktop bundle. *Built 2026-09-11* (`FREENET_NETWORK_PACK.md` Phase 2; live check pending).
 2. `FreenetHostPlugin` (`units/puf-freenet-host`) is the data path, not just the supervisor; Express `/api/mist/freenet/*` stays only as the LAN relay for paired tablets without a node.
 3. Android runs the node in an isolated `:freenet` process inside the PUF-AM APK — this supersedes `reference/APK_FREENET_PLUGIN.md` §3a's rejection. Hole 5's "Do: keep pointing at a laptop hub" holds until Phase 3 lands; "Do not ship a half-node" still holds — the node is whole or absent.
-4. One node version for all shells, pinned to the latest release at the start of Phase 2 and re-verified for native PUT then. Last verified 0.2.125.
+4. One node version for all shells, pinned to the latest release at the start of Phase 2 and re-verified for native PUT then. Last verified 0.2.125; pinned 0.2.135 on 2026-09-11, live check pending (`npm run mist:smoke:native`).
 5. Production web hides Freenet (see § Login above).
 6. The pack is enabled **per farm**, like a crop pack; the node is per device and starts when any open farm has it enabled.
 7. **Hybrid** (built 2026-09-11, § 4a): a cloud-hosted farm may enable the pack. Firestore stays authoritative; Freenet holds a sealed mirror and the join/recovery plane. **Hole 4 applies to the mirror unchanged:** the FarmCode, not the Firestore role, decides who can read it, and revoking a ticket does not take the mirror back from a device that already pulled. The enable screen says so (`FreenetHybridEnable.tsx` `RISK_COPY`). A mirror device is read-only and never becomes a Firebase member by joining.
@@ -313,7 +316,7 @@ The page seals, signs and hashes on every shell. What differs is the hop between
 | Hosted web (`am.pufworks.farm`) | Nothing — no node, routes 404 | Nothing | Login option hidden ([`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) §6) |
 | `npm run dev` workshop hub | Same as the tablet, talking to its own loopback Express | Same | The dev server *is* the hub |
 
-The relay keeps its outbox and `freenet-index.json` for tablets whose hub node is down; the host path has neither — a put fails while the node is down, and the URI memory is the page's `pufam.mist.hotPublish.v1.*`. Ciphertext is checked before either hop: `assertCiphertextForFreenet` runs in `FreenetMistStore.put` on the relay and in the host's wire (`server/freenetHostWire.ts`) on Electron. Until Phase 2 both hops still shell out to `fdev` for the put itself.
+The relay keeps its outbox and `freenet-index.json` for tablets whose hub node is down; the host path has neither — a put fails while the node is down, and the URI memory is the page's `pufam.mist.hotPublish.v1.*`. Ciphertext is checked before either hop: `assertCiphertextForFreenet` runs in `FreenetMistStore.put` on the relay and in the host's wire (`server/freenetHostWire.ts`) on Electron. Since Phase 2 (2026-09-11) both hops publish natively over the node's WebSocket (`BrowserFreenetPutClient` / `BrowserFreenetSlotClient`); nothing shells out.
 
 ---
 

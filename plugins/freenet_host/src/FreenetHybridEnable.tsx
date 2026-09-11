@@ -17,16 +17,12 @@
  * mirror whatever their cloud role, and revoking a ticket takes nothing back.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Copy, KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 
 import {
   FARM_CODE_BODY_LEN,
-  FARM_CODE_LEGACY_BODY_LEN,
   FARM_CODE_VERSION,
-  FarmCodeError,
-  farmCodeSymbolCount,
-  formatFarmCodeInput,
   mintFarmCode,
   parseFarmCode,
   type ParsedFarmCode,
@@ -42,6 +38,8 @@ import {
   subscribeFreenetHybridDevice,
   writeFreenetHostFarmDoc,
 } from './freenetHostCloud.ts';
+import { DevicePinFields } from './DevicePinFields';
+import { FreenetEnterFarmCode } from './FreenetEnterFarmCode';
 
 type Props = { farmId: string; onOpenSync?: () => void };
 
@@ -61,43 +59,6 @@ function ErrorLine({ error }: { error: string | null }) {
   );
 }
 
-function DevicePinFields(props: {
-  skipPin: boolean;
-  setSkipPin: (v: boolean) => void;
-  devicePin: string;
-  setDevicePin: (v: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <label className="flex items-start gap-2 text-[11px] text-slate-700">
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={props.skipPin}
-          onChange={(e) => props.setSkipPin(e.target.checked)}
-        />
-        <span>
-          Skip the device PIN — the mirror key opens with this computer&apos;s login. A 4-digit PIN
-          locks it on <strong>this device only</strong>; it is separate from the FarmCode.
-        </span>
-      </label>
-      {!props.skipPin && (
-        <input
-          type="password"
-          inputMode="numeric"
-          pattern="\d{4}"
-          maxLength={4}
-          aria-label="4-digit device PIN"
-          placeholder="4-digit device PIN"
-          value={props.devicePin}
-          onChange={(e) => props.setDevicePin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono tracking-widest text-sm"
-        />
-      )}
-    </div>
-  );
-}
-
 export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
   const { user, userData, isAdmin, farmNetworkPacks } = useAuth();
   const state = farmFreenetHostState(farmNetworkPacks);
@@ -111,7 +72,6 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
   const [confirmedWritten, setConfirmedWritten] = useState(false);
   const [confirmedReplace, setConfirmedReplace] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [codeInput, setCodeInput] = useState('');
   const [devicePin, setDevicePin] = useState('');
   const [skipPin, setSkipPin] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -128,7 +88,6 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
     setParsed(null);
     setConfirmedWritten(false);
     setConfirmedReplace(false);
-    setCodeInput('');
     setDevicePin('');
     setSkipPin(true);
     setError(null);
@@ -156,18 +115,12 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  /** Seal the seed here and, for a mint, flip the farm doc. */
-  const finish = async (mode: 'mint' | 'typed') => {
+  /** Seal a newly minted seed and write the farm doc. */
+  const finishMint = async () => {
     if (!parsed || !uid) return;
     setBusy(true);
     setError(null);
     try {
-      if (mode === 'typed' && state?.mistFarmId && parsed.farmId !== state.mistFarmId) {
-        throw new Error(
-          'That FarmCode belongs to a different mirror than the one this farm is set up with. ' +
-            'Check the code with the farm owner.',
-        );
-      }
       await sealHybridSeedOnThisDevice({
         cloudFarmId: farmId,
         farmName: getLastFarm()?.farmName ?? farmId,
@@ -176,40 +129,15 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
         devicePin: skipPin ? undefined : devicePin,
         role: isAdmin ? 'owner' : 'farmer',
       });
-      // Typing a code on a farm whose doc already names this mirror needs no
-      // doc write; a mint (or an admin re-enable with the code) does.
-      const needsDocWrite = mode === 'mint' || (!state?.enabled && isAdmin);
-      if (needsDocWrite) {
-        await writeFreenetHostFarmDoc(farmId, {
-          enabled: true,
-          mistFarmId: parsed.farmId,
-          current: state,
-          changedBy: uid,
-        });
-      }
+      await writeFreenetHostFarmDoc(farmId, {
+        enabled: true,
+        mistFarmId: parsed.farmId,
+        current: state,
+        changedBy: uid,
+      });
       reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not turn the Freenet mirror on');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const parseTyped = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      setParsed(await parseFarmCode(codeInput));
-      setFlow('device-pin');
-    } catch (err) {
-      setError(
-        err instanceof FarmCodeError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Could not read that FarmCode',
-      );
     } finally {
       setBusy(false);
     }
@@ -289,7 +217,6 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
 
   // --- Optional device PIN, then seal + farm doc ----------------------------
   if (flow === 'device-pin' && parsed) {
-    const fromMint = Boolean(farmCode);
     return (
       <div className="space-y-2 rounded-xl border border-slate-200 p-3">
         <p className="text-[11px] text-slate-700">
@@ -321,11 +248,11 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
           <button
             type="button"
             disabled={busy || !pinOk || (replacing && !confirmedReplace)}
-            onClick={() => void finish(fromMint ? 'mint' : 'typed')}
+            onClick={() => void finishMint()}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-semibold disabled:opacity-50"
           >
             {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {fromMint ? 'Turn the Freenet mirror on' : 'Use this FarmCode here'}
+            Turn the Freenet mirror on
           </button>
           <button type="button" onClick={reset} className="px-3 py-1.5 text-[11px] text-slate-600">
             Cancel
@@ -335,44 +262,8 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
     );
   }
 
-  // --- Typing an existing FarmCode -------------------------------------------
   if (flow === 'enter-code') {
-    const typed = farmCodeSymbolCount(codeInput);
-    const expected = typed > FARM_CODE_BODY_LEN ? FARM_CODE_LEGACY_BODY_LEN : FARM_CODE_BODY_LEN;
-    return (
-      <form onSubmit={(e) => void parseTyped(e)} className="space-y-2 rounded-xl border border-slate-200 p-3">
-        <label htmlFor="hybridFarmCode" className="text-[11px] font-medium text-slate-700 flex items-center gap-1.5">
-          <KeyRound className="w-3.5 h-3.5" /> FarmCode for this farm&apos;s mirror
-        </label>
-        <input
-          id="hybridFarmCode"
-          autoComplete="off"
-          spellCheck={false}
-          value={codeInput}
-          onChange={(e) => setCodeInput(formatFarmCodeInput(e.target.value))}
-          placeholder="XXXXX-XXXXX-XXXXX-XX"
-          className="w-full px-3 py-2 border border-slate-200 rounded-xl font-mono tracking-wider text-sm uppercase"
-        />
-        <p className="text-[10px] text-slate-500">
-          {typed}/{expected} symbols. Type the letters and numbers only — the format label and the
-          dashes are filled in. {RISK_COPY}
-        </p>
-        <ErrorLine error={error} />
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={busy || typed < FARM_CODE_BODY_LEN}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-semibold disabled:opacity-50"
-          >
-            {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Continue
-          </button>
-          <button type="button" onClick={reset} className="px-3 py-1.5 text-[11px] text-slate-600">
-            Cancel
-          </button>
-        </div>
-      </form>
-    );
+    return <FreenetEnterFarmCode farmId={farmId} onCancel={reset} onDone={reset} />;
   }
 
   // --- Idle: read the farm doc and this device ------------------------------

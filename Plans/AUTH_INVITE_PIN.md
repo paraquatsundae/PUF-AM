@@ -12,8 +12,8 @@ PUFAM signs users in with **Firebase Auth custom tokens**. Farm owners **create 
 
 ## Worker flow
 
-1. `/login` → **Join a farm** → device lists **nearby farms** (GPS → `GET /api/auth/nearby-farms`).
-2. Tap a farm name (avoids spelling / language issues), enter name + PIN.
+1. `/login` → **Join a farm** → one box for the invite PIN (or a FarmCode / `PUF-` ticket). Nearby farms are optional and load on tap (GPS → `GET /api/auth/nearby-farms`).
+2. Continue → your name + Join farm. Same **name + PIN** maps to the same UID.
 3. Optional `expectedFarmId` on redeem rejects PINs for a different farm.
 4. `POST /api/auth/redeem-pin` validates the PIN, writes `users/{uid}` with `farmId`, `role`, `modules`, `authEpoch`, returns a custom token.
 5. Client `signInWithCustomToken` — session persists until logout or access revoke.

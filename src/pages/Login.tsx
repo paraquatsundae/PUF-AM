@@ -10,11 +10,15 @@ import { PufworksSubscribeExplain } from '../components/login/PufworksSubscribeE
 import { PackSurfaces } from '../components/PackSurfaces';
 import { LoginCloudForm } from '../components/login/LoginCloudForm';
 import { LoginRecoveryScreen } from '../components/login/LoginRecoveryScreen';
+import { JoinCodeEntry } from '../components/login/JoinCodeEntry';
+import { JoinCloudNameStep } from '../components/login/JoinCloudNameStep';
+import { JoinFreenetUnavailable } from '../components/login/JoinFreenetUnavailable';
 import { useLoginFlow } from '../hooks/useLoginFlow';
 
 export function Login() {
   const flow = useLoginFlow();
-  const { loading, setLocalError, setByoDraftConfig, byoDraftConfig, freenetOption, step, setStep } = flow;
+  const { loading, setLocalError, setByoDraftConfig, byoDraftConfig, freenetOption, step, setStep } =
+    flow;
 
   if (loading) {
     return (
@@ -31,7 +35,28 @@ export function Login() {
     return <LoginRecoveryScreen flow={flow} />;
   }
 
-  if (step === 'choose') {
+  if (step === 'join') {
+    const { stage } = flow.join;
+    if (stage === 'cloud-name') return <JoinCloudNameStep flow={flow} />;
+    if (stage === 'freenet-unavailable') {
+      return <JoinFreenetUnavailable onBack={() => flow.join.back()} />;
+    }
+    if (stage === 'freenet' && flow.freenetJoinAvailability !== 'none') {
+      return (
+        <PackSurfaces
+          surface="loginJoin"
+          code={flow.join.classification.normalized}
+          kind={flow.join.classification.kind === 'join-ticket' ? 'join-ticket' : 'farm-code'}
+          heldTicket={flow.join.heldTicket ?? undefined}
+          availability={flow.freenetJoinAvailability}
+          onBack={() => flow.join.back()}
+        />
+      );
+    }
+    return <JoinCodeEntry flow={flow} />;
+  }
+
+  if (step === 'create-choose') {
     return (
       <WelcomeChooser
         freenetOption={freenetOption}
@@ -41,6 +66,10 @@ export function Login() {
         }}
         onFreenet={() => {
           setStep('freenet-explain');
+          setLocalError(null);
+        }}
+        onBack={() => {
+          setStep('join');
           setLocalError(null);
         }}
       />
@@ -64,7 +93,7 @@ export function Login() {
           setLocalError(null);
         }}
         onBack={() => {
-          setStep('choose');
+          setStep(freenetOption === 'hidden' ? 'join' : 'create-choose');
           setLocalError(null);
         }}
       />
@@ -118,9 +147,12 @@ export function Login() {
   }
 
   if (step === 'freenet-explain') {
-    // The network pack's own explainer; it navigates to its public routes itself.
     return (
-      <PackSurfaces surface="loginExplain" optionState={freenetOption} onBack={() => setStep('choose')} />
+      <PackSurfaces
+        surface="loginExplain"
+        optionState={freenetOption}
+        onBack={() => setStep('create-choose')}
+      />
     );
   }
 

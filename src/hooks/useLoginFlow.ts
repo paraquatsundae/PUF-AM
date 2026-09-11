@@ -12,7 +12,9 @@ import { fetchNearbyFarms, type NearbyFarm } from '../lib/invitePinAuth';
 import { getFarmStoreBackend, isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import { getFreenetHostCapability } from '../lib/freenetHostCapability.ts';
 import { isNativePlatform } from '../lib/freenetRuntime.ts';
+import { freenetJoinAvailability } from '../lib/joinCodeFlow.ts';
 import { freenetOptionState, initialLoginStep, type LoginStep } from '../lib/loginStorageChoice.ts';
+import { useJoinCode } from './useJoinCode.ts';
 import {
   byoProjectId,
   isByoFirebase,
@@ -68,6 +70,12 @@ export function useLoginFlow() {
     workshopHub: import.meta.env.DEV,
     nativeReader: isNativePlatform(),
   });
+  const joinAvailability = freenetJoinAvailability({
+    capability: getFreenetHostCapability(),
+    native: isNativePlatform(),
+    workshopHub: import.meta.env.DEV,
+  });
+  const join = useJoinCode({ availability: joinAvailability });
   const [step, setStep] = useState<LoginStep>(() =>
     initialLoginStep({
       freenet: freenetOption,
@@ -107,12 +115,6 @@ export function useLoginFlow() {
     }
   }, []);
 
-  useEffect(() => {
-    if (step === 'firebase' && mode === 'join' && !welcomeBack && !isByoFirebase()) {
-      void loadNearby();
-    }
-  }, [step, mode, loadNearby, welcomeBack]);
-
   const handleGoogleSignIn = async () => {
     setIsSigningIn(true);
     setLocalError(null);
@@ -146,7 +148,12 @@ export function useLoginFlow() {
       await signInWithInvitePin(pin, displayName, farmId, farmLabel);
     } catch (err: unknown) {
       console.error('Sign in error:', err);
-      setLocalError(err instanceof Error ? err.message : 'Sign-in failed. Check your PIN and try again.');
+      let message = err instanceof Error ? err.message : 'Sign-in failed. Check your PIN and try again.';
+      if (/invite pin not found/i.test(message)) {
+        message +=
+          ' If this was a Freenet join ticket, it starts with PUF-. If it is the owner recovery PIN, the same box works — check the name is the one used at create.';
+      }
+      setLocalError(message);
       setIsSigningIn(false);
     }
   };
@@ -212,7 +219,14 @@ export function useLoginFlow() {
     setSelectedFarm(null);
     setPin('');
     setLocalError(null);
-    void loadNearby();
+    setStep('join');
+  };
+
+  const continueJoin = () => {
+    if (join.classification.kind === 'invite-pin') {
+      setPin(join.classification.normalized);
+    }
+    join.continue();
   };
 
   return {
@@ -248,6 +262,8 @@ export function useLoginFlow() {
     byoActive,
     byoProject,
     freenetOption,
+    freenetJoinAvailability: joinAvailability,
+    join: { ...join, continue: continueJoin },
     step,
     setStep,
     error,

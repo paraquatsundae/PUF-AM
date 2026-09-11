@@ -91,6 +91,13 @@ export type PackSurfaceComponents = {
    * onBack(): void }` and navigates to its own `publicRoutes` itself.
    */
   loginExplain?: PackSurface;
+  /**
+   * Login join step for the pack's own code kinds. Gets
+   * `{ code: string; kind: 'farm-code' | 'join-ticket'; heldTicket?: string;
+   * availability: 'host' | 'reader'; onBack(): void }`. Must not render `code`
+   * back to the operator.
+   */
+  loginJoin?: PackSurface;
   /** Dismissible banner on Farm setup (e.g. "send this farm once"). */
   farmSetupNudge?: PackSurface;
   /** Inline "How this works" button; gets `{ className?: string }`. */
@@ -101,6 +108,12 @@ export type PackSurfaceComponents = {
    * so it draws its own enable control and its "not available here" state.
    */
   pluginTile?: PackSurface;
+  /**
+   * Dismissible card mounted by `Layout` once a farm is open (e.g. "this cloud
+   * farm keeps a Freenet mirror — enter the FarmCode"). Gates itself; renders
+   * null when it does not apply.
+   */
+  postSignInPrompt?: PackSurface;
 };
 
 /**

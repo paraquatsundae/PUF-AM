@@ -40,6 +40,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 | [`DEPLOY_CLOUD_RUN.md`](DEPLOY_CLOUD_RUN.md) | Live spec | Cloud Run `pufom` in `australia-southeast1`, `am.pufworks.farm` via Firebase Hosting rewrite, APK releases (CI secret), **Android dev builds** (emulator / LAN / packaged) |
 | [`FIREBASE_BILLING.md`](FIREBASE_BILLING.md) | Live spec / Active plan | Who pays for a cloud farm: enrolment gate (§5.1), BYO Firebase, refuse-list, open §5 items |
 | [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md) | Live spec | Production auth: owner flow, worker PINs, roles vs modules, revoke |
+| [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) | Active plan | One "Join a farm" box at `/login` classifying invite PIN / FarmCode / `PUF-` ticket. **FarmCode-first** (accepted 2026-09-11); ticket typed first is held, never merged |
 
 ## Data, sync & export
 

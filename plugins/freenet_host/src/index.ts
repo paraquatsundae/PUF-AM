@@ -33,6 +33,8 @@ const MistWorkshopCard = lazyWithRetry(() =>
   import('./MistWorkshopCard').then((m) => ({ default: m.MistWorkshopCard }))
 );
 const FreenetExplainLoginStep = lazyWithRetry(() => import('./FreenetExplain'));
+const FreenetLoginJoinStep = lazyWithRetry(() => import('./FreenetLoginJoin'));
+const FreenetHybridJoinPrompt = lazyWithRetry(() => import('./FreenetHybridJoinPrompt'));
 const FreenetSendNudge = lazyWithRetry(() =>
   import('./FreenetSendNudge').then((m) => ({ default: m.FreenetSendNudge }))
 );
@@ -53,8 +55,10 @@ export const packUi: NetworkPackUiRegistration = {
     syncCard: MistFarmSyncCard,
     workshopDiagnostics: MistWorkshopCard,
     loginExplain: FreenetExplainLoginStep,
+    loginJoin: FreenetLoginJoinStep,
     farmSetupNudge: FreenetSendNudge,
     howItWorks: FreenetHowItWorksButton,
     pluginTile: FreenetPluginTile,
+    postSignInPrompt: FreenetHybridJoinPrompt,
   },
 };

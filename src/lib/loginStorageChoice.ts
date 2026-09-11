@@ -31,7 +31,8 @@ export type FreenetOptionState =
   | 'hidden';
 
 export type LoginStep =
-  | 'choose'
+  | 'join'
+  | 'create-choose'
   | 'cloud-options'
   | 'cloud-byo'
   | 'cloud-byo-setup'
@@ -80,6 +81,5 @@ export function initialLoginStep(input: {
 }): LoginStep {
   if (input.byoConfigured) return 'firebase';
   if (input.welcomeBack && input.backend === 'firebase') return 'firebase';
-  if (input.freenet === 'hidden') return 'cloud-options';
-  return 'choose';
+  return 'join';
 }

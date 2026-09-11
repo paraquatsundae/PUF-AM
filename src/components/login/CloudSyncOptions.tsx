@@ -6,13 +6,14 @@ export function CloudSyncOptions({
   onByo,
   onSubscribe,
   onBack,
-  canGoWelcome,
+  canGoWelcome: _canGoWelcome,
 }: {
   onPufworks: () => void;
   onByo: () => void;
   onSubscribe: () => void;
   onBack: () => void;
-  canGoWelcome: boolean;
+  /** Kept so callers that still pass it compile; back is always shown. */
+  canGoWelcome?: boolean;
 }) {
   return (
     <LoginPanel wide>
@@ -87,7 +88,7 @@ export function CloudSyncOptions({
         </div>
       </button>
 
-      {canGoWelcome && <BackLink label="Back — including the free Freenet path" onClick={onBack} />}
+      <BackLink label="Back to Join a farm" onClick={onBack} />
     </LoginPanel>
   );
 }

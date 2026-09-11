@@ -95,17 +95,29 @@ export function LoginCloudForm({ flow }: Props) {
 
         {mode === 'join' ? <LoginJoinForm flow={flow} /> : <LoginCreateFarmForm flow={flow} />}
 
-        <button
-          type="button"
-          onClick={() => {
-            setStep('cloud-options');
-            setLocalError(null);
-          }}
-          className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 pt-2 border-t border-slate-100"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Other cloud options
-        </button>
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          <button
+            type="button"
+            onClick={() => {
+              setStep('join');
+              setLocalError(null);
+            }}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Join a farm
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStep('cloud-options');
+              setLocalError(null);
+            }}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800"
+          >
+            Other cloud options
+          </button>
+        </div>
       </div>
     </div>
   );

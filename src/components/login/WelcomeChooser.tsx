@@ -7,16 +7,18 @@ export function WelcomeChooser({
   freenetOption,
   onCloud,
   onFreenet,
+  onBack,
 }: {
   freenetOption: FreenetOptionState;
   onCloud: () => void;
   onFreenet: () => void;
+  onBack?: () => void;
 }) {
   const freenetOpen = freenetOption === 'available' || freenetOption === 'needs-setting';
 
   return (
     <LoginPanel wide>
-      <LoginBrand title={`Welcome to ${APP_NAME}`} subtitle="How should this farm be stored?" />
+      <LoginBrand title={`Welcome to ${APP_NAME}`} subtitle="Start a new farm — where will it live?" />
 
       <button
         type="button"
@@ -65,8 +67,18 @@ export function WelcomeChooser({
       ) : null}
 
       <p className="text-[11px] text-slate-400 text-center">
-        A farm is one or the other — never both. You can move later with a file export.
+        A cloud farm can add a Freenet mirror later under Settings → Plugins.
       </p>
+      {onBack ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-full inline-flex items-center justify-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+        >
+          <span aria-hidden="true">←</span>
+          Back to Join a farm
+        </button>
+      ) : null}
     </LoginPanel>
   );
 }

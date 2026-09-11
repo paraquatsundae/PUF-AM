@@ -42,26 +42,26 @@ describe('freenetOptionState', () => {
 });
 
 describe('initialLoginStep', () => {
-  it('keeps production web on cloud options (no Freenet chooser)', () => {
+  it('lands a fresh hosted-web device on the join box', () => {
     expect(
       initialLoginStep({ freenet: 'hidden', welcomeBack: false, backend: 'firebase' })
-    ).toBe('cloud-options');
+    ).toBe('join');
   });
 
-  it('asks first on a fresh device that can reach Freenet', () => {
+  it('lands a fresh device that can reach Freenet on the join box', () => {
     expect(
       initialLoginStep({ freenet: 'available', welcomeBack: false, backend: 'firebase' })
-    ).toBe('choose');
+    ).toBe('join');
     expect(
       initialLoginStep({
         freenet: freenetOptionState({ capability: null, mistEnabled: false, workshopHub: true }),
         welcomeBack: false,
         backend: 'firebase',
       })
-    ).toBe('choose');
+    ).toBe('join');
     expect(
       initialLoginStep({ freenet: 'needs-setting', welcomeBack: false, backend: 'firebase' })
-    ).toBe('choose');
+    ).toBe('join');
   });
 
   it('sends a remembered Firebase device straight back to the PIN prompt', () => {
@@ -70,10 +70,10 @@ describe('initialLoginStep', () => {
     ).toBe('firebase');
   });
 
-  it('still asks when the device last ran the mist backend', () => {
+  it('still opens Join when the device last ran the mist backend', () => {
     expect(
       initialLoginStep({ freenet: 'available', welcomeBack: true, backend: 'mist' })
-    ).toBe('choose');
+    ).toBe('join');
   });
 
   it('opens the Firebase form when this device already pasted a BYO config', () => {

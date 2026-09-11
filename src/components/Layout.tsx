@@ -18,6 +18,7 @@ import {
 } from '../lib/navConfig';
 import { BottomNav } from './BottomNav';
 import { CloudMirrorBanner } from './CloudMirrorBanner';
+import { PackSurfaces } from './PackSurfaces';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
@@ -284,6 +285,7 @@ export function Layout() {
           )}
         >
           <CloudMirrorBanner />
+          <PackSurfaces surface="postSignInPrompt" />
           <Outlet />
         </main>
       </div>
