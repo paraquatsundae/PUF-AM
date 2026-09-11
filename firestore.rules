@@ -240,7 +240,7 @@ service cloud.firestore {
     function isValidFarm(data) {
       return hasOnlyAllowedFields([
                'id', 'name', 'ownerUid', 'createdAt', 'lat', 'lng', 'showNearby',
-               'enabledModules', 'cropPacks', 'cloudKind', 'firebaseProjectId',
+               'enabledModules', 'cropPacks', 'networkPacks', 'cloudKind', 'firebaseProjectId',
                'billingAckText', 'billingAckAt'
              ]) &&
              hasRequiredFields(['id', 'name', 'ownerUid', 'createdAt']) &&
@@ -253,6 +253,9 @@ service cloud.firestore {
              (!('showNearby' in data) || data.showNearby is bool) &&
              (!('enabledModules' in data) || data.enabledModules is list) &&
              (!('cropPacks' in data) || data.cropPacks is map) &&
+             // Hybrid farms (Plans/FREENET_NETWORK_PACK.md §3): { freenet_host: { enabled, mistFarmId, changedAt, changedBy } }.
+             // Same authority as cropPacks — owner/admin write via the farm update rule, members read. Never a FarmSeed.
+             (!('networkPacks' in data) || data.networkPacks is map) &&
              (!('cloudKind' in data) || data.cloudKind in ['byo', 'pufworks']) &&
              (!('firebaseProjectId' in data) || (data.firebaseProjectId is string && data.firebaseProjectId.size() < 128)) &&
              (!('billingAckText' in data) || (data.billingAckText is string && data.billingAckText.size() < 500)) &&

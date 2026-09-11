@@ -17,6 +17,7 @@ import {
   type NavGroupId,
 } from '../lib/navConfig';
 import { BottomNav } from './BottomNav';
+import { CloudMirrorBanner } from './CloudMirrorBanner';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
@@ -282,6 +283,7 @@ export function Layout() {
               : 'overflow-y-auto'
           )}
         >
+          <CloudMirrorBanner />
           <Outlet />
         </main>
       </div>

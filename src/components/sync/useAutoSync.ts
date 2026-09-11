@@ -38,7 +38,7 @@ import {
   type SyncPeerState,
   type SyncPlan,
 } from '../../lib/autoSync';
-import { activeFarmPipe } from '../../lib/farmPipes';
+import { activeFarmPipe, isCloudMirror } from '../../lib/farmPipes';
 import { syncApiUrl } from '../../lib/mdnsPeers';
 import { ensureSyncHub } from '../../lib/syncHub';
 import {
@@ -102,6 +102,7 @@ function readConditions(peer: SyncPeerState, freenet: FreenetNodeState): SyncCon
     cloudSignedIn: Boolean(auth.currentUser),
     peer,
     freenet,
+    cloudMirror: isCloudMirror(),
   };
 }
 

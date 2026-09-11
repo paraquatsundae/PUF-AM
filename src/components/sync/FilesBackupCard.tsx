@@ -18,6 +18,7 @@ import type { FarmSync } from './useFarmSync';
 export function FilesBackupCard({ sync }: { sync: FarmSync }) {
   const [open, setOpen] = useState(false);
   const [includePhotos, setIncludePhotos] = useState(false);
+  const [intoThisFarm, setIntoThisFarm] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { busy, weatherMeta } = sync;
 
@@ -84,7 +85,7 @@ export function FilesBackupCard({ sync }: { sync: FarmSync }) {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.target.value = '';
-                if (file) sync.importPack(file);
+                if (file) sync.importPack(file, { intoThisFarm });
               }}
             />
           </div>
@@ -92,6 +93,23 @@ export function FilesBackupCard({ sync }: { sync: FarmSync }) {
             A farm pack is a single compressed <code className="text-[11px]">.pufom</code> file —
             the same thing Wi‑Fi push and pull move, but carried by hand.
           </p>
+          {/*
+            Recovery from a Freenet mirror into a *new* farm
+            (Plans/FREENET_NETWORK_PACK.md §3): the pack names the farm it came
+            from, and the importer refuses a stranger's pack unless told otherwise.
+          */}
+          <label className="flex items-start gap-2 text-[11px] text-slate-600">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={intoThisFarm}
+              onChange={(e) => setIntoThisFarm(e.target.checked)}
+            />
+            <span>
+              The pack came from <strong>another farm</strong> (a Freenet mirror, or a farm being
+              rebuilt) — bring its records into this one.
+            </span>
+          </label>
 
           <div className="border-t border-slate-100 pt-4 space-y-3">
             <div>

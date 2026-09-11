@@ -16,13 +16,16 @@ import {
   verifyUnlockPin,
 } from '../lib/unlockPin';
 import { APP_NAME } from '../brand';
-import { isFreenetFarm } from '../lib/farmPipes';
+import { isFarmCodeSession } from '../lib/farmPipes';
 import { Link } from 'react-router-dom';
 
 export function AppUnlockGate({ children }: { children: React.ReactNode }) {
   const { user, userData, logout } = useAuth();
   const uid = user?.uid || '';
-  const freenet = isFreenetFarm();
+  // FarmCode / device-PIN sign-in: a Freenet farm or a mirror of a cloud farm.
+  // A hybrid *member* device is a cloud login that also holds a seed, so it
+  // reads the cloud copy.
+  const freenet = isFarmCodeSession();
   const [locked, setLocked] = useState(() => needsUnlockGate(uid));
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);

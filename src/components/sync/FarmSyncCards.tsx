@@ -1,10 +1,14 @@
 /**
  * Settings → **Sync**: Wi‑Fi, then this farm's one off-device pipe, then files.
  *
- * A farm is created against Cloud sync *or* the Offline Freenet network, never
- * both, so an operator gets exactly one of those two cards — see
- * [`farmPipes.ts`](../../lib/farmPipes.ts), which also holds the one exception
- * for bench sessions. Wi‑Fi and files apply either way.
+ * A farm is created against Cloud sync *or* the Offline Freenet network, so an
+ * operator gets one of those two cards — see [`farmPipes.ts`](../../lib/farmPipes.ts),
+ * which also holds the one exception for bench sessions. A **hybrid** farm (a
+ * cloud farm with the Freenet mirror on, `Plans/FREENET_NETWORK_PACK.md` §3) is
+ * the one case that shows both: the cloud card because Firestore is still the
+ * authority, the Freenet card because Send is how the mirror moves. A device
+ * that only holds the mirror sees the Freenet card alone. Wi‑Fi and files apply
+ * either way.
  *
  * @see Plans/SETTINGS_SYNC_AND_CREW.md §1–§2
  */
@@ -48,7 +52,7 @@ function FreenetCrewNote() {
 
 export function FarmSyncCards() {
   const sync = useFarmSync();
-  const pipes = activeFarmPipes();
+  const pipes = activeFarmPipes(sync.farmId);
 
   if (!sync.farmId) return null;
 
@@ -68,8 +72,9 @@ export function FarmSyncCards() {
       */}
       {sync.needsHub && <FarmGatewayCard sync={sync} />}
       {pipes.cloud && <CloudSyncCard sync={sync} />}
-      {showFreenetFarmTools() && <PackSurfaces surface="syncCard" />}
-      {pipes.freenet && <FreenetCrewNote />}
+      {showFreenetFarmTools(sync.farmId) && <PackSurfaces surface="syncCard" />}
+      {/* A hybrid member's crew is the cloud account list, so the note is for farms without one. */}
+      {pipes.freenet && !pipes.cloud && <FreenetCrewNote />}
       <FilesBackupCard sync={sync} />
     </>
   );

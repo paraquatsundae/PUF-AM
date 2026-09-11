@@ -163,6 +163,8 @@ export type PublishJoinSlotInput = {
   expires?: string;
   hotContentHash?: string;
   bonesContentHash?: string;
+  /** Hybrid farms: the Firestore farm this mirror belongs to. */
+  cloudFarmId?: string;
   devicePin?: string;
 };
 
@@ -205,6 +207,7 @@ export async function publishJoinTicketToFreenetSlot(
     ticket: canonical,
     ...(input.hotContentHash ? { hotContentHash: input.hotContentHash } : {}),
     ...(input.bonesContentHash ? { bonesContentHash: input.bonesContentHash } : {}),
+    ...(input.cloudFarmId ? { cloudFarmId: input.cloudFarmId } : {}),
   };
 
   const payload = await encryptJoinSlotManifest(

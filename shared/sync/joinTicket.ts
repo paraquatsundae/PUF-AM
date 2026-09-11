@@ -91,6 +91,13 @@ export type JoinManifestV2 = {
   ticket: string;
   hotContentHash?: string;
   bonesContentHash?: string;
+  /**
+   * Hybrid farms only (`Plans/FREENET_NETWORK_PACK.md` §3): the Firestore farm
+   * this Freenet mirror belongs to. A joiner that sees it lands in a read-only
+   * mirror — Firestore is the authority and editing means an invite PIN. Not a
+   * secret; it is the same id every member's URL already shows.
+   */
+  cloudFarmId?: string;
 };
 
 function groupTicketBody(body: string): string {
@@ -242,6 +249,9 @@ export function parseJoinManifestV2(value: unknown): JoinManifestV2 | null {
       : {}),
     ...(typeof o.bonesContentHash === 'string' && o.bonesContentHash.trim()
       ? { bonesContentHash: o.bonesContentHash.trim() }
+      : {}),
+    ...(typeof o.cloudFarmId === 'string' && o.cloudFarmId.trim()
+      ? { cloudFarmId: o.cloudFarmId.trim().slice(0, 128) }
       : {}),
   };
 }

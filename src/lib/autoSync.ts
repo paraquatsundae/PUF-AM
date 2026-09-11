@@ -66,6 +66,11 @@ export type SyncConditions = {
   cloudSignedIn: boolean;
   peer: SyncPeerState;
   freenet: FreenetNodeState;
+  /**
+   * `pipe === 'hybrid'` only: this device joined the cloud farm's Freenet mirror
+   * with a ticket and has no Firebase membership, so it can fetch and never send.
+   */
+  cloudMirror?: boolean;
 };
 
 export type SyncRoute =
@@ -111,7 +116,7 @@ const PAIRING_DETAIL =
  * Decide the route. Pure: every input is an argument, so each rung has a test.
  */
 export function planFarmSync(conditions: SyncConditions): SyncPlan {
-  const { pipe, online, farmUnlocked, cloudSignedIn, peer, freenet } = conditions;
+  const { online, farmUnlocked, cloudSignedIn, peer, freenet } = conditions;
 
   if (!online) {
     return {
@@ -124,6 +129,60 @@ export function planFarmSync(conditions: SyncConditions): SyncPlan {
         'when Wi‑Fi comes back.',
     };
   }
+
+  // A hybrid farm (`Plans/FREENET_NETWORK_PACK.md` §3) is a cloud farm first.
+  // A member device syncs exactly like one — Firestore is the authority and the
+  // Freenet mirror moves only on an explicit Send in Phase 1, so it never gets a
+  // rung here. A mirror device is the other way round: no Firebase to speak to,
+  // and Freenet is the only place the farm can come from.
+  if (conditions.pipe === 'hybrid' && conditions.cloudMirror) {
+    return planCloudMirrorSync(farmUnlocked, freenet);
+  }
+  const pipe: FarmPipe = conditions.pipe === 'hybrid' ? 'cloud' : conditions.pipe;
+
+  return planPipeSync({ pipe, farmUnlocked, cloudSignedIn, peer, freenet });
+}
+
+function planCloudMirrorSync(farmUnlocked: boolean, freenet: FreenetNodeState): SyncPlan {
+  const mirrorDetail =
+    'This device holds a read-only mirror of a cloud farm. Fetching replaces the copy here ' +
+    'with the owner’s last Send, so it waits for you to press it. To edit the farm, join it ' +
+    'with an invite PIN instead.';
+  if (!farmUnlocked) {
+    return {
+      route: 'blocked',
+      via: 'none',
+      auto: false,
+      label: 'Locked on this device',
+      detail: 'Unlock this mirror with your device PIN, then it can be refreshed.',
+    };
+  }
+  if (freenet !== 'none') {
+    return {
+      route: 'freenet-pull',
+      via: 'freenet',
+      auto: false,
+      label: 'Freenet — fetch the latest copy of this mirror',
+      detail: mirrorDetail,
+    };
+  }
+  return {
+    route: 'blocked',
+    via: 'none',
+    auto: false,
+    label: 'Mirror of a cloud farm — waiting for a Freenet node',
+    detail: mirrorDetail,
+  };
+}
+
+function planPipeSync(conditions: {
+  pipe: 'cloud' | 'freenet';
+  farmUnlocked: boolean;
+  cloudSignedIn: boolean;
+  peer: SyncPeerState;
+  freenet: FreenetNodeState;
+}): SyncPlan {
+  const { pipe, farmUnlocked, cloudSignedIn, peer, freenet } = conditions;
 
   // A peer beats Freenet even when both are up: seconds against minutes, and the
   // shelf merges where a Freenet pull replaces. A gateway peer beats it for the

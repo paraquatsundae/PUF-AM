@@ -10,6 +10,7 @@ import {
   getMistSessionGrant,
   hasMistDeviceSession,
   loadMistDeviceSession,
+  mistSessionCloudFarmId,
   type MistDeviceSession,
   type MistSessionRole,
 } from './mistDeviceSession.ts';
@@ -38,16 +39,24 @@ export function farmRoleForMistRole(role: MistSessionRole): FarmRole {
  * guess, which is why a Crop scout used to arrive holding every module.
  *
  * With no meta at all there is nothing to apply, so the old behaviour stands.
+ *
+ * A **mirror of a cloud farm** (`cloudFarmId` on the session or its meta) is
+ * read-only whatever the ticket said: Firestore is the authority for that farm
+ * and this device has no Firebase membership to write with, so it lands as a
+ * `viewer`. Editing means joining the cloud farm with an invite PIN.
+ * `Plans/FREENET_NETWORK_PACK.md` §3.
  */
 export function mistSessionToUserData(
   session: MistDeviceSession,
   grant: JoinGrant | null = getMistSessionGrant(),
+  cloudFarmId: string | null = mistSessionCloudFarmId(),
 ): UserData {
+  const mirror = Boolean(session.cloudFarmId || cloudFarmId);
   return {
     uid: session.uid,
     email: 'mist@local.pufam',
     displayName: session.displayName,
-    role: farmRoleForMistRole(grant?.role ?? session.role),
+    role: mirror ? 'viewer' : farmRoleForMistRole(grant?.role ?? session.role),
     farmId: session.farmId,
     modules: grant ? grant.modules : allFarmModules(),
     authEpoch: 1,

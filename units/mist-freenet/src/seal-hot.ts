@@ -28,6 +28,15 @@ export type HotState = {
   records: HotRecord[];
   tombstones: string[];
   last_sealed: string | null;
+  /**
+   * Optional provenance. `cloud_farm_id` is set when this Hot is the sealed
+   * mirror of a Firestore farm (hybrid — `Plans/FREENET_NETWORK_PACK.md` §3), so a
+   * reader that rehydrates it knows the authority lives elsewhere. Absent on a
+   * Freenet-native farm; blobs sealed before 2026-09-11 never carry `meta`.
+   */
+  meta?: {
+    cloud_farm_id?: string;
+  };
 };
 
 /** Manifest archive pointer entry. */

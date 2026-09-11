@@ -52,10 +52,17 @@ export type ReadMistBonesResult = {
 
 export { BONES_FARM_GEOMETRY_ASSET_ID };
 
-/** Publish local geometry snapshot to mist bones (`farm-geometry` asset). */
+/**
+ * Publish local geometry snapshot to mist bones (`farm-geometry` asset).
+ *
+ * `opts.cloudFarmId` is the hybrid case (`Plans/FREENET_NETWORK_PACK.md` §3):
+ * geometry is read from the Firestore farm's local cache under the cloud id,
+ * sealed and stored under the mist `farmId`. No Firestore read is made here.
+ */
 export async function publishLocalGeometryToMistBones(
   farmId: string,
   devicePin?: string,
+  opts?: { cloudFarmId?: string },
 ): Promise<PublishMistBonesResult | null> {
   if (!hasMistDeviceSession()) return null;
 
@@ -67,7 +74,9 @@ export async function publishLocalGeometryToMistBones(
     throw farmSeedLockedError('publish bones', devicePin);
   }
 
-  const { payload, plainBytes } = await packFarmGeometryFromIdb(farmId);
+  const { payload, plainBytes } = await packFarmGeometryFromIdb(
+    opts?.cloudFarmId?.trim() || farmId,
+  );
   const canEncrypt = hasSubtleCrypto();
   const storedBytes = canEncrypt ? await encryptBonesBlob(plainBytes, farmSeed) : plainBytes;
 

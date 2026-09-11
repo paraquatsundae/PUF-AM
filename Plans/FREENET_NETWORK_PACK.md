@@ -1,6 +1,6 @@
 # Freenet network pack — the app's own Freenet client, on every shell that can run one
 
-**Status:** Plan written 2026-09-10. No code yet. Supersedes the direction in the docs listed under § Supersedes.
+**Status:** Plan written 2026-09-10. Phase 1 slices A–C built 2026-09-10/11 (§5); slice C's rules change awaits `npm run deploy:rules` and the live A→B exit check. Supersedes the direction in the docs listed under § Supersedes.
 **Experimental — not production.** Firebase Auth + invite PIN remains the shipping cloud path; this plan adds Freenet beside it, not instead of it.
 **Product:** PUF-AM · **Scope:** a `freenet_host` network pack enabled per farm like a crop pack, with a bundled Freenet 0.2 node behind one host interface on desktop and Android, native PUT on every shell, and a hybrid mode where cloud-hosted farms mirror to Freenet.
 
@@ -47,6 +47,28 @@ The FarmSeed is never written to Firestore, to any PUFworks project, or to the c
 ### 3.4 What changes in the cloud farm code
 
 `farmPipes.ts` gains a third state: cloud farm with a Freenet plane. `mistHotBridge.ts` today mirrors the mist local store on every save; for a cloud farm it mirrors the export envelope on Send instead (per-save mirroring of a Firestore-backed farm is deferred until the cost of building the envelope is measured). `AuthContext` keeps importing no pack hooks; the pack reads farm plugin settings through the existing crop-pack seam.
+
+### 3.5 As built — 2026-09-11 (slice C)
+
+Exact names and locations, so the paragraphs above can stay prose:
+
+| Concern | Where | Shape |
+|---------|-------|-------|
+| Farm doc field | `farms/{farmId}.networkPacks.freenet_host` — resolver/patch builder `shared/farm/networkPacks.ts`; `Farm.networkPacks` in `src/lib/authTypes.ts`; `firestore.rules` `isValidFarm` admits `networkPacks` as a map | `{ enabled: boolean, mistFarmId: string, changedAt: ISO, changedBy: uid }`. `mistFarmId` survives `enabled: false`. Never a seed |
+| Reading it | `AuthContext.farmNetworkPacks`, filled from the farm-doc `onSnapshot` the context already held for `enabledModules` / `cropPacks` | zero added listeners |
+| Writing it | `plugins/freenet_host/src/freenetHostCloud.ts` `writeFreenetHostFarmDoc` → one `updateDoc` on the dotted path | owner/admin only (existing farm update rule) |
+| Device seed | `pufam.mist.session.v1` as today, plus `cloudFarmId` on the sealed session **and** on the non-secret `pufam.mist.sessionMeta.v1` (`mistDeviceSession.ts`) | `pufam.farmStoreBackend` stays `firebase` on a member device |
+| Enable UI | `FreenetHybridEnable.tsx`, rendered by `FreenetPluginTile.tsx` for a cloud farm on a capable shell | mint FarmCode (shown once) → optional device PIN → `sealHybridSeedOnThisDevice` → farm-doc write. Members with no seed: "Freenet mirror is on for this farm — enter the FarmCode to take part". Disable = farm-doc flip; the node stops via `want` |
+| `want` | `freenetHostWant.ts` `computeFreenetHostWant`, used by `useFreenetHostReconciler` | hybrid member: capability ∧ farm-doc `enabled` ∧ seed on this device for **this** cloud farm |
+| Third state | `src/lib/farmPipes.ts` `FarmPipe = 'cloud' \| 'freenet' \| 'hybrid'`; `isCloudMirror()`, `hasFreenetPlane()`, `isFarmCodeSession()`, `freenetPlaneFarmId()`, `mirroredCloudFarmId()`; `FarmPipes.cloudMirror` | `hybrid` on a member device (backend `firebase`, meta `cloudFarmId` = open farm) and on a mirror device (backend `mist`, meta `cloudFarmId` set) |
+| Send | `publishFarmToFreenet(mistFarmId, { hybrid: { cloudFarmId } })` (`mistFreenetClient.ts`) → `publishLocalFarmToMistHot` / `publishLocalGeometryToMistBones` read the local cache under the cloud id and seal under the mist id; `HotState.meta.cloud_farm_id` and manifest `cloudFarmId` carry the origin | envelope + sealed sizes logged to the dev console and returned on `PublishMistHotResult` |
+| Join | `mistJoinWithTicket.ts` → `joinOutcome.ts` `describeJoinOutcome` (manifest `cloudFarmId`, falling back to the Hot's `meta`) → `markMistJoinTicketAccepted(grant, { cloudFarmId })` | mirror device is `viewer` (`mistSessionToUserData`), sees `CloudMirrorBanner` (core, `Layout.tsx`); no Firebase member created |
+| Recovery | `FreenetHybridNote.tsx` on the mirror device: *Import into a new farm — save as farm pack* → `exportPufomFile(mistFarmId, { asFarmId: cloudFarmId })`; Files & backup import gained an opt-in "pack came from another farm" (`applyPufomBundle … intoThisFarm`) | no new importer |
+| Auto-sync | `planFarmSync`: hybrid member = cloud rungs, no Freenet rung; mirror device = `freenet-pull` only, never automatic | `SyncConditions.cloudMirror` |
+
+**Measured (2026-09-11, `tests/hotAdapterHybrid.test.ts`):** 400 diary rows + 1 issue → **126,947 B plain (~124 KiB)**, ≈310 B per diary row before AEAD; a season of diary sits far inside the Freenet blob budget. Per-save mirroring and the auto-sync rung stay deferred (§6) — the envelope is cheap, but the Send-only rule is what keeps a publish at zero Firestore reads.
+
+**Known limit, stated on purpose:** the envelope is the local cache — what this device has loaded (the diary page of 50 within 90 days, issues, geometry). A device that has never opened the diary sends an emptier mirror. Widening it means reads, which is exactly what this slice refused to add.
 
 ## 4. The pack
 
@@ -101,10 +123,12 @@ Sibling of `CROP_PACK_PLUGIN.md`. Same discovery (`plugins/freenet_host/plugin.j
   - Moved with `git mv`: only `mistJoinWithTicket.ts` (+ its test) — the rest of `src/mist/` is imported by `useAutoSync` (core), `AuthContext`, or `src/lib/`, so it stays; the transport interface lives beside the client for the same reason. `finishMistFarmSetup.ts` is pack-only in practice but was left where it is (candidate for a later tidy).
   - Judgment calls: no outbox on the host path (a put while the node is down fails rather than queuing a placeholder URI); `peerStop` is a no-op on the host path (the node button is `bridge.stop()`); the content hash is checked in the page on the host path. Express `/api/mist/freenet/*` keeps its outbox and index for tablets behind a hub. Live `FREENET_LIVE_WS=1` tests not run (no node binary in the dev checkout).
 
-**Slice C — hybrid** (open):
+**Slice C — hybrid** (built 2026-09-11, not yet run live; `firestore.rules` change not yet deployed — `npm run deploy:rules`):
 
-- [ ] Hybrid: Firestore farm doc gains mist FarmId + enabled flag (the `freenet_host` flag for a cloud farm lives there, replacing the tile's *Coming with hybrid*); Send builds the export envelope from local cache and publishes; join gate distinguishes mirror-join from member-join; `farmPipes.ts` third state.
-- Exit: existing A→B desktop smoke still passes through the pack; a cloud farm on desktop A Sends a mirror that desktop B rehydrates from FarmCode + ticket.
+- [x] Hybrid: Firestore farm doc gains mist FarmId + enabled flag (`networkPacks.freenet_host`, §3.5 — the tile's *Coming with hybrid* is now the enable flow); Send builds the export envelope from local cache and publishes under the mist id with the cloud id in `HotState.meta` and the manifest; join gate distinguishes mirror-join from member-join (`joinOutcome.ts`); `farmPipes.ts` third state `hybrid` with `isCloudMirror()`.
+- [x] Recovery: a mirror device saves the mirror as a `.pufom` stamped with the cloud farm id; the existing import takes it into the original farm as-is or into a new farm with the "from another farm" opt-in.
+- [x] Tests: farm-doc patch builder + rules text, `computeFreenetHostWant`, `farmPipes` three states, hybrid envelope → HotState round trip with the measured size, join-outcome branching, hybrid rungs of `planFarmSync`.
+- [ ] Exit: existing A→B desktop smoke still passes through the pack; a cloud farm on desktop A Sends a mirror that desktop B rehydrates from FarmCode + ticket. Needs a node binary in the checkout and deployed rules.
 
 ### Phase 2 — native PUT, single binary, desktop
 
@@ -149,6 +173,6 @@ Two-way merge between a Freenet-native copy and a cloud farm; Hot → Archive / 
 | In-APK node rejected (AGPL, 4 blockers) | `reference/APK_FREENET_PLUGIN.md` §3a, §8c row 4 | superseded by decision 3 |
 | Phone/tablet will not run a peer | `reference/DESKTOP_FREENET_PLUGIN.md` §11; `reference/MIST_NETWORK_STORAGE.md` § Mobile policy | superseded by decision 3 |
 | Production web as Freenet client via sidecar (Phase 10b) | `reference/MIST_TWO_FEDORA_FREENET.md` § Production UI | superseded by decision 5 |
-| Farm is cloud XOR Freenet | `src/lib/farmPipes.ts`, login chooser | superseded by decision 7 |
+| Farm is cloud XOR Freenet | `src/lib/farmPipes.ts`, login chooser | superseded by decision 7; `farmPipes.ts` carries the third state since 2026-09-11 (§3.5). The login chooser still picks one backend to *create* against — hybrid is enabled afterwards from the farm's plugin settings |
 | InviteToken / JoinEnvelope / invite index | `reference/MIST_NETWORK_STORAGE.md` § Invitation | not adopted; FarmCode + short ticket stands |
 | `FreenetHostPlugin` put/get as frozen v1 contract, unused | `reference/DESKTOP_FREENET_PLUGIN.md` §5.2 | becomes the live seam (decision 2) |

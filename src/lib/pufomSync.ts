@@ -85,15 +85,47 @@ export type ApplyPufomResult = {
   diary: number;
 };
 
+export type ApplyPufomOptions = {
+  /**
+   * Import a pack minted by a *different* farm into the one that is open —
+   * recovery from a Freenet mirror into a new farm (Plans/FREENET_NETWORK_PACK.md
+   * §3), or moving an old farm's records across. Off by default so a pack
+   * dropped on the wrong farm is still refused; the operator opts in per import.
+   */
+  intoThisFarm?: boolean;
+};
+
+function retargetPufomBundle(bundle: PufomBundleV1, farmId: string): PufomBundleV1 {
+  const restamp = (rows: PufomEntity[]) =>
+    rows.map((row) => ('farmId' in row ? { ...row, farmId } : row));
+  return {
+    ...bundle,
+    farmId,
+    geometry: {
+      ...bundle.geometry,
+      blocks: restamp(bundle.geometry.blocks),
+      pins: restamp(bundle.geometry.pins),
+      tracks: restamp(bundle.geometry.tracks),
+    },
+    issues: restamp(bundle.issues),
+    issuesArchive: restamp(bundle.issuesArchive),
+    diary: restamp(bundle.diary),
+  };
+}
+
 /** Merge incoming bundle into local stores (LWW). Does not auto-queue cloud outbox. */
 export async function applyPufomBundle(
   incoming: PufomBundleV1,
-  expectedFarmId?: string
+  expectedFarmId?: string,
+  opts?: ApplyPufomOptions
 ): Promise<ApplyPufomResult> {
   if (expectedFarmId && incoming.farmId !== expectedFarmId) {
-    throw new Error(
-      `This .pufom is for farm ${incoming.farmId}, but you are on ${expectedFarmId}.`
-    );
+    if (!opts?.intoThisFarm) {
+      throw new Error(
+        `This .pufom is for farm ${incoming.farmId}, but you are on ${expectedFarmId}.`
+      );
+    }
+    incoming = retargetPufomBundle(incoming, expectedFarmId);
   }
 
   const farmId = incoming.farmId;
@@ -131,9 +163,21 @@ export async function applyPufomBundle(
 
 export async function exportPufomFile(
   farmId: string,
-  opts?: { farmName?: string }
+  opts?: {
+    farmName?: string;
+    /**
+     * Stamp the pack with this farm id instead of the one it was read from. A
+     * Freenet mirror of a cloud farm is stored under its mist id; the pack it
+     * hands back should name the cloud farm, so restoring into that farm needs
+     * no override at all.
+     */
+    asFarmId?: string;
+  }
 ): Promise<{ bytes: Uint8Array; filename: string; bundle: PufomBundleV1 }> {
-  const bundle = await buildPufomBundle(farmId, opts);
+  let bundle = await buildPufomBundle(farmId, opts);
+  if (opts?.asFarmId && opts.asFarmId !== farmId) {
+    bundle = retargetPufomBundle(bundle, opts.asFarmId);
+  }
   const bytes = await encodePufomBundle(bundle);
   const day = bundle.exportedAt.slice(0, 10);
   const safeName = (opts?.farmName || farmId).replace(/[^\w-]+/g, '_').slice(0, 40);
@@ -146,10 +190,11 @@ export async function exportPufomFile(
 
 export async function importPufomFile(
   file: Blob,
-  expectedFarmId?: string
+  expectedFarmId?: string,
+  opts?: ApplyPufomOptions
 ): Promise<ApplyPufomResult> {
   const bundle = await decodePufomBlob(file);
-  return applyPufomBundle(bundle, expectedFarmId);
+  return applyPufomBundle(bundle, expectedFarmId, opts);
 }
 
 export function downloadBytes(bytes: Uint8Array, filename: string): void {

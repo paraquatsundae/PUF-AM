@@ -164,11 +164,11 @@ Names and rename policy live here; **contents, authority, and how each store is 
 |-----|------|
 | `pufam.farmStoreBackend` | `farmStoreBackend.ts` |
 | `pufam.mist.session.v1` | `mistDeviceSession.ts` |
-| `pufam.mist.sessionMeta.v1` | `mistDeviceSession.ts` |
+| `pufam.mist.sessionMeta.v1` | `mistDeviceSession.ts`. Non-secret. Carries `cloudFarmId` when the sealed FarmSeed beside it belongs to a **hybrid** farm — the Firestore farm id this mist identity mirrors (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-11 |
 | `pufam.mist.deviceKey` | `mistDeviceSession.ts` |
 | `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts, FN02 URIs, minted join ticket |
 | `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
-| `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag will live on its farm doc when hybrid lands (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
+| `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag lives on its farm doc instead — `farms/{farmId}.networkPacks.freenet_host`, §8 below (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
 
 ### CSS / DOM (non-storage)
 
@@ -215,7 +215,7 @@ Two layers — do not confuse:
 **Join ticket (short — points at a farm, does not open it):**
 
 - Printable form: **`PUF-XXXX-XXXX`** — prefix `PUF`, then 8 Crockford Base32 symbols (`shared/sync/joinTicket.ts`).
-- Resolves to a **join manifest v2** `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket }`.
+- Resolves to a **join manifest v2** `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket, hotContentHash?, bonesContentHash?, cloudFarmId? }`. `cloudFarmId` (added 2026-09-11) is set only when the farm is a **hybrid** — a Firestore farm whose sealed mirror sits on Freenet — and names that Firestore farm so a joiner lands in a read-only mirror rather than believing it owns the farm. The sealed Hot blob carries the same id as `HotState.meta.cloud_farm_id`.
 - Roles use the mist vocabulary **`owner | admin | farmer | viewer`** — never `worker`. Default for a shared ticket: `farmer`.
 - **Join ticket ≠ FarmCode.** The ticket says *where* the farm is on Freenet; the FarmCode is what decrypts it. A ticket alone grants nothing.
 - **Short join ticket ≠ raw Freenet ticket** — the v1 `{ hotUri, bonesUri }` JSON is the *Advanced* fallback, not the thing operators are taught.
@@ -231,7 +231,8 @@ Top-level collections (production):
 
 | Path | Purpose |
 |------|---------|
-| `farms/{farmId}` | Farm doc (`enabledModules`, `farmProfile`, …) |
+| `farms/{farmId}` | Farm doc (`enabledModules`, `farmProfile`, `cropPacks`, `networkPacks`, …) |
+| `farms/{farmId}.networkPacks.freenet_host` | Network-pack state for a **hybrid** farm: `{ enabled: boolean, mistFarmId: string, changedAt: ISO string, changedBy: uid }`. `mistFarmId` is the Freenet address family (derived from the FarmCode, not a secret) and survives `enabled: false` so re-enabling keeps the same mirror. **No FarmSeed, ever.** Owner/admin write, members read — same authority as `cropPacks`. Resolver `shared/farm/networkPacks.ts`; read through the existing farm-doc listener in `AuthContext`. Added 2026-09-11 (`FREENET_NETWORK_PACK.md` §3) |
 | `farms/{farmId}/events/{id}` | Diary events (maps from local `diary` kind) |
 | `farms/{farmId}/issues/{id}` | Active field issues |
 | `farms/{farmId}/archived_issues/{id}` | Archived issues |

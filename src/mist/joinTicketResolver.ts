@@ -294,6 +294,8 @@ export type RegisterJoinTicketInput = {
   expires?: string;
   hotContentHash?: string;
   bonesContentHash?: string;
+  /** Hybrid farms: the Firestore farm this mirror belongs to. Travels in the manifest. */
+  cloudFarmId?: string;
   /**
    * Who the owner said this ticket was for — "Dave — spray ute".
    *

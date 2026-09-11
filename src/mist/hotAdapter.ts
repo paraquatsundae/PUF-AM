@@ -56,6 +56,14 @@ export type BuildHotStateOpts = {
   /** Preserve window/tombstones from an existing hot blob when re-publishing. */
   previous?: Pick<HotState, 'window_start' | 'tombstones' | 'last_sealed'> | null;
   defaultAuthor?: string;
+  /**
+   * Hybrid farms (`Plans/FREENET_NETWORK_PACK.md` §3): the envelope was built
+   * from a *Firestore* farm's local cache, so `exportBundle.farmId` is the cloud
+   * id. The Hot is addressed and sealed under the **mist** FarmId instead, and
+   * remembers where it came from in `meta.cloud_farm_id`.
+   */
+  farmId?: string;
+  cloudFarmId?: string;
 };
 
 /** Build HotState from a farm-export envelope (full local snapshot replace in v1). */
@@ -72,14 +80,22 @@ export function buildHotStateFromFarmExport(
   records.sort((a, b) => b.ts.localeCompare(a.ts));
 
   const prev = opts?.previous;
+  const cloudFarmId = opts?.cloudFarmId?.trim();
 
   return {
-    farm_id: exportBundle.farmId,
+    farm_id: opts?.farmId?.trim() || exportBundle.farmId,
     window_start: prev?.window_start ?? hotWindowStart(opts?.now),
     records,
     tombstones: prev?.tombstones ?? [],
     last_sealed: prev?.last_sealed ?? null,
+    ...(cloudFarmId ? { meta: { cloud_farm_id: cloudFarmId } } : {}),
   };
+}
+
+/** The Firestore farm a Hot blob mirrors, or `null` for a Freenet-native farm. */
+export function hotStateCloudFarmId(hot: Pick<HotState, 'meta'> | null | undefined): string | null {
+  const id = hot?.meta?.cloud_farm_id;
+  return typeof id === 'string' && id.trim() ? id.trim() : null;
 }
 
 function exportDiaryToDiaryEvent(row: FarmExportDiaryEvent): DiaryEvent {

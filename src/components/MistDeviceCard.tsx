@@ -22,7 +22,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeyRound, Loader2, Lock, ShieldCheck, Unlock } from 'lucide-react';
 
-import { isFreenetFarm } from '../lib/farmPipes.ts';
+import { hasFreenetPlane, isFarmCodeSession } from '../lib/farmPipes.ts';
 import {
   changeMistDevicePin,
   getMistSessionMeta,
@@ -47,12 +47,15 @@ export function MistDeviceCard() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // A cloud farm has none of this: its session is a Firebase one, and
-  // `UnlockPinSettingsCard` is the card that applies there.
-  if (!isFreenetFarm() || unlock === 'absent') return null;
+  // A plain cloud farm has none of this: its session is a Firebase one, and
+  // `UnlockPinSettingsCard` is the card that applies there. A hybrid member
+  // device does hold a sealed seed — the key to the farm's Freenet mirror — so
+  // the same PIN choice applies to that, with the copy saying which it is.
+  if (!hasFreenetPlane() || unlock === 'absent') return null;
 
   const meta = getMistSessionMeta();
   const hasPin = unlock === 'pin';
+  const mirrorKeyOnly = !isFarmCodeSession();
 
   const reset = () => {
     setMode('idle');
@@ -111,9 +114,20 @@ export function MistDeviceCard() {
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold text-slate-900">This device</h2>
           <p className="text-sm text-slate-600 mt-1">
-            {meta?.farmName ? <strong>{meta.farmName}</strong> : 'This farm'} is stored on this
-            computer and stays here between launches. You do not need the FarmCode or a join ticket
-            to open it again — those are for putting the farm on a <em>new</em> device.
+            {mirrorKeyOnly ? (
+              <>
+                The key to the Freenet mirror of{' '}
+                {meta?.farmName ? <strong>{meta.farmName}</strong> : 'this farm'} is stored on this
+                computer. The farm itself is in the cloud and you sign into it as usual; this key is
+                what lets <em>Send this farm</em> seal the mirror from here.
+              </>
+            ) : (
+              <>
+                {meta?.farmName ? <strong>{meta.farmName}</strong> : 'This farm'} is stored on this
+                computer and stays here between launches. You do not need the FarmCode or a join
+                ticket to open it again — those are for putting the farm on a <em>new</em> device.
+              </>
+            )}
           </p>
         </div>
       </div>

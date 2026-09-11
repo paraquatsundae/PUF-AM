@@ -15,6 +15,7 @@ import { isMistFarmSessionActive, tryLoadMistFarmSession } from '../mist/mistFar
 import {
   clearMistDeviceSession,
   hasMistDeviceSession,
+  mistSessionCloudFarmId,
 } from '../mist/mistDeviceSession.ts';
 import { ensureBrowserMistStore, resetBrowserMistStore } from '../mist/createFarmStore.ts';
 import { setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
@@ -41,6 +42,10 @@ import {
   resolveFarmCropPacks,
   type FarmCropPacksMap,
 } from '../../shared/farm/cropPacks';
+import {
+  resolveFarmNetworkPacks,
+  type FarmNetworkPacksMap,
+} from '../../shared/farm/networkPacks';
 
 export type { Farm, UserData, UserPublicData } from '../lib/authTypes';
 import type { UserData } from '../lib/authTypes';
@@ -59,6 +64,12 @@ interface AuthContextType {
   /** Installed crop packs on this farm (Plans/CROP_PACK_PLUGIN.md). */
   farmCropPacks: FarmCropPacksMap;
   refreshFarmCropPacks: () => Promise<void>;
+  /**
+   * Network-pack state on the farm doc — the hybrid Freenet flag
+   * (Plans/FREENET_NETWORK_PACK.md §3). Read off the same farm-doc listener as
+   * the two above; empty on Freenet-native farms and in the workshop.
+   */
+  farmNetworkPacks: FarmNetworkPacksMap;
   signInWithInvitePin: (
     pin: string,
     displayName: string,
@@ -98,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [farmEnabledModules, setFarmEnabledModules] =
     useState<FarmModuleId[]>(allFarmModules());
   const [farmCropPacks, setFarmCropPacks] = useState<FarmCropPacksMap>({});
+  const [farmNetworkPacks, setFarmNetworkPacks] = useState<FarmNetworkPacksMap>({});
   const [mistLocked, setMistLocked] = useState(false);
 
   const applyMistSession = async (devicePin?: string): Promise<boolean> => {
@@ -204,6 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!farmId) {
       setFarmEnabledModules(allFarmModules());
       setFarmCropPacks({});
+      setFarmNetworkPacks({});
       return;
     }
     const farmRef = doc(db, 'farms', farmId);
@@ -213,11 +226,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const data = snap.data();
         setFarmEnabledModules(resolveFarmEnabledModules(data?.enabledModules));
         setFarmCropPacks(resolveFarmCropPacks(data?.cropPacks));
+        // Same snapshot, no extra listener: the hybrid flag rides on the farm doc.
+        setFarmNetworkPacks(resolveFarmNetworkPacks(data?.networkPacks));
       },
       (err) => {
         console.warn('[Auth] farm modules listen failed:', err);
         setFarmEnabledModules(allFarmModules());
         setFarmCropPacks({});
+        setFarmNetworkPacks({});
       }
     );
     return () => unsub();
@@ -285,7 +301,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      if (isMistFarmSessionActive() || hasMistDeviceSession()) {
+      // A hybrid member device (Plans/FREENET_NETWORK_PACK.md §3) is a Firebase
+      // login that also holds the sealed key to its farm's Freenet mirror. Signing
+      // out is the cloud sign-out; the sealed seed stays, as it does for a Freenet
+      // farm between launches, so the next sign-in can still Send. Only a mist
+      // session that *is* the login — a Freenet farm, a mirror device, or a
+      // leftover seed with no cloud farm behind it — is cleared here.
+      const hybridMember = !isMistFarmSessionActive() && mistSessionCloudFarmId() !== null;
+      if (!hybridMember && (isMistFarmSessionActive() || hasMistDeviceSession())) {
         clearMistDeviceSession();
         await resetBrowserMistStore(true);
         setFarmStoreBackend('firebase');
@@ -332,6 +355,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshFarmModules,
         farmCropPacks,
         refreshFarmCropPacks,
+        farmNetworkPacks,
         signInWithInvitePin,
         createFarm,
         completeFarmSignIn,

@@ -14,6 +14,7 @@ import { fetchAndRehydrateFarmFromAddresses, refreshFarmUiAfterRecovery } from '
 import { markMistJoinTicketAccepted } from '../../../src/mist/mistDeviceSession.ts';
 import { readJoinGrant, type JoinGrant } from '../../../shared/sync/joinGrant.ts';
 import { resolveJoinTicket, type JoinManifestV2, type JoinTicketResolver } from '../../../src/mist/joinTicketResolver.ts';
+import { describeJoinOutcome, type JoinOutcome } from './joinOutcome.ts';
 
 export type JoinFarmWithTicketResult = {
   manifest: JoinManifestV2;
@@ -23,6 +24,8 @@ export type JoinFarmWithTicketResult = {
   resolvedBy: string;
   diary: number;
   blocks: number;
+  /** Member of a Freenet farm, or read-only mirror of a cloud one (§3). */
+  outcome: JoinOutcome;
 };
 
 export async function joinFarmWithShortTicket(input: {
@@ -51,7 +54,14 @@ export async function joinFarmWithShortTicket(input: {
   // manifest rather than the role it guessed at recovery time. A ticket minted
   // before presets carries no `permissions`, so its role's defaults stand in.
   const grant = readJoinGrant(manifest);
-  markMistJoinTicketAccepted(grant);
+  // A hybrid farm's ticket makes this device a mirror, not a member: the cloud
+  // farm id goes on the session meta so `farmPipes` reports `hybrid` and the
+  // app opens read-only. No Firebase membership is created anywhere here.
+  const outcome = describeJoinOutcome({ manifest, hotCloudFarmId: result.hot.cloudFarmId });
+  markMistJoinTicketAccepted(
+    grant,
+    outcome.kind === 'mirror' ? { cloudFarmId: outcome.cloudFarmId } : undefined,
+  );
 
   return {
     manifest,
@@ -59,5 +69,6 @@ export async function joinFarmWithShortTicket(input: {
     resolvedBy,
     diary: result.hot.after.diary,
     blocks: result.geometry.after.blocks,
+    outcome,
   };
 }

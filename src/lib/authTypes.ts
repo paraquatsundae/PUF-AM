@@ -1,5 +1,6 @@
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import type { FarmCropPacksMap } from '../../shared/farm/cropPacks';
+import type { FarmNetworkPacksMap } from '../../shared/farm/networkPacks';
 
 export interface UserData {
   uid: string;
@@ -32,4 +33,6 @@ export interface Farm {
   createdAt: string;
   enabledModules?: FarmModuleId[];
   cropPacks?: FarmCropPacksMap;
+  /** Hybrid farms only — `Plans/FREENET_NETWORK_PACK.md` §3. */
+  networkPacks?: FarmNetworkPacksMap;
 }

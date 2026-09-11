@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { KeyRound, Lock, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { isFreenetFarm } from '../lib/farmPipes';
+import { isFarmCodeSession } from '../lib/farmPipes';
 import { clearUnlockPin, hasUnlockPin, lockSession } from '../lib/unlockPin';
 import { UnlockPinForm } from './AppUnlockGate';
 
 export function UnlockPinSettingsCard() {
   const { user } = useAuth();
   const uid = user?.uid || '';
-  const freenet = isFreenetFarm();
+  const freenet = isFarmCodeSession();
   const [enabled, setEnabled] = useState(() => hasUnlockPin(uid));
   const [mode, setMode] = useState<'idle' | 'set' | 'change'>('idle');
   const [msg, setMsg] = useState<string | null>(null);

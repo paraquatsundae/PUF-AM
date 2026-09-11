@@ -248,6 +248,59 @@ describe('shouldAutoSyncNow', () => {
   });
 });
 
+/**
+ * A hybrid farm (Plans/FREENET_NETWORK_PACK.md §3): a cloud farm whose Freenet
+ * mirror is on. Members sync as a cloud farm — the mirror moves on Send only in
+ * Phase 1. A mirror device has no Firebase and can only fetch.
+ */
+describe('planFarmSync — hybrid', () => {
+  it('a member device takes the cloud shelf, exactly like a cloud farm', () => {
+    const plan = planFarmSync(conditions({ pipe: 'hybrid', cloudSignedIn: true, peer: 'reachable' }));
+    expect(plan.route).toBe('lan-pufom');
+    expect(plan.auto).toBe(true);
+  });
+
+  it('a member device never gets a Freenet rung, even with a publishing node', () => {
+    const plan = planFarmSync(conditions({ pipe: 'hybrid', cloudSignedIn: true, freenet: 'publish' }));
+    expect(plan.route).toBe('blocked');
+    expect(plan.label).toMatch(/Waiting for a PUF-AM peer/);
+  });
+
+  it('a member device that is signed out waits for the cloud sign-in like a cloud farm', () => {
+    const plan = planFarmSync(conditions({ pipe: 'hybrid', cloudSignedIn: false, peer: 'reachable' }));
+    expect(plan.route).toBe('blocked');
+    expect(plan.label).toMatch(/Sign in/);
+  });
+
+  it('a mirror device fetches from Freenet and is never automatic', () => {
+    for (const freenet of ['publish', 'read-only'] as const) {
+      const plan = planFarmSync(conditions({ pipe: 'hybrid', cloudMirror: true, freenet }));
+      expect(plan.route).toBe('freenet-pull');
+      expect(plan.via).toBe('freenet');
+      expect(plan.auto).toBe(false);
+      expect(plan.detail).toMatch(/read-only mirror of a cloud farm/);
+      expect(plan.detail).toMatch(/invite PIN/);
+    }
+  });
+
+  it('a mirror device ignores a Wi‑Fi peer — it has no cloud account for the shelf', () => {
+    const plan = planFarmSync(conditions({ pipe: 'hybrid', cloudMirror: true, peer: 'reachable' }));
+    expect(plan.route).toBe('blocked');
+    expect(plan.label).toMatch(/Mirror of a cloud farm/);
+  });
+
+  it('a locked mirror device says so', () => {
+    const plan = planFarmSync(conditions({ pipe: 'hybrid', cloudMirror: true, farmUnlocked: false, freenet: 'publish' }));
+    expect(plan.route).toBe('blocked');
+    expect(plan.label).toBe('Locked on this device');
+  });
+
+  it('offline beats everything, hybrid included', () => {
+    expect(planFarmSync(conditions({ pipe: 'hybrid', online: false })).label).toMatch(/Offline/);
+    expect(planFarmSync(conditions({ pipe: 'hybrid', cloudMirror: true, online: false })).label).toMatch(/Offline/);
+  });
+});
+
 describe('the status line', () => {
   it('names the route the farm last moved over', () => {
     const at = new Date(Date.now() - 4 * 60_000).toISOString();

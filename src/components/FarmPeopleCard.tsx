@@ -30,7 +30,7 @@ import { AlertCircle, Loader2, Ticket, UserPlus, Users } from 'lucide-react';
 
 import { PackSurfaces } from './PackSurfaces';
 import { useAuth } from '../contexts/AuthContext';
-import { activeFarmPipe } from '../lib/farmPipes';
+import { activeFarmPipes, freenetPlaneFarmId } from '../lib/farmPipes';
 import { fetchJoinTicketLedger, revokeJoinTicket } from '../lib/joinLedger';
 import type { JoinTicketLedgerRow } from '../../shared/sync/joinLedger';
 import { findJoinPreset } from '../../shared/sync/joinGrant';
@@ -215,7 +215,14 @@ function FreenetPeople({ farmId }: { farmId: string }) {
 export function FarmPeopleCard() {
   const { userData } = useAuth();
   const farmId = userData?.farmId;
-  const pipe = activeFarmPipe();
+  // Three states. A hybrid *member* has the cloud roster and, below it, the
+  // tickets this hub handed out for the mirror; a hybrid *mirror* device has
+  // only the tickets, like a Freenet farm.
+  const pipes = activeFarmPipes(farmId);
+  const pipe = pipes.cloudMirror ? 'freenet' : pipes.cloud ? 'cloud' : 'freenet';
+  // Tickets are keyed by the mist id, which on a hybrid member is not the cloud id.
+  const ticketFarmId = pipes.freenet ? freenetPlaneFarmId() ?? farmId : null;
+  const showTickets = Boolean(ticketFarmId);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -245,13 +252,19 @@ export function FarmPeopleCard() {
         )}
       </div>
 
-      {pipe === 'cloud' ? (
-        <CloudPeople />
-      ) : farmId ? (
-        <FreenetPeople farmId={farmId} />
-      ) : (
-        <p className="text-xs text-slate-400 py-2">Sign in to this farm to see who is on it.</p>
+      {pipe === 'cloud' && <CloudPeople />}
+      {pipe === 'cloud' && showTickets && (
+        <p className="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+          <span className="font-semibold text-slate-700">Freenet mirror.</span> Anyone read a join
+          ticket below can read the whole mirror, whatever their cloud role — and revoking a ticket
+          does not take a copy back.
+        </p>
       )}
+      {ticketFarmId ? (
+        <FreenetPeople farmId={ticketFarmId} />
+      ) : pipe !== 'cloud' ? (
+        <p className="text-xs text-slate-400 py-2">Sign in to this farm to see who is on it.</p>
+      ) : null}
     </div>
   );
 }

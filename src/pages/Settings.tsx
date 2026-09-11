@@ -17,7 +17,7 @@ import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
 import { PluginsPanel } from '../components/PluginsPanel';
 import { PackSurfaces } from '../components/PackSurfaces';
-import { activeFarmPipe } from '../lib/farmPipes';
+import { activeFarmPipe, activeFarmPipes } from '../lib/farmPipes';
 import { isWorkshopDiagnosticsEnabled } from '../lib/workshopMode';
 import {
   ensureShareCrewLocationDefault,
@@ -45,7 +45,11 @@ export function Settings() {
   const [activeTab, setActiveTabState] = useState<SettingsTab>(() =>
     isSettingsTab(tabParam) ? tabParam : 'general'
   );
-  const farmPipe = activeFarmPipe();
+  // Three states: `cloud`, `freenet`, and `hybrid` — a cloud farm with its
+  // Freenet mirror on. A hybrid *member* still has the cloud crew (PINs, account
+  // list); a hybrid *mirror* device has neither and is read-only.
+  const farmPipe = activeFarmPipe(userData?.farmId);
+  const pipes = activeFarmPipes(userData?.farmId);
   const [shareCrewLocation, setShareCrewLocationState] = useState(() => getShareCrewLocation());
 
   const setActiveTab = (id: SettingsTab) => {
@@ -136,7 +140,19 @@ export function Settings() {
               somebody joins is a join ticket, under Sync, so offering a PIN
               here would be a button with nothing behind it.
             */}
-            {isAdmin && farmPipe === 'cloud' && <InvitePinManager />}
+            {isAdmin && pipes.cloud && <InvitePinManager />}
+
+            {pipes.cloudMirror && (
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                <h2 className="text-lg font-bold text-slate-900">Crew</h2>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  This device holds a <strong>read-only mirror</strong> of a cloud farm. The crew
+                  list, invite PINs and every edit live in the cloud farm itself. To take part, ask
+                  the farm owner for an invite PIN and sign in with it — the mirror here is for
+                  reading, and for recovering the farm if the cloud copy is ever lost.
+                </p>
+              </div>
+            )}
 
             {farmPipe === 'freenet' && (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -173,9 +189,11 @@ export function Settings() {
                   <p className="font-medium text-slate-900">Share location with farm crew</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     While the Farm Map is open, other signed-in members see your live GPS marker.
-                    {farmPipe === 'freenet'
+                    {farmPipe === 'freenet' || pipes.cloudMirror
                       ? ' On Freenet, only people on the same Wi‑Fi see you — there is no cloud crew list. Defaults on here; turn off anytime.'
-                      : ' Invite PIN / workshop defaults on; turn off anytime.'}
+                      : farmPipe === 'hybrid'
+                        ? ' Crew positions go through the cloud farm, never into the Freenet mirror. Invite PIN / workshop defaults on; turn off anytime.'
+                        : ' Invite PIN / workshop defaults on; turn off anytime.'}
                   </p>
                 </div>
                 <button

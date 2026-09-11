@@ -76,6 +76,18 @@ export function setFreenetPeerContribute(enabled: boolean): Promise<FreenetPeerS
 export type FreenetHotPublishResult = FreenetPublishOutcome;
 export type FreenetBonesPublishResult = FreenetPublishOutcome;
 
+/**
+ * A hybrid farm's publish (`Plans/FREENET_NETWORK_PACK.md` §3): the farm is a
+ * Firestore farm, the mirror is addressed under the mist FarmId the caller passes
+ * as `farmId`. Records and geometry come from the **local cache** under the cloud
+ * id — this device's copy of what it already loaded, so a publish adds zero
+ * Firestore reads and zero listeners. The id also rides in the join manifest and
+ * in `HotState.meta`, which is how a joiner learns it holds a mirror.
+ */
+export type HybridPublishSource = {
+  cloudFarmId: string;
+};
+
 /** Read encrypted hot/current bytes from local IndexedDB mist store. */
 export async function readLocalHotCiphertext(
   farmId: string,
@@ -171,8 +183,12 @@ function rememberUri(kind: FreenetBlobKind, farmId: string, result: FreenetPubli
 export async function publishHotToFreenet(
   farmId: string,
   devicePin?: string,
+  hybrid?: HybridPublishSource,
 ): Promise<FreenetHotPublishResult> {
-  await publishLocalFarmToMistHot(farmId, devicePin ? { devicePin } : undefined);
+  await publishLocalFarmToMistHot(farmId, {
+    ...(devicePin ? { devicePin } : {}),
+    ...(hybrid ? { cloudFarmId: hybrid.cloudFarmId } : {}),
+  });
   const local = await readLocalHotCiphertext(farmId);
   if (!local) {
     throw new Error('No local hot/current — publish local diary/issues first');
@@ -270,8 +286,13 @@ export function pullHotFromFreenetByUri(
 export async function publishBonesToFreenet(
   farmId: string,
   devicePin?: string,
+  hybrid?: HybridPublishSource,
 ): Promise<FreenetBonesPublishResult> {
-  await publishLocalGeometryToMistBones(farmId, devicePin);
+  await publishLocalGeometryToMistBones(
+    farmId,
+    devicePin,
+    hybrid ? { cloudFarmId: hybrid.cloudFarmId } : undefined,
+  );
   const local = await readLocalBonesCiphertext(farmId);
   if (!local) {
     throw new Error('No local farm-geometry bones — draw boundaries on map first');
@@ -373,10 +394,13 @@ export async function publishFarmToFreenet(
      * joiner never receives it and nothing about it reaches Freenet.
      */
     label?: string;
+    /** Set when `farmId` is a mist id mirroring a Firestore farm. */
+    hybrid?: HybridPublishSource;
   },
 ): Promise<PublishFarmToFreenetResult> {
-  const hot = await publishHotToFreenet(farmId, options?.devicePin);
-  const bones = await publishBonesToFreenet(farmId, options?.devicePin);
+  const hybrid = options?.hybrid;
+  const hot = await publishHotToFreenet(farmId, options?.devicePin, hybrid);
+  const bones = await publishBonesToFreenet(farmId, options?.devicePin, hybrid);
 
   if (!hot.freenetUri || !bones.freenetUri) {
     throw new Error('Freenet publish incomplete — wait for peer connection and retry');
@@ -406,6 +430,7 @@ export async function publishFarmToFreenet(
     expires,
     hotContentHash: hot.contentHash,
     bonesContentHash: bones.contentHash,
+    ...(hybrid ? { cloudFarmId: hybrid.cloudFarmId } : {}),
   };
 
   let shortTicketOnLan = false;

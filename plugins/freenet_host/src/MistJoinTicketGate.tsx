@@ -25,6 +25,7 @@ import {
   mistSessionNeedsPin,
 } from '../../../src/mist/mistDeviceSession.ts';
 import { joinFarmWithShortTicket } from './mistJoinWithTicket.ts';
+import { joinOutcomeMessage } from './joinOutcome.ts';
 import {
   JOIN_TICKET_PREFIX,
   formatJoinTicketInput,
@@ -63,6 +64,8 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  /** A hybrid farm's ticket landed: the farm is here read-only, one reload away. */
+  const [mirrorJoined, setMirrorJoined] = useState(false);
 
   // Where the node this device would talk to lives. A tablet with no hub has
   // none, so asking it for peer status is a fetch at an address nothing answers.
@@ -148,10 +151,14 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
       const joinedAs =
         findJoinPreset(result.grant.preset)?.label ?? joinRoleLabel(result.grant.role);
       setMessage(
-        `Joined as ${joinedAs} — ${result.diary} diary ${
-          result.diary === 1 ? 'entry' : 'entries'
-        } and ${result.blocks} ${result.blocks === 1 ? 'block' : 'blocks'} are on this device.`,
+        joinOutcomeMessage(result.outcome, { diary: result.diary, blocks: result.blocks, joinedAs }),
       );
+      if (result.outcome.kind === 'mirror') {
+        // The session was read as a member at boot; the mirror's read-only role
+        // and banner come from the meta just written, so reopen from it.
+        setMirrorJoined(true);
+        return;
+      }
       setPending(false);
     } catch (err) {
       const text = err instanceof Error ? err.message : 'Could not join the farm';
@@ -201,8 +208,18 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
           </div>
         )}
 
+        {mirrorJoined && (
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="w-full py-3 rounded-xl bg-sky-700 text-white font-semibold"
+          >
+            Open the mirror
+          </button>
+        )}
+
         <form
-          className="space-y-4"
+          className={mirrorJoined ? 'hidden' : 'space-y-4'}
           onSubmit={(e) => {
             e.preventDefault();
             void join();

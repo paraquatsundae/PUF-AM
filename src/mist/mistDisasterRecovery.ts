@@ -12,7 +12,7 @@ import {
   wipeLocalFarmEntitiesForFarm,
 } from '../lib/localFarmRepo';
 import { BONES_WORKSHOP_ASSET_ID } from './bonesWorkshop.ts';
-import { countHotFarmEntities, hotStateToFarmEntities } from './hotAdapter.ts';
+import { countHotFarmEntities, hotStateCloudFarmId, hotStateToFarmEntities } from './hotAdapter.ts';
 import { getMistStoreForHotBridge, readMistHotCurrent } from './mistHotBridge.ts';
 import { clearMistHotPublishStatus } from './mistHotPublishMeta.ts';
 import { rehydrateFarmGeometryFromBones } from './bonesGeometry.ts';
@@ -52,6 +52,8 @@ export type RehydrateLocalFarmResult = {
 export type RecoverFromHotResult = RehydrateLocalFarmResult & {
   contentHash: string;
   source: 'local-hot' | 'freenet-hot';
+  /** Set when the Hot is the sealed mirror of a Firestore farm (hybrid, §3). */
+  cloudFarmId?: string;
 };
 
 export type RehydrateGeometryFromBonesResult = {
@@ -156,10 +158,12 @@ export async function recoverLocalFarmFromMistHot(
   }
 
   const result = await rehydrateLocalFarmFromHot(farmId, readBack.hot);
+  const cloudFarmId = hotStateCloudFarmId(readBack.hot);
   return {
     ...result,
     contentHash: readBack.contentHash,
     source: 'local-hot',
+    ...(cloudFarmId ? { cloudFarmId } : {}),
   };
 }
 
@@ -178,10 +182,12 @@ export async function recoverLocalFarmFromFreenet(
   }
 
   const result = await rehydrateLocalFarmFromHot(farmId, readBack.hot);
+  const cloudFarmId = hotStateCloudFarmId(readBack.hot);
   return {
     ...result,
     contentHash: pull.contentHash,
     source: 'freenet-hot',
+    ...(cloudFarmId ? { cloudFarmId } : {}),
   };
 }
 

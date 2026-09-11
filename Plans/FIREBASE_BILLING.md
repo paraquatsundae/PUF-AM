@@ -33,6 +33,14 @@ are also free: the LAN shelf is a socket on somebody's laptop.
 That is not a footnote, it is the escape hatch. Every option in §2 is measured
 against the fact that a farm which does not want to pay already has somewhere to go.
 
+**2026-09-11 — hybrid (`FREENET_NETWORK_PACK.md` decision 7, §3.5).** A cloud farm may
+now switch a Freenet *mirror* on. The XOR above becomes "one authority": Firestore
+still owns the farm, and the mirror is a sealed read copy. Billing effect: enabling or
+disabling is **one farm-doc field write** (`networkPacks.freenet_host`, read through the
+farm-doc listener `AuthContext` already holds — no new listener); a Send builds the
+envelope from the local cache and puts **zero reads** on the bill; a mirror device has
+no Firebase user at all. Everything else in this document is unchanged.
+
 ---
 
 ## §1 Cost model reality
@@ -482,8 +490,9 @@ metering that agrees with Google's, suspension, tax and a support obligation.
 
 ## §7 The honest summary
 
-- A farm is **cloud XOR freenet**. Freenet, LAN and files cost nobody anything. This
-  document is only about cloud farms.
+- A farm is **cloud XOR freenet** for authority; a cloud farm may add a Freenet mirror
+  (2026-09-11, §0) at the cost of one field write and no reads. Freenet, LAN and files
+  cost nobody anything. This document is only about cloud farms.
 - A cloud farm as the code stands today costs **$1–35 per month**, and **~$200** in a
   harvest month with five devices and live crew positions. Two code changes take that
   to **$1–3**.

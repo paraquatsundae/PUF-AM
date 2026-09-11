@@ -11,6 +11,8 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { CircleHelp, X } from 'lucide-react';
 
+import { activeFarmPipe, isCloudMirror, type FarmPipe } from '../../../src/lib/farmPipes';
+
 export function FreenetDiagram() {
   return (
     <svg
@@ -58,15 +60,49 @@ export function FreenetDiagram() {
   );
 }
 
+/**
+ * The opening paragraph depends on which of the three farm shapes is open
+ * (`farmPipes`): a Freenet farm lives here; a hybrid member's farm lives in the
+ * cloud with a sealed mirror on Freenet; a mirror device holds only that mirror.
+ */
+function FreenetHowItWorksLead({ pipe }: { pipe: FarmPipe | 'mirror' }) {
+  if (pipe === 'hybrid') {
+    return (
+      <p>
+        This farm lives in the <strong>cloud</strong>, and that copy stays the one that counts.
+        Freenet holds a <strong>sealed mirror</strong> of it — published only when you press{' '}
+        <strong>Send this farm</strong>, from what this device has already loaded, with nothing
+        extra read from the cloud. The mirror is for reading and for getting the farm back if the
+        cloud copy is ever lost. Anyone holding the FarmCode can read the whole mirror, whatever
+        their cloud role; revoking a ticket does not take a copy back.
+      </p>
+    );
+  }
+  if (pipe === 'mirror') {
+    return (
+      <p>
+        What is on this device is a <strong>read-only mirror</strong> of a cloud farm. The farm
+        itself — and every edit — lives in the cloud; joining with an invite PIN is how you take
+        part. The mirror refreshes when you fetch the owner&apos;s latest Send, and it can be saved
+        as a farm pack to rebuild the farm somewhere new.
+      </p>
+    );
+  }
+  return (
+    <p>
+      The farm lives on <strong>this device</strong>. Nothing is stored on a PUFworks or Google
+      server, so nobody sends you a bill. Wi‑Fi in the shed still moves a copy to another
+      PUF-Ag Manager on the same network. Over the internet, sealed copies travel on Freenet —
+      other computers pass the ciphertext; they cannot read it.
+    </p>
+  );
+}
+
 export function FreenetHowItWorksBody() {
+  const pipe: FarmPipe | 'mirror' = isCloudMirror() ? 'mirror' : activeFarmPipe();
   return (
     <div className="space-y-4 text-sm text-slate-600 leading-relaxed">
-      <p>
-        The farm lives on <strong>this device</strong>. Nothing is stored on a PUFworks or Google
-        server, so nobody sends you a bill. Wi‑Fi in the shed still moves a copy to another
-        PUF-Ag Manager on the same network. Over the internet, sealed copies travel on Freenet —
-        other computers pass the ciphertext; they cannot read it.
-      </p>
+      <FreenetHowItWorksLead pipe={pipe} />
       <p>
         Two different codes, not one. The <strong>FarmCode</strong> is the farm&apos;s identity —
         written on paper once when you start. The short <strong>join ticket</strong> (

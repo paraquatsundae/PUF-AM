@@ -328,9 +328,9 @@ export function useFarmSync() {
       return `Saved ${filename} (${Math.round(bytes.length / 1024)} KB)`;
     });
 
-  const importPack = (file: File) =>
+  const importPack = (file: File, opts?: { intoThisFarm?: boolean }) =>
     void run('files', 'import', async () => {
-      const result = await importPufomFile(file, farmId);
+      const result = await importPufomFile(file, farmId, opts);
       await useMapStoreInternal.getState().loadData(farmId);
       return `Merged pack — ${result.blocks} blocks, ${result.pins} pins, ${result.issues} issues, ${result.diary} diary events.`;
     });

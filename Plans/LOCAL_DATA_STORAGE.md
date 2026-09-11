@@ -81,8 +81,8 @@ Legacy keys are still read so an operator upgrading from an old APK does not los
 | Key | Contents | Authority |
 |-----|----------|-----------|
 | `pufam.farmStoreBackend` | `firebase` \| `mist` — which backend this device uses | **Authoritative** for routing; flipping it changes which farm the app shows |
-| `pufam.mist.session.v1` | Mist device session (unlocked state, farm binding) | **Authoritative** for the session |
-| `pufam.mist.sessionMeta.v1` | Session metadata, including join-deferred state | Session |
+| `pufam.mist.session.v1` | Mist device session (unlocked state, farm binding). Since 2026-09-11 also holds `cloudFarmId` when the seed belongs to a cloud farm's Freenet mirror (hybrid, `FREENET_NETWORK_PACK.md` §3.5) — `pufam.farmStoreBackend` stays `firebase` on such a member device | **Authoritative** for the session |
+| `pufam.mist.sessionMeta.v1` | Session metadata, including join-deferred state; non-secret `cloudFarmId` mirrors the sealed one so `farmPipes.ts` can answer `hybrid` without unlocking (2026-09-11) | Session |
 | `pufam.mist.deviceKey` | Device key material for the mist session | **Authoritative** — losing it means re-entering the FarmCode |
 | `pufam.mist.hotPublish.v1.{farmId}` | Last Hot publish: content hash, record counts, **FN02 Hot URI**, bones URI + hash, minted join ticket, role, expiry | **Authoritative** for "where this farm is on Freenet" — see below |
 | `pufam.mist.bonesPublish.v1.{farmId}` | Same for the geometry bones publish | As above |

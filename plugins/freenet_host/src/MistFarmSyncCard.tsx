@@ -9,7 +9,8 @@
  * readiness, the button, the ticket, the result — lives here in the order it is
  * done.
  *
- * Rendered only for Freenet farms — see `src/lib/farmPipes.ts`.
+ * Rendered for Freenet farms and for hybrid devices — see `src/lib/farmPipes.ts`;
+ * the hybrid branches live in `FreenetHybridNote` / `useFreenetHybrid`.
  *
  * Plans: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §14 Phase 4 ·
  * `Plans/SETTINGS_SYNC_AND_CREW.md` §1.
@@ -30,6 +31,8 @@ import {
 
 import { FreenetHowItWorksButton } from './FreenetHowItWorks';
 import { useAuth } from '../../../src/contexts/AuthContext';
+import { FreenetHybridNote } from './FreenetHybridNote.tsx';
+import { useFreenetHybrid } from './useFreenetHybrid.ts';
 import { APP_NAME } from '../../../src/brand';
 import { getDesktopBridge, isDesktopShell } from '../../../src/lib/desktopBridge.ts';
 import type { FreenetHostStatus } from '../../../units/puf-freenet-host/src/types.ts';
@@ -199,7 +202,10 @@ const TONE_CLASS: Record<Readiness['tone'], string> = {
 
 export function MistFarmSyncCard() {
   const { userData, farmEnabledModules, farmCropPacks } = useAuth();
-  const farmId = userData?.farmId;
+  // Hybrid (Plans/FREENET_NETWORK_PACK.md §3): the card is keyed by the mist id
+  // the mirror lives under, not the cloud farm the operator is signed into.
+  const hybrid = useFreenetHybrid(userData?.farmId);
+  const farmId = hybrid?.mistFarmId ?? userData?.farmId;
   const desktop = getDesktopBridge();
   const activePacks = useCropPackActivation();
 
@@ -347,6 +353,11 @@ export function MistFarmSyncCard() {
    */
   useEffect(() => {
     if (modePinned || !farmId) return;
+    if (hybrid) {
+      // A member sends the mirror; a mirror device can only fetch it.
+      setMode(hybrid.mirror ? 'join' : 'send');
+      return;
+    }
     if (getMistJoinState()?.joinTicketDeferred) {
       setMode('join');
       return;
@@ -445,6 +456,7 @@ export function MistFarmSyncCard() {
         preset,
         ...(pin ? { devicePin: pin } : {}),
         ...(shareLabel.trim() ? { label: shareLabel.trim() } : {}),
+        ...(hybrid && !hybrid.mirror ? { hybrid: { cloudFarmId: hybrid.cloudFarmId } } : {}),
       });
       // The seed is in hand for the rest of this tab's life, so the PIN field
       // has done its job and should stop being asked for.
@@ -598,7 +610,8 @@ export function MistFarmSyncCard() {
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2">
+          {hybrid && <FreenetHybridNote hybrid={hybrid} />}
+          {!hybrid && <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => pickMode('send')}
@@ -623,7 +636,7 @@ export function MistFarmSyncCard() {
               <ArrowDownToLine className="w-4 h-4" />
               Join a farm
             </button>
-          </div>
+          </div>}
 
           {mode === 'send' ? (
             <div className="space-y-3">

@@ -38,6 +38,12 @@ export type MistDeviceSession = {
   hasDevicePin: boolean;
   /** True when this device came in on a join ticket rather than minting the farm. */
   joinedViaTicket?: boolean;
+  /**
+   * Hybrid farms only: the Firestore farm this mist identity mirrors. The farm
+   * itself lives in Firestore; this seed addresses its sealed mirror on Freenet.
+   * `Plans/FREENET_NETWORK_PACK.md` §3.
+   */
+  cloudFarmId?: string;
 };
 
 /**
@@ -62,6 +68,11 @@ export type MistSessionMeta = {
   joinTicketPending?: boolean;
   /** Operator chose to look around before joining — gate steps aside, sync card still nags. */
   joinTicketDeferred?: boolean;
+  /**
+   * Hybrid marker, mirrored from the sealed session so `farmPipes` can answer
+   * without a decrypt. A joiner learns it from the manifest and records it here.
+   */
+  cloudFarmId?: string;
 };
 
 const SESSION_BLOB_KEY = 'pufam.mist.session.v1';
@@ -182,6 +193,7 @@ export async function saveMistDeviceSession(
     role: session.role,
     joinedViaTicket: session.joinedViaTicket,
     joinTicketPending: joinState?.joinTicketPending,
+    ...(session.cloudFarmId ? { cloudFarmId: session.cloudFarmId } : {}),
   });
 }
 
@@ -201,6 +213,17 @@ export function getMistSessionMeta(): MistSessionMeta | null {
 
 export function hasMistDeviceSession(): boolean {
   return Boolean(ls()?.getItem(SESSION_BLOB_KEY));
+}
+
+/**
+ * The Firestore farm this device's sealed seed belongs to, or `null` for a
+ * Freenet-native farm (and for no session at all). Read from the non-secret
+ * meta, so it is safe to call before unlock and from `lib/`.
+ */
+export function mistSessionCloudFarmId(): string | null {
+  if (!hasMistDeviceSession()) return null;
+  const id = getMistSessionMeta()?.cloudFarmId?.trim();
+  return id ? id : null;
 }
 
 /**
@@ -321,7 +344,9 @@ export function createMistSessionRecord(input: {
   devicePin?: string;
   role?: MistSessionRole;
   joinedViaTicket?: boolean;
+  cloudFarmId?: string;
 }): MistDeviceSession {
+  const cloudFarmId = input.cloudFarmId?.trim();
   return {
     uid: `mist_${input.farmId.slice(0, 16)}`,
     farmId: input.farmId,
@@ -332,6 +357,7 @@ export function createMistSessionRecord(input: {
     farmSeedHex: bytesToHex(input.farmSeed),
     hasDevicePin: Boolean(input.devicePin && input.devicePin.replace(/\D/g, '').length >= 4),
     ...(input.joinedViaTicket ? { joinedViaTicket: true } : {}),
+    ...(cloudFarmId ? { cloudFarmId } : {}),
   };
 }
 
@@ -394,10 +420,19 @@ export function getMistSessionGrant(): JoinGrant | null {
  * The grant is written to the *meta* rather than the encrypted session blob
  * because it arrives after unlock, when no device PIN is in hand to re-seal the
  * blob. Nothing here is sensitive: a preset name and a list of nav entries.
+ *
+ * `cloudFarmId` arrives the same way — off the manifest, after unlock — and
+ * turns this session into a read-only mirror of a cloud farm (`farmPipes`
+ * `hybrid`). It is only ever written, never cleared here: a device that joined
+ * a hybrid farm stays a mirror until it signs out.
  */
-export function markMistJoinTicketAccepted(grant: JoinGrant): void {
+export function markMistJoinTicketAccepted(
+  grant: JoinGrant,
+  extras?: { cloudFarmId?: string },
+): void {
   const meta = getMistSessionMeta();
   if (!meta) return;
+  const cloudFarmId = extras?.cloudFarmId?.trim();
   saveMistSessionMeta({
     ...meta,
     role: coerceJoinRole(grant.role),
@@ -406,6 +441,7 @@ export function markMistJoinTicketAccepted(grant: JoinGrant): void {
     joinedViaTicket: true,
     joinTicketPending: false,
     joinTicketDeferred: false,
+    ...(cloudFarmId ? { cloudFarmId } : {}),
   });
 }
 

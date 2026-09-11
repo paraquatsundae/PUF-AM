@@ -20,6 +20,7 @@ import { ensureBrowserMistStore } from './createFarmStore.ts';
 import {
   hasMistDeviceSession,
   loadMistDeviceSession,
+  mistSessionCloudFarmId,
   mistSessionNeedsPin,
 } from './mistDeviceSession.ts';
 import {
@@ -39,6 +40,14 @@ export type PublishMistHotOpts = {
   devicePin?: string;
   /** When true, skip if no mist session (default). */
   auto?: boolean;
+  /**
+   * Hybrid farms (`Plans/FREENET_NETWORK_PACK.md` §3): build the envelope from
+   * this Firestore farm's **local cache** (`pufom_farm_local` — what this device
+   * has already loaded; no Firestore read is made here) while addressing and
+   * sealing the Hot under the mist `farmId` the caller passed. Stamped into
+   * `HotState.meta.cloud_farm_id` so a reader knows the authority lives elsewhere.
+   */
+  cloudFarmId?: string;
 };
 
 export type PublishMistHotResult = {
@@ -50,6 +59,10 @@ export type PublishMistHotResult = {
   issueArchiveCount: number;
   encrypted: boolean;
   publishedAt: string;
+  /** Plain JSON envelope size before sealing — the number the Phase 1 budget asks for. */
+  envelopeBytes: number;
+  /** What actually goes to the store / Freenet. */
+  sealedBytes: number;
 };
 
 export type ReadMistHotResult = {
@@ -153,7 +166,10 @@ export async function publishLocalFarmToMistHot(
     throw farmSeedLockedError('publish Hot', opts?.devicePin);
   }
 
-  const exportBundle = await buildFarmExportJson(farmId, {
+  const cloudFarmId = opts?.cloudFarmId?.trim();
+  // A hybrid farm's records sit in the local cache under the *cloud* id; the
+  // mirror is keyed by the mist id. Everything else about the build is shared.
+  const exportBundle = await buildFarmExportJson(cloudFarmId || farmId, {
     farmName: opts?.farmName,
     source: 'mist',
     includeIssues: true,
@@ -164,6 +180,8 @@ export async function publishLocalFarmToMistHot(
   const hotState = buildHotStateFromFarmExport(exportBundle, {
     previous,
     defaultAuthor: exportBundle.farmName,
+    farmId,
+    ...(cloudFarmId ? { cloudFarmId } : {}),
   });
 
   const plainBytes = new TextEncoder().encode(JSON.stringify(hotState));
@@ -171,6 +189,7 @@ export async function publishLocalFarmToMistHot(
   const storedBytes = canEncrypt
     ? await encryptHotBlob(plainBytes, farmSeed)
     : plainBytes;
+  logHotEnvelopeSize(farmId, hotState.records.length, plainBytes.byteLength, storedBytes.byteLength, cloudFarmId);
 
   const storageKey = hotKey(farmId, 'current');
   const contentHash = sha256Hex(storedBytes);
@@ -192,6 +211,8 @@ export async function publishLocalFarmToMistHot(
     issueArchiveCount: exportBundle.issuesArchive.length,
     encrypted: canEncrypt,
     publishedAt,
+    envelopeBytes: plainBytes.byteLength,
+    sealedBytes: storedBytes.byteLength,
   };
 
   saveMistHotPublishStatus({
@@ -200,6 +221,26 @@ export async function publishLocalFarmToMistHot(
   });
 
   return result;
+}
+
+/**
+ * Phase 1 of `Plans/FREENET_NETWORK_PACK.md` asks for the envelope size to be
+ * measured before the design commits to whole-farm blobs, so every publish says
+ * what it sealed — dev console only, no operator ever needs the number.
+ */
+function logHotEnvelopeSize(
+  farmId: string,
+  records: number,
+  envelopeBytes: number,
+  sealedBytes: number,
+  cloudFarmId?: string,
+): void {
+  if (!import.meta.env?.DEV) return;
+  console.info(
+    `[mist] hot envelope ${cloudFarmId ? 'hybrid mirror' : 'farm'} ${farmId.slice(0, 12)}…: ` +
+      `${records} records, ${envelopeBytes} B plain → ${sealedBytes} B sealed` +
+      (cloudFarmId ? ` (cloud farm ${cloudFarmId})` : ''),
+  );
 }
 
 /** Read and decrypt the current Hot blob for smoke / verification. */
@@ -233,9 +274,16 @@ export async function readMistHotCurrent(
   };
 }
 
-/** Debounced auto-publish after local diary/issue writes. Fire-and-forget. */
+/**
+ * Debounced auto-publish after local diary/issue writes. Fire-and-forget.
+ *
+ * Skipped on a hybrid device: the farm's records are keyed by its cloud id and
+ * the mirror by its mist id, and `Plans/FREENET_NETWORK_PACK.md` §3.4 keeps a
+ * hybrid mirror to explicit **Send** in Phase 1 — no per-save mirroring.
+ */
 export function scheduleMistHotAutoPublish(farmId: string, farmName?: string): void {
   if (!isMistHotMirrorAvailable()) return;
+  if (mistSessionCloudFarmId()) return;
 
   const existing = autoPublishTimers.get(farmId);
   if (existing) clearTimeout(existing);

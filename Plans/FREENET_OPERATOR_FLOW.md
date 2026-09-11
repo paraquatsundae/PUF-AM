@@ -2,7 +2,7 @@
 
 **Experimental — not production.** Firebase Auth + invite PIN remains the shipping cloud path.
 
-Exact operator path as the code stands. Cloud XOR Freenet is locked at login — *until [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 7 (hybrid: a cloud farm may enable the Freenet pack) lands in its Phase 1.* This file is the Freenet side only: create, recover, send, join, People ledger.
+Exact operator path as the code stands. Login still picks the backend a farm is *created* on — cloud or Freenet — but since 2026-09-11 a cloud farm can switch its Freenet mirror on afterwards from its plugin settings ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 7, §3.5; § Hybrid below). This file is the Freenet side only: create, recover, send, join, People ledger, and the hybrid mirror.
 
 **Known holes:** §8 below (merged from `archive/FREENET_HOLES.md`, 2026-09-10)  
 **What is on Freenet, sealed, or never on Freenet:** §9 below (merged from `archive/FREENET_CONTRIBUTE_AND_STORAGE.md`, 2026-09-10)  
@@ -28,7 +28,7 @@ The rest of the Freenet instruction set (do not duplicate here):
 
 | | |
 |--|--|
-| One farm, one pipe | Cloud XOR Freenet, chosen at login |
+| One farm, one authority | Cloud or Freenet, chosen at login. A cloud farm may add a Freenet **mirror** (hybrid, 2026-09-11) — Firestore stays the authority, the mirror is a sealed read copy |
 | Cost | $0 — no Google account, no enrollment code, no subscription |
 | Join ticket | `PUF-XXXX-XXXX` — not a Firebase invite PIN |
 | Who can Send | A PUF-AM **laptop** only |
@@ -104,6 +104,24 @@ Farm setup → People lists tickets minted on **this hub only**. Revoke stops ne
 | 4 | App | Nav follows the ticket grant. Confirmation: joined as {preset} — N diary, M blocks. |
 
 **Look around first.** The gate can be deferred. The farm stays empty; Settings → Sync stays in Join mode. Offline maps can still download. This is how a tablet can exist before the owner reads out a ticket.
+
+**Joining a cloud farm's mirror (hybrid, 2026-09-11).** Same four steps. The manifest carries the cloud farm id, so the gate says *joined the mirror of a cloud farm — read-only* and offers **Open the mirror**; the app lands as a `viewer` with a banner: *This is a mirror of a cloud farm. To edit, join with an invite PIN.* No Firebase member is created — a PIN from the owner is the way in, and it is unrelated to the ticket. Settings → Sync on that device shows the Freenet card in fetch-only mode plus **Import into a new farm — save as farm pack** (the mirror as a `.pufom`, for a rebuild). `plugins/freenet_host/src/joinOutcome.ts`, `src/components/CloudMirrorBanner.tsx`, `FreenetHybridNote.tsx`.
+
+---
+
+## 4a. Hybrid — a cloud farm with a Freenet mirror (2026-09-11)
+
+Owner is signed in to a cloud farm on a desktop. Settings → Plugins → Freenet tile.
+
+| Step | Screen | Operator does | App writes |
+|------|--------|---------------|------------|
+| A | Tile: *Off for this farm* | Read the warning — anyone with the FarmCode reads the whole mirror whatever their cloud role; revoking a ticket takes nothing back. **Enable the Freenet mirror**. | Nothing yet. |
+| B | Write this down — shown once | Copy to paper. Tick. | FarmCode never shown again. |
+| C | Optional device PIN | Skip or 4 digits. | Seed sealed in `pufam.mist.session.v1` with `cloudFarmId`; backend stays `firebase`. |
+| D | Farm doc | — | `farms/{id}.networkPacks.freenet_host = { enabled: true, mistFarmId, changedAt, changedBy }`. One write. |
+| E | Settings → Sync → Freenet → **Send** | Deliberate, as for a mist farm. | Envelope from the local cache, sealed under the mist id, `hot/current` + bones + a ticket. Zero Firestore reads. |
+
+Other members on capable desktops see *Freenet mirror is on for this farm — enter the FarmCode to take part*; typing it seals the seed on their device too and their node joins in. Members without a node see the tile as *Not available on this device*. **Disable** flips `enabled: false`, keeps `mistFarmId` (re-enable with the same FarmCode lands at the same address), and every member node stops on the next reconcile. Auto-sync on a member device follows the cloud rungs only — the mirror never moves by itself in Phase 1.
 
 ### Ticket lookup vs farm bytes
 
@@ -182,7 +200,7 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 4. One node version for all shells, pinned to the latest release at the start of Phase 2 and re-verified for native PUT then. Last verified 0.2.125.
 5. Production web hides Freenet (see § Login above).
 6. The pack is enabled **per farm**, like a crop pack; the node is per device and starts when any open farm has it enabled.
-7. **Hybrid:** a cloud-hosted farm may enable the pack. Firestore stays authoritative; Freenet holds a sealed mirror and the join/recovery plane. **Hole 4 applies to the mirror unchanged:** the FarmCode, not the Firestore role, decides who can read it, and revoking a ticket does not take the mirror back from a device that already pulled. The enable screen says so.
+7. **Hybrid** (built 2026-09-11, § 4a): a cloud-hosted farm may enable the pack. Firestore stays authoritative; Freenet holds a sealed mirror and the join/recovery plane. **Hole 4 applies to the mirror unchanged:** the FarmCode, not the Firestore role, decides who can read it, and revoking a ticket does not take the mirror back from a device that already pulled. The enable screen says so (`FreenetHybridEnable.tsx` `RISK_COPY`). A mirror device is read-only and never becomes a Firebase member by joining.
 8. Vocabulary stays "network pack"; `kind: 'system'`, id `freenet_host`.
 
 **Rules that survive the done items** (each was the fix for a hole and must not regress):
@@ -261,7 +279,8 @@ The guard is the load-bearing part: as a throw inside `put()` it is a rule that 
 
 | Not published | Why | Where it lives instead |
 |---------------|-----|------------------------|
-| **Everything in a Firebase farm** | Different backend entirely. Mist is opt-in per device (`pufam.farmStoreBackend`) | Firestore |
+| **Everything in a Firebase farm** — unless the farm turned its mirror on | Different backend entirely. A hybrid farm (§ 4a, 2026-09-11) publishes its sealed export envelope on Send, and only then; roles, PINs, membership, presence stay in Firestore | Firestore |
+| **The FarmSeed of a hybrid farm** | Only the public mist FarmId and the enabled flag go on the farm doc | Paper; `pufam.mist.session.v1` per device |
 | **Issue photos** | Blobs, not KiB-class; no splitfile path in v1 | `pufom_photo_outbox` IDB → Firebase Storage |
 | **Basemap / Esri tile packs** | Tens of MB; bones design names them as a later splitfile case | `sentinut_basemap` IDB, device transfer |
 | **Weather cache** | Derived from DPIRD; re-fetchable, farm-independent | `pufom_weather_cache` IDB |

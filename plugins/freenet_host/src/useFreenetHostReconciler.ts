@@ -6,17 +6,22 @@
  * never from `AuthContext`, which does not import pack code. Debounced so that
  * switching between two Freenet farms (want stays true) never restarts the
  * node, and a quick off/on does not race stop against start.
+ *
+ * `want` itself is `computeFreenetHostWant` — the hybrid inputs (farm-doc flag,
+ * seed on this device) are what slice C added; see that file for the table.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { getDesktopBridge } from '../../../src/lib/desktopBridge.ts';
-import { isFreenetFarm } from '../../../src/lib/farmPipes';
+import { activeFarmPipe, isCloudMirror, mirroredCloudFarmId } from '../../../src/lib/farmPipes';
 import { getFreenetHostCapability } from '../../../src/lib/freenetHostCapability.ts';
 import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
 import { isFreenetHostEnabled, subscribeFreenetHostEnabled } from './freenetHostEnable.ts';
 import { createFreenetHostReconciler, type FreenetHostReconciler } from './freenetHostReconcile.ts';
+import { subscribeFreenetHybridDevice } from './freenetHostCloud.ts';
+import { computeFreenetHostWant } from './freenetHostWant.ts';
 
 export const FREENET_HOST_RECONCILE_DEBOUNCE_MS = 1500;
 
@@ -40,16 +45,31 @@ function electronReconciler(): FreenetHostReconciler | null {
 }
 
 export function useFreenetHostReconciler(): { want: boolean } {
-  const { userData } = useAuth();
+  const { userData, farmNetworkPacks } = useAuth();
   const farmId = userData?.farmId ?? null;
   const [enabledTick, setEnabledTick] = useState(0);
   useEffect(() => subscribeFreenetHostEnabled(() => setEnabledTick((n) => n + 1)), []);
+  // A hybrid enable seals a seed on this device after the session started; the
+  // farm-doc flag alone is not enough to want a node until that seed is here.
+  useEffect(() => subscribeFreenetHybridDevice(() => setEnabledTick((n) => n + 1)), []);
 
   const capability = getFreenetHostCapability();
   // enabledTick is the store subscription; it re-reads the flag after a toggle.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const enabled = useMemo(() => isFreenetHostEnabled(farmId), [farmId, enabledTick]);
-  const want = Boolean(farmId) && isFreenetFarm() && enabled && capability === 'electron';
+  const want = useMemo(
+    () =>
+      computeFreenetHostWant({
+        farmId,
+        pipe: activeFarmPipe(farmId),
+        cloudMirror: isCloudMirror(),
+        localEnabled: isFreenetHostEnabled(farmId),
+        farmNetworkPacks,
+        seedCloudFarmId: mirroredCloudFarmId(),
+        capability,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [farmId, farmNetworkPacks, capability, enabledTick],
+  );
 
   const reconciler = useMemo(() => (capability === 'electron' ? electronReconciler() : null), [capability]);
 

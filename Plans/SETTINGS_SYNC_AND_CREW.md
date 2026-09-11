@@ -104,6 +104,40 @@ is the only hole in the rule, it lives in `farmPipes.ts` beside the rule, and it
 bench or anywhere else. The crew note stays on `pipes.freenet`, because it describes a
 real farm's roster and would be a lie on a bench.
 
+### Decision — 2026-09-11: a third state, `hybrid`
+
+[`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) decision 7 landed. The XOR still
+holds for *authority* — a farm is owned by Firestore or by its devices, never both —
+but a cloud farm may now switch on a Freenet **mirror**. `activeFarmPipe()` therefore
+answers `'cloud' | 'freenet' | 'hybrid'`, and `activeFarmPipes()` gained
+`cloudMirror`. Nothing above is renumbered; this paragraph is the delta.
+
+```
+activeFarmPipe(cloudFarmId?) →
+  'freenet'  mist session open, no cloudFarmId on it
+  'hybrid'   (a) mist session open AND its meta carries cloudFarmId   — a *mirror* device
+             (b) no mist session, but the sealed seed's cloudFarmId
+                 equals the signed-in farm                          — a *member* device
+  'cloud'    otherwise (a seed left over from some other farm counts as nothing)
+```
+
+What Settings renders on each:
+
+| Device | Cloud card | Freenet card | Invite PINs / People | Crew note |
+|--------|-----------|--------------|----------------------|-----------|
+| Hybrid **member** (Firebase login + seed) | yes, unchanged | yes — Send publishes the cloud farm's local cache under the mist id | cloud roster, plus a Hole 4 sentence about the mirror | hidden — the roster is the cloud one |
+| Hybrid **mirror** (joined over Freenet, `viewer`) | no | yes, fetch-only | a read-only "Crew" card: *to edit, join with an invite PIN* | hidden |
+| Freenet-native / cloud | as before | as before | as before | as before |
+
+New helpers beside the old ones: `isHybridFarm()`, `isCloudMirror()`,
+`hasFreenetPlane()` (any Freenet card at all), `isFarmCodeSession()` (what the unlock
+gate and device card actually mean by "Freenet farm" — a FarmCode session, which a
+hybrid member is not), `freenetPlaneFarmId()` / `mirroredCloudFarmId()` (the two ids
+of a hybrid farm). `isFreenetFarm()` keeps its exact old meaning — a FarmCode session
+with no cloud farm behind it — so existing call sites did not move. The auto-sync
+ladder (§9) treats a hybrid member as a cloud farm and a mirror device as
+`freenet-pull`, never automatic.
+
 ---
 
 ## §2 What Settings renders now
