@@ -147,10 +147,13 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
   // render imagery for them just as Cloud Run does for the web app.
   registerTileProxyRoutes(app);
 
-  // Freenet is a peer on somebody's own machine. Every route in this family is
-  // unauthenticated by design, which is defensible on a laptop and not on the
-  // public internet — where today it is closed only by `MIST_FREENET_DISABLED=1`
-  // happening to be set on the deploy.
+  // The LAN relay for clients with no Freenet host of their own: a paired tablet
+  // reading through a desktop hub, or the browser on an `npm run dev` workshop
+  // hub. The Electron renderer does not use these — it reaches the node through
+  // `FreenetHostPlugin` over IPC (Plans/FREENET_NETWORK_PACK.md decision 2).
+  // Gated by surface: the cloud surface never registers them, so nothing on the
+  // public internet answers here. `MIST_FREENET_DISABLED=1` is a second, optional
+  // switch for a LAN hub that wants Freenet off (`mistFreenetRoutes.ts`).
   if (servesLanFamilies(surface)) registerMistFreenetRoutes(app);
 
   app.get("/api/health", (_req, res) => {

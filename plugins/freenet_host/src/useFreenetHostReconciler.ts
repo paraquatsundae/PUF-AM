@@ -14,18 +14,27 @@ import { useAuth } from '../../../src/contexts/AuthContext';
 import { getDesktopBridge } from '../../../src/lib/desktopBridge.ts';
 import { isFreenetFarm } from '../../../src/lib/farmPipes';
 import { getFreenetHostCapability } from '../../../src/lib/freenetHostCapability.ts';
-import { startFreenetPeer, stopFreenetPeer } from '../../../src/mist/mistFreenetClient.ts';
+import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
 import { isFreenetHostEnabled, subscribeFreenetHostEnabled } from './freenetHostEnable.ts';
 import { createFreenetHostReconciler, type FreenetHostReconciler } from './freenetHostReconcile.ts';
 
 export const FREENET_HOST_RECONCILE_DEBOUNCE_MS = 1500;
 
+/**
+ * Node through the bridge, peer through the pack transport. On Electron the
+ * transport is the host one (slice B), so the peer step is the host's own wire
+ * rather than a `POST /api/mist/freenet/peer/start` to the loopback Express.
+ */
 function electronReconciler(): FreenetHostReconciler | null {
   const bridge = getDesktopBridge();
   if (!bridge) return null;
+  const transport = getFreenetPackTransport();
   return createFreenetHostReconciler({
     host: bridge.freenet,
-    peer: { start: () => startFreenetPeer({ contribute: false }), stop: stopFreenetPeer },
+    peer: {
+      start: () => transport.peerStart({ contribute: false }),
+      stop: () => transport.peerStop(),
+    },
     onError: (stage, error) => console.warn(`[freenet_host] ${stage}:`, error),
   });
 }

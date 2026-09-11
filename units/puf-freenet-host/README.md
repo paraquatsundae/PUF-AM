@@ -57,6 +57,7 @@ await host.stop();
 | `stop()` | `managed`: SIGTERM → grace → SIGKILL. `attached`: detach only |
 | `status()` | Re-probes reachability when running; otherwise a cheap snapshot |
 | `putCiphertext` / `getCiphertext` | Delegate to the injected wire; throw `FreenetWireUnavailableError` when absent |
+| `putSlotState?` / `getSlotState?` | Optional (added 2026-09-11, `Plans/FREENET_NETWORK_PACK.md` Phase 1 slice B). A mutable slot — the join ticket's address — whose `parameters`/`state` bytes the caller has already built and signed (`PUFSLOT1`); the host only moves them. Delegate to the wire's optional `putSlotState`/`getSlotState`; throw `FreenetWireUnavailableError` when the wire lacks them |
 | `on(listener)` | `state` / `log` / `exit` / `update-required`; returns unsubscribe |
 
 ### Modes

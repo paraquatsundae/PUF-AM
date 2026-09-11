@@ -1,14 +1,20 @@
 /**
- * Workshop API — in-process Freenet peer + encrypted mist put/get proxy.
+ * LAN relay — `/api/mist/freenet/*` for clients that have no Freenet host.
  *
- * Browser IndexedDB holds local cache; when the server peer is up, the UI can
- * publish/pull Hot ciphertext via FCP without running Hyphanet UI separately.
+ * Since Phase 1 slice B (Plans/FREENET_NETWORK_PACK.md decision 2) the Electron
+ * renderer does not come here: it reaches the node through
+ * `FreenetHostPlugin` over `puf-freenet:*` IPC (`desktop/main.ts`,
+ * `server/freenetHostWire.ts`). These routes remain for two clients that cannot:
+ * a paired tablet reading a farm through a desktop hub (APK before Phase 3,
+ * Plans/reference/APK_FREENET_PLUGIN.md §7), and the `npm run dev` workshop hub,
+ * where the browser is the UI and this Express *is* the sidecar. Registered only
+ * on surfaces that serve LAN families (`createApiApp.ts`); the cloud surface
+ * never has them. `FreenetMistStore.put` enforces encrypt-before-upload here,
+ * `freenetHostWire.ts` enforces it on the host path — the same guard on both.
  */
 
 import type { Express, Request, Response } from 'express';
 import { bonesKey, hotKey } from '../units/mist-freenet/src/index.ts';
-import { putJoinSlotViaFdev } from '../units/mist-freenet/src/freenet02-fdev-slot.ts';
-import { encodeFreenet02Uri } from '../units/mist-freenet/src/freenet02-uri.ts';
 import {
   InvalidFreenetUriError,
   normalizeMistFreenetUri,
@@ -20,6 +26,12 @@ import {
   getFreenetPeerStatus,
   stopFreenetPeerHost,
 } from './freenetPeerHost.ts';
+import {
+  isJoinSlotCallerError,
+  isJoinSlotInstanceId,
+  publishJoinSlot,
+  readJoinSlotState,
+} from './freenetSlotOps.ts';
 
 function bytesToBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
@@ -383,7 +395,8 @@ export function registerMistFreenetRoutes(app: Express): void {
    * the AEAD seal are all produced in the browser from the FarmSeed, so this hub
    * publishes and fetches a blob it cannot read and could not forge — the same
    * encrypt-before-upload split the Hot and bones routes have, extended to the
-   * pointer as well as the payload.
+   * pointer as well as the payload. The moving itself is `freenetSlotOps.ts`,
+   * shared with the host wire so the relay and the IPC path stay one behaviour.
    *
    * `/api/mist/freenet/` is in `LAN_SCOPE_PREFIXES`, so a paired tablet reaches
    * these under the hub pairing token and an unpaired device on the same Wi‑Fi
@@ -406,7 +419,7 @@ export function registerMistFreenetRoutes(app: Express): void {
       // talks to the same node on its own socket.
       await ensureFreenetPeer({ start: true });
 
-      const result = await putJoinSlotViaFdev({
+      const result = await publishJoinSlot({
         parameters: base64ToBytes(parametersBase64),
         state: base64ToBytes(stateBase64),
         instanceIdBase58,
@@ -415,8 +428,7 @@ export function registerMistFreenetRoutes(app: Express): void {
       res.json({ ...result, publishedAt: new Date().toISOString() });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'slot publish failed';
-      // A malformed slot state is the caller's bug, not the node's.
-      const status = /must be|PUFSLOT1|refusing to publish/.test(message) ? 400 : 500;
+      const status = isJoinSlotCallerError(message) ? 400 : 500;
       res.status(status).json({ error: message });
     }
   });
@@ -425,16 +437,14 @@ export function registerMistFreenetRoutes(app: Express): void {
     if (mistApiUnavailable(req, res)) return;
     try {
       const instanceId = String(req.params.instanceId || '').trim();
-      if (!/^[1-9A-HJ-NP-Za-km-z]{32,64}$/.test(instanceId)) {
+      if (!isJoinSlotInstanceId(instanceId)) {
         return res.status(400).json({ error: 'instanceId must be a base58 contract instance id' });
       }
 
       const peer = await ensureFreenetPeer({ start: true });
-      // The store indexes mist keys; a slot has none, so this goes straight to the
-      // wire and nothing is cached under a made-up key.
-      const state = await peer.getTransport().getBlob(encodeFreenet02Uri(instanceId));
+      const state = await readJoinSlotState(peer.getTransport(), instanceId);
 
-      if (!state?.length) {
+      if (!state) {
         return res.status(404).json({
           error: 'No join slot at that address yet (Opennet propagation may still be in progress)',
           instanceId,

@@ -43,12 +43,14 @@ import {
   type JoinRole,
 } from '../../shared/sync/joinTicket.ts';
 import { encodeFreenet02Uri } from '../../units/mist-freenet/src/freenet02-uri.ts';
-import { apiFetch, apiHubMissing, mistFreenetApiUrl, NO_API_HUB_MESSAGE } from '../lib/apiBase.ts';
+import { apiHubMissing, NO_API_HUB_MESSAGE } from '../lib/apiBase.ts';
 import {
   localFreenetSearchBudgetMs,
   readLocalFreenetBlob,
   shouldUseLocalFreenetForReads,
 } from './freenetLocalNode.ts';
+import { FreenetTransportError } from './freenetPackTransport.ts';
+import { getFreenetPackTransport } from './freenetTransportSelect.ts';
 import { loadMistDeviceSession } from './mistDeviceSession.ts';
 
 /** Thrown when the slot could not be read, and a different resolver might do better. */
@@ -85,34 +87,16 @@ async function loadFarmSeed(devicePin?: string): Promise<Uint8Array> {
   return hexToBytes(session.farmSeedHex);
 }
 
-async function slotFetch<T>(
-  path: string,
-  init?: RequestInit & { timeoutMs?: number },
-): Promise<T> {
-  if (apiHubMissing()) throw new JoinSlotUnavailableError(NO_API_HUB_MESSAGE);
-
-  let res: Response;
-  try {
-    res = await apiFetch(mistFreenetApiUrl(path), {
-      ...init,
-      // A cold Opennet node can take minutes to answer a GET for something it has
-      // never seen, which is the normal case right after the owner published.
-      timeoutMs: init?.timeoutMs ?? 300_000,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : '';
-    throw new JoinSlotUnavailableError(
-      `Could not reach the Freenet node on this device.${reason ? ` ${reason}` : ''} ` +
-        'A join ticket over Freenet needs a node here — start it from Settings → Mist workshop.',
-    );
-  }
-
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) {
-    throw new JoinSlotUnavailableError(body.error || `Freenet slot API ${res.status}`);
-  }
-  return body;
+/**
+ * A transport failure in the joiner's vocabulary. Every one of them is
+ * "unavailable" — a different resolver may still answer — but the wording the
+ * transport chose (nothing answered / nothing there yet / refused) is kept, since
+ * it already says what the operator can do about it.
+ */
+function unavailable(error: unknown, fallback: string): JoinSlotUnavailableError {
+  if (error instanceof JoinSlotUnavailableError) return error;
+  if (error instanceof FreenetTransportError) return new JoinSlotUnavailableError(error.message);
+  return new JoinSlotUnavailableError(error instanceof Error && error.message ? error.message : fallback);
 }
 
 /**
@@ -121,8 +105,8 @@ async function slotFetch<T>(
  * A Freenet node app on this tablet is asked first. It is the same GET a hub
  * would make, minus the hub: no pairing, no shed Wi‑Fi, and no second machine
  * that has to be awake. When there is no such node — or it has not found the
- * slot, which is ordinary for the first few minutes after a publish — the hub
- * answers exactly as before.
+ * slot, which is ordinary for the first few minutes after a publish — the
+ * transport answers: the host on Electron, the paired hub's relay on a tablet.
  *
  * Both routes are tried when both exist, because "my node has not seen it yet"
  * and "no node here" are different failures and only the second one is fatal.
@@ -131,7 +115,9 @@ async function readJoinSlotState(
   instanceIdBase58: string,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const hubAvailable = !apiHubMissing();
+  const transport = getFreenetPackTransport();
+  // The relay needs a hub to exist; the host is its own hub.
+  const hubAvailable = transport.kind === 'host' || !apiHubMissing();
   let localReason: string | null = null;
 
   if (await shouldUseLocalFreenetForReads()) {
@@ -156,37 +142,15 @@ async function readJoinSlotState(
     );
   }
 
-  let body: { stateBase64?: string };
   try {
-    body = await slotFetch<{ stateBase64?: string }>(
-      `/api/mist/freenet/slot/${encodeURIComponent(instanceIdBase58)}`,
-      { ...(signal ? { signal } : {}) },
-    );
+    return await transport.slotRead(instanceIdBase58, signal ? { signal } : undefined);
   } catch (error) {
-    if (!localReason) throw error;
+    if (!localReason) throw unavailable(error, 'the Freenet node did not answer');
     const hubReason = error instanceof Error ? error.message : 'the hub did not answer';
     throw new JoinSlotUnavailableError(
       `${localReason}, and ${hubReason.charAt(0).toLowerCase()}${hubReason.slice(1)}`,
     );
   }
-
-  if (!body.stateBase64) {
-    throw new JoinSlotUnavailableError('The Freenet slot for that ticket came back empty.');
-  }
-  return base64ToBytes(body.stateBase64);
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-  return btoa(binary);
-}
-
-function base64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
-  return out;
 }
 
 export type PublishJoinSlotInput = {
@@ -213,9 +177,10 @@ export type PublishJoinSlotResult = {
 /**
  * Owner side — write the join manifest into this ticket's slot on Freenet.
  *
- * Sealed and signed here, in the page, so the Express hub moves bytes it cannot
- * read. The manifest is the same `JoinManifestV2` the LAN shelf stores, which is
- * what lets a joiner take either route and get the same farm.
+ * Sealed and signed here, in the page, so whatever moves the bytes — the host
+ * on Electron, the Express relay on a hub — moves bytes it cannot read. The
+ * manifest is the same `JoinManifestV2` the LAN shelf stores, which is what lets
+ * a joiner take either route and get the same farm.
  */
 export async function publishJoinTicketToFreenetSlot(
   input: PublishJoinSlotInput,
@@ -255,14 +220,15 @@ export async function publishJoinTicketToFreenetSlot(
     payload,
   });
 
-  return slotFetch<PublishJoinSlotResult>('/api/mist/freenet/slot/publish', {
-    method: 'POST',
-    body: JSON.stringify({
-      parametersBase64: bytesToBase64(address.parameters),
-      stateBase64: bytesToBase64(state),
+  try {
+    return await getFreenetPackTransport().slotPublish({
+      parameters: address.parameters,
+      state,
       instanceIdBase58: address.instanceIdBase58,
-    }),
-  });
+    });
+  } catch (error) {
+    throw unavailable(error, 'the Freenet slot publish failed');
+  }
 }
 
 export type ResolvedFreenetSlot = {

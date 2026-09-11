@@ -12,7 +12,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('./mistDisasterRecovery.ts', () => ({
+vi.mock('../../../src/mist/mistDisasterRecovery.ts', () => ({
   fetchAndRehydrateFarmFromAddresses: vi.fn(async () => ({
     hot: { after: { diary: 3 } },
     geometry: { after: { blocks: 2 } },
@@ -20,13 +20,13 @@ vi.mock('./mistDisasterRecovery.ts', () => ({
   refreshFarmUiAfterRecovery: vi.fn(async () => {}),
 }));
 
-vi.mock('./mistDeviceSession.ts', () => ({
+vi.mock('../../../src/mist/mistDeviceSession.ts', () => ({
   markMistJoinTicketAccepted: vi.fn(),
 }));
 
 import { joinFarmWithShortTicket } from './mistJoinWithTicket.ts';
-import { fetchAndRehydrateFarmFromAddresses } from './mistDisasterRecovery.ts';
-import type { JoinTicketResolver, ResolveJoinTicketOptions } from './joinTicketResolver.ts';
+import { fetchAndRehydrateFarmFromAddresses } from '../../../src/mist/mistDisasterRecovery.ts';
+import type { JoinTicketResolver, ResolveJoinTicketOptions } from '../../../src/mist/joinTicketResolver.ts';
 
 const MANIFEST = {
   v: 2 as const,

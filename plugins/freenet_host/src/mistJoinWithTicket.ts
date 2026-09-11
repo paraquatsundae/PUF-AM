@@ -4,12 +4,16 @@
  * Shared by the blocking join gate (first run on laptop B) and the Settings sync
  * card (retry, or joining again after the owner re-sent), so the two surfaces
  * cannot drift on what "joined" means.
+ *
+ * Pack-owned: moved from `src/mist/` on 2026-09-11 (Plans/FREENET_NETWORK_PACK.md
+ * Phase 1 slice B) because only the two pack surfaces call it. The resolver and
+ * the rehydrate it composes stay in `src/mist/` — core's auto-sync rung uses them.
  */
 
-import { fetchAndRehydrateFarmFromAddresses, refreshFarmUiAfterRecovery } from './mistDisasterRecovery.ts';
-import { markMistJoinTicketAccepted } from './mistDeviceSession.ts';
-import { readJoinGrant, type JoinGrant } from '../../shared/sync/joinGrant.ts';
-import { resolveJoinTicket, type JoinManifestV2, type JoinTicketResolver } from './joinTicketResolver.ts';
+import { fetchAndRehydrateFarmFromAddresses, refreshFarmUiAfterRecovery } from '../../../src/mist/mistDisasterRecovery.ts';
+import { markMistJoinTicketAccepted } from '../../../src/mist/mistDeviceSession.ts';
+import { readJoinGrant, type JoinGrant } from '../../../shared/sync/joinGrant.ts';
+import { resolveJoinTicket, type JoinManifestV2, type JoinTicketResolver } from '../../../src/mist/joinTicketResolver.ts';
 
 export type JoinFarmWithTicketResult = {
   manifest: JoinManifestV2;

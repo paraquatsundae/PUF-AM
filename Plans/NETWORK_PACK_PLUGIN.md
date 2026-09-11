@@ -1,7 +1,7 @@
 # Network-pack plugin system — contract
 
 **Product:** PUF-AM — Ag Manager  
-**Status:** Active — v1 contract; first and only consumer `plugins/freenet_host/` ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 1, slice A done 2026-09-10)  
+**Status:** Active — v1 contract; first and only consumer `plugins/freenet_host/` ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 1, slice A done 2026-09-10, slice B done 2026-09-11)  
 **Date:** 2026-09-10  
 **Scope:** What a *network pack* is, what it ships, how it is enabled, and what it may not do. Sibling of [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md); same discovery, different lifecycle.  
 **Experimental — not production.** Firebase Auth + invite PIN remains the shipping path. A network pack is how the experimental Freenet path is packaged, not a change to what ships.
@@ -72,7 +72,7 @@ Adding a surface means adding the key to `PackSurfaceComponents` with a doc comm
 
 | Shell | Capability | Adapter |
 |-------|------------|---------|
-| Electron | `'electron'` | `units/puf-freenet-host` behind the preload bridge (`puf-freenet:status|start|stop`) |
+| Electron | `'electron'` | `units/puf-freenet-host` behind the preload bridge (`puf-freenet:status|start|stop` for the node; `puf-freenet:put|get|slot-put|slot-get` for the data path) |
 | Android APK | `null` today; `'android'` when the Capacitor `FreenetHost` plugin lands ([`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) Phase 3) | `:freenet` process, same `FreenetHostPlugin` shape |
 | Hosted web | `null` | none — a browser cannot run a node |
 
@@ -80,13 +80,45 @@ The capability is the **only** thing the pack asks about the shell. It is not `V
 
 Distinct from `detectFreenetRuntime()`, which answers "is there a node anywhere this device can *reach*" and keeps driving the tablet reader path.
 
+### Data path (slice B, 2026-09-11)
+
+The capability also picks *who moves the bytes*. `src/mist/freenetPackTransport.ts` defines one `FreenetPackTransport` for every Freenet op the pack performs — peer status/start/stop/contribute, `publishBlob`, `hotRecord`/`pullHot`/`pullByUri`, `slotPublish`/`slotRead` — and `freenetTransportSelect.ts` chooses the implementation on every call:
+
+| Capability | Transport | Route |
+|------------|-----------|-------|
+| `'electron'` with a preload that exposes `put/get/slotPut/slotGet` | `freenetHostTransport.ts` | renderer → preload → `puf-freenet:*` → `FreenetHostPlugin` → wire (`server/freenetHostWire.ts`) → node WS |
+| anything else (tablet, web, an older Electron preload) | `freenetRelayTransport.ts` | `apiFetch` → paired hub's `/api/mist/freenet/*` (`server/mistFreenetRoutes.ts`, now the LAN relay) |
+
+The local-node-first read (`freenetLocalNode.ts`) sits above the transport and is unchanged. The page still seals and signs everything; the host only moves bytes — `putCiphertext` runs `assertCiphertextForFreenet` in the wire, so plaintext is refused on the host path exactly as the relay's `FreenetMistStore` refuses it.
+
+**Host interface additions** (`units/puf-freenet-host/src/types.ts`, all optional so slice-A hosts stay valid):
+
+```ts
+putSlotState?(input: { parameters: Uint8Array; state: Uint8Array; instanceIdBase58: string }):
+  Promise<{ uri: string; instanceIdBase58: string; mode: 'put' | 'update' }>;
+getSlotState?(instanceIdBase58: string): Promise<Uint8Array | null>;
+```
+
+The slot is the join ticket's mutable address (`Plans/reference/MIST_NETWORK_STORAGE.md`); the page builds and signs the `PUFSLOT1` state, the host puts it. Until Phase 2 the wire's slot put still shells out to `fdev` (`putJoinSlotViaFdev`); the interface does not change when that goes native.
+
+**IPC channels** (`desktop/main.ts`, inputs validated by `desktop/freenetIpcInput.ts` before the host sees them):
+
+| Channel | Args | Validation |
+|---------|------|------------|
+| `puf-freenet:put` | `{ bytes, key? }` | bytes as `Uint8Array`/`ArrayBuffer`/base64, non-empty, ≤ 8 MiB; `key` optional, must parse as `mist/v1/farm/<id>/…` with `<id>` matching `[A-Za-z0-9_-]{1,128}` |
+| `puf-freenet:get` | `uri` | `normalizeMistFreenetUri`, ≤ 256 chars |
+| `puf-freenet:slot-put` | `{ parameters, state, instanceIdBase58 }` | parameters ≤ 1 KiB, state ≤ 64 KiB, id `^[1-9A-HJ-NP-Za-km-z]{32,64}$` |
+| `puf-freenet:slot-get` | `instanceIdBase58` | same id shape |
+
+Handlers rethrow as plain `Error(message)` so the renderer sees the reason, not a stack; the per-launch loopback token model for the Express hub is untouched. On the host path there is no outbox (a put while the node is down fails; the relay still queues) and the content hash is verified in the page before the AEAD open.
+
 ## 5. Enable semantics
 
 - **Per farm.** The flag is a plugin setting of the farm, like a crop pack's. For a Freenet-native farm (meta lives on the device) it is `pufam.networkPacks.v1.{farmId}` → `{ freenet_host: { enabled, changedAt } }` ([`NAMING.md`](NAMING.md) §5; `plugins/freenet_host/src/freenetHostEnable.ts`). For a cloud farm it will live on the Firestore farm doc when hybrid lands ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) §3, slice C); until then the tile offers no toggle for cloud farms and says so.
 - **Default.** A Freenet-native farm with no record is **enabled** — the operator chose Freenet on the start screen; the flag exists so they can switch the node *off* for a farm without leaving it.
 - **Node per device.** One node, however many farms. The reconciler (`freenetHostReconcile.ts`, mounted by `useFreenetHostReconciler` from the `farmSession` surface) computes `want = farm open ∧ farm is Freenet-native ∧ enabled ∧ capability = 'electron'` and moves the node toward it, debounced (1.5 s) so switching between two enabled farms never restarts it.
-- **Reconciliation rule.** Bring-up is node-then-peer (`puf-freenet:start`, then `POST /api/mist/freenet/peer/start`). The reconciler **only stops a node it started**: an `attached` node, one the operator started from the Sync card's Connect or the workshop Start button, or one the desktop mist preference brought up at boot is ridden, never killed. Failures are logged, never thrown at the tree.
-- **What it does not do (slice A).** It does not move the data path: publish and fetch still go through Express and the in-process `FreenetPeer` (slice B). Hybrid for cloud farms is slice C.
+- **Reconciliation rule.** Bring-up is node-then-peer (`puf-freenet:start`, then the pack transport's `peerStart` — on the host path that is the host's own wire; on the relay it is `POST /api/mist/freenet/peer/start`). The reconciler **only stops a node it started**: an `attached` node, one the operator started from the Sync card's Connect or the workshop Start button, or one the desktop mist preference brought up at boot is ridden, never killed. Failures are logged, never thrown at the tree.
+- **What it does not do.** Hybrid for cloud farms is slice C. (Slice A left publish and fetch on Express and the in-process `FreenetPeer`; slice B moved them onto the host transport on Electron — §4 *Data path*. Express keeps them as the LAN relay for tablets behind a hub.)
 
 ## 6. "Not available on this device"
 
@@ -106,4 +138,5 @@ When `getFreenetHostCapability()` is `null`, the `pluginTile` shows the badge **
 
 `npm run audit:codebase` — pack folder id/kind/category/modules, `export const packUi`, `plugins/` in the size scan, core ↛ `plugins/*/src`, `AuthContext` ↛ `plugins/`.  
 `tests/codebaseHealth.test.ts`, `tests/packRegistry.test.ts` — manifest, registry pairing, surfaces, public routes, order.  
-`tests/freenetHostCapability.test.ts`, `tests/freenetHostEnable.test.ts`, `tests/freenetHostReconcile.test.ts`, `tests/loginStorageChoice.test.ts` — the four behaviours above.
+`tests/freenetHostCapability.test.ts`, `tests/freenetHostEnable.test.ts`, `tests/freenetHostReconcile.test.ts`, `tests/loginStorageChoice.test.ts` — the four behaviours above.  
+`tests/freenetTransportSelect.test.ts` (selection rule, host transport, hash check), `desktop/freenetIpcInput.test.ts` (IPC caps and shapes), `tests/freenetHostWire.test.ts` (plaintext refused through the host, slot ops through the wire) — the slice B data path.

@@ -24,7 +24,7 @@ import {
   getMistSessionMeta,
   mistSessionNeedsPin,
 } from '../../../src/mist/mistDeviceSession.ts';
-import { joinFarmWithShortTicket } from '../../../src/mist/mistJoinWithTicket.ts';
+import { joinFarmWithShortTicket } from './mistJoinWithTicket.ts';
 import {
   JOIN_TICKET_PREFIX,
   formatJoinTicketInput,

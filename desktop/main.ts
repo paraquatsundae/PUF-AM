@@ -37,6 +37,13 @@ import {
 } from './desktopPrefs.ts';
 import { isUsableAppPort } from './localApiPort.ts';
 import {
+  FreenetIpcInputError,
+  ipcFreenetUri,
+  ipcPutArgs,
+  ipcSlotInstanceId,
+  ipcSlotPutArgs,
+} from './freenetIpcInput.ts';
+import {
   FDEV_BINARY,
   createFreenetHost,
   freenetHostEnv,
@@ -596,10 +603,62 @@ async function readFreenetStatus(): Promise<FreenetHostStatus> {
   return status;
 }
 
+/**
+ * The renderer's data path — `Plans/FREENET_NETWORK_PACK.md` decision 2.
+ *
+ * Bytes cross by IPC rather than the loopback Express so that the pack talks to
+ * `FreenetHostPlugin` and nothing else; the Express `/api/mist/freenet/*` family
+ * stays up only as the LAN relay for paired tablets. The host is created on
+ * demand (creating spawns nothing) so a put or get before the first start fails
+ * with the node's own "not reachable" rather than a null dereference.
+ *
+ * Every argument is checked in `freenetIpcInput.ts` first; a bad shape is
+ * reported as an `Error` the renderer sees as a rejection, never as a thrown
+ * object with a stack from this process.
+ */
+function ensureHost(): FreenetHostPlugin {
+  if (!freenetHost) freenetHost = createHost();
+  return freenetHost;
+}
+
+async function hostCall<T>(run: (host: FreenetHostPlugin) => Promise<T>): Promise<T> {
+  try {
+    return await run(ensureHost());
+  } catch (err) {
+    if (err instanceof FreenetIpcInputError) throw new Error(err.message);
+    throw err instanceof Error ? new Error(err.message) : new Error(String(err));
+  }
+}
+
+function registerFreenetDataIpc(): void {
+  ipcMain.handle('puf-freenet:put', (_event, args: unknown) =>
+    hostCall(async (host) => {
+      const { bytes, key } = ipcPutArgs(args);
+      return host.putCiphertext(bytes, key ? { identifier: key } : undefined);
+    }),
+  );
+  ipcMain.handle('puf-freenet:get', (_event, uri: unknown) =>
+    hostCall((host) => host.getCiphertext(ipcFreenetUri(uri))),
+  );
+  ipcMain.handle('puf-freenet:slot-put', (_event, args: unknown) =>
+    hostCall(async (host) => {
+      if (!host.putSlotState) throw new Error('Freenet host cannot put slot state');
+      return host.putSlotState(ipcSlotPutArgs(args));
+    }),
+  );
+  ipcMain.handle('puf-freenet:slot-get', (_event, instanceId: unknown) =>
+    hostCall(async (host) => {
+      if (!host.getSlotState) throw new Error('Freenet host cannot get slot state');
+      return host.getSlotState(ipcSlotInstanceId(instanceId));
+    }),
+  );
+}
+
 function registerIpc(): void {
   ipcMain.handle('puf-freenet:status', async () => readFreenetStatus());
   ipcMain.handle('puf-freenet:start', async () => startFreenet());
   ipcMain.handle('puf-freenet:stop', async () => freenetHost?.stop() ?? null);
+  registerFreenetDataIpc();
   ipcMain.handle('puf-desktop:mist-preference', () => mistPreference());
   ipcMain.handle('puf-desktop:set-mist-preference', async (_event, enabled: unknown) =>
     setMistPreference(enabled === true),

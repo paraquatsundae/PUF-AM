@@ -77,8 +77,37 @@ export type FreenetPutCiphertextResult = {
 };
 
 /**
+ * A mutable slot — a contract whose address stays put while its state changes.
+ *
+ * The host does not know what a slot is for. PUF-AM uses one for the short join
+ * ticket: the page derives the address, signs and seals the state, and hands
+ * over bytes the host cannot read or forge (`Plans/NETWORK_PACK_PLUGIN.md`
+ * § Host capability). Added 2026-09-11 for `Plans/FREENET_NETWORK_PACK.md`
+ * decision 2 — additive; `putCiphertext` / `getCiphertext` are unchanged.
+ */
+export type FreenetSlotPutInput = {
+  /** Contract parameters — fix the slot's address. */
+  parameters: Uint8Array;
+  /** Signed, sealed state. Whole state, not a delta. */
+  state: Uint8Array;
+  /** Base58 instance id the caller derived for these parameters. */
+  instanceIdBase58: string;
+};
+
+export type FreenetSlotPutResult = {
+  /** Wire URI for the slot instance — stable across re-publishes. */
+  uri: string;
+  instanceIdBase58: string;
+  /** `put` on a first publish, `update` when the node already had the slot. */
+  mode: 'put' | 'update';
+};
+
+/**
  * Injected by the host app (PUF-AM wraps `Freenet02WsTransport`). Keeps this
  * unit free of mist crypto and pack-contract details.
+ *
+ * The slot pair is optional: a wire without it makes the host's slot methods
+ * throw `FreenetWireUnavailableError`, the same as a missing wire does for blobs.
  */
 export type FreenetWireClient = {
   putCiphertext(
@@ -86,6 +115,8 @@ export type FreenetWireClient = {
     options?: FreenetPutCiphertextOptions,
   ): Promise<FreenetPutCiphertextResult>;
   getCiphertext(uri: string): Promise<Uint8Array | null>;
+  putSlotState?(input: FreenetSlotPutInput): Promise<FreenetSlotPutResult>;
+  getSlotState?(instanceIdBase58: string): Promise<Uint8Array | null>;
 };
 
 export interface FreenetHostPlugin {
@@ -98,6 +129,14 @@ export interface FreenetHostPlugin {
     options?: FreenetPutCiphertextOptions,
   ): Promise<FreenetPutCiphertextResult>;
   getCiphertext(uri: string): Promise<Uint8Array | null>;
+  /**
+   * Publish or refresh a slot's state. Optional on the interface so an adapter
+   * built before 2026-09-11 still type-checks; `createFreenetHost` always
+   * provides it and throws `FreenetWireUnavailableError` when the wire cannot.
+   */
+  putSlotState?(input: FreenetSlotPutInput): Promise<FreenetSlotPutResult>;
+  /** Current state of a slot, or `null` when no peer has it yet. */
+  getSlotState?(instanceIdBase58: string): Promise<Uint8Array | null>;
   /** Subscribe to lifecycle/log events. Returns an unsubscribe function. */
   on(listener: FreenetHostEventListener): () => void;
 }

@@ -1,5 +1,15 @@
 /**
- * Browser client for the server-hosted Freenet peer (workshop).
+ * The Freenet network pack's client: publish and pull a farm, mint the ticket.
+ *
+ * Every byte that leaves this file for Freenet goes through
+ * `FreenetPackTransport` (`freenetPackTransport.ts`) — the host on Electron, the
+ * `/api/mist/freenet/*` relay everywhere else — so this module knows *what* to
+ * publish and remember, and nothing about how the bytes travel
+ * (Plans/FREENET_NETWORK_PACK.md decision 2, Phase 1 slice B).
+ *
+ * Still in `src/mist/` rather than `plugins/freenet_host/src/` because
+ * `useAutoSync` (core) calls `publishFarmToFreenet` for the Freenet rung; the
+ * auto-sync rungs are core-owned until the plan says otherwise.
  */
 
 import {
@@ -20,13 +30,20 @@ import {
   type JoinPreset,
   type JoinPresetId,
 } from '../../shared/sync/joinGrant.ts';
-import { apiFetch, apiHubMissing, mistFreenetApiUrl, NO_API_HUB_MESSAGE } from '../lib/apiBase.ts';
+import { apiHubMissing } from '../lib/apiBase.ts';
 import { BONES_FARM_GEOMETRY_ASSET_ID } from './bonesGeometry.ts';
 import {
   localFreenetSearchBudgetMs,
   readLocalFreenetBlob,
   shouldUseLocalFreenetForReads,
 } from './freenetLocalNode.ts';
+import type {
+  FreenetBlobKind,
+  FreenetFetchedBlob,
+  FreenetHotRecord,
+  FreenetPublishOutcome,
+} from './freenetPackTransport.ts';
+import { getFreenetPackTransport } from './freenetTransportSelect.ts';
 import { publishLocalGeometryToMistBones, readLocalBonesCiphertext } from './mistBonesBridge.ts';
 import { getMistStoreForHotBridge, publishLocalFarmToMistHot } from './mistHotBridge.ts';
 import { buildJoinTicketV1, formatJoinTicket, type MistJoinTicketV1 } from './mistJoinTicket.ts';
@@ -38,80 +55,26 @@ import {
   saveJoinTicketForFarm,
 } from './mistHotPublishMeta.ts';
 
-async function mistFreenetFetch<T>(
-  path: string,
-  init?: RequestInit & { timeoutMs?: number },
-): Promise<T> {
-  // These routes live on a laptop. A tablet with no hub would otherwise spend the
-  // full TCP connect timeout on an address nothing answers and call it a fetch
-  // failure — see `NO_API_HUB_MESSAGE` for what the operator can actually do.
-  if (apiHubMissing()) throw new Error(NO_API_HUB_MESSAGE);
+export type { FreenetPeerStatus, FreenetHotRecord };
 
-  const res = await apiFetch(mistFreenetApiUrl(path), {
-    ...init,
-    // A Freenet put/get is minutes of work on a cold node, so the ceiling here is
-    // only there to stop a dead hub hanging forever. Callers that are just asking
-    // a question pass something much shorter.
-    timeoutMs: init?.timeoutMs ?? 300_000,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) {
-    throw new Error(body.error || `Mist Freenet API ${res.status}`);
-  }
-  return body;
+export function fetchFreenetPeerStatus(): Promise<FreenetPeerStatus> {
+  return getFreenetPackTransport().peerStatus();
 }
 
-export type { FreenetPeerStatus };
-
-export async function fetchFreenetPeerStatus(): Promise<FreenetPeerStatus> {
-  // Polled on a timer behind a readiness label, so it must not be the thing that
-  // makes the card feel hung when the hub is off.
-  return mistFreenetFetch<FreenetPeerStatus>('/api/mist/freenet/peer/status', {
-    timeoutMs: 6000,
-  });
+export function startFreenetPeer(options?: { contribute?: boolean }): Promise<FreenetPeerStatus> {
+  return getFreenetPackTransport().peerStart(options);
 }
 
-export async function startFreenetPeer(options?: { contribute?: boolean }): Promise<FreenetPeerStatus> {
-  return mistFreenetFetch<FreenetPeerStatus>('/api/mist/freenet/peer/start', {
-    method: 'POST',
-    body: JSON.stringify({ contribute: options?.contribute ?? false }),
-  });
+export function stopFreenetPeer(): Promise<FreenetPeerStatus> {
+  return getFreenetPackTransport().peerStop();
 }
 
-export async function stopFreenetPeer(): Promise<FreenetPeerStatus> {
-  return mistFreenetFetch<FreenetPeerStatus>('/api/mist/freenet/peer/stop', {
-    method: 'POST',
-    body: JSON.stringify({}),
-  });
+export function setFreenetPeerContribute(enabled: boolean): Promise<FreenetPeerStatus> {
+  return getFreenetPackTransport().peerSetContribute(enabled);
 }
 
-export async function setFreenetPeerContribute(enabled: boolean): Promise<FreenetPeerStatus> {
-  return mistFreenetFetch<FreenetPeerStatus>('/api/mist/freenet/peer/contribute', {
-    method: 'POST',
-    body: JSON.stringify({ enabled }),
-  });
-}
-
-export type FreenetHotPublishResult = {
-  storageKey: string;
-  contentHash: string;
-  freenetUri?: string;
-  freenetPending?: boolean;
-  publishedAt: string;
-};
-
-export type FreenetHotRecord = {
-  storageKey: string;
-  freenetUri: string;
-  contentHash: string;
-  freenetPending?: boolean;
-  insertedAt?: number;
-};
+export type FreenetHotPublishResult = FreenetPublishOutcome;
+export type FreenetBonesPublishResult = FreenetPublishOutcome;
 
 /** Read encrypted hot/current bytes from local IndexedDB mist store. */
 export async function readLocalHotCiphertext(
@@ -131,36 +94,20 @@ export async function readLocalHotCiphertext(
   };
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary);
-}
-
-function base64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    out[i] = binary.charCodeAt(i);
-  }
-  return out;
-}
-
-async function mergeHotCiphertextToLocal(
-  farmId: string,
+async function mergeCiphertextToLocal(
+  kind: FreenetBlobKind,
   remote: { storageKey: string; ciphertext: Uint8Array; contentHash: string },
 ): Promise<void> {
   const store = await getMistStoreForHotBridge();
   if (!store) {
-    throw new Error('Mist device session required to merge Hot into local IndexedDB');
+    throw new Error(`Mist device session required to merge ${kind === 'hot' ? 'Hot' : 'bones'} into local IndexedDB`);
   }
 
   await store.put(remote.storageKey, remote.ciphertext, {
-    kind: 'hot',
+    kind,
     content_hash: remote.contentHash,
     size: remote.ciphertext.byteLength,
+    ...(kind === 'bones' ? { version: 1 } : {}),
   });
 }
 
@@ -168,10 +115,10 @@ async function mergeHotCiphertextToLocal(
  * Farm ciphertext off the Freenet node on this device, when there is one.
  *
  * `null` means "not this route" — no node here, or a node that has not found the
- * blob — and the caller falls through to the hub. A thrown error means the node
- * answered with something wrong, which is not a thing to paper over.
+ * blob — and the caller falls through to the transport. A thrown error means the
+ * node answered with something wrong, which is not a thing to paper over.
  *
- * The hash is checked here rather than taken on trust. The server route labels
+ * The hash is checked here rather than taken on trust. The relay labels
  * whatever it fetched with the hash the manifest claimed; in the page we hold the
  * manifest the owner signed, so a blob that does not match it is a blob some peer
  * substituted, and the AEAD open that follows would fail anyway with a message
@@ -205,18 +152,20 @@ async function readFarmBlobFromLocalNode(
   return { ciphertext: bytes, contentHash: actual };
 }
 
-function rememberFreenetHotUri(farmId: string, result: FreenetHotPublishResult): void {
+function rememberUri(kind: FreenetBlobKind, farmId: string, result: FreenetPublishOutcome): void {
   if (!result.freenetUri) return;
-  saveFreenetHotUri(farmId, {
+  const patch = {
     freenetUri: result.freenetUri,
     contentHash: result.contentHash,
     freenetPending: result.freenetPending,
     storageKey: result.storageKey,
-  });
+  };
+  if (kind === 'hot') saveFreenetHotUri(farmId, patch);
+  else saveFreenetBonesUri(farmId, patch);
 }
 
 /**
- * Publish local Hot to Freenet via server peer.
+ * Publish local Hot to Freenet.
  * Ensures IndexedDB hot/current exists first (encrypts via mistHotBridge).
  */
 export async function publishHotToFreenet(
@@ -229,32 +178,21 @@ export async function publishHotToFreenet(
     throw new Error('No local hot/current — publish local diary/issues first');
   }
 
-  const result = await mistFreenetFetch<FreenetHotPublishResult>(
-    `/api/mist/freenet/hot/publish/${encodeURIComponent(farmId)}`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        ciphertextBase64: bytesToBase64(local.ciphertext),
-        contentHash: local.contentHash,
-      }),
-    },
-  );
+  const result = await getFreenetPackTransport().publishBlob({
+    farmId,
+    kind: 'hot',
+    storageKey: local.storageKey,
+    ciphertext: local.ciphertext,
+    contentHash: local.contentHash,
+  });
 
-  rememberFreenetHotUri(farmId, result);
+  rememberUri('hot', farmId, result);
   return result;
 }
 
-/** Indexed FN02 URI on this device's server peer (404 when empty — laptop B after recover). */
-export async function fetchFreenetHotRecord(farmId: string): Promise<FreenetHotRecord | null> {
-  try {
-    return await mistFreenetFetch<FreenetHotRecord>(
-      `/api/mist/freenet/hot/record/${encodeURIComponent(farmId)}`,
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('404') || message.includes('no indexed Hot URI')) return null;
-    throw err;
-  }
+/** Indexed FN02 URI for `hot/current` on this device (null when empty — laptop B after recover). */
+export function fetchFreenetHotRecord(farmId: string): Promise<FreenetHotRecord | null> {
+  return getFreenetPackTransport().hotRecord(farmId);
 }
 
 export type FreenetHotPullResult = {
@@ -264,127 +202,71 @@ export type FreenetHotPullResult = {
   mergedToLocal: boolean;
 };
 
-/** Pull hot/current from Freenet (indexed URI on this device) and merge into IndexedDB. */
-export async function pullHotFromFreenet(farmId: string): Promise<FreenetHotPullResult> {
-  const remote = await mistFreenetFetch<{
-    storageKey: string;
-    ciphertextBase64: string;
-    contentHash: string;
-    freenetUri?: string;
-  }>(`/api/mist/freenet/hot/${encodeURIComponent(farmId)}`);
+export type FreenetBonesPullResult = FreenetHotPullResult;
 
-  await mergeHotCiphertextToLocal(farmId, {
-    storageKey: remote.storageKey,
-    ciphertext: base64ToBytes(remote.ciphertextBase64),
-    contentHash: remote.contentHash,
-  });
-
-  if (remote.freenetUri) {
-    saveFreenetHotUri(farmId, {
-      freenetUri: remote.freenetUri,
-      contentHash: remote.contentHash,
-      storageKey: remote.storageKey,
-    });
+async function mergeFetched(
+  kind: FreenetBlobKind,
+  farmId: string,
+  remote: FreenetFetchedBlob,
+  freenetUri: string | undefined,
+): Promise<FreenetHotPullResult> {
+  await mergeCiphertextToLocal(kind, remote);
+  if (freenetUri) {
+    const patch = { freenetUri, contentHash: remote.contentHash, storageKey: remote.storageKey };
+    if (kind === 'hot') saveFreenetHotUri(farmId, patch);
+    else saveFreenetBonesUri(farmId, patch);
   }
-
   return {
     storageKey: remote.storageKey,
     contentHash: remote.contentHash,
-    freenetUri: remote.freenetUri,
+    ...(freenetUri ? { freenetUri } : {}),
     mergedToLocal: true,
   };
 }
 
+/** Pull hot/current from Freenet (indexed URI on this device) and merge into IndexedDB. */
+export async function pullHotFromFreenet(farmId: string): Promise<FreenetHotPullResult> {
+  const remote = await getFreenetPackTransport().pullHot(farmId);
+  return mergeFetched('hot', farmId, remote, remote.freenetUri);
+}
+
 /**
- * Pull hot/current by pasted FN02 URI (laptop B — empty freenet-index).
- * Optional contentHash from laptop A publish line for verification.
+ * Pull a sealed blob by FN02 URI: a node on this device first, then the
+ * transport. Optional contentHash from the owner's publish line for verification.
  */
-export async function pullHotFromFreenetByUri(
+async function pullByUri(
+  kind: FreenetBlobKind,
   farmId: string,
   freenetUri: string,
   contentHash?: string,
 ): Promise<FreenetHotPullResult> {
+  const storageKey = kind === 'hot' ? hotKey(farmId, 'current') : bonesKey(farmId, BONES_FARM_GEOMETRY_ASSET_ID);
+
   const local = await readFarmBlobFromLocalNode(freenetUri, contentHash);
   if (local) {
-    const storageKey = hotKey(farmId, 'current');
-    await mergeHotCiphertextToLocal(farmId, { storageKey, ...local });
-    saveFreenetHotUri(farmId, { freenetUri, contentHash: local.contentHash, storageKey });
-    return { storageKey, contentHash: local.contentHash, freenetUri, mergedToLocal: true };
+    return mergeFetched(kind, farmId, { storageKey, ...local }, freenetUri);
   }
 
-  const remote = await mistFreenetFetch<{
-    storageKey: string;
-    ciphertextBase64: string;
-    contentHash: string;
-    freenetUri: string;
-  }>(`/api/mist/freenet/hot/pull-by-uri/${encodeURIComponent(farmId)}`, {
-    method: 'POST',
-    body: JSON.stringify({ freenetUri, contentHash }),
+  const remote = await getFreenetPackTransport().pullByUri({
+    farmId,
+    kind,
+    storageKey,
+    freenetUri,
+    ...(contentHash ? { contentHash } : {}),
   });
-
-  await mergeHotCiphertextToLocal(farmId, {
-    storageKey: remote.storageKey,
-    ciphertext: base64ToBytes(remote.ciphertextBase64),
-    contentHash: remote.contentHash,
-  });
-
-  saveFreenetHotUri(farmId, {
-    freenetUri: remote.freenetUri,
-    contentHash: remote.contentHash,
-    storageKey: remote.storageKey,
-  });
-
-  return {
-    storageKey: remote.storageKey,
-    contentHash: remote.contentHash,
-    freenetUri: remote.freenetUri,
-    mergedToLocal: true,
-  };
+  return mergeFetched(kind, farmId, remote, remote.freenetUri ?? freenetUri);
 }
 
-export type FreenetBonesPublishResult = {
-  storageKey: string;
-  contentHash: string;
-  freenetUri?: string;
-  freenetPending?: boolean;
-  publishedAt: string;
-};
-
-export type FreenetBonesPullResult = {
-  storageKey: string;
-  contentHash: string;
-  freenetUri?: string;
-  mergedToLocal: boolean;
-};
-
-async function mergeBonesCiphertextToLocal(
+/** Pull hot/current by pasted FN02 URI (laptop B — empty freenet-index). */
+export function pullHotFromFreenetByUri(
   farmId: string,
-  remote: { storageKey: string; ciphertext: Uint8Array; contentHash: string },
-): Promise<void> {
-  const store = await getMistStoreForHotBridge();
-  if (!store) {
-    throw new Error('Mist device session required to merge bones into local IndexedDB');
-  }
-
-  await store.put(remote.storageKey, remote.ciphertext, {
-    kind: 'bones',
-    content_hash: remote.contentHash,
-    size: remote.ciphertext.byteLength,
-    version: 1,
-  });
+  freenetUri: string,
+  contentHash?: string,
+): Promise<FreenetHotPullResult> {
+  return pullByUri('hot', farmId, freenetUri, contentHash);
 }
 
-function rememberFreenetBonesUri(farmId: string, result: FreenetBonesPublishResult): void {
-  if (!result.freenetUri) return;
-  saveFreenetBonesUri(farmId, {
-    freenetUri: result.freenetUri,
-    contentHash: result.contentHash,
-    freenetPending: result.freenetPending,
-    storageKey: result.storageKey,
-  });
-}
-
-/** Publish local farm-geometry bones to Freenet via server peer. */
+/** Publish local farm-geometry bones to Freenet. */
 export async function publishBonesToFreenet(
   farmId: string,
   devicePin?: string,
@@ -395,63 +277,25 @@ export async function publishBonesToFreenet(
     throw new Error('No local farm-geometry bones — draw boundaries on map first');
   }
 
-  const result = await mistFreenetFetch<FreenetBonesPublishResult>(
-    `/api/mist/freenet/bones/publish/${encodeURIComponent(farmId)}`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        ciphertextBase64: bytesToBase64(local.ciphertext),
-        contentHash: local.contentHash,
-      }),
-    },
-  );
+  const result = await getFreenetPackTransport().publishBlob({
+    farmId,
+    kind: 'bones',
+    storageKey: bonesKey(farmId, BONES_FARM_GEOMETRY_ASSET_ID),
+    ciphertext: local.ciphertext,
+    contentHash: local.contentHash,
+  });
 
-  rememberFreenetBonesUri(farmId, result);
+  rememberUri('bones', farmId, result);
   return result;
 }
 
 /** Pull farm-geometry bones by pasted FN02 URI (laptop B). */
-export async function pullBonesFromFreenetByUri(
+export function pullBonesFromFreenetByUri(
   farmId: string,
   freenetUri: string,
   contentHash?: string,
 ): Promise<FreenetBonesPullResult> {
-  const local = await readFarmBlobFromLocalNode(freenetUri, contentHash);
-  if (local) {
-    const storageKey = bonesKey(farmId, BONES_FARM_GEOMETRY_ASSET_ID);
-    await mergeBonesCiphertextToLocal(farmId, { storageKey, ...local });
-    saveFreenetBonesUri(farmId, { freenetUri, contentHash: local.contentHash, storageKey });
-    return { storageKey, contentHash: local.contentHash, freenetUri, mergedToLocal: true };
-  }
-
-  const remote = await mistFreenetFetch<{
-    storageKey: string;
-    ciphertextBase64: string;
-    contentHash: string;
-    freenetUri: string;
-  }>(`/api/mist/freenet/bones/pull-by-uri/${encodeURIComponent(farmId)}`, {
-    method: 'POST',
-    body: JSON.stringify({ freenetUri, contentHash }),
-  });
-
-  await mergeBonesCiphertextToLocal(farmId, {
-    storageKey: remote.storageKey,
-    ciphertext: base64ToBytes(remote.ciphertextBase64),
-    contentHash: remote.contentHash,
-  });
-
-  saveFreenetBonesUri(farmId, {
-    freenetUri: remote.freenetUri,
-    contentHash: remote.contentHash,
-    storageKey: remote.storageKey,
-  });
-
-  return {
-    storageKey: remote.storageKey,
-    contentHash: remote.contentHash,
-    freenetUri: remote.freenetUri,
-    mergedToLocal: true,
-  };
+  return pullByUri('bones', farmId, freenetUri, contentHash);
 }
 
 export type PublishFarmToFreenetResult = {

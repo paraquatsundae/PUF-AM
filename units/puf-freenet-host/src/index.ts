@@ -53,6 +53,8 @@ export type {
   FreenetProbeFn,
   FreenetPutCiphertextOptions,
   FreenetPutCiphertextResult,
+  FreenetSlotPutInput,
+  FreenetSlotPutResult,
   FreenetSpawnFn,
   FreenetVersionFn,
   FreenetWireClient,

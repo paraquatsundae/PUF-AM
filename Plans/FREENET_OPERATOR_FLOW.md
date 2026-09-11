@@ -283,6 +283,19 @@ The guard is the load-bearing part: as a throw inside `put()` it is a rule that 
 
 **Freenet is not the source of truth for a running farm.** It is durability plus a transfer mechanism between peers; the operator's laptop is what the paddock actually runs on. Multi-year survival is local caches + offline backups + at least one always-on pin — not the mist network by itself.
 
+### 9.6 Who moves the bytes (2026-09-11, `FREENET_NETWORK_PACK.md` Phase 1 slice B)
+
+The page seals, signs and hashes on every shell. What differs is the hop between the page and a node:
+
+| Shell | Publish (Hot, bones, join slot) | Read (pull, join ticket) | Path |
+|-------|--------------------------------|--------------------------|------|
+| Electron desktop | Host over IPC — `puf-freenet:put` / `puf-freenet:slot-put` → `FreenetHostPlugin` → node WS on this machine | Local node first (`freenetLocalNode.ts`), then `puf-freenet:get` / `puf-freenet:slot-get` through the same host | `src/mist/freenetHostTransport.ts`; Express is not on the path |
+| Tablet (APK) | Paired hub's LAN relay — `POST /api/mist/freenet/{hot,bones}/publish/:farmId`, `slot/publish` | Local node app's GET first when one is reachable, then the hub's relay `GET …/slot/:id`, `pull-by-uri` | `src/mist/freenetRelayTransport.ts`; `server/mistFreenetRoutes.ts` on the hub |
+| Hosted web (`am.pufworks.farm`) | Nothing — no node, routes 404 | Nothing | Login option hidden ([`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) §6) |
+| `npm run dev` workshop hub | Same as the tablet, talking to its own loopback Express | Same | The dev server *is* the hub |
+
+The relay keeps its outbox and `freenet-index.json` for tablets whose hub node is down; the host path has neither — a put fails while the node is down, and the URI memory is the page's `pufam.mist.hotPublish.v1.*`. Ciphertext is checked before either hop: `assertCiphertextForFreenet` runs in `FreenetMistStore.put` on the relay and in the host's wire (`server/freenetHostWire.ts`) on Electron. Until Phase 2 both hops still shell out to `fdev` for the put itself.
+
 ---
 
 ## File / function map
@@ -298,6 +311,7 @@ The guard is the load-bearing part: as a throw inside `put()` it is a rule that 
 | People ledger | `src/components/FarmPeopleCard.tsx` |
 | Ticket mint / parse | `shared/sync/joinTicket.ts`, `shared/sync/joinGrant.ts` |
 | Hub shelf | `server/joinManifestStore.ts`, `server/joinTicketRoutes.ts` |
-| Freenet slot | `units/mist-freenet/contracts/slot-contract`, `src/mist/mistJoinWithTicket.ts` |
+| Freenet slot | `units/mist-freenet/contracts/slot-contract`, `src/mist/joinSlotFreenet.ts`, `plugins/freenet_host/src/mistJoinWithTicket.ts` |
+| Transport (host vs relay) | `src/mist/freenetPackTransport.ts`, `freenetHostTransport.ts`, `freenetRelayTransport.ts`, `freenetTransportSelect.ts`; `server/freenetHostWire.ts`, `server/freenetSlotOps.ts` |
 
 Workshop exception: `showFreenetFarmTools()` still shows the Freenet card on a fake cloud bench session so Send/Join can be tested without a real mist login.

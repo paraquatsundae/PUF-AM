@@ -42,6 +42,14 @@ contextBridge.exposeInMainWorld('pufamDesktop', {
     status: () => ipcRenderer.invoke('puf-freenet:status'),
     start: () => ipcRenderer.invoke('puf-freenet:start'),
     stop: () => ipcRenderer.invoke('puf-freenet:stop'),
+    // The data path (Plans/FREENET_NETWORK_PACK.md decision 2). Ciphertext only:
+    // the page seals before it calls, and main refuses anything that is not an
+    // AEAD envelope. Bytes cross as Uint8Array — structured clone keeps the type.
+    put: (args: { bytes: Uint8Array; key?: string }) => ipcRenderer.invoke('puf-freenet:put', args),
+    get: (uri: string) => ipcRenderer.invoke('puf-freenet:get', uri),
+    slotPut: (args: { parameters: Uint8Array; state: Uint8Array; instanceIdBase58: string }) =>
+      ipcRenderer.invoke('puf-freenet:slot-put', args),
+    slotGet: (instanceIdBase58: string) => ipcRenderer.invoke('puf-freenet:slot-get', instanceIdBase58),
     onState: (listener: (status: unknown) => void) => {
       const handler = (_event: unknown, status: unknown) => listener(status);
       ipcRenderer.on('puf-freenet:state', handler);

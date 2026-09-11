@@ -7,14 +7,30 @@
  * surface. See `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §6.2.
  */
 
-import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
+import type {
+  FreenetHostStatus,
+  FreenetPutCiphertextResult,
+  FreenetSlotPutInput,
+  FreenetSlotPutResult,
+} from '../../units/puf-freenet-host/src/types.ts';
 
+/**
+ * `FreenetHostPlugin` as the renderer sees it — lifecycle plus the data path
+ * (Plans/FREENET_NETWORK_PACK.md decision 2; channels `puf-freenet:*`). The
+ * four data members are optional in the type so a renderer can tell a shell
+ * built before slice B apart from one that has them, and fall back to the relay.
+ */
 export type DesktopFreenetBridge = {
   status(): Promise<FreenetHostStatus | null>;
   start(): Promise<FreenetHostStatus | null>;
   stop(): Promise<FreenetHostStatus | null>;
   /** Subscribe to host state changes. Returns an unsubscribe function. */
   onState(listener: (status: FreenetHostStatus) => void): () => void;
+  /** Ciphertext only — main refuses anything that is not an AEAD envelope. `key` is the mist storage key, used as the guard's kind hint. */
+  put?(args: { bytes: Uint8Array; key?: string }): Promise<FreenetPutCiphertextResult>;
+  get?(uri: string): Promise<Uint8Array | null>;
+  slotPut?(args: FreenetSlotPutInput): Promise<FreenetSlotPutResult>;
+  slotGet?(instanceIdBase58: string): Promise<Uint8Array | null>;
 };
 
 export type DesktopMistPreference = {

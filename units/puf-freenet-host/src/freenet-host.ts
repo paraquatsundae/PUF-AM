@@ -32,6 +32,8 @@ import type {
   FreenetHostStatusOptions,
   FreenetPutCiphertextOptions,
   FreenetPutCiphertextResult,
+  FreenetSlotPutInput,
+  FreenetSlotPutResult,
 } from './types.ts';
 
 export const FREENET_HOST_ID = 'puf-freenet-host';
@@ -455,6 +457,18 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     return options.wire.getCiphertext(uri);
   }
 
+  async function putSlotState(input: FreenetSlotPutInput): Promise<FreenetSlotPutResult> {
+    const put = options.wire?.putSlotState;
+    if (!put) throw new FreenetWireUnavailableError('put slot state');
+    return put.call(options.wire, input);
+  }
+
+  async function getSlotState(instanceIdBase58: string): Promise<Uint8Array | null> {
+    const get = options.wire?.getSlotState;
+    if (!get) throw new FreenetWireUnavailableError('get slot state');
+    return get.call(options.wire, instanceIdBase58);
+  }
+
   return {
     id: FREENET_HOST_ID,
     start,
@@ -462,6 +476,8 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     status,
     putCiphertext,
     getCiphertext,
+    putSlotState,
+    getSlotState,
     on(listener: FreenetHostEventListener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

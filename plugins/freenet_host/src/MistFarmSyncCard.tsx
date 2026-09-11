@@ -74,7 +74,7 @@ import {
   fetchAndRehydrateFarmFromFreenet,
   refreshFarmUiAfterRecovery,
 } from '../../../src/mist/mistDisasterRecovery.ts';
-import { joinFarmWithShortTicket } from '../../../src/mist/mistJoinWithTicket.ts';
+import { joinFarmWithShortTicket } from './mistJoinWithTicket.ts';
 import { resolveJoinTicket } from '../../../src/mist/joinTicketResolver.ts';
 import { formatJoinTicket, parseJoinTicketInput } from '../../../src/mist/mistJoinTicket.ts';
 import {

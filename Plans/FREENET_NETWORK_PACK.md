@@ -64,7 +64,7 @@ Sibling of `CROP_PACK_PLUGIN.md`. Same discovery (`plugins/freenet_host/plugin.j
 
 ### 4.2 What moves into `plugins/freenet_host/src/`
 
-`MistFarmSyncCard.tsx` (1,004 lines), `MistJoinTicketGate.tsx`, `MistWorkshopCard.tsx` (1,102), `FreenetHowItWorks.tsx`, `FreenetSendNudge.tsx`, `login/FreenetExplain.tsx`, `pages/MistNewFarm.tsx`, `pages/MistRecoverFarm.tsx`, and the parts of `src/mist/` that are UI-facing (`mistFreenetClient.ts` becomes the pack's host-facing client). Pure crypto and addressing stay in `units/mist-freenet`. Splitting the two oversized cards while moving them clears the two standing `audit:codebase` warnings.
+`MistFarmSyncCard.tsx` (1,004 lines), `MistJoinTicketGate.tsx`, `MistWorkshopCard.tsx` (1,102), `FreenetHowItWorks.tsx`, `FreenetSendNudge.tsx`, `login/FreenetExplain.tsx`, `pages/MistNewFarm.tsx`, `pages/MistRecoverFarm.tsx`, and the pack-only helpers in `src/mist/` (`mistJoinWithTicket.ts`). *Amended 2026-09-11:* `mistFreenetClient.ts` and the transport seam stay in `src/mist/` — core's `useAutoSync` (Freenet rungs of the auto-sync ladder) imports the client, and core may not import `plugins/*/src`. The client is host-facing through `freenetPackTransport.ts`; it moves only if the auto-sync Freenet rungs move into the pack, which is a later decision. Pure crypto and addressing stay in `units/mist-freenet`. Splitting the two oversized cards while moving them clears the two standing `audit:codebase` warnings.
 
 ### 4.3 Host adapters
 
@@ -93,9 +93,13 @@ Sibling of `CROP_PACK_PLUGIN.md`. Same discovery (`plugins/freenet_host/plugin.j
 - [x] Web hidden: `deploy-cloudrun.mjs` drops the baked flag and `MIST_FREENET_DISABLED`; `freenetOptionState` keys off host capability (`src/lib/freenetHostCapability.ts`); `tests/api/cloudSurface.test.ts` unchanged and passing (404 stays the documented behaviour). APK with the mist gate open keeps the option and reads through a hub until Phase 3.
 - Not done in slice A, by design: `MistFarmSyncCard.tsx` / `MistWorkshopCard.tsx` moved whole — the two `audit:codebase` size warnings persist (split still owed); `src/mist/` stays where it is (moves with slice B).
 
-**Slice B — data path** (open):
+**Slice B — data path — done 2026-09-11:**
 
-- [ ] Data path through `FreenetHostPlugin.putCiphertext/getCiphertext` on Electron; Express mist routes reduced to LAN relay; `mistFreenetClient.ts` becomes the pack's host-facing client and the UI-facing parts of `src/mist/` move into the pack.
+- [x] Data path through `FreenetHostPlugin.putCiphertext/getCiphertext` on Electron; Express mist routes reduced to LAN relay; `mistFreenetClient.ts` becomes the host-facing client (it stays in `src/mist/` because core's `useAutoSync` imports it — §4.2's "moves into the pack" is amended to "calls the host through the transport seam"; only pack-only helpers moved).
+  - Transport seam: `src/mist/freenetPackTransport.ts` (interface + selection rule), `freenetHostTransport.ts` (renderer → preload → `puf-freenet:put|get|slot-put|slot-get` → `FreenetHostPlugin`), `freenetRelayTransport.ts` (the pre-existing HTTP calls, behaviour unchanged), `freenetTransportSelect.ts` (`'electron'` with a data-capable preload → host; everything else → relay). `mistFreenetClient.ts` and `joinSlotFreenet.ts` call the transport; the local-node-first read (`freenetLocalNode.ts`) stays layered above it. The reconciler's peer start/stop go through the same transport.
+  - `FreenetHostPlugin` / `FreenetWireClient` gain optional `putSlotState` / `getSlotState` (`NETWORK_PACK_PLUGIN.md` § Host capability); `putCiphertext`/`getCiphertext` unchanged. The host's wire (`server/freenetHostWire.ts`) runs `assertCiphertextForFreenet` on every put and shares slot ops with the relay routes via `server/freenetSlotOps.ts`. IPC inputs are validated in main (`desktop/freenetIpcInput.ts`: 8 MiB blob cap, 64 KiB slot state, 1 KiB parameters, `mist/v1` key shape, base58 instance id).
+  - Moved with `git mv`: only `mistJoinWithTicket.ts` (+ its test) — the rest of `src/mist/` is imported by `useAutoSync` (core), `AuthContext`, or `src/lib/`, so it stays; the transport interface lives beside the client for the same reason. `finishMistFarmSetup.ts` is pack-only in practice but was left where it is (candidate for a later tidy).
+  - Judgment calls: no outbox on the host path (a put while the node is down fails rather than queuing a placeholder URI); `peerStop` is a no-op on the host path (the node button is `bridge.stop()`); the content hash is checked in the page on the host path. Express `/api/mist/freenet/*` keeps its outbox and index for tablets behind a hub. Live `FREENET_LIVE_WS=1` tests not run (no node binary in the dev checkout).
 
 **Slice C — hybrid** (open):
 
