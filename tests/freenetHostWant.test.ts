@@ -76,7 +76,10 @@ describe('computeFreenetHostWant — the other shapes', () => {
 
   it('no capability, no node — whatever the farm says', () => {
     expect(computeFreenetHostWant(input({ capability: null }))).toBe(false);
-    expect(computeFreenetHostWant(input({ capability: 'android' }))).toBe(false);
+  });
+
+  it('wants a node on Android the same as Electron', () => {
+    expect(computeFreenetHostWant(input({ capability: 'android' }))).toBe(true);
   });
 
   it('no farm open, no node', () => {

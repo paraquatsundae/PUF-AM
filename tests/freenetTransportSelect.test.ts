@@ -82,11 +82,12 @@ afterEach(() => {
 });
 
 describe('selectFreenetTransportKind', () => {
-  it('is host only for electron with a data-capable preload', () => {
+  it('is host for electron or android with a data-capable adapter', () => {
     expect(selectFreenetTransportKind({ capability: 'electron', bridgeHasDataPath: true })).toBe('host');
+    expect(selectFreenetTransportKind({ capability: 'android', bridgeHasDataPath: true })).toBe('host');
   });
 
-  it('falls back to the relay for every other shell', () => {
+  it('falls back to the relay when the adapter cannot move bytes', () => {
     expect(selectFreenetTransportKind({ capability: 'electron', bridgeHasDataPath: false })).toBe('relay');
     expect(selectFreenetTransportKind({ capability: 'android', bridgeHasDataPath: false })).toBe('relay');
     expect(selectFreenetTransportKind({ capability: null, bridgeHasDataPath: false })).toBe('relay');

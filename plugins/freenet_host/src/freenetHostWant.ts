@@ -13,13 +13,17 @@
  *   does not count.
  * - **Plain cloud farm** — never.
  *
- * Capability is the outer gate: only Electron can run a node in Phase 1.
+ * Capability is the outer gate: Electron, or Android once a host adapter
+ * (plugin or a node on :7509) is present.
  */
 
 import type { FarmNetworkPacksMap } from '../../../shared/farm/networkPacks';
 import { isFarmFreenetHostEnabled } from '../../../shared/farm/networkPacks';
 import type { FarmPipe } from '../../../src/lib/farmPipes';
-import type { FreenetHostCapability } from '../../../src/lib/freenetHostCapability.ts';
+import {
+  freenetHostCapabilityCanRun,
+  type FreenetHostCapability,
+} from '../../../src/lib/freenetHostCapability.ts';
 
 export type FreenetHostWantInput = {
   /** The farm the app is signed into — cloud id on a member device, mist id otherwise. */
@@ -37,7 +41,7 @@ export type FreenetHostWantInput = {
 };
 
 export function computeFreenetHostWant(input: FreenetHostWantInput): boolean {
-  if (!input.farmId || input.capability !== 'electron') return false;
+  if (!input.farmId || !freenetHostCapabilityCanRun(input.capability)) return false;
   if (input.pipe === 'freenet') return input.localEnabled;
   if (input.pipe === 'hybrid') {
     if (input.cloudMirror) return input.localEnabled;

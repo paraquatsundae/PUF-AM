@@ -35,7 +35,7 @@ type Props = { entry: SystemPluginDef; onOpenSync?: () => void };
 
 function unavailableReason(): string {
   if (isPackagedNativeAndroid()) {
-    return 'This tablet reads a Freenet farm through a paired laptop hub; a node of its own comes with the Android host (Phase 3).';
+    return 'No Freenet node is listening on this tablet. Open Freenet Android Node, or pair a PUF-AM laptop hub.';
   }
   return 'The web app has no Freenet node. Open this farm in the desktop app to enable Freenet.';
 }

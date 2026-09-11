@@ -10,10 +10,10 @@
  *
  * Two deliberate limits:
  *
- * - **Reads only.** The page's publish path goes through a host's Express
- *   (`publishFarmToFreenet`), which a tablet beside a node app does not have, so
- *   the send path is untouched and still wants a hub until Phase 3 of
- *   `Plans/FREENET_NETWORK_PACK.md` puts a node inside the APK.
+ * - **Reads first; Send when attached.** Phase 3 of
+ *   `Plans/FREENET_NETWORK_PACK.md` publishes from the WebView through
+ *   `BrowserFreenetPutClient` once this probe says a node is on `:7509`
+ *   (Freenet Android Node today; our `:freenet` process later).
  *
  * - **Not on desktop.** The Electron shell owns a bundled node and reaches it
  *   through its own Express; probing loopback there would find that same node by
@@ -72,10 +72,29 @@ const PROBE_TIMEOUT_MS = 2_500;
 
 let state: ProbeState | null = null;
 let inFlight: Promise<boolean> | null = null;
+const listeners = new Set<() => void>();
 
 /** The last answer, without asking again — safe to call during a render. */
 export function localFreenetNodeFound(): boolean {
   return state?.answered ?? false;
+}
+
+/** Tests: pin the last probe so capability / Send can be asserted without a socket. */
+export function setLocalFreenetNodeFoundForTests(answered: boolean): void {
+  state = { answered, at: Date.now() };
+  for (const listener of listeners) listener();
+}
+
+/** Re-render when a probe lands — capability and Send key off the last answer. */
+export function subscribeLocalFreenetNode(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function notifyLocalFreenetNode(): void {
+  for (const listener of listeners) listener();
 }
 
 /** Forget everything learned about the local node (tests, and "look again" buttons). */
@@ -109,6 +128,7 @@ export async function probeLocalFreenetNode(options?: { force?: boolean }): Prom
   inFlight = openProbe(localFreenetWsUrl())
     .then((answered) => {
       state = { answered, at: Date.now() };
+      notifyLocalFreenetNode();
       return answered;
     })
     .finally(() => {
@@ -230,11 +250,10 @@ export function localFreenetSearchBudgetMs(hasFallback: boolean): number {
 export const FREENET_LOCAL_NODE_LABEL =
   'Reading Freenet from the node on this tablet — no laptop needed to join.';
 
-/** And what that node still cannot do. */
+/** What that node can do once the page can PUT to it (Phase 3 attach). */
 export const FREENET_LOCAL_NODE_DETAIL =
-  'The Freenet Android node app on this tablet answers lookups, so a join ticket resolves and ' +
-  'the farm downloads here directly. Sending a farm from this tablet still needs a PUF-AM ' +
-  'laptop — publishing uses a tool that does not run on Android.';
+  'The Freenet node on this tablet answers lookups and can publish — join and Send work here ' +
+  'with no laptop. Open Freenet Android Node if the line above goes away.';
 
 /** And when the node app is installed but not running. */
 export const FREENET_LOCAL_NODE_MISSING_DETAIL =

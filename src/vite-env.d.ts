@@ -5,6 +5,11 @@ declare module '*.rules?raw' {
   export default src;
 }
 
+declare module '*.wasm?url' {
+  const src: string;
+  export default src;
+}
+
 interface ImportMetaEnv {
   /** Maps JS API — client-visible; restrict in Google Cloud (see Plans/API_KEY_SECURITY.md) */
   /** Capacitor / device API origin, e.g. http://10.0.2.2:3000 or http://192.168.x.x:3000 */
@@ -15,6 +20,8 @@ interface ImportMetaEnv {
   readonly VITE_MIST_EXPERIMENTAL?: string
   /** Freenet API origin for `/api/mist/freenet/*` when it is not same-origin. */
   readonly VITE_MIST_FREENET_API?: string
+  /** Workshop: point a browser at a bare `freenet network` WS (default `ws://127.0.0.1:7509/…`). */
+  readonly VITE_LOCAL_FREENET_WS?: string
 }
 
 interface ImportMeta {

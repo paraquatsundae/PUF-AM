@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { DesktopBridge } from '../../../src/lib/desktopBridge.ts';
 import { createFreenetHostReconciler } from './freenetHostReconcile.ts';
-import { prewarmFreenetHost } from './freenetLoginPrewarm.ts';
+import { prewarmFreenetHost, type PrewarmHostHandle } from './freenetLoginPrewarm.ts';
 
 function fakeBridge(prefOn: boolean) {
   const setPreference = vi.fn(async (enabled: boolean) => ({
@@ -39,9 +39,9 @@ describe('prewarmFreenetHost', () => {
     await prewarmFreenetHost({
       getCapability: () => 'electron',
       getBridge: () => bridge,
-      createReconciler: (b) =>
+      createReconciler: (host) =>
         createFreenetHostReconciler({
-          host: b.freenet,
+          host,
           peer: { start: peerStart, stop: async () => {} },
         }),
     });
@@ -55,14 +55,36 @@ describe('prewarmFreenetHost', () => {
     await prewarmFreenetHost({
       getCapability: () => 'electron',
       getBridge: () => bridge,
-      createReconciler: (b) =>
+      createReconciler: (host) =>
         createFreenetHostReconciler({
-          host: b.freenet,
+          host,
           peer: { start: async () => {}, stop: async () => {} },
         }),
     });
     expect(setPreference).not.toHaveBeenCalled();
     expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles on Android without flipping a desktop mist preference', async () => {
+    const start = vi.fn(async () => ({ mode: 'attached' as const, reachable: true }));
+    const peerStart = vi.fn(async () => ({}));
+    await prewarmFreenetHost({
+      getCapability: () => 'android',
+      getBridge: () => null,
+      getHost: () =>
+        ({
+          status: async () => null,
+          start,
+          stop: async () => null,
+        }) as unknown as PrewarmHostHandle,
+      createReconciler: (host) =>
+        createFreenetHostReconciler({
+          host,
+          peer: { start: peerStart, stop: async () => {} },
+        }),
+    });
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(peerStart).toHaveBeenCalledTimes(1);
   });
 
   it('is a no-op when there is no host capability', async () => {

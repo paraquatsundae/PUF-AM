@@ -11,6 +11,7 @@ export default defineConfig(() => {
     optimizeDeps: {
       include: ['leaflet'],
     },
+    assetsInclude: ['**/*.wasm'],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

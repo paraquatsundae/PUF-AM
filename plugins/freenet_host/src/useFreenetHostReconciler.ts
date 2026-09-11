@@ -16,7 +16,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { getDesktopBridge } from '../../../src/lib/desktopBridge.ts';
 import { activeFarmPipe, isCloudMirror, mirroredCloudFarmId } from '../../../src/lib/farmPipes';
-import { getFreenetHostCapability } from '../../../src/lib/freenetHostCapability.ts';
+import {
+  freenetHostCapabilityCanRun,
+  getFreenetHostCapability,
+} from '../../../src/lib/freenetHostCapability.ts';
+import { getAndroidFreenetBridge } from '../../../src/mist/freenetAndroidHost.ts';
+import { subscribeLocalFreenetNode } from '../../../src/mist/freenetLocalNode.ts';
 import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
 import { isFreenetHostEnabled, subscribeFreenetHostEnabled } from './freenetHostEnable.ts';
 import { createFreenetHostReconciler, type FreenetHostReconciler } from './freenetHostReconcile.ts';
@@ -30,12 +35,19 @@ export const FREENET_HOST_RECONCILE_DEBOUNCE_MS = 1500;
  * transport is the host one (slice B), so the peer step is the host's own wire
  * rather than a `POST /api/mist/freenet/peer/start` to the loopback Express.
  */
-function electronReconciler(): FreenetHostReconciler | null {
-  const bridge = getDesktopBridge();
-  if (!bridge) return null;
+function hostHandle() {
+  const capability = getFreenetHostCapability();
+  if (capability === 'electron') return getDesktopBridge()?.freenet ?? null;
+  if (capability === 'android') return getAndroidFreenetBridge();
+  return null;
+}
+
+function shellReconciler(): FreenetHostReconciler | null {
+  const host = hostHandle();
+  if (!host) return null;
   const transport = getFreenetPackTransport();
   return createFreenetHostReconciler({
-    host: bridge.freenet,
+    host,
     peer: {
       start: () => transport.peerStart({ contribute: false }),
       stop: () => transport.peerStop(),
@@ -52,6 +64,8 @@ export function useFreenetHostReconciler(): { want: boolean } {
   // A hybrid enable seals a seed on this device after the session started; the
   // farm-doc flag alone is not enough to want a node until that seed is here.
   useEffect(() => subscribeFreenetHybridDevice(() => setEnabledTick((n) => n + 1)), []);
+  // Attach-if-port-taken: a Freenet Android Node coming up flips capability.
+  useEffect(() => subscribeLocalFreenetNode(() => setEnabledTick((n) => n + 1)), []);
 
   const capability = getFreenetHostCapability();
   // enabledTick is the store subscription; it re-reads the flag after a toggle.
@@ -71,7 +85,10 @@ export function useFreenetHostReconciler(): { want: boolean } {
     [farmId, farmNetworkPacks, capability, enabledTick],
   );
 
-  const reconciler = useMemo(() => (capability === 'electron' ? electronReconciler() : null), [capability]);
+  const reconciler = useMemo(
+    () => (freenetHostCapabilityCanRun(capability) ? shellReconciler() : null),
+    [capability],
+  );
 
   useEffect(() => {
     if (!reconciler) return;

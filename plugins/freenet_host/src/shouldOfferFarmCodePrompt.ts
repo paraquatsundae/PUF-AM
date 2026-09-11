@@ -17,7 +17,7 @@ export function shouldOfferFarmCodePrompt(input: {
   return (
     input.enabled &&
     input.seedCloudFarmId !== input.farmId &&
-    input.capability === 'electron' &&
+    (input.capability === 'electron' || input.capability === 'android') &&
     !input.dismissed
   );
 }

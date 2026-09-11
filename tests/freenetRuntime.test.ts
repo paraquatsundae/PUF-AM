@@ -95,8 +95,13 @@ describe('freenetReadsLocally', () => {
  * fail at the last step.
  */
 describe('freenetIsReadOnlyHere', () => {
-  it('holds sending back on a tablet whose only node is the local one', () => {
+  it('holds sending back on a tablet whose only node is the local one until attach can PUT', () => {
     expect(freenetIsReadOnlyHere('android-local-node', false)).toBe(true);
+    expect(freenetIsReadOnlyHere('android-local-node', false, false)).toBe(true);
+  });
+
+  it('lifts sending when the local node is an attached host (Phase 3)', () => {
+    expect(freenetIsReadOnlyHere('android-local-node', false, true)).toBe(false);
   });
 
   it('lifts as soon as a hub is paired, because that laptop can publish', () => {

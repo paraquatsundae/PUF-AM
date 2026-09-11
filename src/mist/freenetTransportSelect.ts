@@ -11,6 +11,7 @@
 
 import { getDesktopBridge } from '../lib/desktopBridge.ts';
 import { getFreenetHostCapability } from '../lib/freenetHostCapability.ts';
+import { getAndroidFreenetBridge } from './freenetAndroidHost.ts';
 import { bridgeHasFreenetDataPath, createHostTransport } from './freenetHostTransport.ts';
 import { selectFreenetTransportKind, type FreenetPackTransport } from './freenetPackTransport.ts';
 import { createRelayTransport } from './freenetRelayTransport.ts';
@@ -19,10 +20,11 @@ let override: FreenetPackTransport | null = null;
 
 export function getFreenetPackTransport(): FreenetPackTransport {
   if (override) return override;
-  const bridge = getDesktopBridge()?.freenet;
+  const capability = getFreenetHostCapability();
+  const bridge = capability === 'android' ? getAndroidFreenetBridge() : getDesktopBridge()?.freenet;
   const hasDataPath = bridgeHasFreenetDataPath(bridge);
   const kind = selectFreenetTransportKind({
-    capability: getFreenetHostCapability(),
+    capability,
     bridgeHasDataPath: hasDataPath,
   });
   return kind === 'host' && hasDataPath ? createHostTransport(bridge) : createRelayTransport();

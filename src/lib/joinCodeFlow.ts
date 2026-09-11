@@ -37,7 +37,9 @@ export function freenetJoinAvailability(input: {
   native: boolean;
   workshopHub: boolean;
 }): FreenetJoinAvailability {
-  if (input.capability === 'electron' || input.workshopHub) return 'host';
+  if (input.capability === 'electron' || input.capability === 'android' || input.workshopHub) {
+    return 'host';
+  }
   if (input.native) return 'reader';
   return 'none';
 }

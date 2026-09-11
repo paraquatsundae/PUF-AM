@@ -23,6 +23,8 @@ vendor/freenet/linux-x64/
   freenet          pinned Freenet core (0.2.135 since 2026-09-11)
   LICENSE.md       upstream AGPL-3.0 text (ships beside the binary)
   VENDOR.json      what landed, and when
+
+vendor/freenet/android-arm64/   # no official asset — see scripts/build-freenet-android.mjs
 ```
 
 Only the node. Since Phase 2 of [`Plans/FREENET_NETWORK_PACK.md`](../Plans/FREENET_NETWORK_PACK.md)

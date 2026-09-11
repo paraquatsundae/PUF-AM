@@ -188,6 +188,14 @@ async function main() {
     const known = Object.keys(manifest.platforms).join(', ');
     throw new Error(`No pinned binaries for ${args.platformTag}. Pinned platforms: ${known}`);
   }
+  if (platform.status === 'missing' || platform.status === 'pending-build' || !platform.binaries?.length) {
+    console.log(
+      `Freenet ${manifest.version}: ${args.platformTag} is ${platform.status || 'empty'} — ` +
+        `no official release asset. See scripts/build-freenet-android.mjs.`,
+    );
+    process.exitCode = 2;
+    return;
+  }
 
   const vendorDir = vendorDirFor(args.platformTag);
   console.log(

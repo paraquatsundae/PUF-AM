@@ -9,9 +9,10 @@
  * on this device".
  *
  * There is now a third. A **separate**, sideloaded Freenet Android app can hold
- * a real node and bind the ordinary 0.2 WS API on this device's loopback, and
- * the page can read from it directly. That is `android-local-node`, and it is a
- * reader: GET works, publishing still goes through a laptop's Express.
+ * a real node and bind the ordinary 0.2 WS API on this device's loopback.
+ * Phase 3 treats that as an attached host: GET and PUT both go to `:7509`
+ * from the WebView. Our own `:freenet` process is how we drop the second APK
+ * later; it is not required for Send today.
  *
  * Plan: `Plans/reference/APK_FREENET_PLUGIN.md` §3a, §7.
  */
@@ -73,20 +74,23 @@ export function freenetReadsLocally(runtime: FreenetRuntime): boolean {
 /**
  * True when this device can fetch a farm over Freenet but has no way to send one.
  *
- * The asymmetry is where the publish path lives, not the wire: since Phase 2 of
- * `Plans/FREENET_NETWORK_PACK.md` a PUT is the app's own WS client, but the page
- * reaches it through Express (`publishFarmToFreenet` POSTs to the host), and a
- * tablet beside a sideloaded node app has no Express of its own. A paired hub
- * lifts it, because that laptop does. Phase 3 (a node inside the APK) is what
- * makes the tablet publish for itself.
+ * A node on `:7509` (`hostPublishing` / `localFreenetNodeFound`) lifts this:
+ * Phase 3 publishes from the WebView through `BrowserFreenetPutClient`. A
+ * paired hub still lifts it the old way. Only a local node with neither is
+ * read-only.
  */
-export function freenetIsReadOnlyHere(runtime: FreenetRuntime, hubAvailable: boolean): boolean {
+export function freenetIsReadOnlyHere(
+  runtime: FreenetRuntime,
+  hubAvailable: boolean,
+  hostPublishing = false,
+): boolean {
+  if (hostPublishing) return false;
   return freenetReadsLocally(runtime) && !hubAvailable;
 }
 
 /** `freenetIsReadOnlyHere` against the hub this device actually has. */
 export function detectFreenetReadOnly(runtime: FreenetRuntime): boolean {
-  return freenetIsReadOnlyHere(runtime, !apiHubMissing());
+  return freenetIsReadOnlyHere(runtime, !apiHubMissing(), localFreenetNodeFound());
 }
 
 /**
@@ -151,10 +155,10 @@ export async function refreshFreenetRuntime(): Promise<FreenetRuntime> {
   return detectFreenetRuntime();
 }
 
-/** One sentence for the readiness line, in the operator's words. */
+/** One sentence when nothing is listening on this tablet — never when :7509 answers. */
 export const FREENET_NO_HOST_LABEL =
-  'Freenet does not run on this tablet — the farm is held here, but sending and joining need a PUF-AM laptop.';
+  'No Freenet node is listening on this tablet — open Freenet Android Node, or use a PUF-AM laptop.';
 
 /** The follow-up an operator needs once they have read the label. */
 export const FREENET_NO_HOST_DETAIL =
-  'Freenet 0.2 is a native binary PUF-AM cannot start on Android, so this build has no node of its own. Hold the farm here and work on it as usual. To send or join, borrow the node on a PUF-AM laptop: put both on the same Wi‑Fi, start PUF-AM there, then use Settings → Sync → Wi‑Fi (LAN) → Scan for hubs on this tablet (or type the laptop address). Once a hub answers, sending and joining work from here. If a separate Freenet node app is installed on this tablet, open it and wait for it to connect — joining then works here with no laptop at all. See Plans/reference/APK_FREENET_PLUGIN.md.';
+  'Nothing answered on this tablet’s Freenet port. Open Freenet Android Node and wait until it says it is connected, then try again — Send and join then work here with no laptop. Or borrow a PUF-AM laptop: put both on the same Wi‑Fi, start PUF-AM there, then use Settings → Sync → Wi‑Fi (LAN) → Scan for hubs (or type the laptop address). See Plans/APK_FREENET_HOST.md.';

@@ -26,7 +26,7 @@ describe('freenetHostCapabilityFor', () => {
     expect(freenetHostCapabilityFor({ desktop: false, native: false })).toBe(null);
   });
 
-  it('is null on an APK until the Phase 3 host plugin exists', () => {
+  it('is android on an APK when the host plugin or a loopback node is present', () => {
     expect(freenetHostCapabilityFor({ desktop: false, native: true })).toBe(null);
     expect(freenetHostCapabilityFor({ desktop: false, native: true, androidHost: true })).toBe(
       'android'

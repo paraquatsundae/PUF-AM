@@ -58,6 +58,11 @@
         }
       ]
     },
+    "android-arm64": {
+      "//": "No official GitHub release asset. aarch64-unknown-linux-musl is not Android bionic (Plans/FREENET_NETWORK_PACK.md decision 4 / Phase 3). Prior art: manikmakki/freenet-android-node (AGPL JNI cdylib). Spike: scripts/build-freenet-android.mjs. Attach-if-port-taken to Freenet Android Node on 127.0.0.1:7509 is the product path until a binary exists.",
+      "status": "missing",
+      "binaries": []
+    },
     "win-x64": {
       "//": "Checksums pinned from the same release. Not yet launched on a Windows host — that lands with the NSIS build in Phase 3.",
       "status": "unverified",

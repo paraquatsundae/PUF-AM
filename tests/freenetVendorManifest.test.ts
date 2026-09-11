@@ -63,6 +63,8 @@ const NODE_PLATFORM: Record<string, { platform: string; arch: string }> = {
 };
 
 const platformTags = Object.keys(manifest.platforms);
+/** Platforms with a fetchable official asset — android-arm64 is documented as missing. */
+const fetchableTags = platformTags.filter((tag) => (manifest.platforms[tag]?.binaries.length ?? 0) > 0);
 
 describe('freenet-binaries.json', () => {
   // `pending-live-check` is the state between a pin bump and the first
@@ -85,12 +87,19 @@ describe('freenet-binaries.json', () => {
     expect(manifest.license.url).toContain(manifest.releaseTag);
   });
 
-  it.each(platformTags)('%s pins exactly the one binary the host spawns — no fdev', (tag) => {
+  it('pins android-arm64 as missing — no official GitHub Android asset', () => {
+    const row = manifest.platforms['android-arm64'];
+    expect(row).toBeDefined();
+    expect(row.status).toMatch(/^(missing|pending-build)$/);
+    expect(row.binaries).toEqual([]);
+  });
+
+  it.each(fetchableTags)('%s pins exactly the one binary the host spawns — no fdev', (tag) => {
     const names = manifest.platforms[tag]!.binaries.map((entry) => entry.name);
     expect(names).toEqual([FREENET_BINARY]);
   });
 
-  it.each(platformTags)('%s uses the file names the resolver looks for', (tag) => {
+  it.each(fetchableTags)('%s uses the file names the resolver looks for', (tag) => {
     const { platform } = NODE_PLATFORM[tag]!;
     for (const entry of manifest.platforms[tag]!.binaries) {
       expect(entry.fileName).toBe(freenetBinaryFileName(entry.name, platform));
@@ -98,7 +107,7 @@ describe('freenet-binaries.json', () => {
     }
   });
 
-  it.each(platformTags)('%s pins full SHA-256 digests for archive and binary', (tag) => {
+  it.each(fetchableTags)('%s pins full SHA-256 digests for archive and binary', (tag) => {
     for (const entry of manifest.platforms[tag]!.binaries) {
       expect(entry.assetSha256).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.sha256).toMatch(/^[0-9a-f]{64}$/);
@@ -107,8 +116,8 @@ describe('freenet-binaries.json', () => {
     }
   });
 
-  it('names only platform tags the resolver can produce', () => {
-    for (const tag of platformTags) {
+  it('names only fetchable tags the desktop resolver can produce', () => {
+    for (const tag of fetchableTags) {
       const mapped = NODE_PLATFORM[tag];
       expect(mapped, `unmapped platform tag: ${tag}`).toBeDefined();
       expect(freenetPlatformTag(mapped!.platform, mapped!.arch)).toBe(tag);
@@ -120,7 +129,7 @@ describe('vendorDirTemplate matches where the host actually searches', () => {
   // The whole point of the vendor step is beating a stray `~/.local/bin/freenet`.
   // If the fetch script writes one directory and the resolver reads another, the
   // symptom is not an error — it is silently testing the wrong binary.
-  it.each(platformTags)('%s', (tag) => {
+  it.each(fetchableTags)('%s', (tag) => {
     const { platform, arch } = NODE_PLATFORM[tag]!;
     const fromTemplate = path.posix.join(
       '/repo',

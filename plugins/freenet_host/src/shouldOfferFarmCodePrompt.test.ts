@@ -23,8 +23,12 @@ describe('shouldOfferFarmCodePrompt', () => {
     expect(shouldOfferFarmCodePrompt({ ...base, seedCloudFarmId: 'farm_abc' })).toBe(false);
   });
 
-  it('hides without an Electron host', () => {
+  it('hides without a host adapter', () => {
     expect(shouldOfferFarmCodePrompt({ ...base, capability: null })).toBe(false);
+  });
+
+  it('offers on an Android host the same as Electron', () => {
+    expect(shouldOfferFarmCodePrompt({ ...base, capability: 'android' })).toBe(true);
   });
 
   it('hides when dismissed', () => {

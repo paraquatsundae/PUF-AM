@@ -12,24 +12,33 @@
  * "is there a node anywhere this device can *reach*" — and still drives the
  * tablet reader path through a paired hub or a sideloaded node.
  *
- * Pure apart from the two shell probes; safe to call while rendering.
+ * On Capacitor, `'android'` means we have a host adapter: the Capacitor
+ * `FreenetHost` plugin, **or** a node already answering on `127.0.0.1:7509`
+ * (Freenet Android Node — attach-if-port-taken, Phase 3 product path).
+ *
+ * Pure apart from the shell probes; safe to call while rendering.
  */
 
+import { isFreenetHostPluginAvailable } from './androidFreenetHost.ts';
 import { isDesktopShell } from './desktopBridge.ts';
 import { isNativePlatform } from './freenetRuntime.ts';
+import { localFreenetNodeFound } from '../mist/freenetLocalNode.ts';
 
 export type FreenetHostCapability =
   /** Electron: `units/puf-freenet-host` behind the preload bridge (`puf-freenet:*`). */
   | 'electron'
-  /** Capacitor `FreenetHost` plugin → `:freenet` process. Phase 3; not built yet. */
+  /** Capacitor host adapter and/or a loopback node on :7509. */
   | 'android'
-  /** Hosted web, or an APK before Phase 3 — nothing here can run a node. */
+  /** Hosted web, or an APK with no plugin and nothing listening. */
   | null;
 
 export function freenetHostCapabilityFor(input: {
   desktop: boolean;
   native: boolean;
-  /** Set by the Capacitor `FreenetHost` plugin once Phase 3 lands. Always false today. */
+  /**
+   * Capacitor `FreenetHost` plugin, or a node already on this device's
+   * loopback (`localFreenetNodeFound()` after a probe).
+   */
   androidHost?: boolean;
 }): FreenetHostCapability {
   if (input.desktop) return 'electron';
@@ -37,6 +46,21 @@ export function freenetHostCapabilityFor(input: {
   return null;
 }
 
+/** Plugin registered, or the last :7509 probe said a node is here. */
+export function isAndroidFreenetHostPresent(): boolean {
+  if (!isNativePlatform()) return false;
+  return isFreenetHostPluginAvailable() || localFreenetNodeFound();
+}
+
 export function getFreenetHostCapability(): FreenetHostCapability {
-  return freenetHostCapabilityFor({ desktop: isDesktopShell(), native: isNativePlatform() });
+  return freenetHostCapabilityFor({
+    desktop: isDesktopShell(),
+    native: isNativePlatform(),
+    androidHost: isAndroidFreenetHostPresent(),
+  });
+}
+
+/** Electron and Android both own a host adapter and may start a node. */
+export function freenetHostCapabilityCanRun(capability: FreenetHostCapability): boolean {
+  return capability === 'electron' || capability === 'android';
 }

@@ -54,9 +54,8 @@ export function freenetOptionState(input: {
    */
   workshopHub?: boolean;
   /**
-   * Capacitor APK. It cannot host a node until Phase 3, but with the mist gate
-   * open it reads a Freenet farm through a paired laptop hub or a sideloaded
-   * node (`Plans/reference/APK_FREENET_PLUGIN.md` §7), so the option stays.
+   * Capacitor APK. With the mist gate open it still offers Freenet: attach to
+   * Freenet Android Node on :7509 (Phase 3) or read through a paired hub.
    */
   nativeReader?: boolean;
 }): FreenetOptionState {

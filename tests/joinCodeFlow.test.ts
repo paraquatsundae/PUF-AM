@@ -96,6 +96,12 @@ describe('freenetJoinAvailability', () => {
     ).toBe('host');
   });
 
+  it('is host on Android once a node can attach', () => {
+    expect(
+      freenetJoinAvailability({ capability: 'android', native: true, workshopHub: false }),
+    ).toBe('host');
+  });
+
   it('is host on the workshop hub', () => {
     expect(freenetJoinAvailability({ capability: null, native: false, workshopHub: true })).toBe(
       'host',

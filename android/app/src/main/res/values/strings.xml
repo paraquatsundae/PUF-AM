@@ -4,4 +4,8 @@
     <string name="title_activity_main">PUF-Ag Manager</string>
     <string name="package_name">com.sentinut.farm</string>
     <string name="custom_url_scheme">com.sentinut.farm</string>
+    <string name="freenet_host_notification_title">PUF-AM Freenet</string>
+    <string name="freenet_host_notification_text">Freenet node is running on this tablet</string>
+    <string name="freenet_host_channel_name">Freenet</string>
+    <string name="freenet_host_channel_desc">Keeps the Freenet node awake in the background</string>
 </resources>

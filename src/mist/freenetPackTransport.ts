@@ -8,7 +8,7 @@
  *
  * | Implementation | Who moves the bytes | Chosen when |
  * |----------------|---------------------|-------------|
- * | `freenetHostTransport.ts` | renderer → preload IPC → `desktop/main.ts` → `FreenetHostPlugin` | `getFreenetHostCapability() === 'electron'` and the bridge has the data members |
+ * | `freenetHostTransport.ts` | renderer → host adapter (Electron IPC, or Android attach + page WS) | capability `'electron'` or `'android'` and the bridge has the data members |
  * | `freenetRelayTransport.ts` | HTTP to `/api/mist/freenet/*` on a hub | anything else — workshop `npm run dev`, a tablet paired to a hub |
  *
  * The local-node-first read path on Capacitor (`freenetLocalNode.ts`) is layered
@@ -134,5 +134,8 @@ export function selectFreenetTransportKind(input: {
   capability: FreenetHostCapability;
   bridgeHasDataPath: boolean;
 }): FreenetTransportKind {
-  return input.capability === 'electron' && input.bridgeHasDataPath ? 'host' : 'relay';
+  return (input.capability === 'electron' || input.capability === 'android') &&
+    input.bridgeHasDataPath
+    ? 'host'
+    : 'relay';
 }

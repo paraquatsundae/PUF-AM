@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PufomNsdPlugin.class);
+        registerPlugin(FreenetHostPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

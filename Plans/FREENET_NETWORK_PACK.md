@@ -94,7 +94,7 @@ Sibling of `CROP_PACK_PLUGIN.md`. Same discovery (`plugins/freenet_host/plugin.j
 | Shell | Adapter | State today |
 |-------|---------|-------------|
 | Electron | `units/puf-freenet-host` via `desktop/main.ts` `createFreenetHost` + preload IPC | exists; `putCiphertext`/`getCiphertext` wired but never called |
-| Android | Capacitor `FreenetHost` plugin → `:freenet` process (`APK_FREENET_HOST.md` Phases 2–3) | not built |
+| Android | Capacitor `FreenetHost` plugin → attach to `:7509` (Freenet Android Node) or `:freenet` process (`APK_FREENET_HOST.md` Phases 2–3) | seam built 2026-09-11; in-APK binary still missing |
 | Web | `null` → pack tile reads *not available on this device*; login option hidden | today shows the option and cannot use it |
 | LAN hub (Express on desktop) | not an adapter — relay only, for paired tablets without a node; goes away for a tablet once Phase 3 lands | exists |
 
@@ -145,11 +145,11 @@ Sibling of `CROP_PACK_PLUGIN.md`. Same discovery (`plugins/freenet_host/plugin.j
 
 ### Phase 3 — Android host (absorbs `APK_FREENET_HOST.md` Phases 2–5)
 
-- [ ] aarch64 `libfreenet.so` build chain for the pinned version; `android-arm64` entry in `freenet-binaries.json`; AGPL kept at the process boundary (separate process, no linkage into the WebView process).
-- [ ] `:freenet` process with foreground service, loopback WS `127.0.0.1:7509`, attach-if-port-taken; Capacitor `FreenetHost` plugin implementing the same `FreenetHostPlugin` shape.
+- [ ] aarch64 `libfreenet.so` build chain for the pinned version; `android-arm64` entry in `freenet-binaries.json` is **`missing`** (no official GitHub asset; spike `scripts/build-freenet-android.mjs` exits 2 without NDK). AGPL kept at the process boundary (separate process, no linkage into the WebView process).
+- [x] Capacitor `FreenetHost` plugin (`start` / `stop` / `status` / `attach`) + isolated `:freenet` foreground service that compiles and reports `failed` / `no android-arm64 binary` rather than crashing. **Product path 2026-09-11:** attach-if-port-taken to Freenet Android Node on `127.0.0.1:7509` — capability `'android'`, WebView `BrowserFreenetPutClient` PUT/slot, Send lifted. Our process is not required for attach.
 - [ ] Freenet APK flavour (`build-android-web.mjs`); size budget recorded; Doze/battery behaviour measured on the SM-T545.
-- [ ] Lift `detectFreenetReadOnly` when a host adapter reports `running`; tablet-minted tickets appear in the local People list; operator copy replaces `FREENET_NO_HOST_LABEL`.
-- Exit: two fresh tablet installs, no laptop, no second app: enable pack, create → Send → join → see data.
+- [x] Lift `detectFreenetReadOnly` / `freenetIsReadOnlyHere` when `:7509` answers (`localFreenetNodeFound` / host `attached`). `FREENET_NO_HOST_LABEL` only when nothing is listening. Tablet-minted People rows and two-tablet-no-laptop still wait on a real in-APK binary (or a pair of tablets each running Freenet Android Node — not ticked here).
+- Exit: two fresh tablet installs, no laptop, no second app: enable pack, create → Send → join → see data. **Blocked on an android-arm64 binary** for the no-second-app half. Attach + Send through Freenet Android Node is the hardware path until then.
 
 ### Phase 4 — two-terminal acceptance
 

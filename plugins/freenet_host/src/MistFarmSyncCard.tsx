@@ -239,10 +239,8 @@ export function MistFarmSyncCard() {
   const hasNode = canReachFreenetNode(runtime);
 
   /**
-   * A Freenet node on this tablet can fetch a farm but not publish one: the
-   * page's publish path goes through a host's Express, which a tablet does not
-   * have. Sending stays available when a hub is also paired, because that
-   * laptop can still do it.
+   * Read-only only when a local node answers GETs but we cannot PUT. Phase 3
+   * lifts that once :7509 is attached — Send goes through the page's WS client.
    */
   const readOnly = detectFreenetReadOnly(runtime);
 
@@ -284,10 +282,9 @@ export function MistFarmSyncCard() {
   const [unlocked, setUnlocked] = useState(() => isMistHotMirrorAvailable());
 
   const refreshStatus = useCallback(async () => {
-    // There is no Freenet API to poll on an APK with no hub, and a failed fetch
-    // would only overwrite the honest label with a generic disconnected one. The
-    // same goes for a tablet reading off its own node: peer status is a hub's
-    // notion, and this device is not asking a hub for anything.
+    // No Freenet API to poll on an APK with no hub and no attached node. A
+    // failed fetch would overwrite the honest label. Once attached, the host
+    // transport answers peer status from :7509.
     if (!hasNode || readOnly) return;
     try {
       setPeerStatus(await fetchFreenetPeerStatus());

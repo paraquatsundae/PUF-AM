@@ -106,6 +106,7 @@ Related plans (not duplicated here):
 | `PUF_FREENET_BIN` | Desktop / server | Workshop override for the `freenet` binary — outranks bundled and `PATH` |
 | `FREENET_WS_URL` / `FREENET_WS_AUTH` | Server / desktop main | The node's WS API endpoint and optional token; the same socket carries GET and PUT. Desktop main sets `FREENET_WS_URL` from the host it started (`freenetHostEnv`) |
 | `FREENET_WS_PORT` | Desktop main | Port the bundled node binds; default 7509, moved to spawn beside a workshop node |
+| Capacitor plugin `FreenetHost` | Android | Lifecycle only (`start` / `stop` / `status` / `attach`). Process `:freenet`, hostId `puf-freenet-host-android`. PUT/GET stay in the WebView on `ws://127.0.0.1:7509`. Added 2026-09-11 |
 | `FREENET_PACK_WASM` / `FREENET_SLOT_WASM` | Server / desktop main | Paths to the pinned contract WASMs the native PUT clients read; set by desktop main because a bundled CJS main cannot derive them from `import.meta.url` |
 | ~~`FREENET_TRANSPORT`~~, ~~`FDEV_BIN`~~, ~~`PUF_FDEV_BIN`~~, ~~`FREENET_FCP_HOST`~~, ~~`FREENET_FCP_PORT`~~ | — | **Removed 2026-09-11** (`FREENET_NETWORK_PACK.md` Phase 2). There is one wire, so no transport selector; PUT is the app's own WS client, so no `fdev`; the Hyphanet FCP backend is deleted. Setting any of them does nothing |
 | `PUF_CLOUD_API_BASE` | Desktop main | Override for cloud-only routes (`/api/auth/*`, `/api/weather/*`); default `https://am.pufworks.farm` |
