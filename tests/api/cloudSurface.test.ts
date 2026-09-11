@@ -119,10 +119,13 @@ describe('cloud API surface', () => {
       expect(res.status).not.toBe(404);
     });
 
-    it('the tile proxy is registered', async () => {
-      // Bad coordinates, so this asserts routing without reaching Landgate.
+    it('the tile proxy exists and refuses an anonymous caller', async () => {
+      // 401 or 503, never 200 JPEG and never 404: the route has to exist to
+      // refuse anyone. 400 (bad zoom) would mean the gate was skipped.
       const res = await fetch(`${baseUrl}/api/tiles/99/0/0`);
-      expect(res.status).toBe(400);
+      expect(res.status).not.toBe(404);
+      expect(res.status).not.toBe(200);
+      expect([401, 403, 429, 503]).toContain(res.status);
     });
   });
 });
@@ -146,6 +149,13 @@ describe('hub API surface', () => {
   it('still serves mDNS self-description', async () => {
     const res = await fetch(`${baseUrl}/api/sync/self`);
     expect(res.status).toBe(200);
+  });
+
+  it('still serves tiles without a Firebase token', async () => {
+    // Hub / desktop: Leaflet `<img src>` and no Admin SDK. Bad coordinates so
+    // this asserts the open gate without reaching Landgate.
+    const res = await fetch(`${baseUrl}/api/tiles/99/0/0`);
+    expect(res.status).toBe(400);
   });
 
   it('still serves the sealed mist shelf', async () => {

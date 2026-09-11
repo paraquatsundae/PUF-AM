@@ -23,6 +23,7 @@ import type { Express, Request, Response } from 'express';
 
 import { rateLimit } from './accessPinAuth.ts';
 import { clientIp } from './clientIp.ts';
+import { requireTileCaller } from './requireTileCaller.ts';
 
 /** Half the Web Mercator circumference, in metres. The bbox edge at z0. */
 const WEB_MERCATOR_HALF = 20_037_508.342_789_244;
@@ -67,11 +68,11 @@ const MAX_UPSTREAM_CONCURRENCY = 3;
  * exists to serve. What is left catches sustained scraping — someone walking
  * the zoom range of the whole state — rather than anyone using the app.
  *
- * This is not a cost control. Cloud Run is capped at three instances and
- * Landgate SLIP is free and unkeyed, so the spend does not run away on its own.
- * It is here so one address cannot sit on the shared upstream slots above
- * indefinitely, and so our traffic to a free government service stays
- * attributable and bounded per source.
+ * On Cloud Run this sits behind a Firebase ID token (`requireTileCaller`), so
+ * it is no longer the only control — it is the leftover bound on a member who
+ * is already signed in. Hub / desktop copies of the route stay open (Leaflet
+ * `<img src>` cannot carry a header; a packaged laptop has no Admin SDK) and
+ * this ceiling is what they have.
  */
 const TILE_MAX_UPSTREAM_PER_IP = 25_000;
 const TILE_WINDOW_MS = 60 * 60 * 1000;
@@ -298,8 +299,24 @@ async function fetchTile(z: number, x: number, y: number): Promise<CachedTile> {
   }
 }
 
-export function registerTileProxyRoutes(app: Express): void {
+export type TileProxyOptions = {
+  /**
+   * Cloud Run / the public API. Hub and desktop leave this off: they render
+   * tiles for the shed Wi-Fi and the loopback renderer, neither of which can
+   * put a Firebase bearer on an `<img src>`.
+   */
+  requireAuth?: boolean;
+};
+
+export function registerTileProxyRoutes(app: Express, opts: TileProxyOptions = {}): void {
+  const requireAuth = opts.requireAuth === true;
+
   app.get('/api/tiles/:z/:x/:y', async (req: Request, res: Response) => {
+    if (requireAuth) {
+      const caller = await requireTileCaller(req, res);
+      if (!caller) return;
+    }
+
     const parsed = parseTileCoords(
       String(req.params.z),
       String(req.params.x),
@@ -316,7 +333,16 @@ export function registerTileProxyRoutes(app: Express): void {
       res.setHeader('Content-Type', cached.contentType);
       // Imagery for a fixed tile does not change between captures, and a capture
       // is a yearly event. The client also keeps its own IndexedDB copy.
-      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+      // `private` when the route is authed so a shared cache (Firebase Hosting
+      // CDN, a reverse proxy) cannot serve a JPEG to a caller who never
+      // presented a token. Hub tiles stay `public` — they are already on a
+      // private network and the renderer is an `<img>`.
+      res.setHeader(
+        'Cache-Control',
+        requireAuth
+          ? 'private, max-age=2592000, immutable'
+          : 'public, max-age=2592000, immutable'
+      );
       res.setHeader('X-Tile-Cache', 'hit');
       return res.send(cached.body);
     }
@@ -339,7 +365,12 @@ export function registerTileProxyRoutes(app: Express): void {
       const tile = await pending;
       cachePut(key, tile);
       res.setHeader('Content-Type', tile.contentType);
-      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+      res.setHeader(
+        'Cache-Control',
+        requireAuth
+          ? 'private, max-age=2592000, immutable'
+          : 'public, max-age=2592000, immutable'
+      );
       res.setHeader('X-Tile-Cache', 'miss');
       return res.send(tile.body);
     } catch (error: unknown) {

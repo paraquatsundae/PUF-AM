@@ -24,9 +24,10 @@ let runtimeApiBase: string | null = null;
  *
  * Imagery is deliberately **not** in this list. The desktop ships its own copy of
  * the tile proxy, so it renders its own tiles and is its own consumer of the
- * imagery provider — see `hubServesTiles()`. `/api/tiles/` is exempt from the
- * loopback token in `desktop/loopbackAuth.ts`, because Leaflet fetches tiles as
- * `<img src>` and an image element cannot carry a header.
+ * imagery provider — see `hubServesTiles()`. Cloud Run `/api/tiles/` *does*
+ * require a Firebase bearer (see `cloudAuthHeaders`); the loopback and LAN
+ * guards still exempt the path because a hub has no Admin SDK and Leaflet on
+ * the shed Wi-Fi still fetches tiles as `<img src>`.
  */
 const DESKTOP_CLOUD_ONLY_PREFIXES = ['/api/auth/', '/api/weather/', '/api/admin/'];
 
@@ -266,12 +267,21 @@ function isCloudTokenOrigin(url: string): boolean {
 }
 
 /**
- * The bearer for the cloud-only families. Those routes spend a server-held
- * secret — the DPIRD key, an Admin SDK write — rather than acting on one farm's
- * own data, so the server verifies a Firebase ID token before running them.
+ * Paths that take a Firebase ID token when the request is aimed at a cloud
+ * origin. `/api/tiles/` is here even though it is *not* in
+ * `DESKTOP_CLOUD_ONLY_PREFIXES`: the desktop still serves tiles itself, but
+ * Cloud Run will not, and a tablet that falls back to `am.pufworks.farm` has
+ * to send the same bearer the weather family already does.
+ */
+const CLOUD_BEARER_PREFIXES = [...DESKTOP_CLOUD_ONLY_PREFIXES, '/api/tiles/'];
+
+/**
+ * The bearer for the cloud-only families, and for Cloud Run imagery.
  *
- * Attached centrally for the same reason the hub token is: a weather route
- * added later is authorised without anyone remembering to.
+ * Weather and admin spend a server-held secret; tiles spend this project's
+ * Cloud Run budget. Both verify a Firebase ID token before running. Attached
+ * centrally for the same reason the hub token is: a route added later is
+ * authorised without anyone remembering to.
  */
 async function cloudAuthHeaders(
   url: string,
@@ -280,7 +290,7 @@ async function cloudAuthHeaders(
   if (!idTokenProvider || callerSetAuth) return {};
 
   const path = requestPath(url);
-  const cloudFamily = DESKTOP_CLOUD_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix));
+  const cloudFamily = CLOUD_BEARER_PREFIXES.some((prefix) => path.startsWith(prefix));
   const byoWeather = isUrlUnderByoWeatherEndpoint(url);
   if (!cloudFamily && !byoWeather) return {};
   if (!byoWeather && !isCloudTokenOrigin(url)) return {};
