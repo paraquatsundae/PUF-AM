@@ -14,6 +14,7 @@ import {
 import { syncOrchardMapLayers } from '../lib/orchardMapLayerSync';
 import type { LayerMapEntry } from '../lib/orchardMapDrawCreated';
 import type { FarmTrack, InfrastructurePin, OrchardBlock } from '../lib/mapStore';
+import { getCurrentDrawHandler, subscribeDrawHandlerChange } from '../lib/mapDrawHelpers';
 
 export function useOrchardMapLayers({
   mapInstance,
@@ -49,6 +50,13 @@ export function useOrchardMapLayers({
   blockAnalytics: Record<string, BlockAnalyticsRow>;
 }) {
   const [forceRender, setForceRender] = useState(0);
+  const [drawingActive, setDrawingActive] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setDrawingActive(Boolean(getCurrentDrawHandler()?._enabled));
+    sync();
+    return subscribeDrawHandlerChange(sync);
+  }, []);
 
   // Pattern defs must outlive React commits (see ensureInfraFillPatterns).
   useEffect(() => {
@@ -98,6 +106,7 @@ export function useOrchardMapLayers({
       mapMode,
       activeTab,
       internalBoundaryDrawing,
+      drawingActive,
     });
   }, [
     mapMode,
@@ -107,6 +116,7 @@ export function useOrchardMapLayers({
     tracks,
     isLoaded,
     internalBoundaryDrawing,
+    drawingActive,
     mapInstance,
     highlightedBlockId,
     featureGroupRef,

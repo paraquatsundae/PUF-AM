@@ -8,6 +8,7 @@ import L from '../lib/leaflet-setup';
 import {
   cancelActiveDrawer,
   clearDrawUiIgnoreWindow,
+  getCurrentDrawHandler,
   reviveActiveDrawer,
   startActiveDrawer,
   type LeafletDrawHandler,
@@ -263,50 +264,34 @@ export function useOrchardMapDraw({
     [mapInstance, canEdit, mapMode, clearInternalBoundaryDraw]
   );
 
-  // Workflow: Add hazard → zoom → place point. Zoom/pinch must not leave the drawer
-  // ignoring taps. Revive the same handler (keeps vertices); only recreate if missing.
+  // Paddock / track / pad draw: pan or pinch must not leave leaflet-draw ignoring
+  // the next tap. Revive the same handler (keeps vertices). Do not recreate.
   useEffect(() => {
-    if (!mapInstance || !internalBoundaryDrawing || mapMode !== 'edit' || !canEdit) return;
+    if (!mapInstance || mapMode !== 'edit' || !canEdit) return;
 
     const revive = () => {
-      if (!internalBoundaryDrawRef.current) return;
+      const drawer = activeDrawerRef.current || getCurrentDrawHandler();
+      if (!drawer?._enabled) return;
+      if (!activeDrawerRef.current) activeDrawerRef.current = drawer;
       clearDrawUiIgnoreWindow();
-      if (reviveActiveDrawer(activeDrawerRef)) return;
-      if (!(L as any).Draw) return;
-      const { kind } = internalBoundaryDrawRef.current;
-      const polyStyle = infraPolygonPathStyle(kind);
-      try {
-        startActiveDrawer(
-          activeDrawerRef,
-          new (L as any).Draw.Polygon(mapInstance, {
-            shapeOptions: {
-              color: polyStyle.color,
-              fillColor: polyStyle.fillColor,
-              fillOpacity: polyStyle.fillOpacity,
-              weight: polyStyle.weight,
-              className: polyStyle.className,
-              dashArray: polyStyle.dashArray,
-            },
-          })
-        );
-      } catch (err) {
-        console.warn('[OrchardMap] Failed to restore internal boundary draw after zoom', err);
-      }
+      reviveActiveDrawer(activeDrawerRef);
     };
 
-    // Only on zoom — dragend keeps a short ignore window so pan doesn't drop a ghost point.
     mapInstance.on('zoomend', revive);
-    const onZoomEndDelayed = () => {
+    mapInstance.on('dragend', revive);
+    const delayed = () => {
       window.setTimeout(revive, 50);
-      window.setTimeout(revive, 250);
     };
-    mapInstance.on('zoomend', onZoomEndDelayed);
+    mapInstance.on('zoomend', delayed);
+    mapInstance.on('dragend', delayed);
 
     return () => {
       mapInstance.off('zoomend', revive);
-      mapInstance.off('zoomend', onZoomEndDelayed);
+      mapInstance.off('dragend', revive);
+      mapInstance.off('zoomend', delayed);
+      mapInstance.off('dragend', delayed);
     };
-  }, [mapInstance, internalBoundaryDrawing, mapMode, canEdit]);
+  }, [mapInstance, mapMode, canEdit]);
 
   // Phase 5.1: Quick Add Tool Trigger
   const handleQuickAdd = useCallback(() => {

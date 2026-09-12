@@ -9,6 +9,21 @@
  */
 
 import L from './leaflet-window';
+import {
+  clearDrawUiIgnore,
+  clearStickyDrawFlags,
+  consumeSkipSyntheticMouse,
+  isDrawUiIgnoreActive,
+  markDrawUiIgnore,
+  prepareDrawHandlerAfterMapGesture,
+} from './mapDrawClickGate';
+
+export {
+  consumeSkipSyntheticMouse,
+  prepareDrawHandlerAfterMapGesture,
+  resetDrawClickGate,
+  shouldAcceptDrawVertexAfterMapMove,
+} from './mapDrawClickGate';
 
 export type LeafletDrawHandler = {
   enable: () => void;
@@ -32,7 +47,6 @@ export type LeafletDrawHandler = {
 
 /** Most recently enabled polyline/polygon drawer (EditControl or Quick Add). */
 let currentDrawHandler: LeafletDrawHandler | null = null;
-let drawUiIgnoreUntil = 0;
 let patched = false;
 const drawHandlerListeners = new Set<() => void>();
 
@@ -68,11 +82,9 @@ export function getCurrentDrawHandler(): LeafletDrawHandler | null {
 
 /** Call when the user taps draw UI (toolbar / our action bar) — blocks map vertex for a beat. */
 export function markDrawUiInteraction(map?: { _container?: HTMLElement } | null): void {
-  drawUiIgnoreUntil = Date.now() + 600;
-  if (map && '_pufomIgnoreDrawUntil' in (map as object)) {
-    (map as { _pufomIgnoreDrawUntil: number })._pufomIgnoreDrawUntil = drawUiIgnoreUntil;
-  } else if (map) {
-    (map as { _pufomIgnoreDrawUntil: number })._pufomIgnoreDrawUntil = drawUiIgnoreUntil;
+  markDrawUiIgnore();
+  if (map) {
+    (map as { _pufomIgnoreDrawUntil: number })._pufomIgnoreDrawUntil = Date.now() + 600;
   }
 }
 
@@ -146,16 +158,15 @@ export function shouldIgnoreMapDrawInput(
   e: { originalEvent?: Event; target?: EventTarget | null; clientX?: number; clientY?: number },
   handler?: LeafletDrawHandler | null
 ): boolean {
-  if (Date.now() < drawUiIgnoreUntil) return true;
+  if (isDrawUiIgnoreActive()) return true;
   if (handler?._pufomPanning) return true;
   return touchTargetIsDrawUi(e);
 }
 
 /** Allow tap-to-vertex immediately after zoom (clears pan-swallow window). */
 export function clearDrawUiIgnoreWindow(): void {
-  drawUiIgnoreUntil = 0;
-  const h = currentDrawHandler;
-  if (h) h._pufomPanning = false;
+  clearDrawUiIgnore();
+  clearStickyDrawFlags(currentDrawHandler);
 }
 
 function attachPanGuards(handler: LeafletDrawHandler): void {
@@ -163,31 +174,24 @@ function attachPanGuards(handler: LeafletDrawHandler): void {
   if (!map || handler._pufomPanGuards) return;
   handler._pufomPanGuards = true;
 
-  const onDragStart = () => {
+  const onGestureStart = () => {
     handler._pufomPanning = true;
-    markDrawUiInteraction(map as { _container?: HTMLElement });
   };
-  const onDragEnd = () => {
-    handler._pufomPanning = false;
-    // Swallow the trailing click/mouseup that often follows a pan on Android.
-    drawUiIgnoreUntil = Date.now() + 450;
-    markDrawUiInteraction(map as { _container?: HTMLElement });
-  };
-  // Zoom must not look like pan — clear flags and allow immediate tap-to-vertex.
-  const onZoomEnd = () => {
-    handler._pufomPanning = false;
-    drawUiIgnoreUntil = 0;
+  const onGestureEnd = () => {
+    prepareDrawHandlerAfterMapGesture(handler);
   };
 
-  map.on('dragstart', onDragStart);
-  map.on('dragend', onDragEnd);
-  map.on('zoomstart', onZoomEnd);
-  map.on('zoomend', onZoomEnd);
+  map.on('dragstart', onGestureStart);
+  map.on('zoomstart', onGestureStart);
+  map.on('dragend', onGestureEnd);
+  map.on('zoomend', onGestureEnd);
+  map.on('moveend', onGestureEnd);
   handler._pufomRemovePanGuards = () => {
-    map.off('dragstart', onDragStart);
-    map.off('dragend', onDragEnd);
-    map.off('zoomstart', onZoomEnd);
-    map.off('zoomend', onZoomEnd);
+    map.off('dragstart', onGestureStart);
+    map.off('zoomstart', onGestureStart);
+    map.off('dragend', onGestureEnd);
+    map.off('zoomend', onGestureEnd);
+    map.off('moveend', onGestureEnd);
     handler._pufomPanGuards = false;
     handler._pufomRemovePanGuards = undefined;
   };
@@ -315,15 +319,14 @@ export function patchLeafletDrawTouchGuards(): void {
       e: unknown
     ) {
       if (
-        this._pufomPanning ||
-        Date.now() < drawUiIgnoreUntil ||
         shouldIgnoreMapDrawInput(
           (e as { originalEvent?: Event }) || { clientX: x, clientY: y },
           this
         ) ||
-        pointHitsDrawUi(x, y)
+        pointHitsDrawUi(x, y) ||
+        consumeSkipSyntheticMouse()
       ) {
-        (this as { _mouseDownOrigin?: unknown })._mouseDownOrigin = null;
+        clearStickyDrawFlags(this);
         return;
       }
       return endPoint.call(this, x, y, e);
@@ -340,18 +343,22 @@ export function patchLeafletDrawTouchGuards(): void {
     const oe = e.originalEvent;
     // Pinch / two-finger zoom — never start a vertex gesture.
     if ((oe?.touches?.length ?? 0) > 1 || (oe?.targetTouches?.length ?? 0) > 1) {
-      this._pufomPanning = false;
+      this._pufomPanning = true;
       (this as { _touchHandled?: unknown })._touchHandled = null;
       return;
     }
     const touch0 = oe?.touches?.[0];
+    if (this._touchHandled) return;
+    // Leaflet-draw mouse path can leave these set after a pan/pinch mouseup we
+    // ignored. Do not drop this tap — that is the field “next point will not click” bug.
     if (
-      !oe ||
-      !touch0 ||
-      this._clickHandled ||
-      this._touchHandled ||
-      this._disableMarkers
+      (this._clickHandled || this._disableMarkers) &&
+      !isDrawUiIgnoreActive() &&
+      !this._pufomPanning
     ) {
+      clearStickyDrawFlags(this);
+    }
+    if (!oe || !touch0 || this._clickHandled || this._disableMarkers) {
       return;
     }
 
@@ -388,17 +395,12 @@ export function patchLeafletDrawTouchGuards(): void {
       if (
         isPan ||
         this._pufomPanning ||
-        Date.now() < drawUiIgnoreUntil ||
+        isDrawUiIgnoreActive() ||
         pointHitsDrawUi(endX, endY) ||
         Math.abs(endX - startX) > TAP_SLOP_PX ||
         Math.abs(endY - startY) > TAP_SLOP_PX
       ) {
-        this._pufomPanning = false;
-        (this as { _mouseDownOrigin?: unknown })._mouseDownOrigin = null;
-        (this as { _clickHandled?: unknown })._clickHandled = null;
-        (this as { _touchHandled?: unknown })._touchHandled = null;
-        // Swallow synthetic mouseup after a pan
-        drawUiIgnoreUntil = Date.now() + 450;
+        prepareDrawHandlerAfterMapGesture(this);
         return;
       }
 
@@ -426,8 +428,8 @@ export function patchLeafletDrawTouchGuards(): void {
           latlng,
           originalEvent: ev,
         });
-        // Brief ignore so trailing mouseup cannot double-place
-        drawUiIgnoreUntil = Date.now() + 300;
+        // Brief UI ignore so trailing mouseup cannot double-place
+        markDrawUiIgnore(Date.now(), 300);
       } finally {
         (this as { _touchHandled?: unknown })._touchHandled = null;
         (this as { _clickHandled?: unknown })._clickHandled = null;
@@ -441,12 +443,15 @@ export function patchLeafletDrawTouchGuards(): void {
     document.addEventListener('touchcancel', onEnd, true);
   };
 
-  // Mouse-up path — skip after UI taps / pans
+  // Mouse-up path — skip after UI taps / pans / synthesized post-gesture click
   const origOnMouseUp = proto._onMouseUp as ((this: LeafletDrawHandler, e: unknown) => void) | undefined;
   if (typeof origOnMouseUp === 'function') {
     proto._onMouseUp = function (this: LeafletDrawHandler, e: unknown) {
-      if (shouldIgnoreMapDrawInput(e as { originalEvent?: Event }, this)) {
-        (this as { _mouseDownOrigin?: unknown })._mouseDownOrigin = null;
+      if (
+        shouldIgnoreMapDrawInput(e as { originalEvent?: Event }, this) ||
+        consumeSkipSyntheticMouse()
+      ) {
+        clearStickyDrawFlags(this);
         return;
       }
       return origOnMouseUp.call(this, e);
@@ -458,7 +463,13 @@ export function patchLeafletDrawTouchGuards(): void {
     | undefined;
   if (typeof origOnMouseDown === 'function') {
     proto._onMouseDown = function (this: LeafletDrawHandler, e: unknown) {
-      if (shouldIgnoreMapDrawInput(e as { originalEvent?: Event }, this)) return;
+      if (
+        shouldIgnoreMapDrawInput(e as { originalEvent?: Event }, this) ||
+        consumeSkipSyntheticMouse()
+      ) {
+        clearStickyDrawFlags(this);
+        return;
+      }
       return origOnMouseDown.call(this, e);
     };
   }
@@ -496,21 +507,11 @@ export function startActiveDrawer(
 export function reviveActiveDrawer(ref: {
   current: LeafletDrawHandler | null;
 }): boolean {
-  drawUiIgnoreUntil = 0;
+  clearDrawUiIgnore();
   const drawer = ref.current;
   if (!drawer) return false;
 
-  const sticky = drawer as LeafletDrawHandler & {
-    _touchHandled?: unknown;
-    _clickHandled?: unknown;
-    _mouseDownOrigin?: unknown;
-    _disableMarkers?: boolean;
-  };
-  sticky._pufomPanning = false;
-  sticky._touchHandled = null;
-  sticky._clickHandled = null;
-  sticky._mouseDownOrigin = null;
-  if (sticky._disableMarkers) sticky._disableMarkers = false;
+  prepareDrawHandlerAfterMapGesture(drawer);
 
   try {
     if (!drawer._enabled) {

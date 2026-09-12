@@ -1,10 +1,14 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   drawHandlerCanFinish,
   drawHandlerIsPolygon,
   drawHandlerMarkerCount,
   pointHitsDrawUi,
+  consumeSkipSyntheticMouse,
+  prepareDrawHandlerAfterMapGesture,
+  resetDrawClickGate,
+  shouldAcceptDrawVertexAfterMapMove,
   shouldIgnoreMapDrawInput,
   type LeafletDrawHandler,
 } from '../src/lib/mapDrawHelpers';
@@ -16,6 +20,11 @@ import {
 } from '../src/lib/trackMapStyles';
 
 describe('mapDrawHelpers', () => {
+  beforeEach(() => {
+    resetDrawClickGate();
+    document.body.innerHTML = '';
+  });
+
   it('counts markers on a draw handler', () => {
     const empty: LeafletDrawHandler = { enable() {}, disable() {}, _markers: [] };
     const withPts: LeafletDrawHandler = {
@@ -108,5 +117,34 @@ describe('mapDrawHelpers', () => {
     expect(shouldIgnoreMapDrawInput({ target: btn, originalEvent: { target: btn } as unknown as Event })).toBe(
       true
     );
+  });
+
+  it('after map move, the next tap is accepted (sticky flags and pan-swallow clear)', () => {
+    const handler = {
+      enable() {},
+      disable() {},
+      _pufomPanning: true,
+      _clickHandled: true,
+      _touchHandled: true,
+      _disableMarkers: true,
+    } as LeafletDrawHandler & {
+      _clickHandled?: unknown;
+      _touchHandled?: unknown;
+      _disableMarkers?: boolean;
+    };
+    prepareDrawHandlerAfterMapGesture(handler);
+    expect(handler._pufomPanning).toBe(false);
+    expect(handler._clickHandled).toBeNull();
+    expect(handler._touchHandled).toBeNull();
+    expect(handler._disableMarkers).toBe(false);
+    expect(shouldIgnoreMapDrawInput({ target: document.body }, handler)).toBe(false);
+    expect(shouldAcceptDrawVertexAfterMapMove(handler)).toBe(true);
+  });
+
+  it('after map move, only the synthesized mouse click is skipped once', () => {
+    prepareDrawHandlerAfterMapGesture({});
+    expect(consumeSkipSyntheticMouse()).toBe(true);
+    expect(consumeSkipSyntheticMouse()).toBe(false);
+    expect(shouldIgnoreMapDrawInput({ target: document.body })).toBe(false);
   });
 });

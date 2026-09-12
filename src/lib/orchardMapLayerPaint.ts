@@ -21,6 +21,7 @@ export function applyDrawPassThrough({
   mapMode,
   activeTab,
   internalBoundaryDrawing,
+  drawingActive,
 }: {
   featureGroup: any;
   layerMap: Record<number, LayerMapEntry>;
@@ -28,11 +29,14 @@ export function applyDrawPassThrough({
   mapMode: MapMode;
   activeTab: MapSubTab;
   internalBoundaryDrawing: unknown;
+  /** Quick-add paddock / track / infra polygon — same steal-tap problem as internal draw. */
+  drawingActive?: boolean;
 }): () => void {
   const passBlocksThrough =
     mapMode === 'edit' &&
     ((activeTab !== 'blocks' && activeTab !== 'analytics') ||
-      Boolean(internalBoundaryDrawing));
+      Boolean(internalBoundaryDrawing) ||
+      Boolean(drawingActive));
   const passTracksThrough =
     mapMode === 'edit' && activeTab !== 'tracks';
 
