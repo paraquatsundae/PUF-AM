@@ -1,10 +1,10 @@
 # Login — single-box join
 
-**Status:** Design accepted 2026-09-11 — **FarmCode-first**. Building.
+**Status:** Design accepted 2026-09-11 — **FarmCode-first** for the single box (ticket held, never merged). **Crew join superseded 2026-09-12** — Decision below; FarmSeed stays on owner devices. The new unwrap is **not** being built.
 **Experimental — not production** where it touches Freenet; the cloud invite-PIN path is the shipping path and is simplified, not changed in meaning.
 **Product:** PUF-AM · **Scope:** one "Join a farm" entry point at `/login` that classifies whatever code the user was handed (cloud invite PIN, FarmCode, `PUF-` join ticket), asks for the second Freenet piece only when needed, and lets the network pack start the node — without weakening hole 2 (FarmCode and ticket stay separate) or decision 5 (hosted web hides Freenet).
 
-Related: [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md) · [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §1, §4, §8 · [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) §2 decisions 5–7 · [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) · [`NAMING.md`](NAMING.md) §5, §7
+Related: [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md) · [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §1, §4, §8 · [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) §2 decisions 5–7 and **Decision — 2026-09-12** · [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) · [`NAMING.md`](NAMING.md) §5, §7
 
 Requested by George, 2026-09-11: "the join farm should be a single button, then an entry of an invite code (freenet or cloud hosted) should be able to be entered into a single box. the system should then be able to determine if its a freenet farm or a cloud farm, logging in and starting the dependencies required."
 
@@ -13,6 +13,8 @@ Requested by George, 2026-09-11: "the join farm should be a single button, then 
 **Decision — 2026-09-11 (A).** An APK with the mist gate shut still **opens the reader path** when a FarmCode is typed (`setFarmStoreBackend('mist')`). That is the documented tablet reader path, not a decision-5 breach (decision 5 is hosted web).
 
 **Decision — 2026-09-11 (B).** Hub pairing **stays out of the join box**. If it is ever offered at login, mint the new format as `HUB-XXXX-XXXX`; do not disambiguate today's unprefixed `XXXX-XXXX` pairing codes.
+
+**Decision — 2026-09-12.** **FarmSeed stays only on owner devices** (paper FarmCode + owner machines). Owner recover is **not** a join. **Crew type only an invite** (`PUF-` / grant) — never a FarmCode. The invite unwraps a **weaker read capability** (HotKey / BonesKey, or equivalent), not FarmSeed. FarmSeed must **never** ride on a short 40-bit `PUF-` ticket. Product (not implemented): Send must stop instructing anyone to read out the paper FarmCode. Hole 4 still applies — revoke ≠ kick for data already fetched; do not fake kick ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8). Hosted web still cannot run a Freenet node (decision 5). Grant/slot crypto home: [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) **Decision — 2026-09-12**. Do not renumber [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or `Plans/reference/*`. Experimental Freenet; shipping path remains Firebase Auth + invite PIN. **No application or crypto implementation until asked.** Design still owed before any code: slot locator without FarmSeed on the joiner; InviteToken-class wrap of the read keys; whether today's 40-bit ticket is long enough once it carries a capability; hole 4 honesty.
 
 ---
 

@@ -15,7 +15,8 @@ The rest of the Freenet instruction set (do not duplicate here):
 | [`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) | Crypto, FarmCode, Hot/Archive, pre-Freenet decisions |
 | [`reference/DESKTOP_FREENET_PLUGIN.md`](reference/DESKTOP_FREENET_PLUGIN.md) | Electron shell, bundled node, installer phases |
 | [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) | Why the tablet cannot host; hub / farm-gateway |
-| [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) | Umbrella plan (2026-09-10): per-farm network pack on desktop + Android, native PUT everywhere, hybrid for cloud farms, two-terminal goal. Decisions 1–8 |
+| [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) | Umbrella plan (2026-09-10): per-farm network pack on desktop + Android, native PUT everywhere, hybrid for cloud farms, two-terminal goal. Decisions 1–8. **Decision — 2026-09-12:** FarmSeed owner-only; crew invite unwraps Hot/Bones |
+| [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) | Single join box; **Decision — 2026-09-12** (crew invite, not FarmCode) |
 | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | Network pack inside the APK (E-08) — the answer to hole 5; Phase 3 of the umbrella |
 | [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Every local store, including the Freenet-related subset |
 | [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) | Sync tab layout, People card, crew |
@@ -206,11 +207,13 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 7. **Hybrid** (built 2026-09-11, § 4a): a cloud-hosted farm may enable the pack. Firestore stays authoritative; Freenet holds a sealed mirror and the join/recovery plane. **Hole 4 applies to the mirror unchanged:** the FarmCode, not the Firestore role, decides who can read it, and revoking a ticket does not take the mirror back from a device that already pulled. The enable screen says so (`FreenetHybridEnable.tsx` `RISK_COPY`). A mirror device is read-only and never becomes a Firebase member by joining.
 8. Vocabulary stays "network pack"; `kind: 'system'`, id `freenet_host`.
 
+**Decision — 2026-09-12.** **FarmSeed stays only on owner devices.** Crew type only an invite (`PUF-` / grant), never a FarmCode. Owner recover is not a join. The invite unwraps HotKey / BonesKey (or equivalent), not FarmSeed — FarmSeed must never ride on a short 40-bit `PUF-` ticket. Product (not implemented): Send must **stop** instructing anyone to read out the paper FarmCode (this supersedes the hole 6 “paper FarmCode (always)” checklist as *intent*; the card is unchanged until asked). Hole 4 stays open and honest — revoke ≠ kick for data already fetched; do not fake kick. Hosted web still cannot run a Freenet node (decision 5). Homes: [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) (join UX / hole 2) and [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) (grant / slot). Do not renumber [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or `Plans/reference/*`. **No application or crypto implementation until asked.**
+
 **Rules that survive the done items** (each was the fix for a hole and must not regress):
 
-- Hole 6 — the Send card lists three things: paper FarmCode (always), this join ticket (always, latest one), device PIN **only if the joiner set one**. Owner-side PIN (this tab sealed the farm) stays a separate field.
+- Hole 6 — the Send card lists three things: paper FarmCode (always), this join ticket (always, latest one), device PIN **only if the joiner set one**. Owner-side PIN (this tab sealed the farm) stays a separate field. **Decision — 2026-09-12** (product, not implemented): stop reading out the paper FarmCode to crew; the card stays as-is until asked.
 - Hole 7 — Invite PINs are a Firebase mechanism. Copy on a Freenet farm branches on `activeFarmPipe()`: FarmCode + join ticket (and personal unlock PIN as a local lock). Cloud copy unchanged.
-- Hole 2 — do **not** invent a ticket-only join, embed the FarmCode in the ticket, or print the FarmCode again after the write-it-down screen. That would break the “shown once” rule.
+- Hole 2 — do **not** embed the FarmCode in the ticket, or print the FarmCode again after the write-it-down screen. That would break the “shown once” rule. **Decision — 2026-09-12** *is* crew-invite-only (no FarmCode on the joiner) — that is not this hole; wrapping FarmSeed in the ticket remains forbidden.
 - Hole 1 — do **not** auto-publish on create. Send is deliberate — it puts ciphertext on Freenet and mints a ticket. The nudge is dismissible.
 - Hole 3 — do **not** imply a central roster. The real fix is a farm-bones join ledger that travels with Hot/bones (sealed, versioned, with conflict rules for two hubs minting at once). Spec it before coding.
 

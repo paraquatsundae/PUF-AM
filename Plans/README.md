@@ -40,7 +40,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 | [`DEPLOY_CLOUD_RUN.md`](DEPLOY_CLOUD_RUN.md) | Live spec | Cloud Run `pufom` in `australia-southeast1`, `am.pufworks.farm` via Firebase Hosting rewrite, APK releases (CI secret), **Android dev builds** (emulator / LAN / packaged) |
 | [`FIREBASE_BILLING.md`](FIREBASE_BILLING.md) | Live spec / Active plan | Who pays for a cloud farm: enrolment gate (§5.1), BYO Firebase, refuse-list, open §5 items |
 | [`AUTH_INVITE_PIN.md`](AUTH_INVITE_PIN.md) | Live spec | Production auth: owner flow, worker PINs, roles vs modules, revoke |
-| [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) | Active plan | One "Join a farm" box at `/login` classifying invite PIN / FarmCode / `PUF-` ticket. **FarmCode-first** (accepted 2026-09-11); ticket typed first is held, never merged |
+| [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) | Active plan | One "Join a farm" box at `/login` classifying invite PIN / FarmCode / `PUF-` ticket. **FarmCode-first** (accepted 2026-09-11); ticket typed first is held, never merged. **Decision — 2026-09-12:** crew type only an invite; FarmSeed stays on owner devices (not implemented) |
 
 ## Data, sync & export
 
@@ -56,7 +56,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 | Doc | Status | Purpose |
 |-----|--------|---------|
 | [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Live spec / Active plan | Create / recover / send / join / People as the code stands; source for in-app "How this works". **§8** the seven known holes (E-07: 1, 2, 6, 7 done; 3 copy done; 4, 5 open). **§9** what is published, sealed, and never on Freenet |
-| [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) | Active plan | The app's own Freenet client as a per-farm network pack on desktop and Android; native PUT everywhere; hybrid mirror for cloud farms; two-terminal goal. Decisions dated 2026-09-10 (E-08 umbrella) |
+| [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) | Active plan | The app's own Freenet client as a per-farm network pack on desktop and Android; native PUT everywhere; hybrid mirror for cloud farms; two-terminal goal. Decisions dated 2026-09-10 (E-08 umbrella). **Decision — 2026-09-12:** FarmSeed owner-only; crew invite unwraps Hot/Bones, not FarmSeed |
 | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | Active plan | Network pack inside the APK; native PUT spike GO, phases 2–5 not built (E-08) — now Phase 3 of `FREENET_NETWORK_PACK.md` |
 | [`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) | Reference | Crypto, FarmCode, Hot/Archive contracts, frozen workshop decisions |
 | [`reference/DESKTOP_FREENET_PLUGIN.md`](reference/DESKTOP_FREENET_PLUGIN.md) | Reference | Desktop installer + bundled Freenet node — phases 0–4 done, field-validated |

@@ -217,13 +217,14 @@ Two layers — do not confuse:
 - On entry the operator types **symbols only** — the `mist-fc-N` prefix and the dashes are filled in by the app, same as the join ticket.
 - **FarmCode ≠ invite PIN** — production PINs use Firebase `access_pins`; mist uses InviteToken + JoinEnvelope.
 - **FarmCode ≠ device unlock PIN** — 4–8 digit local lock only (`unlockPin.ts` / mist device PIN).
+- **FarmSeed owner-only (Decision — 2026-09-12).** Crew type only an invite (`PUF-` / grant), never a FarmCode. The invite unwraps HotKey / BonesKey (or equivalent), not FarmSeed. FarmCode remains the owner recovery root. Homes: [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md), [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md). Not implemented.
 
 **Join ticket (short — points at a farm, does not open it):**
 
 - Printable form: **`PUF-XXXX-XXXX`** — prefix `PUF`, then 8 Crockford Base32 symbols (`shared/sync/joinTicket.ts`).
 - Resolves to a **join manifest v2** `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket, hotContentHash?, bonesContentHash?, cloudFarmId? }`. `cloudFarmId` (added 2026-09-11) is set only when the farm is a **hybrid** — a Firestore farm whose sealed mirror sits on Freenet — and names that Firestore farm so a joiner lands in a read-only mirror rather than believing it owns the farm. The sealed Hot blob carries the same id as `HotState.meta.cloud_farm_id`.
 - Roles use the mist vocabulary **`owner | admin | farmer | viewer`** — never `worker`. Default for a shared ticket: `farmer`.
-- **Join ticket ≠ FarmCode.** The ticket says *where* the farm is on Freenet; the FarmCode is what decrypts it. A ticket alone grants nothing.
+- **Join ticket ≠ FarmCode.** The ticket says *where* the farm is on Freenet; the FarmCode is what decrypts it. A ticket alone grants nothing. **Decision — 2026-09-12:** a crew invite must not carry FarmSeed; today's 40-bit `PUF-` pointer is too short to wrap the owner secret.
 - **Classifier (login join box, 2026-09-11).** A bare 8-symbol string overlaps invite PIN, a prefix-dropped ticket body, and today's unprefixed hub pairing code (~60% of PINs sit in the alphabet intersection). The box **defaults to PIN** unless the string contains a non-PIN symbol (`0 1 I O`) or carries a `PUF-` / `HUB-` prefix. Unprefixed pairing codes are never classified as hub pairing; if pairing is ever offered at login, mint `HUB-XXXX-XXXX` as a new format (`LOGIN_JOIN_SINGLE_BOX.md`).
 - **Short join ticket ≠ raw Freenet ticket** — the v1 `{ hotUri, bonesUri }` JSON is the *Advanced* fallback, not the thing operators are taught.
 - LAN shelf: `tmp/lan-sync/join-manifests.json`; routes under `/api/sync/join-ticket`.
