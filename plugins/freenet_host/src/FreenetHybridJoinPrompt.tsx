@@ -7,6 +7,7 @@ import { farmFreenetHostState } from '../../../shared/farm/networkPacks';
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { mirroredCloudFarmId } from '../../../src/lib/farmPipes';
 import { getFreenetHostCapability } from '../../../src/lib/freenetHostCapability.ts';
+import { isNativePlatform } from '../../../src/lib/freenetRuntime.ts';
 import { FreenetEnterFarmCode } from './FreenetEnterFarmCode';
 import {
   dismissFarmCodePrompt,
@@ -29,6 +30,7 @@ export default function FreenetHybridJoinPrompt() {
       seedCloudFarmId: mirroredCloudFarmId(),
       capability: getFreenetHostCapability(),
       dismissed: isFarmCodePromptDismissed(farmId),
+      nativeReader: isNativePlatform(),
     });
 
   if (!offer && !entering) return null;

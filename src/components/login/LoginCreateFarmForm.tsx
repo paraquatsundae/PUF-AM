@@ -98,7 +98,10 @@ export function LoginCreateFarmForm({ flow }: { flow: LoginFlow }) {
             />
             <p className="text-[11px] text-slate-400">
               Only for a <strong>cloud</strong> farm on this Firebase project. Each code works
-              once. To start on your own, use Freenet above — that path does not use a code.
+              once.
+              {freenetOption !== 'hidden'
+                ? ' To start on your own, use Freenet above — that path does not use a code.'
+                : ''}
             </p>
           </div>
 

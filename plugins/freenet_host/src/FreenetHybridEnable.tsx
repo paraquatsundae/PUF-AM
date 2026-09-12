@@ -115,20 +115,23 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  /** Seal a newly minted seed and write the farm doc. */
+  /** Seal a newly minted seed (once) and write the farm doc. */
   const finishMint = async () => {
     if (!parsed || !uid) return;
     setBusy(true);
     setError(null);
     try {
-      await sealHybridSeedOnThisDevice({
-        cloudFarmId: farmId,
-        farmName: getLastFarm()?.farmName ?? farmId,
-        displayName: userData?.displayName ?? '',
-        parsed,
-        devicePin: skipPin ? undefined : devicePin,
-        role: isAdmin ? 'owner' : 'farmer',
-      });
+      // A failed farm-doc write after a successful seal must not mint again.
+      if (mirroredCloudFarmId() !== farmId) {
+        await sealHybridSeedOnThisDevice({
+          cloudFarmId: farmId,
+          farmName: getLastFarm()?.farmName ?? farmId,
+          displayName: userData?.displayName ?? '',
+          parsed,
+          devicePin: skipPin ? undefined : devicePin,
+          role: isAdmin ? 'owner' : 'farmer',
+        });
+      }
       await writeFreenetHostFarmDoc(farmId, {
         enabled: true,
         mistFarmId: parsed.farmId,
@@ -136,6 +139,26 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
         changedBy: uid,
       });
       reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not turn the Freenet mirror on');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Idle retry: seed is already here, farm doc never got the mist id. */
+  const retryEnableFromSealedSeed = async () => {
+    const mistFarmId = getMistSessionMeta()?.farmId;
+    if (!uid || !mistFarmId || !seedHere) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await writeFreenetHostFarmDoc(farmId, {
+        enabled: true,
+        mistFarmId,
+        current: state,
+        changedBy: uid,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not turn the Freenet mirror on');
     } finally {
@@ -296,7 +319,24 @@ export function FreenetHybridEnable({ farmId, onOpenSync }: Props) {
           Off for this farm. Only a farm admin can turn the Freenet mirror on.
         </p>
       )}
-      {!enabled && isAdmin && !state?.mistFarmId && (
+      {!enabled && isAdmin && !state?.mistFarmId && seedHere && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] text-slate-600 leading-snug">
+            This device already holds the mirror key. The farm doc write did not finish — retry
+            without minting a new FarmCode.
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void retryEnableFromSealedSeed()}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold disabled:opacity-50"
+          >
+            {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            Finish turning the mirror on
+          </button>
+        </div>
+      )}
+      {!enabled && isAdmin && !state?.mistFarmId && !seedHere && (
         <div className="space-y-1.5">
           <p className="text-[10px] text-slate-600 leading-snug">
             Keeps a sealed copy of this farm on Freenet, published when you press{' '}

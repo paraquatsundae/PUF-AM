@@ -12,14 +12,16 @@
  * "is there a node anywhere this device can *reach*" — and still drives the
  * tablet reader path through a paired hub or a sideloaded node.
  *
- * On Capacitor, `'android'` means we have a host adapter: the Capacitor
- * `FreenetHost` plugin, **or** a node already answering on `127.0.0.1:7509`
- * (Freenet Android Node — attach-if-port-taken, Phase 3 product path).
+ * On Capacitor, `'android'` means a node is answering on `127.0.0.1:7509`
+ * (Freenet Android Node — attach-if-port-taken, Phase 3 product path). The
+ * Capacitor `FreenetHost` plugin is how we attach or start our own process; it
+ * is registered on every APK and must not count as a live host. Treating the
+ * plugin as capability `'android'` selected the host transport while :7509 was
+ * down, which skipped the hub relay and implied Send.
  *
  * Pure apart from the shell probes; safe to call while rendering.
  */
 
-import { isFreenetHostPluginAvailable } from './androidFreenetHost.ts';
 import { isDesktopShell } from './desktopBridge.ts';
 import { isNativePlatform } from './freenetRuntime.ts';
 import { localFreenetNodeFound } from '../mist/freenetLocalNode.ts';
@@ -27,17 +29,17 @@ import { localFreenetNodeFound } from '../mist/freenetLocalNode.ts';
 export type FreenetHostCapability =
   /** Electron: `units/puf-freenet-host` behind the preload bridge (`puf-freenet:*`). */
   | 'electron'
-  /** Capacitor host adapter and/or a loopback node on :7509. */
+  /** Capacitor: a loopback node on :7509 has answered. */
   | 'android'
-  /** Hosted web, or an APK with no plugin and nothing listening. */
+  /** Hosted web, or an APK whose last :7509 probe missed. */
   | null;
 
 export function freenetHostCapabilityFor(input: {
   desktop: boolean;
   native: boolean;
   /**
-   * Capacitor `FreenetHost` plugin, or a node already on this device's
-   * loopback (`localFreenetNodeFound()` after a probe).
+   * A node already on this device's loopback (`localFreenetNodeFound()` after
+   * a probe). Not "the Capacitor plugin is registered".
    */
   androidHost?: boolean;
 }): FreenetHostCapability {
@@ -46,10 +48,10 @@ export function freenetHostCapabilityFor(input: {
   return null;
 }
 
-/** Plugin registered, or the last :7509 probe said a node is here. */
+/** Last :7509 probe said a node is here. Plugin registration does not count. */
 export function isAndroidFreenetHostPresent(): boolean {
   if (!isNativePlatform()) return false;
-  return isFreenetHostPluginAvailable() || localFreenetNodeFound();
+  return localFreenetNodeFound();
 }
 
 export function getFreenetHostCapability(): FreenetHostCapability {

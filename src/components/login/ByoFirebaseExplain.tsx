@@ -13,7 +13,7 @@ export function ByoFirebaseExplain({
   onContinue,
 }: {
   onBack: () => void;
-  onFreenet: () => void;
+  onFreenet?: () => void;
   onContinue: () => void;
 }) {
   const [agreed, setAgreed] = useState(false);
@@ -27,7 +27,13 @@ export function ByoFirebaseExplain({
       <p className="text-sm text-slate-600 leading-relaxed">
         This path is for a <strong>tech-comfortable person</strong> — someone who can open
         Google&apos;s console, create a project, and paste a config. If that is not you, use{' '}
-        <strong>Freenet</strong> (free) or a PUFworks invite.
+        {onFreenet ? (
+          <>
+            <strong>Freenet</strong> (free) or a PUFworks invite.
+          </>
+        ) : (
+          <>a PUFworks invite.</>
+        )}
       </p>
       <p className="text-sm text-slate-600 leading-relaxed">
         PUF-Ag Manager stores the diary, map, issues and photos in a Firebase project{' '}
@@ -75,13 +81,15 @@ export function ByoFirebaseExplain({
       >
         I understand — continue
       </button>
-      <button
-        type="button"
-        onClick={onFreenet}
-        className="w-full py-2.5 rounded-xl border border-violet-300 text-violet-800 text-sm font-semibold hover:bg-violet-50"
-      >
-        Use Freenet instead — free
-      </button>
+      {onFreenet ? (
+        <button
+          type="button"
+          onClick={onFreenet}
+          className="w-full py-2.5 rounded-xl border border-violet-300 text-violet-800 text-sm font-semibold hover:bg-violet-50"
+        >
+          Use Freenet instead — free
+        </button>
+      ) : null}
       <BackLink label="Back to cloud options" onClick={onBack} />
     </LoginPanel>
   );

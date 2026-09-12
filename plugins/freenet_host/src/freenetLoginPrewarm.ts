@@ -12,6 +12,7 @@ import {
   type FreenetHostCapability,
 } from '../../../src/lib/freenetHostCapability.ts';
 import { getAndroidFreenetBridge } from '../../../src/mist/freenetAndroidHost.ts';
+import { probeLocalFreenetNode } from '../../../src/mist/freenetLocalNode.ts';
 import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
 import type { FreenetHostStatus } from '../../../units/puf-freenet-host/src/types.ts';
 import { createFreenetHostReconciler, type FreenetHostReconciler } from './freenetHostReconcile.ts';
@@ -47,6 +48,11 @@ function defaultReconciler(host: PrewarmHostHandle): FreenetHostReconciler {
 }
 
 export async function prewarmFreenetHost(deps: PrewarmFreenetHostDeps = {}): Promise<void> {
+  // Discover :7509 before deciding this tablet has no host. Tests that inject
+  // `getCapability` skip the probe so they stay hermetic.
+  if (!deps.getCapability) {
+    await probeLocalFreenetNode().catch(() => false);
+  }
   const capability = (deps.getCapability ?? getFreenetHostCapability)();
   if (!freenetHostCapabilityCanRun(capability)) return;
 

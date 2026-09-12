@@ -1,11 +1,11 @@
 import { LoginBrand, LoginPanel } from './LoginBrand';
-import { joinCodeLooksLine } from '../../lib/joinCodeClassifier.ts';
+import { joinCodeCanContinue, joinCodeLooksLine } from '../../lib/joinCodeClassifier.ts';
 import type { LoginFlow } from '../../hooks/useLoginFlow';
 
 export function JoinCodeEntry({ flow }: { flow: LoginFlow }) {
   const { join, freenetOption, freenetJoinAvailability, setStep, setMode, setLocalError } = flow;
   const line = join.notice || joinCodeLooksLine(join.classification, join.input);
-  const canContinue = join.classification.kind !== 'unknown';
+  const canContinue = joinCodeCanContinue(join.classification);
 
   return (
     <LoginPanel>

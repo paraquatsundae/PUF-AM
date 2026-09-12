@@ -100,11 +100,14 @@ export function Login() {
     );
   }
 
+  const openFreenet =
+    freenetOption === 'hidden' ? undefined : () => setStep('freenet-explain');
+
   if (step === 'cloud-byo') {
     return (
       <ByoFirebaseExplain
         onBack={() => setStep('cloud-options')}
-        onFreenet={() => setStep('freenet-explain')}
+        onFreenet={openFreenet}
         onContinue={() => setStep('cloud-byo-setup')}
       />
     );
@@ -114,7 +117,7 @@ export function Login() {
     return (
       <ByoFirebaseSetup
         onBack={() => setStep('cloud-byo')}
-        onFreenet={() => setStep('freenet-explain')}
+        onFreenet={openFreenet}
         onContinue={() => setStep('cloud-byo-config')}
       />
     );
@@ -140,7 +143,7 @@ export function Login() {
     return (
       <PufworksSubscribeExplain
         onBack={() => setStep('cloud-options')}
-        onFreenet={() => setStep('freenet-explain')}
+        onFreenet={openFreenet}
         onPufworks={() => setStep('firebase')}
       />
     );

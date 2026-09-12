@@ -75,6 +75,18 @@ describe('joinCodeReducer', () => {
     const s = apply([{ type: 'TYPE', input: 'PUF-K7M2-9Q4X' }, { type: 'CONTINUE' }], 'host');
     expect(s.stage).not.toBe('freenet');
   });
+
+  it('does not leave the box on a short invite PIN', () => {
+    const s = apply([{ type: 'TYPE', input: 'K7M2N9Q' }, { type: 'CONTINUE' }]);
+    expect(s.stage).toBe('code');
+    expect(s.classification.hint).toMatch(/8 characters/);
+  });
+
+  it('does not open Freenet on an invalid FarmCode (empty normalized)', () => {
+    const s = apply([{ type: 'TYPE', input: 'mist-fc-3  ABCDE-FGHJK-MNPQR-ST' }, { type: 'CONTINUE' }], 'host');
+    expect(s.stage).toBe('code');
+    expect(s.classification.normalized).toBe('');
+  });
 });
 
 describe('freenetJoinAvailability', () => {

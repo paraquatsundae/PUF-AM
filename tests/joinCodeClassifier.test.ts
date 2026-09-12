@@ -13,7 +13,7 @@ import {
   mintFarmCode,
   normalizeFarmCodeInput,
 } from '../units/mist-freenet/src/farm-code.ts';
-import { classifyJoinCode } from '../src/lib/joinCodeClassifier.ts';
+import { classifyJoinCode, joinCodeCanContinue } from '../src/lib/joinCodeClassifier.ts';
 
 function bodyOf(formatted: string): string {
   return formatted.replace(/^mist-fc-\d+\s+/, '').replace(/-/g, '');
@@ -113,6 +113,14 @@ describe('classifyJoinCode mint properties', () => {
     for (let i = 0; i < 20; i++) {
       expect(classifyJoinCode(mintPairingCode()).kind).not.toBe('hub-pairing');
     }
+  });
+
+  it('canContinue is false for an invalid FarmCode or short ticket', () => {
+    expect(joinCodeCanContinue(classifyJoinCode(wrongCheck17))).toBe(false);
+    expect(joinCodeCanContinue(classifyJoinCode('PUF-K7M2-9Q4'))).toBe(false);
+    expect(joinCodeCanContinue(classifyJoinCode(validV2))).toBe(true);
+    expect(joinCodeCanContinue(classifyJoinCode('K7M2N9QX'))).toBe(true);
+    expect(joinCodeCanContinue(classifyJoinCode('K7M2N9Q'))).toBe(false);
   });
 
   it('never returns the FarmCode in hint', async () => {

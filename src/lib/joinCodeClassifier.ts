@@ -187,6 +187,15 @@ export function formatJoinCodeInput(raw: string): string {
   return raw;
 }
 
+/** The box can Continue — a recognised kind with a usable normalized value. */
+export function joinCodeCanContinue(classification: JoinCodeClassification): boolean {
+  if (classification.kind === 'invite-pin') return classification.normalized.length === 8;
+  if (classification.kind === 'farm-code' || classification.kind === 'join-ticket') {
+    return Boolean(classification.normalized);
+  }
+  return false;
+}
+
 export function joinCodeLooksLine(classification: JoinCodeClassification, input: string): string {
   if (classification.hint) return classification.hint;
   if (classification.kind === 'invite-pin') return 'Looks like an invite PIN';

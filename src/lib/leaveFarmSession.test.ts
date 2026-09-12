@@ -9,6 +9,7 @@ import {
   leaveFarmSession,
   loginStepAfterLeaveFarmSession,
 } from './leaveFarmSession.ts';
+import { JOIN_TICKET_DRAFT_KEY, writeJoinTicketDraft } from './joinTicketDraft.ts';
 import { getFarmStoreBackend, setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
 import {
   clearMistDeviceSession,
@@ -33,10 +34,14 @@ vi.stubGlobal('localStorage', {
 });
 
 vi.stubGlobal('sessionStorage', {
-  getItem: () => null,
-  setItem: () => undefined,
-  removeItem: () => undefined,
-  clear: () => undefined,
+  getItem: (k: string) => mockStorage.get(k) ?? null,
+  setItem: (k: string, v: string) => {
+    mockStorage.set(k, v);
+  },
+  removeItem: (k: string) => {
+    mockStorage.delete(k);
+  },
+  clear: () => mockStorage.clear(),
   key: () => null,
   length: 0,
 });
@@ -108,6 +113,15 @@ describe('leaveFarmSession', () => {
     expect(canShowWelcomeBack()).toBe(false);
     expect(getFarmStoreBackend()).toBe('firebase');
     expect(loginStepAfterLeaveFarmSession()).toBe('join');
+  });
+
+  it('drops a held join-ticket draft so the next farm cannot inherit it', () => {
+    writeJoinTicketDraft('PUF-K7M2-9Q4X');
+    expect(mockStorage.get(JOIN_TICKET_DRAFT_KEY)).toBe('PUF-K7M2-9Q4X');
+
+    leaveFarmSession();
+
+    expect(mockStorage.get(JOIN_TICKET_DRAFT_KEY)).toBeUndefined();
   });
 
   it('clears a leftover mist backend preference so experimental UI does not reopen', () => {

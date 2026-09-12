@@ -23,13 +23,14 @@ import {
 } from '../src/mist/freenetAndroidHost.ts';
 import { resetLocalFreenetNode, setLocalFreenetNodeFoundForTests } from '../src/mist/freenetLocalNode.ts';
 import { selectFreenetTransportKind } from '../src/mist/freenetPackTransport.ts';
+import { hotKey } from '../units/mist-freenet/src/keys.ts';
 
 afterEach(() => {
   resetLocalFreenetNode();
   delete window.pufamDesktop;
 });
 
-describe('capability — attach is enough for android', () => {
+describe('capability — a live :7509 is android, the plugin is not', () => {
   it('is android when native and a loopback node has answered', () => {
     setLocalFreenetNodeFoundForTests(true);
     expect(freenetHostCapabilityFor({ desktop: false, native: true, androidHost: true })).toBe(
@@ -37,8 +38,11 @@ describe('capability — attach is enough for android', () => {
     );
   });
 
-  it('is still null on a native shell with no plugin and no probe hit', () => {
+  it('is still null on a native shell when :7509 has not answered', () => {
     expect(freenetHostCapabilityFor({ desktop: false, native: true })).toBe(null);
+    expect(freenetHostCapabilityFor({ desktop: false, native: true, androidHost: false })).toBe(
+      null,
+    );
     expect(getFreenetHostCapability()).toBe(null);
   });
 });
@@ -120,6 +124,14 @@ describe('createAndroidFreenetBridge data path', () => {
     expect(result.uri).toBe('FN02@put');
     expect(put).toHaveBeenCalledTimes(1);
   });
+
+  it('refuses plaintext on put before the client runs', async () => {
+    const put = vi.fn(async () => ({ uri: 'FN02@put' }));
+    const bridge = createAndroidFreenetBridge({ put });
+    const plain = new TextEncoder().encode(JSON.stringify({ farm_id: 'f', records: [] }));
+    await expect(bridge.put({ bytes: plain, key: hotKey('f') })).rejects.toThrow(/plaintext|AEAD/);
+    expect(put).not.toHaveBeenCalled();
+  });
 });
 
 describe('transport + Send', () => {
@@ -127,6 +139,10 @@ describe('transport + Send', () => {
     expect(selectFreenetTransportKind({ capability: 'android', bridgeHasDataPath: true })).toBe(
       'host',
     );
+  });
+
+  it('keeps the hub relay when :7509 is down even if a data bridge exists', () => {
+    expect(selectFreenetTransportKind({ capability: null, bridgeHasDataPath: true })).toBe('relay');
   });
 
   it('lifts read-only when a local node can publish', () => {

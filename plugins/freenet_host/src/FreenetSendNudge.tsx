@@ -45,6 +45,7 @@ export function FreenetSendNudge() {
       setHidden(true);
       return;
     }
+    setHidden(false);
     let cancelled = false;
     void fetchJoinTicketLedger(farmId)
       .then((ledger) => {

@@ -13,11 +13,17 @@ export function shouldOfferFarmCodePrompt(input: {
   seedCloudFarmId: string | null;
   capability: FreenetHostCapability;
   dismissed: boolean;
+  /** Capacitor APK — can take part through a hub even when :7509 is down. */
+  nativeReader?: boolean;
 }): boolean {
+  const canTakePart =
+    input.capability === 'electron' ||
+    input.capability === 'android' ||
+    input.nativeReader === true;
   return (
     input.enabled &&
     input.seedCloudFarmId !== input.farmId &&
-    (input.capability === 'electron' || input.capability === 'android') &&
+    canTakePart &&
     !input.dismissed
   );
 }

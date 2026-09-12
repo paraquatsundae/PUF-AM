@@ -93,13 +93,16 @@ export function joinCodeReducer(
     case 'CONTINUE': {
       const { kind, normalized } = state.classification;
       if (kind === 'unknown' || kind === 'hub-pairing') return state;
+      // Invalid / incomplete FarmCode or ticket is kind-recognised with an empty
+      // normalized string — stay on the box, do not open the Freenet step.
+      if (!normalized) return state;
 
       if (kind === 'invite-pin') {
+        if (normalized.length !== 8) return state;
         return { ...state, stage: 'cloud-name', notice: null };
       }
 
       if (kind === 'join-ticket') {
-        if (!normalized) return state;
         if (availability === 'none') {
           return { ...emptyCode(null, null), stage: 'freenet-unavailable' };
         }
@@ -109,7 +112,7 @@ export function joinCodeReducer(
         };
       }
 
-      // farm-code
+      if (kind !== 'farm-code') return state;
       if (availability === 'none') {
         return { ...emptyCode(null, null), stage: 'freenet-unavailable' };
       }

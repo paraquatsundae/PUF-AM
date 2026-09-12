@@ -14,7 +14,7 @@ export function ByoFirebaseSetup({
 }: {
   onContinue: () => void;
   onBack: () => void;
-  onFreenet: () => void;
+  onFreenet?: () => void;
 }) {
   return (
     <LoginPanel wide>
@@ -77,13 +77,15 @@ export function ByoFirebaseSetup({
       >
         I have a web app config to paste
       </button>
-      <button
-        type="button"
-        onClick={onFreenet}
-        className="w-full py-2.5 rounded-xl border border-violet-300 text-violet-800 text-sm font-semibold hover:bg-violet-50"
-      >
-        Use Freenet instead — free
-      </button>
+      {onFreenet ? (
+        <button
+          type="button"
+          onClick={onFreenet}
+          className="w-full py-2.5 rounded-xl border border-violet-300 text-violet-800 text-sm font-semibold hover:bg-violet-50"
+        >
+          Use Freenet instead — free
+        </button>
+      ) : null}
       <BackLink label="Back" onClick={onBack} />
     </LoginPanel>
   );

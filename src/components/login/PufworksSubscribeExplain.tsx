@@ -7,7 +7,7 @@ export function PufworksSubscribeExplain({
   onPufworks,
 }: {
   onBack: () => void;
-  onFreenet: () => void;
+  onFreenet?: () => void;
   onPufworks: () => void;
 }) {
   const [agreed, setAgreed] = useState(false);
@@ -28,11 +28,20 @@ export function PufworksSubscribeExplain({
           When it opens, you will see the price and tick that you accept it{' '}
           <strong>before</strong> a farm is created.
         </li>
-        <li>If a card fails, the farm would be suspended — that is a hosted service, not Freenet.</li>
+        <li>
+          If a card fails, the farm would be suspended — that is a hosted service
+          {onFreenet ? ', not Freenet' : ''}.
+        </li>
       </ul>
       <p className="text-sm text-slate-600">
-        Until then: <strong>Freenet is free</strong>, or join a PUFworks cloud farm if you have
-        an invite PIN or enrollment code.
+        {onFreenet ? (
+          <>
+            Until then: <strong>Freenet is free</strong>, or join a PUFworks cloud farm if you have
+            an invite PIN or enrollment code.
+          </>
+        ) : (
+          <>Until then: join a PUFworks cloud farm if you have an invite PIN or enrollment code.</>
+        )}
       </p>
       <label className="flex items-start gap-2 text-sm text-slate-700">
         <input
@@ -57,13 +66,15 @@ export function PufworksSubscribeExplain({
       >
         I have a PUFworks invite
       </button>
-      <button
-        type="button"
-        onClick={onFreenet}
-        className="w-full py-2.5 rounded-xl border border-violet-300 text-violet-800 text-sm font-semibold hover:bg-violet-50"
-      >
-        Use Freenet instead — free
-      </button>
+      {onFreenet ? (
+        <button
+          type="button"
+          onClick={onFreenet}
+          className="w-full py-2.5 rounded-xl border border-violet-300 text-violet-800 text-sm font-semibold hover:bg-violet-50"
+        >
+          Use Freenet instead — free
+        </button>
+      ) : null}
       <BackLink label="Back to cloud options" onClick={onBack} />
     </LoginPanel>
   );

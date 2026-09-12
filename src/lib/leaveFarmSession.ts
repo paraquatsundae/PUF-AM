@@ -20,6 +20,7 @@ import {
 import { isFarmCodeSession } from './farmPipes.ts';
 import { initialLoginStep, type LoginStep } from './loginStorageChoice.ts';
 import { clearSessionUnlock } from './unlockPin.ts';
+import { clearJoinTicketDraft } from './joinTicketDraft.ts';
 import { getFarmStoreBackend, setFarmStoreBackend } from '../mist/farmStoreBackend.ts';
 import {
   clearMistDeviceSession,
@@ -48,6 +49,7 @@ export function leaveFarmSession(): LeaveFarmSessionResult {
   clearRememberedLoginHints();
   clearDeviceRememberedFlag();
   clearSessionUnlock();
+  clearJoinTicketDraft();
 
   const hybridMember = isHybridMemberDevice();
   const mistLogin = !hybridMember && (isFarmCodeSession() || hasMistDeviceSession());

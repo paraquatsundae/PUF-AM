@@ -56,6 +56,7 @@ public class FreenetHostPlugin extends Plugin {
         FreenetHostStatusStore.write(ctx, "stopped", false, null, null);
         // Never kill Freenet Android Node — if :7509 still answers, we stay attached.
         if (probeLoopback()) {
+            FreenetHostStatusStore.write(ctx, "attached", true, null, null);
             call.resolve(statusObject("attached", true, null, null));
             return;
         }

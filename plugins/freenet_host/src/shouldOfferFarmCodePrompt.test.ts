@@ -23,12 +23,16 @@ describe('shouldOfferFarmCodePrompt', () => {
     expect(shouldOfferFarmCodePrompt({ ...base, seedCloudFarmId: 'farm_abc' })).toBe(false);
   });
 
-  it('hides without a host adapter', () => {
+  it('hides on hosted web (no capability, not a native reader)', () => {
     expect(shouldOfferFarmCodePrompt({ ...base, capability: null })).toBe(false);
   });
 
   it('offers on an Android host the same as Electron', () => {
     expect(shouldOfferFarmCodePrompt({ ...base, capability: 'android' })).toBe(true);
+  });
+
+  it('offers on an APK reader when :7509 is down (hub path)', () => {
+    expect(shouldOfferFarmCodePrompt({ ...base, capability: null, nativeReader: true })).toBe(true);
   });
 
   it('hides when dismissed', () => {

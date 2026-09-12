@@ -21,7 +21,7 @@ import {
   getFreenetHostCapability,
 } from '../../../src/lib/freenetHostCapability.ts';
 import { getAndroidFreenetBridge } from '../../../src/mist/freenetAndroidHost.ts';
-import { subscribeLocalFreenetNode } from '../../../src/mist/freenetLocalNode.ts';
+import { probeLocalFreenetNode, subscribeLocalFreenetNode } from '../../../src/mist/freenetLocalNode.ts';
 import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
 import { isFreenetHostEnabled, subscribeFreenetHostEnabled } from './freenetHostEnable.ts';
 import { createFreenetHostReconciler, type FreenetHostReconciler } from './freenetHostReconcile.ts';
@@ -65,6 +65,10 @@ export function useFreenetHostReconciler(): { want: boolean } {
   // farm-doc flag alone is not enough to want a node until that seed is here.
   useEffect(() => subscribeFreenetHybridDevice(() => setEnabledTick((n) => n + 1)), []);
   // Attach-if-port-taken: a Freenet Android Node coming up flips capability.
+  // Probe first — capability is the last :7509 answer, not the plugin existing.
+  useEffect(() => {
+    void probeLocalFreenetNode().catch(() => false);
+  }, []);
   useEffect(() => subscribeLocalFreenetNode(() => setEnabledTick((n) => n + 1)), []);
 
   const capability = getFreenetHostCapability();

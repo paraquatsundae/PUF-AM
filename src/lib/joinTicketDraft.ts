@@ -24,6 +24,11 @@ export function writeJoinTicketDraft(ticket: string): void {
   session()?.setItem(JOIN_TICKET_DRAFT_KEY, normalized);
 }
 
+/** Drop a leftover ticket so Sign out cannot carry it into the next farm. */
+export function clearJoinTicketDraft(): void {
+  session()?.removeItem(JOIN_TICKET_DRAFT_KEY);
+}
+
 /** Read then clear. Returns a canonical ticket or null. */
 export function takeJoinTicketDraft(): string | null {
   const store = session();

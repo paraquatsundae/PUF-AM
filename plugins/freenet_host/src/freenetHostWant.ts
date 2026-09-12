@@ -13,8 +13,8 @@
  *   does not count.
  * - **Plain cloud farm** — never.
  *
- * Capability is the outer gate: Electron, or Android once a host adapter
- * (plugin or a node on :7509) is present.
+ * Capability is the outer gate: Electron, or Android once a node on :7509
+ * has answered. The Capacitor plugin alone does not count.
  */
 
 import type { FarmNetworkPacksMap } from '../../../shared/farm/networkPacks';

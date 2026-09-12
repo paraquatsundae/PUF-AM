@@ -26,8 +26,11 @@ describe('freenetHostCapabilityFor', () => {
     expect(freenetHostCapabilityFor({ desktop: false, native: false })).toBe(null);
   });
 
-  it('is android on an APK when the host plugin or a loopback node is present', () => {
+  it('is android on an APK only when a loopback node has answered', () => {
     expect(freenetHostCapabilityFor({ desktop: false, native: true })).toBe(null);
+    expect(freenetHostCapabilityFor({ desktop: false, native: true, androidHost: false })).toBe(
+      null,
+    );
     expect(freenetHostCapabilityFor({ desktop: false, native: true, androidHost: true })).toBe(
       'android'
     );
