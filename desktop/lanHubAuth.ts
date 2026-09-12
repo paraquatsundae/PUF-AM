@@ -81,7 +81,8 @@ export const LAN_SCOPE_PREFIXES: readonly string[] = [
  *
  * Leaflet fetches tiles as `<img src>` and an image element cannot carry
  * `x-puf-hub-token`, so requiring one here would mean the hub can render imagery
- * that no map is able to ask it for.
+ * that no map is able to ask it for. Cloud Run is a different surface and
+ * requires a Firebase bearer on this path; a packaged hub has no Admin SDK.
  *
  * Opening it costs little: no farm data is behind it, the upstream host is fixed
  * in `server/tileProxyRoutes.ts` so it cannot be aimed elsewhere, coordinates are

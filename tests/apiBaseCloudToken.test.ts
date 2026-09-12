@@ -25,6 +25,7 @@ vi.mock('@capacitor/core', () => ({
 
 import type { HubInfo } from '../shared/sync/hubInfo.ts';
 import { apiFetch, apiUrl, setApiIdTokenProvider, setRuntimeApiBaseUrl } from '../src/lib/apiBase.ts';
+import { fetchTileBlob } from '../src/lib/basemapPack.ts';
 import { saveHubCredential } from '../src/lib/hubIdentity.ts';
 
 const HUB = 'http://192.168.1.20:3000';
@@ -98,6 +99,35 @@ describe('the cloud bearer', () => {
   it('is withheld from routes that are not cloud-only', async () => {
     saveHubCredential(HUB, { info: hubInfo() });
     expect(await bearerSentTo('https://am.pufworks.farm/api/sync/peers')).toBeNull();
+  });
+
+  it('goes to Cloud Run imagery', async () => {
+    saveHubCredential(HUB, { info: hubInfo() });
+    const url = apiUrl('/api/tiles/12/3366/2431');
+    expect(url).toBe('https://am.pufworks.farm/api/tiles/12/3366/2431');
+    expect(await bearerSentTo(url)).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('is withheld from a hub that serves its own tiles', async () => {
+    saveHubCredential(HUB, { info: hubInfo({ tiles: true, cloudOnlyPrefixes: [] }) });
+    const url = apiUrl('/api/tiles/12/3366/2431');
+    expect(url).toBe(`${HUB}/api/tiles/12/3366/2431`);
+    expect(await bearerSentTo(url)).toBeNull();
+  });
+
+  it('is attached when fetchTileBlob talks to Cloud Run', async () => {
+    saveHubCredential(HUB, { info: hubInfo() });
+    const seen: Array<Record<string, string>> = [];
+    vi.stubGlobal('fetch', async (_input: unknown, init?: RequestInit) => {
+      seen.push(Object.fromEntries(new Headers(init?.headers ?? {}).entries()));
+      return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    });
+    const blob = await fetchTileBlob(12, 3366, 2431);
+    expect(blob.size).toBeGreaterThan(0);
+    expect(seen[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 
   it('does not displace a bearer the caller set for itself', async () => {

@@ -2,11 +2,11 @@ import {
   BasemapPack,
   LatLngBoundsLiteral,
   enumerateTiles,
+  fetchTileBlob as fetchProxyTileBlob,
   getTileBlob,
   isQuotaExceededError,
   putTile,
   saveBasemapPack,
-  tileUrl,
   DEFAULT_MIN_ZOOM,
   DEFAULT_MAX_ZOOM,
 } from './basemapPack';
@@ -47,12 +47,7 @@ async function fetchTileBlob(
       throw new DOMException('Download cancelled', 'AbortError');
     }
     try {
-      const url = tileUrl(z, x, y);
-      const res = await fetch(url, { signal, mode: 'cors' });
-      if (!res.ok) {
-        throw new Error(`Tile fetch failed ${z}/${x}/${y}: HTTP ${res.status}`);
-      }
-      return await res.blob();
+      return await fetchProxyTileBlob(z, x, y, signal);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') throw err;
       lastError = err;

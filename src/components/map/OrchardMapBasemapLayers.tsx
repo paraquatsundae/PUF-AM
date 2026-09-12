@@ -1,6 +1,6 @@
 import { TileLayer } from 'react-leaflet';
-import { CachedTileLayer } from './CachedTileLayer';
-import { IMAGERY_ATTRIBUTION, tileUrlTemplate, type BasemapPack } from '../../lib/basemapPack';
+import { CachedTileLayer, ImageryPreviewTileLayer } from './CachedTileLayer';
+import { type BasemapPack } from '../../lib/basemapPack';
 
 /**
  * Satellite imagery comes from `/api/tiles`, never from a provider directly.
@@ -26,12 +26,7 @@ export function OrchardMapBasemapLayers({
       {mapLayer === 'satellite' && basemapPack ? (
         <CachedTileLayer farmId={farmId} offlineOnly={!isOnline} />
       ) : mapLayer === 'satellite' ? (
-        <TileLayer
-          url={tileUrlTemplate()}
-          attribution={IMAGERY_ATTRIBUTION}
-          maxZoom={20}
-          maxNativeZoom={19}
-        />
+        <ImageryPreviewTileLayer />
       ) : (
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
