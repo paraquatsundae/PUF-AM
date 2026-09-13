@@ -11,7 +11,7 @@ export function JoinCodeEntry({ flow }: { flow: LoginFlow }) {
     <LoginPanel>
       <LoginBrand
         title="Join a farm"
-        subtitle="Type the code you were given. A PIN from the farm manager, or the paper FarmCode from the owner."
+        subtitle="Type the code you were given. A PIN from the farm manager, a crew invite (PUF-), or the paper FarmCode if you are the owner."
       />
 
       {join.heldTicket ? (
@@ -19,7 +19,7 @@ export function JoinCodeEntry({ flow }: { flow: LoginFlow }) {
           className="text-sm text-violet-800 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2"
           role="status"
         >
-          That is the join ticket — the paper FarmCode comes first
+          {join.notice || 'That short ticket cannot open the farm — ask the owner for a crew invite.'}
         </p>
       ) : null}
 
@@ -90,7 +90,8 @@ export function JoinCodeEntry({ flow }: { flow: LoginFlow }) {
 
       {freenetJoinAvailability !== 'none' ? (
         <p className="text-[11px] text-slate-400 text-center">
-          Experimental Freenet farms use a FarmCode and a join ticket. Cloud farms use a PIN.
+          Experimental Freenet: crew type a PUF- invite; owners recover with the paper FarmCode.
+          Cloud farms use a PIN.
         </p>
       ) : null}
     </LoginPanel>

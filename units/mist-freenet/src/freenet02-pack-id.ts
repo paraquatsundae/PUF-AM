@@ -6,7 +6,7 @@
  */
 
 import { blake3 } from '@noble/hashes/blake3.js';
-import bs58 from 'bs58';
+import bs58 from './bs58.ts';
 
 /**
  * Code hash of the bundled pack-contract.wasm: BLAKE3 of the raw module *after*

@@ -32,11 +32,31 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import { FarmAdminPanel } from '../components/admin/FarmAdminPanel';
 import { OwnerOpsPanel } from '../components/admin/OwnerOpsPanel';
 import { calculateEstimatedCost, COST_ESTIMATES } from '../services/metricsService';
+import { resolveAdminSurface } from '../lib/adminAuth';
 
 export function Admin() {
-  const { userData, isPlatformAdmin } = useAuth();
+  const { isAdmin, isPlatformAdmin } = useAuth();
+  const surface = resolveAdminSurface({ isAdmin, isPlatformAdmin });
+  if (surface === 'denied') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <div className="text-center">
+          <Lock className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-slate-900">Access Denied</h1>
+          <p className="text-slate-500 mt-2">You do not have permission to view this page.</p>
+        </div>
+      </div>
+    );
+  }
+  if (surface === 'farm') return <FarmAdminPanel />;
+  return <PlatformAdminDashboard />;
+}
+
+function PlatformAdminDashboard() {
+  const { userData } = useAuth();
   const {
     users,
     whitelist,
@@ -61,18 +81,6 @@ export function Admin() {
     deleteUser,
     updateUserRole,
   } = useAdminDashboard();
-
-  if (!isPlatformAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="text-center">
-          <Lock className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-900">Access Denied</h1>
-          <p className="text-slate-500 mt-2">You do not have permission to view this page.</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">

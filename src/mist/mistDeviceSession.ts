@@ -17,6 +17,7 @@ import {
 } from '../../shared/sync/joinGrant.ts';
 import { sanitizeModules, type FarmModuleId } from '../../shared/auth/farmModules.ts';
 import { forgetUnlockedFarmSeed, rememberUnlockedFarmSeed } from './mistFarmSeedCache.ts';
+import { forgetUnlockedReadKeys, rememberUnlockedReadKeys } from './mistReadKeys.ts';
 
 /**
  * Authority label, not a crypto boundary. Anyone holding the FarmCode can
@@ -33,8 +34,16 @@ export type MistDeviceSession = {
   displayName: string;
   role: MistSessionRole;
   createdAt: string;
-  /** Hex-encoded 32-byte FarmSeed — only in memory after decrypt; encrypted on disk. */
-  farmSeedHex: string;
+  /**
+   * Hex-encoded 32-byte FarmSeed — owner devices only.
+   * Crew sessions store Hot/Bones keys instead (`Plans/FREENET_NETWORK_PACK.md`
+   * Decision — 2026-09-12).
+   */
+  farmSeedHex?: string;
+  /** Crew (and owner) read key for Hot. Never a FarmSeed. */
+  hotKeyHex?: string;
+  /** Crew (and owner) read key for bones. Never a FarmSeed. */
+  bonesKeyHex?: string;
   hasDevicePin: boolean;
   /** True when this device came in on a join ticket rather than minting the farm. */
   joinedViaTicket?: boolean;
@@ -241,7 +250,14 @@ export async function loadMistDeviceSession(devicePin?: string): Promise<MistDev
   try {
     const blob = JSON.parse(raw) as EncryptedBlob;
     const session = await decryptSession(blob, devicePin);
-    rememberUnlockedFarmSeed(session.farmSeedHex);
+    if (session.farmSeedHex) rememberUnlockedFarmSeed(session.farmSeedHex);
+    if (session.hotKeyHex && session.bonesKeyHex) {
+      rememberUnlockedReadKeys({
+        hotKey: hexToBytes(session.hotKeyHex),
+        bonesKey: hexToBytes(session.bonesKeyHex),
+        ...(session.farmSeedHex ? { farmSeed: hexToBytes(session.farmSeedHex) } : {}),
+      });
+    }
     return session;
   } catch (err) {
     console.warn('[mist] session decrypt failed:', err);
@@ -254,6 +270,7 @@ export function clearMistDeviceSession(): void {
   ls()?.removeItem(SESSION_META_KEY);
   ls()?.removeItem(DEVICE_KEY_KEY);
   forgetUnlockedFarmSeed();
+  forgetUnlockedReadKeys();
 }
 
 /**
@@ -340,12 +357,17 @@ export function createMistSessionRecord(input: {
   farmId: string;
   farmName: string;
   displayName: string;
-  farmSeed: Uint8Array;
+  farmSeed?: Uint8Array;
+  hotKey?: Uint8Array;
+  bonesKey?: Uint8Array;
   devicePin?: string;
   role?: MistSessionRole;
   joinedViaTicket?: boolean;
   cloudFarmId?: string;
 }): MistDeviceSession {
+  if (!input.farmSeed && !(input.hotKey && input.bonesKey)) {
+    throw new Error('Mist session needs a FarmSeed (owner) or Hot/Bones keys (crew)');
+  }
   const cloudFarmId = input.cloudFarmId?.trim();
   return {
     uid: `mist_${input.farmId.slice(0, 16)}`,
@@ -354,11 +376,30 @@ export function createMistSessionRecord(input: {
     displayName: input.displayName,
     role: input.role ? coerceJoinRole(input.role) : DEFAULT_JOIN_ROLE,
     createdAt: new Date().toISOString(),
-    farmSeedHex: bytesToHex(input.farmSeed),
+    ...(input.farmSeed ? { farmSeedHex: bytesToHex(input.farmSeed) } : {}),
+    ...(input.hotKey ? { hotKeyHex: bytesToHex(input.hotKey) } : {}),
+    ...(input.bonesKey ? { bonesKeyHex: bytesToHex(input.bonesKey) } : {}),
     hasDevicePin: Boolean(input.devicePin && input.devicePin.replace(/\D/g, '').length >= 4),
     ...(input.joinedViaTicket ? { joinedViaTicket: true } : {}),
     ...(cloudFarmId ? { cloudFarmId } : {}),
   };
+}
+
+/** Crew session — Hot/Bones keys only. Never persists FarmSeed. */
+export function createMistCrewSessionRecord(input: {
+  farmId: string;
+  farmName: string;
+  displayName: string;
+  hotKey: Uint8Array;
+  bonesKey: Uint8Array;
+  devicePin?: string;
+  role?: MistSessionRole;
+  cloudFarmId?: string;
+}): MistDeviceSession {
+  return createMistSessionRecord({
+    ...input,
+    joinedViaTicket: true,
+  });
 }
 
 export type MistJoinState = {

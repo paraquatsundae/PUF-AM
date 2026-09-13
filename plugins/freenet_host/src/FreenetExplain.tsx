@@ -75,9 +75,9 @@ export function FreenetExplain({
       >
         <KeyRound className="w-5 h-5 text-violet-700 shrink-0" />
         <span>
-          <span className="block text-sm font-bold text-slate-900">Join a farm I already have</span>
+          <span className="block text-sm font-bold text-slate-900">Recover a farm I own</span>
           <span className="block text-sm text-slate-600">
-            Type the paper FarmCode, then the owner&apos;s short join ticket.
+            Type the paper FarmCode — owner recover only. Crew type a PUF- invite at Join a farm.
           </span>
         </span>
       </button>

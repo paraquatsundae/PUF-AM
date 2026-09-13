@@ -15,6 +15,7 @@ import {
   normalizeJoinTicket,
   parseJoinManifestV2,
 } from '../shared/sync/joinTicket.ts';
+import { mintInviteToken } from '../units/mist-freenet/src/invite-token.ts';
 
 describe('short join ticket format', () => {
   it('mints PUF-XXXX-XXXX from 5 bytes of randomness', () => {
@@ -195,5 +196,11 @@ describe('join manifest v2', () => {
 
   it('ignores an unparseable expiry rather than locking the ticket out', () => {
     expect(parseJoinManifestV2({ ...base, expires: 'soon' })?.expires).toBeUndefined();
+  });
+
+  it('accepts a 26-symbol crew InviteToken as the ticket field', () => {
+    const invite = mintInviteToken();
+    const manifest = parseJoinManifestV2({ ...base, ticket: invite });
+    expect(manifest?.ticket).toBe(invite);
   });
 });

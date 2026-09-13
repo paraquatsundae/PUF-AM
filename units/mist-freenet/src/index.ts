@@ -92,7 +92,9 @@ export {
   HOT_CONTRACT_HKDF_INFO,
   deriveHotContractKey,
   decryptHotBlob,
+  decryptHotBlobWithKey,
   encryptHotBlob,
+  encryptHotBlobWithKey,
   type HotCiphertextEnvelope,
 } from './hot-crypto.ts';
 
@@ -100,7 +102,9 @@ export {
   BONES_CONTRACT_HKDF_INFO,
   deriveBonesContractKey,
   decryptBonesBlob,
+  decryptBonesBlobWithKey,
   encryptBonesBlob,
+  encryptBonesBlobWithKey,
   type BonesCiphertextEnvelope,
 } from './bones-crypto.ts';
 
@@ -141,6 +145,55 @@ export {
 export type { JoinSlotCiphertextEnvelope } from './join-slot-crypto.ts';
 
 export type { FreenetPeerStatus } from './freenet-peer.ts';
+
+export {
+  INVITE_TOKEN_GROUP,
+  INVITE_TOKEN_PREFIX,
+  INVITE_TOKEN_SYMBOLS,
+  formatInviteTokenCode,
+  formatInviteTokenInput,
+  inviteTokenBytes,
+  isInviteToken,
+  mintInviteToken,
+  normalizeInviteToken,
+  normalizePufToken,
+  shortTicketCannotUnwrapFarmSeed,
+} from './invite-token.ts';
+export type { NormalizedPufToken, PufTokenKind } from './invite-token.ts';
+
+export {
+  CREW_JOIN_ENVELOPE_HKDF_INFO,
+  CREW_JOIN_SLOT_HKDF_INFO,
+  CREW_JOIN_SLOT_SIGN_HKDF_INFO,
+  CrewJoinError,
+  assertNoFarmSeedInEnvelope,
+  deriveCrewJoinEnvelopeKey,
+  deriveCrewJoinSigningSeed,
+  deriveCrewJoinSlotAddress,
+  deriveCrewJoinSlotId,
+  inviteTokenCannotUnwrapFarmSeed,
+  parseCrewJoinEnvelope,
+  unwrapCrewJoinEnvelope,
+  wrapCrewJoinEnvelope,
+} from './crew-join.ts';
+export type { CrewJoinEnvelope } from './crew-join.ts';
+
+export {
+  HOT_WATCH_ENVELOPE_HKDF_INFO,
+  HOT_WATCH_SLOT_HKDF_INFO,
+  HOT_WATCH_SLOT_SIGN_HKDF_INFO,
+  HotWatchError,
+  assertNoFarmSeedInHotWatch,
+  deriveHotWatchEnvelopeKey,
+  deriveHotWatchSigningSeed,
+  deriveHotWatchSlotAddress,
+  deriveHotWatchSlotId,
+  hotWatchPingChanged,
+  parseHotWatchPing,
+  unwrapHotWatchPing,
+  wrapHotWatchPing,
+} from './hot-watch.ts';
+export type { HotWatchPing } from './hot-watch.ts';
 
 export { isMistAeadEnvelope, assertCiphertextForFreenet } from './ciphertext-guard.ts';
 export type { AssertCiphertextOptions } from './ciphertext-guard.ts';

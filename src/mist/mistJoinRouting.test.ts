@@ -18,6 +18,10 @@ describe('mistSetupDestination', () => {
     expect(mistSetupDestination({ role: 'owner', joinedViaTicket: true })).toBe('/');
     expect(mistSetupDestination({ role: 'owner', joinTicketPending: true })).toBe('/');
   });
+
+  it('keeps owner recover out of the geometry wizard', () => {
+    expect(mistSetupDestination({ role: 'owner', recovered: true })).toBe('/');
+  });
 });
 
 describe('farmRoleForMistRole', () => {

@@ -111,7 +111,8 @@ function unavailable(error: unknown, fallback: string): JoinSlotUnavailableError
  * Both routes are tried when both exist, because "my node has not seen it yet"
  * and "no node here" are different failures and only the second one is fatal.
  */
-async function readJoinSlotState(
+/** Shared by the leftover FarmSeed ticket slot and the crew InviteToken slot. */
+export async function readJoinSlotState(
   instanceIdBase58: string,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {

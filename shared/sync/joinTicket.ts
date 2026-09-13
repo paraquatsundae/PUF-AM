@@ -20,6 +20,7 @@ import {
   CROCKFORD_ALPHABET,
   normalizeCrockfordChar,
 } from '../../units/mist-freenet/src/crockford.ts';
+import { normalizePufToken } from './inviteToken.ts';
 
 /** Human prefix so a ticket is recognisable written on a whiteboard. */
 export const JOIN_TICKET_PREFIX = 'PUF';
@@ -223,7 +224,10 @@ export function parseJoinManifestV2(value: unknown): JoinManifestV2 | null {
   const o = value as Record<string, unknown>;
   if (o.v !== 2) return null;
 
-  const ticket = typeof o.ticket === 'string' ? normalizeJoinTicket(o.ticket) : null;
+  const ticket =
+    typeof o.ticket === 'string'
+      ? (normalizePufToken(o.ticket)?.canonical ?? normalizeJoinTicket(o.ticket))
+      : null;
   const farmId = typeof o.farmId === 'string' ? o.farmId.trim() : '';
   const hotUri = typeof o.hotUri === 'string' ? o.hotUri.trim() : '';
   const bonesUri = typeof o.bonesUri === 'string' ? o.bonesUri.trim() : '';

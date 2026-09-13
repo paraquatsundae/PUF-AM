@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { generatePinCode } from '../shared/auth/byoPin.ts';
 import { mintJoinTicket } from '../shared/sync/joinTicket.ts';
+import { mintInviteToken, normalizeInviteToken } from '../units/mist-freenet/src/invite-token.ts';
 import { mintPairingCode } from '../desktop/lanHubAuth.ts';
 import {
   encodeFarmCodeFromBytes,
@@ -83,6 +84,24 @@ describe('classifyJoinCode matrix', () => {
 });
 
 describe('classifyJoinCode mint properties', () => {
+  it('classifies a minted crew InviteToken as join-ticket', () => {
+    const invite = mintInviteToken();
+    const got = classifyJoinCode(invite);
+    expect(got.kind).toBe('join-ticket');
+    expect(got.normalized).toBe(invite);
+    expect(got.hint).toBeUndefined();
+    expect(joinCodeCanContinue(got)).toBe(true);
+  });
+
+  it('classifies a sloppy InviteToken the same as its canonical form', () => {
+    const invite = mintInviteToken();
+    const body = invite.replace(/[^0-9A-Z]/g, '').slice(3);
+    const sloppy = `puf ${body.toLowerCase()}`;
+    const got = classifyJoinCode(sloppy);
+    expect(got.kind).toBe('join-ticket');
+    expect(got.normalized).toBe(normalizeInviteToken(invite));
+  });
+
   it('classifies every minted join ticket as join-ticket', () => {
     for (let i = 0; i < 12; i++) {
       const ticket = mintJoinTicket();

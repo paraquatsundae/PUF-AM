@@ -37,13 +37,15 @@ function isPlainBonesGeometryJson(value: unknown): boolean {
   );
 }
 
-/** AES-GCM encrypt bones JSON bytes; returns envelope JSON as UTF-8 bytes. */
-export async function encryptBonesBlob(plaintext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+/** AES-GCM encrypt bones JSON bytes under a 32-byte BonesKey. */
+export async function encryptBonesBlobWithKey(
+  plaintext: Uint8Array,
+  keyBytes: Uint8Array,
+): Promise<Uint8Array> {
   if (!hasSubtleCrypto()) {
     throw new Error('encryptBonesBlob: Web Crypto unavailable — cannot AEAD-wrap bones blob');
   }
 
-  const keyBytes = await deriveBonesContractKey(farmSeed);
   const subtle = getSubtleCrypto();
   const key = await subtle.importKey('raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, [
     'encrypt',
@@ -63,10 +65,18 @@ export async function encryptBonesBlob(plaintext: Uint8Array, farmSeed: Uint8Arr
   return new TextEncoder().encode(JSON.stringify(envelope));
 }
 
+/** AES-GCM encrypt bones JSON bytes; returns envelope JSON as UTF-8 bytes. */
+export async function encryptBonesBlob(plaintext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+  return encryptBonesBlobWithKey(plaintext, await deriveBonesContractKey(farmSeed));
+}
+
 /**
  * Decrypt AEAD envelope or pass through plaintext bones geometry JSON bytes.
  */
-export async function decryptBonesBlob(ciphertext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+export async function decryptBonesBlobWithKey(
+  ciphertext: Uint8Array,
+  keyBytes: Uint8Array,
+): Promise<Uint8Array> {
   const text = new TextDecoder().decode(ciphertext);
   let parsed: unknown;
   try {
@@ -87,7 +97,6 @@ export async function decryptBonesBlob(ciphertext: Uint8Array, farmSeed: Uint8Ar
     throw new Error('decryptBonesBlob: Web Crypto unavailable — cannot decrypt bones envelope');
   }
 
-  const keyBytes = await deriveBonesContractKey(farmSeed);
   const subtle = getSubtleCrypto();
   const key = await subtle.importKey('raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, [
     'decrypt',
@@ -97,4 +106,8 @@ export async function decryptBonesBlob(ciphertext: Uint8Array, farmSeed: Uint8Ar
   const ct = hexToBytes(parsed.ct);
   const plain = await subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
   return new Uint8Array(plain);
+}
+
+export async function decryptBonesBlob(ciphertext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+  return decryptBonesBlobWithKey(ciphertext, await deriveBonesContractKey(farmSeed));
 }

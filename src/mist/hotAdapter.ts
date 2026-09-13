@@ -11,6 +11,10 @@ import type { HotRecord, HotState } from '../../units/mist-freenet/src/seal-hot.
 import type { DiaryEvent } from '../lib/farmDiary';
 import type { FieldIssue } from '../lib/fieldStore';
 import type { FarmExportDiaryEvent, FarmExportIssue, FarmExportV1 } from '../lib/farmExport';
+import {
+  MAP_HIGHLIGHT_HOT_TYPE,
+  type MapHighlightDoc,
+} from '../lib/mapHighlights';
 
 export const HOT_WINDOW_DAYS = 90;
 
@@ -51,6 +55,17 @@ export function issueToHotRecord(issue: FarmExportIssue, archived: boolean): Hot
   };
 }
 
+export function highlightToHotRecord(highlight: MapHighlightDoc): HotRecord {
+  const ts = highlight.updatedAt || highlight.createdAt;
+  return {
+    id: highlight.id,
+    type: MAP_HIGHLIGHT_HOT_TYPE,
+    ts,
+    author: highlight.directedAtName || highlight.displayName || highlight.createdBy,
+    payload: highlight,
+  };
+}
+
 export type BuildHotStateOpts = {
   now?: number;
   /** Preserve window/tombstones from an existing hot blob when re-publishing. */
@@ -64,6 +79,12 @@ export type BuildHotStateOpts = {
    */
   farmId?: string;
   cloudFarmId?: string;
+  /**
+   * Timed map highlights from `pufom_farm_local` kind `map_highlights`.
+   * Not part of farm-export.json v1 — they ride in Hot only
+   * (`Plans/FREENET_OPERATOR_FLOW.md` §9.2).
+   */
+  mapHighlights?: MapHighlightDoc[];
 };
 
 /** Build HotState from a farm-export envelope (full local snapshot replace in v1). */
@@ -76,6 +97,7 @@ export function buildHotStateFromFarmExport(
     ...exportBundle.diary.map((e) => diaryToHotRecord(e, author)),
     ...exportBundle.issues.map((i) => issueToHotRecord(i, false)),
     ...exportBundle.issuesArchive.map((i) => issueToHotRecord(i, true)),
+    ...(opts?.mapHighlights ?? []).map((h) => highlightToHotRecord(h)),
   ];
   records.sort((a, b) => b.ts.localeCompare(a.ts));
 
@@ -112,13 +134,22 @@ export type HotFarmEntities = {
   diary: DiaryEvent[];
   issues: FieldIssue[];
   issuesArchive: FieldIssue[];
+  highlights: MapHighlightDoc[];
 };
+
+function asMapHighlight(payload: unknown): MapHighlightDoc | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const row = payload as MapHighlightDoc;
+  if (!row.id || !row.geojson || !row.expiresAt) return null;
+  return row;
+}
 
 /** Inverse of `buildHotStateFromFarmExport` — Hot records → local entity rows. */
 export function hotStateToFarmEntities(hot: HotState): HotFarmEntities {
   const diary: DiaryEvent[] = [];
   const issues: FieldIssue[] = [];
   const issuesArchive: FieldIssue[] = [];
+  const highlights: MapHighlightDoc[] = [];
 
   for (const record of hot.records) {
     if (DIARY_HOT_RECORD_TYPES.has(record.type as DiaryEvent['type'])) {
@@ -131,16 +162,22 @@ export function hotStateToFarmEntities(hot: HotState): HotFarmEntities {
     }
     if (record.type === 'issue_archived') {
       issuesArchive.push(exportIssueToFieldIssue(record.payload as FarmExportIssue));
+      continue;
+    }
+    if (record.type === MAP_HIGHLIGHT_HOT_TYPE) {
+      const highlight = asMapHighlight(record.payload);
+      if (highlight) highlights.push(highlight);
     }
   }
 
-  return { diary, issues, issuesArchive };
+  return { diary, issues, issuesArchive, highlights };
 }
 
 export function countHotFarmEntities(hot: HotState): {
   diary: number;
   issues: number;
   issuesArchive: number;
+  highlights: number;
   records: number;
 } {
   const entities = hotStateToFarmEntities(hot);
@@ -148,6 +185,7 @@ export function countHotFarmEntities(hot: HotState): {
     diary: entities.diary.length,
     issues: entities.issues.length,
     issuesArchive: entities.issuesArchive.length,
+    highlights: entities.highlights.length,
     records: hot.records.length,
   };
 }

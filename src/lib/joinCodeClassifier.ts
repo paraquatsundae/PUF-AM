@@ -7,6 +7,12 @@
 
 import { normalizePin } from '../../shared/auth/byoPin.ts';
 import {
+  INVITE_TOKEN_SYMBOLS,
+  formatInviteTokenInput,
+  isInviteToken,
+  normalizeInviteToken,
+} from '../../shared/sync/inviteToken.ts';
+import {
   JOIN_TICKET_PREFIX,
   JOIN_TICKET_SYMBOLS,
   formatJoinTicketInput,
@@ -43,13 +49,17 @@ const HINT_RAW_TICKET =
 const HINT_FARM_ID = 'That is a farm ID, not a code. On a bring-your-own device it goes beside the PIN.';
 const HINT_TICKET_SHORT =
   'A join ticket is PUF- and eight letters or numbers — check for a missed one.';
+const HINT_INVITE_SHORT =
+  'A crew invite is PUF- and 26 letters or numbers — check for a missed one.';
 const HINT_BARE_TICKET = 'Read as a join ticket without its PUF- — check that is what you meant.';
 const HINT_PIN_SHORT = 'Invite PINs are 8 characters — one may be missing.';
 const HINT_UNLOCK = 'A 4–8 digit number is a device unlock PIN, not a way into a farm.';
 const HINT_UNKNOWN =
-  'Not a PIN, FarmCode or join ticket. PINs are 8 letters/numbers; FarmCodes are 17 in groups of five; tickets start with PUF-.';
+  'Not a PIN, FarmCode or join ticket. PINs are 8 letters/numbers; FarmCodes are 17 in groups of five; crew invites start with PUF-.';
 
-export const TICKET_FIRST_NOTICE = 'That is the join ticket — the paper FarmCode comes first';
+export const TICKET_FIRST_NOTICE =
+  'That short ticket cannot open the farm — ask the owner for a crew invite (PUF- and 26 letters).';
+export const SHORT_TICKET_REFUSED = TICKET_FIRST_NOTICE;
 
 function tidy(raw: string): string {
   return String(raw ?? '')
@@ -97,6 +107,8 @@ function classifyFarmCode(s: string): JoinCodeClassification {
 }
 
 function classifyPrefixedTicket(s: string): JoinCodeClassification {
+  const invite = normalizeInviteToken(s);
+  if (invite) return { kind: 'join-ticket', normalized: invite };
   const normalized = normalizeJoinTicket(s);
   if (normalized) return { kind: 'join-ticket', normalized };
   return { kind: 'join-ticket', normalized: '', hint: HINT_TICKET_SHORT };
@@ -123,6 +135,12 @@ export function classifyJoinCode(input: string): JoinCodeClassification {
     const afterPrefix = cleanedSymbols(s.slice(pufMatch[0].length)).replace(/[*~$=]/g, '');
     const total = cleanedSymbols(s).replace(/[*~$=]/g, '');
     if (
+      afterPrefix.length === INVITE_TOKEN_SYMBOLS &&
+      total.length === JOIN_TICKET_PREFIX.length + INVITE_TOKEN_SYMBOLS
+    ) {
+      return classifyPrefixedTicket(s);
+    }
+    if (
       afterPrefix.length === JOIN_TICKET_SYMBOLS &&
       total.length === JOIN_TICKET_PREFIX.length + JOIN_TICKET_SYMBOLS
     ) {
@@ -131,7 +149,9 @@ export function classifyJoinCode(input: string): JoinCodeClassification {
     // `PUF-…` with a separator is certainly a ticket, even if a symbol is missing.
     // `PUFK7M29` is an 8-char PIN that happens to start with PUF — fall through.
     if (/^PUF[\s-]+/i.test(s)) {
-      return { kind: 'join-ticket', normalized: '', hint: HINT_TICKET_SHORT };
+      const hint =
+        afterPrefix.length > JOIN_TICKET_SYMBOLS ? HINT_INVITE_SHORT : HINT_TICKET_SHORT;
+      return { kind: 'join-ticket', normalized: '', hint };
     }
   }
 
@@ -175,10 +195,15 @@ export function classifyJoinCode(input: string): JoinCodeClassification {
   return { kind: 'unknown', normalized: cleaned, hint: HINT_UNKNOWN };
 }
 
-/** Live box format: PIN unchanged; ticket hyphenated; FarmCode once 9+ symbols and no `PUF`. */
+/** Live box format: PIN unchanged; invite/ticket hyphenated; FarmCode once 9+ symbols and no `PUF`. */
 export function formatJoinCodeInput(raw: string): string {
   const kind = classifyJoinCode(raw).kind;
-  if (kind === 'join-ticket') return formatJoinTicketInput(raw);
+  if (kind === 'join-ticket') {
+    const cleaned = raw.toUpperCase().replace(/[^0-9A-Z]/g, '');
+    const body = cleaned.startsWith('PUF') ? cleaned.slice(3) : cleaned;
+    if (body.length > JOIN_TICKET_SYMBOLS) return formatInviteTokenInput(raw);
+    return formatJoinTicketInput(raw);
+  }
   const noPuf = !/^PUF/i.test(raw.trim());
   const cleaned = raw.toUpperCase().replace(/[^0-9A-Z*~$=]/g, '');
   if (kind === 'farm-code' || (noPuf && cleaned.length >= 9)) {
@@ -199,7 +224,13 @@ export function joinCodeCanContinue(classification: JoinCodeClassification): boo
 export function joinCodeLooksLine(classification: JoinCodeClassification, input: string): string {
   if (classification.hint) return classification.hint;
   if (classification.kind === 'invite-pin') return 'Looks like an invite PIN';
-  if (classification.kind === 'join-ticket') return 'Looks like a join ticket';
+  if (classification.kind === 'join-ticket') {
+    if (isInviteToken(classification.normalized)) return 'Looks like a crew invite';
+    if (classification.normalized) {
+      return 'That short ticket cannot open the farm — ask the owner for a crew invite.';
+    }
+    return 'Looks like a join ticket';
+  }
   if (classification.kind === 'farm-code') {
     const n = farmCodeSymbolCount(input);
     const target = n > 17 ? 27 : 17;

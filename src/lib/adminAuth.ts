@@ -35,3 +35,15 @@ export async function resolveIsPlatformAdmin(): Promise<boolean> {
     return false;
   }
 }
+
+/** Which `/admin` surface to render. Hosted ops stay behind platform claims. */
+export type AdminSurface = 'platform' | 'farm' | 'denied';
+
+export function resolveAdminSurface(input: {
+  isAdmin: boolean;
+  isPlatformAdmin: boolean;
+}): AdminSurface {
+  if (input.isPlatformAdmin) return 'platform';
+  if (input.isAdmin) return 'farm';
+  return 'denied';
+}

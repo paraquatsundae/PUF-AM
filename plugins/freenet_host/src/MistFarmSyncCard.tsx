@@ -37,10 +37,14 @@ import { APP_NAME } from '../../../src/brand';
 import { getDesktopBridge, isDesktopShell } from '../../../src/lib/desktopBridge.ts';
 import type { FreenetHostStatus } from '../../../units/puf-freenet-host/src/types.ts';
 import {
+  formatInviteTokenInput,
+  isInviteToken,
+  normalizePufToken,
+} from '../../../shared/sync/inviteToken.ts';
+import {
   DEFAULT_JOIN_ROLE,
   JOIN_TICKET_PREFIX,
   formatJoinTicketInput,
-  isJoinTicket,
   joinRoleLabel,
   type JoinRole,
 } from '../../../shared/sync/joinTicket.ts';
@@ -77,6 +81,7 @@ import {
   fetchAndRehydrateFarmFromFreenet,
   refreshFarmUiAfterRecovery,
 } from '../../../src/mist/mistDisasterRecovery.ts';
+import { joinFarmWithCrewInvite } from '../../../src/mist/crewInvite.ts';
 import { joinFarmWithShortTicket } from './mistJoinWithTicket.ts';
 import { resolveJoinTicket } from '../../../src/mist/joinTicketResolver.ts';
 import { formatJoinTicket, parseJoinTicketInput } from '../../../src/mist/mistJoinTicket.ts';
@@ -85,7 +90,7 @@ import {
   isMistHotMirrorAvailable,
   mistPublishNeedsDevicePin,
 } from '../../../src/mist/mistHotBridge.ts';
-import { getMistJoinState, mistSessionNeedsPin } from '../../../src/mist/mistDeviceSession.ts';
+import { getMistJoinState, getMistSessionMeta, mistSessionNeedsPin } from '../../../src/mist/mistDeviceSession.ts';
 import { fetchSyncSelf } from '../../../src/lib/mdnsPeers.ts';
 import { ensureSyncHub } from '../../../src/lib/syncHub.ts';
 
@@ -379,7 +384,7 @@ export function MistFarmSyncCard() {
       : 'Connect to Freenet first';
   const parsedPaste = parseJoinTicketInput(paste);
   const freenetTicket = savedFreenetTicket(farmId);
-  const joinTicketLooksRight = isJoinTicket(joinTicket);
+  const joinTicketLooksRight = Boolean(normalizePufToken(joinTicket));
 
   const pickMode = (next: Mode) => {
     setModePinned(true);
@@ -480,7 +485,7 @@ export function MistFarmSyncCard() {
         ...(result.shortTicketPreset ? { preset: result.shortTicketPreset } : {}),
         expires: result.shortTicketExpires,
       });
-      setMessage('Farm sent to Freenet. Read the join ticket below out to whoever is joining.');
+      setMessage('Farm sent to Freenet. Read the crew invite below — they type only this, not the FarmCode.');
       await refreshStatus();
     });
 
@@ -508,15 +513,26 @@ export function MistFarmSyncCard() {
     run(async () => {
       if (!farmId || !joinTicketLooksRight) return;
       try {
-        const result = await joinFarmWithShortTicket({
-          farmId,
-          ticket: joinTicket,
-          ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
-          ...(devicePin.trim() ? { devicePin: devicePin.trim() } : {}),
-        });
+        const pin = devicePin.trim();
+        const joined = isInviteToken(joinTicket)
+          ? await joinFarmWithCrewInvite({
+              invite: joinTicket,
+              farmName: getMistSessionMeta()?.farmName,
+              displayName: getMistSessionMeta()?.displayName || 'Crew',
+              skipPin: !pin,
+              ...(pin ? { devicePin: pin } : {}),
+              ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
+              persistSession: false,
+            })
+          : await joinFarmWithShortTicket({
+              farmId,
+              ticket: joinTicket,
+              ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
+              ...(pin ? { devicePin: pin } : {}),
+            });
         const joinedAs =
-          findJoinPreset(result.grant.preset)?.label ?? joinRoleLabel(result.grant.role);
-        setMessage(`${describeReceived(result.diary, result.blocks)} Joined as ${joinedAs}.`);
+          findJoinPreset(joined.grant.preset)?.label ?? joinRoleLabel(joined.grant.role);
+        setMessage(`${describeReceived(joined.diary, joined.blocks)} Joined as ${joinedAs}.`);
       } catch (err) {
         setOwnerBaseShown(true);
         throw err;
@@ -734,7 +750,7 @@ export function MistFarmSyncCard() {
                 <div className="space-y-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-emerald-900">
-                      Join ticket · {ticketGrantLabel(sentTicket)}
+                      Crew invite · {ticketGrantLabel(sentTicket)}
                     </p>
                     <button
                       type="button"
@@ -746,19 +762,18 @@ export function MistFarmSyncCard() {
                       {ticketCopied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                  <p className="font-mono text-xl font-bold tracking-[0.15em] text-emerald-900 text-center py-1 select-all">
+                  <p className="font-mono text-sm font-bold tracking-wider text-emerald-900 text-center py-1 select-all break-all">
                     {sentTicket.ticket}
                   </p>
                   <p className="text-[11px] text-emerald-800">
-                    Short enough to read out or write on a whiteboard — no clipboard needed on a
-                    phone.
+                    They type only this invite — not the paper FarmCode.
                     {sentTicket.expires
                       ? ` Stops working ${new Date(sentTicket.expires).toLocaleDateString()}.`
                       : null}
                   </p>
                   <p className="text-[11px] font-semibold text-emerald-950 bg-white/70 border border-emerald-200 rounded-lg px-2 py-1.5">
-                    Give them the paper FarmCode <strong>and</strong> this ticket. The ticket by
-                    itself will not open the farm.
+                    Revoking this invite stops new joins. A device that already pulled the farm
+                    keeps its copy.
                   </p>
                 </div>
               ) : null}
@@ -773,26 +788,15 @@ export function MistFarmSyncCard() {
               <div className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 space-y-1.5">
                 <p className="font-semibold text-slate-900 flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5" />
-                  Give them two things
+                  Give them the crew invite
                 </p>
                 <p className="text-[11px] text-slate-600">
-                  The ticket by itself will not open the farm. They must already have the paper
-                  FarmCode.
+                  They type only this invite on Join a farm. Never the paper FarmCode — that stays
+                  on owner devices.
                 </p>
-                <ol className="list-decimal ml-4 space-y-1 text-slate-600">
-                  <li>
-                    <strong>The paper FarmCode</strong> — written down when this farm was created.
-                    The app cannot show it again.
-                  </li>
-                  <li>
-                    <strong>This join ticket</strong>. A new one is issued every time you send, so
-                    use the latest.
-                  </li>
-                </ol>
                 <p className="text-[11px] text-slate-500">
-                  If they set a device PIN when they recovered, they type that on their device. If
-                  they skipped it, they leave that field blank. That PIN is not the one that unlocks
-                  Send on this laptop.
+                  A new invite is issued every time you send, so use the latest. Revoking stops new
+                  joins; it does not wipe a copy already fetched.
                 </p>
                 <p className="text-[11px] text-slate-500 flex items-start gap-1.5">
                   <Wifi className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -851,22 +855,29 @@ export function MistFarmSyncCard() {
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700" htmlFor="mist-short-ticket">
-                  Join ticket from the farm owner
+                  Crew invite from the farm owner
                 </label>
                 <input
                   id="mist-short-ticket"
                   value={joinTicket}
-                  onChange={(e) => setJoinTicket(formatJoinTicketInput(e.target.value))}
-                  placeholder={`${JOIN_TICKET_PREFIX}-K7M2-9Q4X`}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const cleaned = raw.toUpperCase().replace(/[^0-9A-Z]/g, '');
+                    const body = cleaned.startsWith('PUF') ? cleaned.slice(3) : cleaned;
+                    setJoinTicket(
+                      body.length > 8 ? formatInviteTokenInput(raw) : formatJoinTicketInput(raw),
+                    );
+                  }}
+                  placeholder={`${JOIN_TICKET_PREFIX}-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX`}
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  className="w-full px-3 py-3 rounded-xl border border-slate-200 font-mono tracking-[0.2em] text-center uppercase"
+                  className="w-full px-3 py-3 rounded-xl border border-slate-200 font-mono tracking-wider text-center uppercase text-sm"
                 />
                 {joinTicket.trim() && !joinTicketLooksRight ? (
                   <p className="text-[11px] text-amber-700">
-                    A join ticket is eight characters after the prefix, like{' '}
-                    <code className="font-mono">{JOIN_TICKET_PREFIX}-K7M2-9Q4X</code>.
+                    A crew invite is PUF- and 26 letters. A short eight-character ticket cannot
+                    open the farm.
                   </p>
                 ) : null}
               </div>
@@ -887,8 +898,7 @@ export function MistFarmSyncCard() {
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 font-mono text-center tracking-[0.3em]"
                   />
                   <p className="text-[11px] text-slate-500">
-                    Needed to look a ticket up over Freenet — the slot it sits in is addressed off
-                    the FarmCode this PIN unlocks.
+                    Needed if this device is PIN-locked. A crew invite does not need the FarmCode.
                   </p>
                 </div>
               ) : null}
@@ -917,7 +927,7 @@ export function MistFarmSyncCard() {
                 disabled={busy || !joinTicketLooksRight || !peerStatus?.running}
                 title={
                   !joinTicketLooksRight
-                    ? 'Enter the join ticket first'
+                    ? 'Enter the crew invite first'
                     : peerStatus?.running
                       ? undefined
                       : blockedTitle
@@ -930,9 +940,9 @@ export function MistFarmSyncCard() {
               </button>
 
               <p className="text-[11px] text-slate-500">
-                Be on the <strong>same Wi‑Fi as the farm owner</strong> — that is how the ticket is
-                looked up. The farm itself comes over Freenet, encrypted, and is decrypted here with
-                the FarmCode you recovered with. Nothing is sent back.
+                Be on the <strong>same Wi‑Fi as the farm owner</strong> if you can — that is the
+                fast lookup. The farm itself comes over Freenet and opens with the keys in this
+                invite, not the paper FarmCode. Nothing is sent back.
               </p>
 
               <div className="space-y-2 pt-1 border-t border-slate-100">

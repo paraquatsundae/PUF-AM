@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clearMistDeviceSession,
+  createMistCrewSessionRecord,
   createMistSessionRecord,
   getMistSessionMeta,
   loadMistDeviceSession,
@@ -80,5 +81,25 @@ describe('mistDeviceSession', () => {
     const raw = mockStorage.get('pufam.mist.session.v1') ?? '';
     expect(raw).not.toContain('"farmSeedHex"');
     expect(raw).not.toContain('090909');
+  });
+
+  it('crew session persists Hot/Bones keys and never FarmSeed', async () => {
+    const session = createMistCrewSessionRecord({
+      farmId: 'd'.repeat(32),
+      farmName: 'Crew Farm',
+      displayName: 'Dana',
+      hotKey: new Uint8Array(32).fill(1),
+      bonesKey: new Uint8Array(32).fill(2),
+    });
+    expect(session.farmSeedHex).toBeUndefined();
+    expect(session.hotKeyHex).toHaveLength(64);
+    expect(session.joinedViaTicket).toBe(true);
+
+    await saveMistDeviceSession(session);
+    const loaded = await loadMistDeviceSession();
+    expect(loaded?.farmSeedHex).toBeUndefined();
+    expect(loaded?.hotKeyHex).toBe(session.hotKeyHex);
+    expect(loaded?.bonesKeyHex).toBe(session.bonesKeyHex);
+    expect(JSON.stringify(loaded)).not.toMatch(/farmSeed/i);
   });
 });

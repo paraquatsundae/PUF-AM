@@ -103,6 +103,7 @@ export const navGroups: NavGroup[] = [
       { name: 'Farm Setup', href: '/farm-setup', icon: IconBuildingWarehouse, moduleId: 'farm_setup' },
       { name: 'Settings', href: '/settings', icon: IconSettings, moduleId: 'settings' },
       { name: 'About', href: '/about', icon: IconInfoCircle },
+      // Farm admin or hosted platform admin — `/admin` itself splits the two.
       { name: 'Admin', href: '/admin', icon: IconShieldCheck, adminOnly: true },
     ]),
   },
@@ -119,7 +120,7 @@ export function visibleGroupItems(
 ): NavItem[] {
   const allowed = effectiveModules(role, modules, farmEnabled);
   return group.items.filter((item) => {
-    if (item.adminOnly && !isPlatformAdmin) return false;
+    if (item.adminOnly && !isPlatformAdmin && !isAdmin) return false;
     if (item.moduleId && !allowed.includes(item.moduleId)) return false;
     return true;
   });

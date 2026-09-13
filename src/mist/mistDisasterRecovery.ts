@@ -12,6 +12,7 @@ import {
   wipeLocalFarmEntitiesForFarm,
 } from '../lib/localFarmRepo';
 import { BONES_WORKSHOP_ASSET_ID } from './bonesWorkshop.ts';
+import { notifyMapHighlightsChanged } from '../lib/mapHighlights';
 import { countHotFarmEntities, hotStateCloudFarmId, hotStateToFarmEntities } from './hotAdapter.ts';
 import { getMistStoreForHotBridge, readMistHotCurrent } from './mistHotBridge.ts';
 import { clearMistHotPublishStatus } from './mistHotPublishMeta.ts';
@@ -46,6 +47,7 @@ export type RehydrateLocalFarmResult = {
     diary: number;
     issues: number;
     issuesArchive: number;
+    highlights: number;
   };
 };
 
@@ -130,7 +132,9 @@ export async function rehydrateLocalFarmFromHot(
     replaceLocalEntities(farmId, 'diary', entities.diary),
     replaceLocalEntities(farmId, 'issues', entities.issues),
     replaceLocalEntities(farmId, 'issues_archive', entities.issuesArchive),
+    replaceLocalEntities(farmId, 'map_highlights', entities.highlights),
   ]);
+  notifyMapHighlightsChanged(farmId);
 
   const after = await countLocalFarmEntities(farmId);
   const hotCounts = countHotFarmEntities(hot);
@@ -143,6 +147,7 @@ export async function rehydrateLocalFarmFromHot(
       diary: hotCounts.diary,
       issues: hotCounts.issues,
       issuesArchive: hotCounts.issuesArchive,
+      highlights: hotCounts.highlights,
     },
   };
 }
@@ -265,7 +270,7 @@ export async function refreshFarmUiAfterRecovery(farmId: string): Promise<void> 
 }
 
 export function formatEntityCounts(counts: LocalFarmEntityCounts): string {
-  return `${counts.diary} diary · ${counts.issues} issues · ${counts.issuesArchive} archived · ${counts.outbox} outbox`;
+  return `${counts.diary} diary · ${counts.issues} issues · ${counts.issuesArchive} archived · ${counts.highlights} highlights · ${counts.outbox} outbox`;
 }
 
 export function formatWipeResult(result: WipeLocalFarmResult): string {
@@ -279,6 +284,6 @@ export function formatWipeResult(result: WipeLocalFarmResult): string {
 export function formatRehydrateResult(result: RehydrateLocalFarmResult): string {
   return (
     `Rehydrated from Hot — before: ${formatEntityCounts(result.before)} → after: ${formatEntityCounts(result.after)}` +
-    ` (Hot: ${result.hot.diary}+${result.hot.issues}+${result.hot.issuesArchive} entities, ${result.hot.records} records)`
+    ` (Hot: ${result.hot.diary}+${result.hot.issues}+${result.hot.issuesArchive}+${result.hot.highlights} entities, ${result.hot.records} records)`
   );
 }

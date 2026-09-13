@@ -15,8 +15,8 @@
  * @see Plans/reference/MIST_TWO_FEDORA_FREENET.md § Short join ticket
  */
 
+import { normalizePufToken } from '../../shared/sync/inviteToken.ts';
 import {
-  normalizeJoinTicket,
   parseJoinManifestV2,
   type JoinManifestV2,
   type JoinRole,
@@ -118,9 +118,11 @@ export class LanJoinTicketResolver implements JoinTicketResolver {
     farmId: string,
     options?: ResolveJoinTicketOptions,
   ): Promise<ResolvedJoinTicket> {
-    const canonical = normalizeJoinTicket(ticket);
+    const canonical = normalizePufToken(ticket)?.canonical;
     if (!canonical) {
-      throw new JoinTicketMismatchError('That join ticket should look like PUF-K7M2-9Q4X.');
+      throw new JoinTicketMismatchError(
+        'That invite should look like PUF- and 26 letters, or a leftover PUF-XXXX-XXXX ticket.',
+      );
     }
 
     // The lookup runs on a hub, not here. On a tablet that has not found one yet
@@ -304,13 +306,15 @@ export type RegisterJoinTicketInput = {
    * joiner never receives the name the owner filed them under.
    */
   label?: string;
+  /** Sealed crew envelope (Hot/Bones). Opaque hex — the hub does not unwrap it. */
+  sealedCrew?: string;
 };
 
 /** Owner side — publish the manifest on this device's hub so a ticket means something. */
 export async function registerJoinTicketOnLan(
   input: RegisterJoinTicketInput,
 ): Promise<{ ticket: string; expires?: string }> {
-  const canonical = normalizeJoinTicket(input.ticket);
+  const canonical = normalizePufToken(input.ticket)?.canonical;
   if (!canonical) throw new Error('Cannot register a malformed join ticket');
 
   const res = await apiFetch(mistLocalApiUrl('/api/sync/join-ticket'), {

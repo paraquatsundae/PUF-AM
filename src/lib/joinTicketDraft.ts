@@ -4,6 +4,7 @@
  * Never write a FarmCode here.
  */
 
+import { normalizePufToken } from '../../shared/sync/inviteToken.ts';
 import { normalizeJoinTicket } from '../../shared/sync/joinTicket.ts';
 
 export const JOIN_TICKET_DRAFT_KEY = 'pufam.mist.joinTicketDraft.v1';
@@ -17,9 +18,9 @@ function session(): Storage | null {
   }
 }
 
-/** Persist a canonical `PUF-XXXX-XXXX` only. No-op on anything else. */
+/** Persist a canonical `PUF-` invite or leftover short ticket. Never a FarmCode. */
 export function writeJoinTicketDraft(ticket: string): void {
-  const normalized = normalizeJoinTicket(ticket);
+  const normalized = normalizePufToken(ticket)?.canonical ?? normalizeJoinTicket(ticket);
   if (!normalized) return;
   session()?.setItem(JOIN_TICKET_DRAFT_KEY, normalized);
 }
@@ -36,5 +37,5 @@ export function takeJoinTicketDraft(): string | null {
   const raw = store.getItem(JOIN_TICKET_DRAFT_KEY);
   store.removeItem(JOIN_TICKET_DRAFT_KEY);
   if (!raw) return null;
-  return normalizeJoinTicket(raw);
+  return normalizePufToken(raw)?.canonical ?? normalizeJoinTicket(raw);
 }

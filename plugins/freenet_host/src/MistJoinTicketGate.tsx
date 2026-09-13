@@ -25,12 +25,17 @@ import {
   getMistSessionMeta,
   mistSessionNeedsPin,
 } from '../../../src/mist/mistDeviceSession.ts';
+import { joinFarmWithCrewInvite } from '../../../src/mist/crewInvite.ts';
 import { joinFarmWithShortTicket } from './mistJoinWithTicket.ts';
 import { joinOutcomeMessage } from './joinOutcome.ts';
 import {
+  formatInviteTokenInput,
+  isInviteToken,
+  normalizePufToken,
+} from '../../../shared/sync/inviteToken.ts';
+import {
   JOIN_TICKET_PREFIX,
   formatJoinTicketInput,
-  isJoinTicket,
   joinRoleLabel,
 } from '../../../shared/sync/joinTicket.ts';
 import { findJoinPreset } from '../../../shared/sync/joinGrant.ts';
@@ -106,7 +111,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
   }, [pending, runtime, runtimeSettled]);
 
   const meta = getMistSessionMeta();
-  const ticketLooksRight = useMemo(() => isJoinTicket(ticket), [ticket]);
+  const ticketLooksRight = useMemo(() => Boolean(normalizePufToken(ticket)), [ticket]);
 
   // A Firebase sign-in on a device that once held a mist farm must never see this.
   if (!pending || !isMistExperimentalEnabled() || !isMistFarmSessionActive() || !farmId) {
@@ -145,12 +150,23 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
           /* Reported by whichever resolver actually needed a node. */
         }
       }
-      const result = await joinFarmWithShortTicket({
-        farmId,
-        ticket,
-        ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
-        ...(devicePin.trim() ? { devicePin: devicePin.trim() } : {}),
-      });
+      const pin = devicePin.trim();
+      const result = isInviteToken(ticket)
+        ? await joinFarmWithCrewInvite({
+            invite: ticket,
+            farmName: meta?.farmName,
+            displayName: meta?.displayName || 'Crew',
+            skipPin: !pin,
+            ...(pin ? { devicePin: pin } : {}),
+            ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
+            persistSession: false,
+          })
+        : await joinFarmWithShortTicket({
+            farmId,
+            ticket,
+            ...(ownerBase.trim() ? { ownerBase: ownerBase.trim() } : {}),
+            ...(pin ? { devicePin: pin } : {}),
+          });
       const joinedAs =
         findJoinPreset(result.grant.preset)?.label ?? joinRoleLabel(result.grant.role);
       setMessage(
@@ -179,7 +195,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
           <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
             <Ticket className="w-7 h-7 text-emerald-700" />
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Enter join ticket</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">Enter crew invite</h1>
           <p className="text-sm text-slate-600">
             {meta?.farmName ? (
               <>
@@ -191,9 +207,9 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
             )}
           </p>
           <p className="text-xs text-slate-500">
-            You already typed the paper FarmCode. This ticket is the second piece — ask the farm
-            owner for the short code from their <strong>Send this farm</strong> screen. It looks
-            like <code className="font-mono">{JOIN_TICKET_PREFIX}-K7M2-9Q4X</code>.
+            Ask the farm owner for the crew invite from their <strong>Send this farm</strong>{' '}
+            screen (<code className="font-mono">{JOIN_TICKET_PREFIX}-</code> and 26 letters). A
+            short eight-character ticket cannot open the farm.
           </p>
           <div className="pt-1">
             <FreenetHowItWorksButton />
@@ -230,8 +246,13 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
         >
           <input
             value={ticket}
-            onChange={(e) => setTicket(formatJoinTicketInput(e.target.value))}
-            placeholder={`${JOIN_TICKET_PREFIX}-K7M2-9Q4X`}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const cleaned = raw.toUpperCase().replace(/[^0-9A-Z]/g, '');
+              const body = cleaned.startsWith('PUF') ? cleaned.slice(3) : cleaned;
+              setTicket(body.length > 8 ? formatInviteTokenInput(raw) : formatJoinTicketInput(raw));
+            }}
+            placeholder={`${JOIN_TICKET_PREFIX}-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX`}
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
@@ -258,8 +279,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
               />
               <p className="text-[11px] text-slate-500">
                 The PIN you set when you recovered this farm. A ticket looked up over Freenet is
-                found at an address derived from the FarmCode, so this device has to be unlocked to
-                work out where to look.
+                found from the invite itself, so this device has to be unlocked if you set a PIN.
               </p>
             </div>
           )}

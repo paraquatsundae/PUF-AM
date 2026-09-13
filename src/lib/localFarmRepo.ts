@@ -4,8 +4,11 @@
  */
 import type { DiaryEvent } from './farmDiary';
 import type { FieldIssue } from './fieldStore';
+import type { MapHighlightDoc } from './mapHighlights';
 
-export type LocalEntityKind = 'issues' | 'issues_archive' | 'diary';
+export type LocalEntityKind = 'issues' | 'issues_archive' | 'diary' | 'map_highlights';
+
+export type LocalFarmEntity = FieldIssue | DiaryEvent | MapHighlightDoc;
 
 export type OutboxOp = {
   id: string;
@@ -13,7 +16,7 @@ export type OutboxOp = {
   kind: LocalEntityKind;
   op: 'upsert' | 'delete';
   entityId: string;
-  payload?: FieldIssue | DiaryEvent;
+  payload?: LocalFarmEntity;
   updatedAt: string;
   createdAt: string;
   /** Failed flush attempts with a *permanent* error. Absent on ops from older builds. */
@@ -29,7 +32,7 @@ type EntityRow = {
   key: string; // farmId:kind
   farmId: string;
   kind: LocalEntityKind;
-  items: Array<FieldIssue | DiaryEvent>;
+  items: LocalFarmEntity[];
   updatedAt: string;
 };
 
@@ -95,7 +98,7 @@ async function enqueue(op: OutboxOp): Promise<void> {
   });
 }
 
-export async function listLocalEntities<T extends FieldIssue | DiaryEvent>(
+export async function listLocalEntities<T extends LocalFarmEntity>(
   farmId: string,
   kind: LocalEntityKind
 ): Promise<T[]> {
@@ -106,7 +109,7 @@ export async function listLocalEntities<T extends FieldIssue | DiaryEvent>(
 export async function upsertLocalEntity(
   farmId: string,
   kind: LocalEntityKind,
-  entity: FieldIssue | DiaryEvent,
+  entity: LocalFarmEntity,
   opts?: { queueCloud?: boolean }
 ): Promise<void> {
   const row = await getRow(farmId, kind);
@@ -116,7 +119,7 @@ export async function upsertLocalEntity(
   const stamped = {
     ...entity,
     updatedAt: (entity as { updatedAt?: string }).updatedAt || new Date().toISOString(),
-  } as FieldIssue | DiaryEvent;
+  } as LocalFarmEntity;
   if (idx >= 0) items[idx] = stamped;
   else items.push(stamped);
   await putRow({ ...row, items });
@@ -159,7 +162,7 @@ export async function deleteLocalEntity(
 export async function replaceLocalEntities(
   farmId: string,
   kind: LocalEntityKind,
-  items: Array<FieldIssue | DiaryEvent>
+  items: LocalFarmEntity[]
 ): Promise<void> {
   await putRow({
     key: entityKey(farmId, kind),
@@ -205,20 +208,23 @@ export type LocalFarmEntityCounts = {
   diary: number;
   issues: number;
   issuesArchive: number;
+  highlights: number;
   outbox: number;
 };
 
 export async function countLocalFarmEntities(farmId: string): Promise<LocalFarmEntityCounts> {
-  const [diary, issues, issuesArchive, outbox] = await Promise.all([
+  const [diary, issues, issuesArchive, highlights, outbox] = await Promise.all([
     listLocalEntities(farmId, 'diary'),
     listLocalEntities(farmId, 'issues'),
     listLocalEntities(farmId, 'issues_archive'),
+    listLocalEntities(farmId, 'map_highlights'),
     listOutbox(farmId),
   ]);
   return {
     diary: diary.length,
     issues: issues.length,
     issuesArchive: issuesArchive.length,
+    highlights: highlights.length,
     outbox: outbox.length,
   };
 }
@@ -230,6 +236,7 @@ export async function wipeLocalFarmEntitiesForFarm(farmId: string): Promise<Loca
     replaceLocalEntities(farmId, 'diary', []),
     replaceLocalEntities(farmId, 'issues', []),
     replaceLocalEntities(farmId, 'issues_archive', []),
+    replaceLocalEntities(farmId, 'map_highlights', []),
   ]);
 
   const ops = await listOutbox(farmId);

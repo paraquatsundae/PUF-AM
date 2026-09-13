@@ -5,8 +5,8 @@ export function JoinFreenetUnavailable({ onBack }: { onBack: () => void }) {
     <LoginPanel>
       <LoginBrand title="This is a Freenet farm" />
       <p className="text-sm text-slate-600">
-        A FarmCode / join ticket opens a farm that lives on Freenet. The web app cannot run
-        Freenet — a browser has no node.
+        A FarmCode (owner recover) or PUF- crew invite opens a farm that lives on Freenet. The
+        web app cannot run Freenet — a browser has no node.
       </p>
       <div className="text-sm text-slate-700 space-y-2">
         <p className="font-medium">What you can do:</p>

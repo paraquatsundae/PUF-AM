@@ -37,7 +37,7 @@
 
 import { blake3 } from '@noble/hashes/blake3.js';
 import { ed25519 } from '@noble/curves/ed25519.js';
-import bs58 from 'bs58';
+import bs58 from './bs58.ts';
 
 import { hkdfSha256, MIST_HKDF_SALT } from './farm-seed.ts';
 import { encodeFreenet02Uri } from './freenet02-uri.ts';

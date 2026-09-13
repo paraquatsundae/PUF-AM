@@ -1,11 +1,12 @@
 /**
- * FarmCode-first join reducer. Plans/LOGIN_JOIN_SINGLE_BOX.md §2.10.
+ * Join-box reducer. Plans/LOGIN_JOIN_SINGLE_BOX.md Decision — 2026-09-12.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import { encodeFarmCodeFromBytes } from '../units/mist-freenet/src/farm-code.ts';
-import { TICKET_FIRST_NOTICE } from '../src/lib/joinCodeClassifier.ts';
+import { mintInviteToken } from '../units/mist-freenet/src/invite-token.ts';
+import { SHORT_TICKET_REFUSED } from '../src/lib/joinCodeClassifier.ts';
 import {
   freenetJoinAvailability,
   initialJoinState,
@@ -47,33 +48,37 @@ describe('joinCodeReducer', () => {
     expect(s.heldTicket).toBeNull();
   });
 
-  it('ticket-first holds heldTicket and stays on code', () => {
+  it('short ticket stays on code and is refused as an unwrap', () => {
     const s = apply([{ type: 'TYPE', input: 'PUF-K7M2-9Q4X' }, { type: 'CONTINUE' }], 'host');
     expect(s.stage).toBe('code');
-    expect(s.heldTicket).toBe('PUF-K7M2-9Q4X');
-    expect(s.notice).toBe(TICKET_FIRST_NOTICE);
-    expect(s.input).toBe('');
+    expect(s.notice).toBe(SHORT_TICKET_REFUSED);
+    expect(s.input).toBe('PUF-K7M2-9Q4X');
   });
 
-  it('ticket on hosted web discards and goes to freenet-unavailable', () => {
-    const s = apply([{ type: 'TYPE', input: 'PUF-K7M2-9Q4X' }, { type: 'CONTINUE' }], 'none');
+  it('crew invite on host → freenet', () => {
+    const invite = mintInviteToken();
+    const s = apply([{ type: 'TYPE', input: invite }, { type: 'CONTINUE' }], 'host');
+    expect(s.stage).toBe('freenet');
+    expect(s.classification.normalized).toBe(invite);
+    expect(s.notice).toBeNull();
+  });
+
+  it('crew invite on hosted web discards and goes to freenet-unavailable', () => {
+    const invite = mintInviteToken();
+    const s = apply([{ type: 'TYPE', input: invite }, { type: 'CONTINUE' }], 'none');
     expect(s.stage).toBe('freenet-unavailable');
     expect(s.heldTicket).toBeNull();
   });
 
-  it('BACK clears heldTicket', () => {
+  it('BACK clears the box', () => {
+    const invite = mintInviteToken();
     const s = apply(
-      [{ type: 'TYPE', input: 'PUF-K7M2-9Q4X' }, { type: 'CONTINUE' }, { type: 'BACK' }],
+      [{ type: 'TYPE', input: invite }, { type: 'CONTINUE' }, { type: 'BACK' }],
       'host',
     );
     expect(s.heldTicket).toBeNull();
     expect(s.notice).toBeNull();
     expect(s.stage).toBe('code');
-  });
-
-  it('never advances a ticket to the Freenet step (FarmCode-first)', () => {
-    const s = apply([{ type: 'TYPE', input: 'PUF-K7M2-9Q4X' }, { type: 'CONTINUE' }], 'host');
-    expect(s.stage).not.toBe('freenet');
   });
 
   it('does not leave the box on a short invite PIN', () => {

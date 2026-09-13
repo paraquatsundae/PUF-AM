@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { normalizePufToken } from '../shared/sync/inviteToken.ts';
 import {
   isJoinManifestExpired,
   normalizeJoinTicket,
@@ -47,6 +48,8 @@ export type JoinManifestEntry = {
   label?: string;
   /** One ISO stamp per time this ticket was looked up, oldest first. */
   redeemedAt?: string[];
+  /** Sealed crew envelope (Hot/Bones keys). Opaque to the hub. */
+  sealedCrew?: string;
 };
 
 /** Enough to answer "has anyone actually used it, and when" without growing forever. */
@@ -138,6 +141,9 @@ function mergeFile(path: string): void {
       ...(entry.registeredBy ? { registeredBy: String(entry.registeredBy) } : {}),
       ...(label ? { label } : {}),
       ...(redeemedAt ? { redeemedAt } : {}),
+      ...(typeof entry.sealedCrew === 'string' && entry.sealedCrew
+        ? { sealedCrew: entry.sealedCrew }
+        : {}),
     });
   }
 }
@@ -213,16 +219,19 @@ export function putJoinManifest(
   manifest: JoinManifestV2,
   registeredBy?: string,
   label?: string,
+  sealedCrew?: string,
 ): JoinManifestEntry {
   syncFromDisk();
   pruneExpired();
   const cleanLabel = sanitizeJoinLabel(label);
+  const sealed = typeof sealedCrew === 'string' && sealedCrew.trim() ? sealedCrew.trim() : undefined;
   const entry: JoinManifestEntry = {
     id: randomUUID(),
     manifest,
     registeredAt: new Date().toISOString(),
     ...(registeredBy ? { registeredBy } : {}),
     ...(cleanLabel ? { label: cleanLabel } : {}),
+    ...(sealed ? { sealedCrew: sealed } : {}),
   };
   manifests.delete(manifest.ticket);
   manifests.set(manifest.ticket, entry);
@@ -238,14 +247,14 @@ export function putJoinManifest(
 export function getJoinManifest(ticket: string): JoinManifestEntry | null {
   syncFromDisk();
   pruneExpired();
-  const canonical = normalizeJoinTicket(ticket);
+  const canonical = normalizePufToken(ticket)?.canonical ?? normalizeJoinTicket(ticket);
   if (!canonical) return null;
   return manifests.get(canonical) ?? null;
 }
 
 export function deleteJoinManifest(ticket: string): boolean {
   syncFromDisk();
-  const canonical = normalizeJoinTicket(ticket);
+  const canonical = normalizePufToken(ticket)?.canonical ?? normalizeJoinTicket(ticket);
   if (!canonical) return false;
   const removed = manifests.delete(canonical);
   if (removed) persist();
@@ -277,7 +286,7 @@ export function deleteJoinManifestById(id: string): boolean {
  * which is why the People page says *last used* rather than *joined*.
  */
 export function markJoinManifestRedeemed(ticket: string, at = new Date()): void {
-  const canonical = normalizeJoinTicket(ticket);
+  const canonical = normalizePufToken(ticket)?.canonical ?? normalizeJoinTicket(ticket);
   if (!canonical) return;
   const entry = manifests.get(canonical);
   if (!entry) return;

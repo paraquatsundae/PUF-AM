@@ -20,10 +20,10 @@
  */
 import type { Express, Request, Response } from 'express';
 
+import { normalizePufToken } from '../shared/sync/inviteToken.ts';
 import {
   coerceJoinRole,
   isJoinManifestExpired,
-  normalizeJoinTicket,
   parseJoinManifestV2,
   type JoinManifestV2,
 } from '../shared/sync/joinTicket.ts';
@@ -85,8 +85,12 @@ function normalizeLanBase(raw: unknown): string | null {
  * answered something unusable — and only the first is fixed by checking the
  * network. Keep them apart all the way out to the message.
  */
+function canonicalJoinLookup(raw: string): string | null {
+  return normalizePufToken(raw)?.canonical ?? null;
+}
+
 type PeerLookup =
-  | { status: 'found'; manifest: JoinManifestV2 }
+  | { status: 'found'; manifest: JoinManifestV2; sealedCrew?: string }
   | { status: 'no-ticket' }
   | { status: 'unreachable' };
 
@@ -104,10 +108,13 @@ async function fetchManifestFromPeer(base: string, ticket: string): Promise<Peer
 
   if (!res.ok) return { status: 'no-ticket' };
   try {
-    const body = (await res.json()) as { manifest?: unknown };
+    const body = (await res.json()) as { manifest?: unknown; sealedCrew?: unknown };
     const manifest = parseJoinManifestV2(body.manifest);
     if (!manifest || isJoinManifestExpired(manifest)) return { status: 'no-ticket' };
-    return { status: 'found', manifest };
+    const sealedCrew = typeof body.sealedCrew === 'string' && body.sealedCrew.trim()
+      ? body.sealedCrew.trim()
+      : undefined;
+    return { status: 'found', manifest, ...(sealedCrew ? { sealedCrew } : {}) };
   } catch {
     return { status: 'no-ticket' };
   }
@@ -116,6 +123,7 @@ async function fetchManifestFromPeer(base: string, ticket: string): Promise<Peer
 type ResolveOutcome = {
   manifest: JoinManifestV2;
   resolvedFrom: string;
+  sealedCrew?: string;
 };
 
 type ResolveMiss = {
@@ -136,7 +144,11 @@ async function resolveAcrossLan(
     // be written from here. A joiner on another device stamps the owner's hub
     // through the peer-facing lookup below.
     markJoinManifestRedeemed(ticket);
-    return { manifest: local.manifest, resolvedFrom: 'self' };
+    return {
+      manifest: local.manifest,
+      resolvedFrom: 'self',
+      ...(local.sealedCrew ? { sealedCrew: local.sealedCrew } : {}),
+    };
   }
 
   const bases: string[] = [];
@@ -165,7 +177,11 @@ async function resolveAcrossLan(
     seen.add(normalized);
     const lookup = await fetchManifestFromPeer(normalized, ticket);
     if (lookup.status === 'found') {
-      return { manifest: lookup.manifest, resolvedFrom: normalized };
+      return {
+        manifest: lookup.manifest,
+        resolvedFrom: normalized,
+        ...(lookup.sealedCrew ? { sealedCrew: lookup.sealedCrew } : {}),
+      };
     }
     (lookup.status === 'unreachable' ? unreachable : asked).push(normalized);
   }
@@ -245,9 +261,9 @@ export function registerJoinTicketRoutes(app: Express): void {
     }
 
     const body = (req.body || {}) as Record<string, unknown>;
-    const ticket = normalizeJoinTicket(String(body.ticket ?? ''));
+    const ticket = canonicalJoinLookup(String(body.ticket ?? ''));
     if (!ticket) {
-      return res.status(400).json({ error: 'ticket must look like PUF-XXXX-XXXX' });
+      return res.status(400).json({ error: 'ticket must look like PUF-… (crew invite or short ticket)' });
     }
 
     const manifest = parseJoinManifestV2({ ...body, ticket, role: coerceJoinRole(body.role) });
@@ -260,10 +276,15 @@ export function registerJoinTicketRoutes(app: Express): void {
       return res.status(400).json({ error: 'expires is already in the past' });
     }
 
+    const sealedCrew =
+      typeof body.sealedCrew === 'string' && body.sealedCrew.trim()
+        ? body.sealedCrew.trim()
+        : undefined;
+
     // The label is the owner's private note ("Dave — spray ute"), so it is read
     // off the body here rather than through `parseJoinManifestV2`, which drops
     // it — a manifest is what the joiner receives and stays minimal.
-    const entry = putJoinManifest(manifest, clientIp(req), String(body.label ?? ''));
+    const entry = putJoinManifest(manifest, clientIp(req), String(body.label ?? ''), sealedCrew);
     // Which shelf a ticket landed on is the first thing to check when a joiner
     // cannot resolve it, so say so where the operator will already be looking.
     console.log(
@@ -287,10 +308,10 @@ export function registerJoinTicketRoutes(app: Express): void {
       return res.status(429).json({ error: 'Too many join ticket lookups — wait a few minutes' });
     }
 
-    const ticket = normalizeJoinTicket(String(req.params.ticket || ''));
+    const ticket = canonicalJoinLookup(String(req.params.ticket || ''));
     if (!ticket) {
       recordJoinLookupMiss(key);
-      return res.status(400).json({ error: 'ticket must look like PUF-XXXX-XXXX' });
+      return res.status(400).json({ error: 'ticket must look like PUF-… (crew invite or short ticket)' });
     }
 
     const entry = getJoinManifest(ticket);
@@ -303,7 +324,11 @@ export function registerJoinTicketRoutes(app: Express): void {
     // The only moment this hub hears about a joiner: they asked what the ticket
     // means, so the People page can say when it was last used.
     markJoinManifestRedeemed(ticket);
-    return res.json({ manifest: entry.manifest, registeredAt: entry.registeredAt });
+    return res.json({
+      manifest: entry.manifest,
+      registeredAt: entry.registeredAt,
+      ...(entry.sealedCrew ? { sealedCrew: entry.sealedCrew } : {}),
+    });
   });
 
   /**
@@ -355,10 +380,10 @@ export function registerJoinTicketRoutes(app: Express): void {
       return res.status(429).json({ error: 'Too many join ticket lookups — wait a few minutes' });
     }
 
-    const ticket = normalizeJoinTicket(String(req.params.ticket || ''));
+    const ticket = canonicalJoinLookup(String(req.params.ticket || ''));
     if (!ticket) {
       recordJoinLookupMiss(key);
-      return res.status(400).json({ error: 'ticket must look like PUF-XXXX-XXXX' });
+      return res.status(400).json({ error: 'ticket must look like PUF-… (crew invite or short ticket)' });
     }
 
     const rawBase = req.query.base;
@@ -394,7 +419,11 @@ export function registerJoinTicketRoutes(app: Express): void {
       }
 
       clearJoinLookupMisses(key);
-      return res.json({ manifest: outcome.manifest, resolvedFrom: outcome.resolvedFrom });
+      return res.json({
+        manifest: outcome.manifest,
+        resolvedFrom: outcome.resolvedFrom,
+        ...(outcome.sealedCrew ? { sealedCrew: outcome.sealedCrew } : {}),
+      });
     } catch (error) {
       return res.status(500).json({
         error: error instanceof Error ? error.message : 'Join ticket resolve failed',

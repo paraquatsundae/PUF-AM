@@ -39,13 +39,15 @@ function isPlainHotStateJson(value: unknown): boolean {
   return typeof o.farm_id === 'string' && Array.isArray(o.records);
 }
 
-/** AES-GCM encrypt HotState JSON bytes; returns envelope JSON as UTF-8 bytes. */
-export async function encryptHotBlob(plaintext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+/** AES-GCM encrypt HotState JSON bytes under a 32-byte HotKey. */
+export async function encryptHotBlobWithKey(
+  plaintext: Uint8Array,
+  keyBytes: Uint8Array,
+): Promise<Uint8Array> {
   if (!hasSubtleCrypto()) {
     throw new Error('encryptHotBlob: Web Crypto unavailable — cannot AEAD-wrap hot blob');
   }
 
-  const keyBytes = await deriveHotContractKey(farmSeed);
   const subtle = getSubtleCrypto();
   const key = await subtle.importKey('raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, [
     'encrypt',
@@ -65,10 +67,18 @@ export async function encryptHotBlob(plaintext: Uint8Array, farmSeed: Uint8Array
   return new TextEncoder().encode(JSON.stringify(envelope));
 }
 
+/** AES-GCM encrypt HotState JSON bytes; returns envelope JSON as UTF-8 bytes. */
+export async function encryptHotBlob(plaintext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+  return encryptHotBlobWithKey(plaintext, await deriveHotContractKey(farmSeed));
+}
+
 /**
  * Decrypt AEAD envelope or pass through plaintext HotState JSON bytes.
  */
-export async function decryptHotBlob(ciphertext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+export async function decryptHotBlobWithKey(
+  ciphertext: Uint8Array,
+  keyBytes: Uint8Array,
+): Promise<Uint8Array> {
   const text = new TextDecoder().decode(ciphertext);
   let parsed: unknown;
   try {
@@ -89,7 +99,6 @@ export async function decryptHotBlob(ciphertext: Uint8Array, farmSeed: Uint8Arra
     throw new Error('decryptHotBlob: Web Crypto unavailable — cannot decrypt hot envelope');
   }
 
-  const keyBytes = await deriveHotContractKey(farmSeed);
   const subtle = getSubtleCrypto();
   const key = await subtle.importKey('raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, [
     'decrypt',
@@ -99,4 +108,8 @@ export async function decryptHotBlob(ciphertext: Uint8Array, farmSeed: Uint8Arra
   const ct = hexToBytes(parsed.ct);
   const plain = await subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
   return new Uint8Array(plain);
+}
+
+export async function decryptHotBlob(ciphertext: Uint8Array, farmSeed: Uint8Array): Promise<Uint8Array> {
+  return decryptHotBlobWithKey(ciphertext, await deriveHotContractKey(farmSeed));
 }

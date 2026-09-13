@@ -121,5 +121,23 @@ describe('mist FarmCode recovery', () => {
     expect(loaded?.farmId).toBe(parsed.farmId);
     expect(loaded?.displayName).toBe('Laptop B');
     expect(loaded?.farmSeedHex).toHaveLength(64);
+    expect(loaded?.role).toBe('farmer');
+  });
+
+  it('owner recover session keeps FarmSeed and is not a crew join', async () => {
+    const parsed = await parseFarmCode(KNOWN_FARM_CODE);
+    const session = createMistSessionRecord({
+      farmId: parsed.farmId,
+      farmName: 'Recovered farm',
+      displayName: 'Owner',
+      farmSeed: parsed.farmSeed,
+      role: 'owner',
+    });
+    await saveMistDeviceSession(session, undefined, { joinTicketPending: false });
+    const loaded = await loadMistDeviceSession();
+    expect(loaded?.farmSeedHex).toHaveLength(64);
+    expect(loaded?.role).toBe('owner');
+    expect(loaded?.joinedViaTicket).toBeUndefined();
+    expect(loaded?.hotKeyHex).toBeUndefined();
   });
 });

@@ -7,6 +7,7 @@
 import {
   bonesKey,
   decryptBonesBlob,
+  decryptBonesBlobWithKey,
   encryptBonesBlob,
   sha256Hex,
   type MistStore,
@@ -30,6 +31,7 @@ import {
   farmSeedLockedError,
   getMistStoreForHotBridge,
   resolveMistFarmSeed,
+  resolveMistReadKeys,
 } from './mistHotBridge.ts';
 
 export type PublishMistBonesResult = {
@@ -120,8 +122,8 @@ export async function readMistBonesFarmGeometry(
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveMistFarmSeed(devicePin);
-  if (!farmSeed) {
+  const keys = await resolveMistReadKeys(devicePin);
+  if (!keys) {
     throw farmSeedLockedError('read bones', devicePin);
   }
 
@@ -129,7 +131,9 @@ export async function readMistBonesFarmGeometry(
   const entry = await store.get(storageKey);
   if (!entry) return null;
 
-  const plain = await decryptBonesBlob(entry.ciphertext, farmSeed);
+  const plain = keys.farmSeed
+    ? await decryptBonesBlob(entry.ciphertext, keys.farmSeed)
+    : await decryptBonesBlobWithKey(entry.ciphertext, keys.bonesKey);
   const payload = parseBonesFarmGeometryPayload(plain);
   const encrypted = entry.ciphertext.byteLength !== plain.byteLength;
 

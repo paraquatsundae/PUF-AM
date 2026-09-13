@@ -14,15 +14,20 @@
 
 import {
   bonesKey,
+  bytesToHex,
+  deriveBonesContractKey,
+  deriveHotContractKey,
   hotKey,
+  mintInviteToken,
   sha256Hex,
+  wrapCrewJoinEnvelope,
+  type CrewJoinEnvelope,
   type FreenetPeerStatus,
 } from '../../units/mist-freenet/src/index.ts';
 import { normalizeMistFreenetUri } from '../../units/mist-freenet/src/freenet-uri-normalize.ts';
 import {
   DEFAULT_JOIN_ROLE,
   defaultJoinTicketExpiry,
-  mintJoinTicket,
   type JoinRole,
 } from '../../shared/sync/joinTicket.ts';
 import {
@@ -48,7 +53,8 @@ import { publishLocalGeometryToMistBones, readLocalBonesCiphertext } from './mis
 import { getMistStoreForHotBridge, publishLocalFarmToMistHot } from './mistHotBridge.ts';
 import { buildJoinTicketV1, formatJoinTicket, type MistJoinTicketV1 } from './mistJoinTicket.ts';
 import { LanJoinTicketResolver, registerJoinTicketOnLan } from './joinTicketResolver.ts';
-import { publishJoinTicketToFreenetSlot } from './joinSlotFreenet.ts';
+import { publishCrewInviteToFreenetSlot } from './crewJoinSlot.ts';
+import { resolveMistFarmSeed } from './mistHotBridge.ts';
 import {
   saveFreenetBonesUri,
   saveFreenetHotUri,
@@ -203,6 +209,12 @@ export async function publishHotToFreenet(
   });
 
   rememberUri('hot', farmId, result);
+  try {
+    const { publishHotWatchAfterHotPut } = await import('./hotWatchSync.ts');
+    await publishHotWatchAfterHotPut(farmId);
+  } catch (error) {
+    console.warn('[mistFreenetClient] Hot watch slot update failed:', error);
+  }
   return result;
 }
 
@@ -325,13 +337,12 @@ export type PublishFarmToFreenetResult = {
   joinTicket: MistJoinTicketV1;
   joinTicketText: string;
   /**
-   * `PUF-K7M2-9Q4X` — what the operator actually reads out to the joiner.
+   * Crew InviteToken (`PUF-` + 26 symbols) — what the operator reads out.
    *
    * Present once **at least one** route can answer for it: the LAN shelf, read
-   * back through the same lookup a joiner uses, or a Freenet slot this device
-   * published. A minted ticket no route answers for is indistinguishable from a
-   * good one by eye and dies as a flat 404 on the joiner, so absent beats
-   * untrustworthy here.
+   * back through the same lookup a joiner uses, or a Freenet crew slot this
+   * device published. Field name kept so the Send card does not grow a second
+   * ticket property (`Plans/CODEBASE_HEALTH.md`).
    */
   shortTicket?: string;
   shortTicketRole: JoinRole;
@@ -357,17 +368,16 @@ export type PublishFarmToFreenetResult = {
 };
 
 /**
- * Publish Hot + bones to Freenet, then mint a short ticket and put the manifest
- * where a joiner can find it (laptop A).
+ * Publish Hot + bones to Freenet, then mint a crew InviteToken wrapping Hot/Bones
+ * keys — never FarmSeed (`Plans/FREENET_NETWORK_PACK.md` Decision — 2026-09-12).
  *
  * Two places, on purpose. The **LAN shelf** is instant and works with no internet,
- * so it stays the fast path. The **Freenet slot** is what makes the ticket resolve
- * when this laptop is shut or the joiner is nowhere near this Wi‑Fi. Either one on
- * its own is enough to hand the ticket over; both is the normal case.
+ * so it stays the fast path. The **Freenet crew slot** is addressed from the
+ * InviteToken alone, so a joiner never needs the paper FarmCode. Either route is
+ * enough to hand the invite over; both is the normal case.
  *
- * Freenet still carries the farm itself; the ticket only carries the *addresses*.
- * If both routes fail the publish stands and the raw FN02 ticket under Advanced
- * remains the handoff.
+ * Freenet still carries the farm itself. If both routes fail the publish stands
+ * and the raw FN02 ticket under Advanced remains the handoff.
  */
 export async function publishFarmToFreenet(
   farmId: string,
@@ -413,12 +423,37 @@ export async function publishFarmToFreenet(
     bonesContentHash: bones.contentHash,
   });
 
-  const minted = mintJoinTicket();
+  const farmSeed = await resolveMistFarmSeed(options?.devicePin);
+  if (!farmSeed) {
+    throw new Error('Unlock this device before sending — the crew invite wraps this farm\'s read keys.');
+  }
+
+  const minted = mintInviteToken();
   const preset = options?.preset;
   const role = preset?.role ?? options?.role ?? DEFAULT_JOIN_ROLE;
   const expires = options?.expires ?? defaultJoinTicketExpiry();
   const permissions =
     options?.permissions ?? (preset ? buildJoinPermissions(preset) : undefined);
+  const hotKeyBytes = await deriveHotContractKey(farmSeed);
+  const bonesKeyBytes = await deriveBonesContractKey(farmSeed);
+
+  const envelope: CrewJoinEnvelope = {
+    v: 3,
+    kind: 'crew-join',
+    farmId,
+    hotUri: hot.freenetUri,
+    bonesUri: bones.freenetUri,
+    hotKeyHex: bytesToHex(hotKeyBytes),
+    bonesKeyHex: bytesToHex(bonesKeyBytes),
+    role,
+    ticket: minted,
+    ...(permissions ? { permissions } : {}),
+    expires,
+    hotContentHash: hot.contentHash,
+    bonesContentHash: bones.contentHash,
+    ...(hybrid ? { cloudFarmId: hybrid.cloudFarmId } : {}),
+  };
+  const sealedCrew = bytesToHex(await wrapCrewJoinEnvelope(envelope, minted));
 
   const manifestFields = {
     ticket: minted,
@@ -438,12 +473,9 @@ export async function publishFarmToFreenet(
   try {
     await registerJoinTicketOnLan({
       ...manifestFields,
+      sealedCrew,
       ...(options?.label ? { label: options.label } : {}),
     });
-    // A 200 on the POST says the hub accepted the manifest, not that the shelf the
-    // joiner reads now holds it. Ask for the ticket back through the LAN resolver
-    // specifically — the default walk would fall through to Freenet and report
-    // success for a shelf that is still empty.
     await new LanJoinTicketResolver().resolve(minted, farmId);
     shortTicketOnLan = true;
   } catch (error) {
@@ -453,13 +485,10 @@ export async function publishFarmToFreenet(
   let shortTicketOnFreenet: 'put' | 'update' | undefined;
   let freenetError: string | undefined;
   try {
-    const slot = await publishJoinTicketToFreenetSlot({
-      ...manifestFields,
-      ...(options?.devicePin ? { devicePin: options.devicePin } : {}),
-    });
+    const slot = await publishCrewInviteToFreenetSlot(envelope);
     shortTicketOnFreenet = slot.mode;
   } catch (error) {
-    freenetError = error instanceof Error ? error.message : 'the Freenet slot publish failed';
+    freenetError = error instanceof Error ? error.message : 'the Freenet crew-invite slot publish failed';
   }
 
   const shortTicket = shortTicketOnLan || shortTicketOnFreenet ? minted : undefined;
@@ -496,7 +525,7 @@ export async function publishFarmToFreenet(
  * but not in a slot still works, just only on this Wi‑Fi, and a ticket in a slot
  * but not on the shelf works everywhere but takes a few minutes to become
  * findable. Those are different things to say to someone about to read eight
- * symbols out loud.
+ * InviteToken out loud.
  */
 function describeTicketRouteGap(input: {
   lanError?: string;

@@ -104,10 +104,10 @@ export function FreenetHowItWorksBody() {
     <div className="space-y-4 text-sm text-slate-600 leading-relaxed">
       <FreenetHowItWorksLead pipe={pipe} />
       <p>
-        Two different codes, not one. The <strong>FarmCode</strong> is the farm&apos;s identity —
-        written on paper once when you start. The short <strong>join ticket</strong> (
-        <span className="font-mono">PUF-XXXX-XXXX</span>) is a time-limited handoff the owner
-        reads out after <strong>Send this farm</strong>. A cloud invite PIN opens neither.
+        Two different codes, not one. The <strong>FarmCode</strong> stays on owner paper and owner
+        machines. Crew type only a <strong>crew invite</strong> (
+        <span className="font-mono">PUF-</span> and 26 letters) after <strong>Send this farm</strong>
+        — that unwraps read keys, not the FarmCode. A cloud invite PIN opens neither.
       </p>
 
       <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-3">
@@ -127,7 +127,7 @@ export function FreenetHowItWorksBody() {
           <li>Finish Farm setup. The farm is still only on this computer.</li>
           <li>
             Settings → Sync → <strong>Send this farm</strong> is what puts a sealed copy on
-            Freenet and mints a join ticket. Until you send, nobody else can join.
+            Freenet and mints a crew invite. Until you send, nobody else can join.
           </li>
         </ol>
       </div>
@@ -138,8 +138,8 @@ export function FreenetHowItWorksBody() {
           <li>On a PUF-AM laptop, Settings → Sync → Send this farm.</li>
           <li>Pick who it is for (a label on this computer) and what they may see.</li>
           <li>
-            Read out the new <span className="font-mono">PUF-XXXX-XXXX</span> ticket. They must
-            already have the paper FarmCode.
+            Read out the new <span className="font-mono">PUF-</span> crew invite. They type only
+            that — never the paper FarmCode.
           </li>
           <li>
             Keep this laptop on and on the same Wi‑Fi while they join if you can. The ticket is
@@ -157,8 +157,8 @@ export function FreenetHowItWorksBody() {
         <h3 className="text-sm font-bold text-slate-900">Join on another device</h3>
         <ol className="list-decimal pl-5 space-y-1">
           <li>Welcome → Freenet → Join a farm I already have.</li>
-          <li>Type the paper FarmCode and your name.</li>
-          <li>Type the owner&apos;s join ticket on the Enter join ticket screen.</li>
+          <li>Join a farm and type the crew invite, or recover with the paper FarmCode if you are the owner.</li>
+          <li>Crew never need the FarmCode. Revoking an invite stops new joins, not a copy already fetched.</li>
         </ol>
         <p>
           A tablet can hold and fetch a farm. Only a laptop can Send. Two tablets with no laptop

@@ -23,7 +23,7 @@ import {
 } from '@freenetorg/freenet-stdlib';
 import { RelatedContractsT } from '@freenetorg/freenet-stdlib/client-request';
 import { ContractCodeT } from '@freenetorg/freenet-stdlib/common';
-import bs58 from 'bs58';
+import bs58 from './bs58.ts';
 
 import { DEFAULT_LOCAL_FREENET_WS_URL } from './freenet02-browser-get-url.ts';
 import {

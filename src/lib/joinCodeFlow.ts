@@ -1,13 +1,15 @@
 /**
  * Pure reducer for the single-box join (`Plans/LOGIN_JOIN_SINGLE_BOX.md` §2.4–2.5).
  *
- * FarmCode-first: a ticket never advances to the Freenet step. It is held in
- * memory until a FarmCode is typed. Hosted web (`availability === 'none'`)
- * discards FarmCode and ticket — decision 5.
+ * Crew invite (`PUF-` + 26) advances to Freenet. A short 8-symbol ticket is
+ * refused (cannot unwrap the farm). FarmCode is owner recover only. Hosted web
+ * (`availability === 'none'`) discards both — decision 5.
  */
 
 import type { FreenetHostCapability } from './freenetHostCapability.ts';
+import { normalizeInviteToken } from '../../shared/sync/inviteToken.ts';
 import {
+  SHORT_TICKET_REFUSED,
   TICKET_FIRST_NOTICE,
   classifyJoinCode,
   type JoinCodeClassification,
@@ -63,8 +65,8 @@ function emptyCode(heldTicket: string | null, notice: string | null): JoinCodeSt
 }
 
 /**
- * CONTINUE on a ticket stays on `code` (FarmCode-first). CONTINUE on a
- * FarmCode is the only path to `freenet`. Web (`none`) goes to
+ * CONTINUE on a crew invite or FarmCode goes to `freenet`. A short `PUF-`
+ * ticket stays on `code` with an honest refuse. Web (`none`) goes to
  * `freenet-unavailable` and drops the string.
  */
 export function joinCodeReducer(
@@ -103,13 +105,13 @@ export function joinCodeReducer(
       }
 
       if (kind === 'join-ticket') {
+        if (!normalizeInviteToken(normalized)) {
+          return { ...state, notice: SHORT_TICKET_REFUSED };
+        }
         if (availability === 'none') {
           return { ...emptyCode(null, null), stage: 'freenet-unavailable' };
         }
-        // Hold the ticket. Do not persist it here. Never store a FarmCode.
-        return {
-          ...emptyCode(normalized, TICKET_FIRST_NOTICE),
-        };
+        return { ...state, stage: 'freenet', heldTicket: null, notice: null };
       }
 
       if (kind !== 'farm-code') return state;

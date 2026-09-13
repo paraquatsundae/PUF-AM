@@ -2,12 +2,15 @@
  * Bridge: production local data (pufom_farm_local) → mist Hot contract.
  *
  * Parallel to Firestore/outbox — does not mutate cloud paths.
- * Active when a mist device session is unlocked (FarmSeed in memory).
+ * Active when a mist device session is unlocked (FarmSeed or crew Hot/Bones).
  */
 
 import {
   decryptHotBlob,
-  encryptHotBlob,
+  decryptHotBlobWithKey,
+  deriveBonesContractKey,
+  deriveHotContractKey,
+  encryptHotBlobWithKey,
   hotKey,
   sha256Hex,
   type HotState,
@@ -15,6 +18,7 @@ import {
 } from '../../units/mist-freenet/src/index.ts';
 import { hasSubtleCrypto } from '../../units/mist-freenet/src/subtle-crypto.ts';
 import { buildFarmExportJson } from '../lib/farmExport';
+import { activeMapHighlights, listLocalHighlights } from '../lib/mapHighlights';
 import { buildHotStateFromFarmExport } from './hotAdapter.ts';
 import { ensureBrowserMistStore } from './createFarmStore.ts';
 import {
@@ -28,6 +32,12 @@ import {
   isMistFarmSeedUnlocked,
   unlockedFarmSeed,
 } from './mistFarmSeedCache.ts';
+import {
+  rememberUnlockedReadKeys,
+  sessionHasFarmSeed,
+  unlockedReadKeys,
+  type MistReadKeys,
+} from './mistReadKeys.ts';
 import {
   getMistHotPublishStatus,
   saveMistHotPublishStatus,
@@ -109,8 +119,34 @@ export async function resolveMistFarmSeed(devicePin?: string): Promise<Uint8Arra
   const cached = unlockedFarmSeed();
   if (cached) return cached;
   const session = await loadMistDeviceSession(devicePin);
-  if (!session) return null;
+  if (!session || !sessionHasFarmSeed(session) || !session.farmSeedHex) return null;
   return hexToBytes(session.farmSeedHex);
+}
+
+/** Hot/Bones keys from FarmSeed (owner) or a crew invite. Never invents a FarmSeed. */
+export async function resolveMistReadKeys(devicePin?: string): Promise<MistReadKeys | null> {
+  const cached = unlockedReadKeys();
+  if (cached) return cached;
+
+  const farmSeed = await resolveMistFarmSeed(devicePin);
+  if (farmSeed) {
+    const keys: MistReadKeys = {
+      farmSeed,
+      hotKey: await deriveHotContractKey(farmSeed),
+      bonesKey: await deriveBonesContractKey(farmSeed),
+    };
+    rememberUnlockedReadKeys(keys);
+    return keys;
+  }
+
+  const session = await loadMistDeviceSession(devicePin);
+  if (!session?.hotKeyHex || !session.bonesKeyHex) return null;
+  const keys: MistReadKeys = {
+    hotKey: hexToBytes(session.hotKeyHex),
+    bonesKey: hexToBytes(session.bonesKeyHex),
+  };
+  rememberUnlockedReadKeys(keys);
+  return keys;
 }
 
 /**
@@ -138,12 +174,14 @@ function parseHotState(bytes: Uint8Array): HotState {
 async function readExistingHotState(
   store: MistStore,
   farmId: string,
-  farmSeed: Uint8Array,
+  keys: MistReadKeys,
 ): Promise<HotState | null> {
   const key = hotKey(farmId, 'current');
   const entry = await store.get(key);
   if (!entry) return null;
-  const plain = await decryptHotBlob(entry.ciphertext, farmSeed);
+  const plain = keys.farmSeed
+    ? await decryptHotBlob(entry.ciphertext, keys.farmSeed)
+    : await decryptHotBlobWithKey(entry.ciphertext, keys.hotKey);
   return parseHotState(plain);
 }
 
@@ -160,8 +198,8 @@ export async function publishLocalFarmToMistHot(
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveMistFarmSeed(opts?.devicePin);
-  if (!farmSeed) {
+  const readKeys = await resolveMistReadKeys(opts?.devicePin);
+  if (!readKeys) {
     if (opts?.auto) return null;
     throw farmSeedLockedError('publish Hot', opts?.devicePin);
   }
@@ -176,18 +214,22 @@ export async function publishLocalFarmToMistHot(
     includeIssuesArchive: true,
   });
 
-  const previous = await readExistingHotState(store, farmId, farmSeed);
+  const previous = await readExistingHotState(store, farmId, readKeys);
+  const mapHighlights = activeMapHighlights(
+    await listLocalHighlights(cloudFarmId || farmId),
+  );
   const hotState = buildHotStateFromFarmExport(exportBundle, {
     previous,
     defaultAuthor: exportBundle.farmName,
     farmId,
+    mapHighlights,
     ...(cloudFarmId ? { cloudFarmId } : {}),
   });
 
   const plainBytes = new TextEncoder().encode(JSON.stringify(hotState));
   const canEncrypt = hasSubtleCrypto();
   const storedBytes = canEncrypt
-    ? await encryptHotBlob(plainBytes, farmSeed)
+    ? await encryptHotBlobWithKey(plainBytes, readKeys.hotKey)
     : plainBytes;
   logHotEnvelopeSize(farmId, hotState.records.length, plainBytes.byteLength, storedBytes.byteLength, cloudFarmId);
 
@@ -253,8 +295,8 @@ export async function readMistHotCurrent(
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveMistFarmSeed(devicePin);
-  if (!farmSeed) {
+  const keys = await resolveMistReadKeys(devicePin);
+  if (!keys) {
     throw farmSeedLockedError('read Hot', devicePin);
   }
 
@@ -262,7 +304,9 @@ export async function readMistHotCurrent(
   const entry = await store.get(storageKey);
   if (!entry) return null;
 
-  const plain = await decryptHotBlob(entry.ciphertext, farmSeed);
+  const plain = keys.farmSeed
+    ? await decryptHotBlob(entry.ciphertext, keys.farmSeed)
+    : await decryptHotBlobWithKey(entry.ciphertext, keys.hotKey);
   const hot = parseHotState(plain);
   const encrypted = entry.ciphertext.byteLength !== plain.byteLength;
 
@@ -275,11 +319,14 @@ export async function readMistHotCurrent(
 }
 
 /**
- * Debounced auto-publish after local diary/issue writes. Fire-and-forget.
+ * Debounced auto-publish after local diary/issue/highlight writes.
  *
- * Skipped on a hybrid device: the farm's records are keyed by its cloud id and
- * the mirror by its mist id, and `Plans/FREENET_NETWORK_PACK.md` §3.4 keeps a
- * hybrid mirror to explicit **Send** in Phase 1 — no per-save mirroring.
+ * Writes local `hot/current`, then PUTs that blob to Freenet and bumps the
+ * Hot-watch slot so other terminals can ping cheaply
+ * (`Plans/SETTINGS_SYNC_AND_CREW.md` §9 Decision 2026-09-12).
+ *
+ * Skipped on a hybrid device: `Plans/FREENET_NETWORK_PACK.md` §3.4 keeps a
+ * hybrid mirror to explicit **Send** in Phase 1.
  */
 export function scheduleMistHotAutoPublish(farmId: string, farmName?: string): void {
   if (!isMistHotMirrorAvailable()) return;
@@ -292,9 +339,16 @@ export function scheduleMistHotAutoPublish(farmId: string, farmName?: string): v
     farmId,
     setTimeout(() => {
       autoPublishTimers.delete(farmId);
-      void publishLocalFarmToMistHot(farmId, { farmName, auto: true }).catch((err) => {
-        console.warn('[mistHotBridge] auto-publish failed:', err);
-      });
+      void publishLocalFarmToMistHot(farmId, { farmName, auto: true })
+        .then((result) => {
+          if (!result) return;
+          return import('./mistFreenetClient.ts').then(({ publishHotToFreenet }) =>
+            publishHotToFreenet(farmId),
+          );
+        })
+        .catch((err) => {
+          console.warn('[mistHotBridge] auto-publish failed:', err);
+        });
     }, AUTO_PUBLISH_DEBOUNCE_MS),
   );
 }

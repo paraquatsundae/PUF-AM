@@ -1,21 +1,20 @@
 /**
- * `loginJoin` surface — FarmCode-first Freenet step.
- * Must not render `code` back. `Plans/LOGIN_JOIN_SINGLE_BOX.md` §2.4 J2-fn.
+ * `loginJoin` surface — crew invite or owner FarmCode recover.
+ * Must not render `code` back. `Plans/LOGIN_JOIN_SINGLE_BOX.md` Decision — 2026-09-12.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   FarmCodeError,
+  normalizeInviteToken,
   parseFarmCode,
   type ParsedFarmCode,
 } from '../../../units/mist-freenet/src/index.ts';
-import { DEFAULT_JOIN_ROLE } from '../../../shared/sync/joinTicket.ts';
 import { getLastDisplayName } from '../../../src/lib/deviceSession';
-import { writeJoinTicketDraft } from '../../../src/lib/joinTicketDraft.ts';
 import { finishMistFarmSetup } from '../../../src/mist/finishMistFarmSetup.ts';
+import { joinFarmWithCrewInvite } from '../../../src/mist/crewInvite.ts';
 import { BackLink, LoginBrand, LoginPanel } from '../../../src/components/login/LoginBrand';
 import { DevicePinFields } from './DevicePinFields';
-import { FarmCodeField } from './FarmCodeField';
 import { prewarmFreenetHost } from './freenetLoginPrewarm.ts';
 
 const DEFAULT_FARM_NAME = 'Recovered farm';
@@ -23,7 +22,6 @@ const DEFAULT_FARM_NAME = 'Recovered farm';
 export default function FreenetLoginJoin({
   code,
   kind,
-  heldTicket,
   onBack,
 }: {
   code: string;
@@ -33,7 +31,6 @@ export default function FreenetLoginJoin({
   onBack: () => void;
 }) {
   const [parsed, setParsed] = useState<ParsedFarmCode | null>(null);
-  const [farmCodeInput, setFarmCodeInput] = useState('');
   const [farmName, setFarmName] = useState('');
   const [displayName, setDisplayName] = useState(() => getLastDisplayName());
   const [devicePin, setDevicePin] = useState('');
@@ -41,7 +38,7 @@ export default function FreenetLoginJoin({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const ticket = heldTicket || (kind === 'join-ticket' ? code : '');
+  const invite = kind === 'join-ticket' ? normalizeInviteToken(code) : null;
 
   useEffect(() => {
     void prewarmFreenetHost();
@@ -78,33 +75,14 @@ export default function FreenetLoginJoin({
   }, [kind, code]);
 
   useEffect(() => {
-    if (parsed) nameRef.current?.focus();
-  }, [parsed]);
+    if (parsed || invite) nameRef.current?.focus();
+  }, [parsed, invite]);
 
-  const acceptTyped = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      setParsed(await parseFarmCode(farmCodeInput));
-    } catch (err) {
-      setError(
-        err instanceof FarmCodeError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Could not read that FarmCode',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const finish = async () => {
+  const finishOwnerRecover = async () => {
     if (!parsed) return;
     setBusy(true);
     setError(null);
     try {
-      if (ticket) writeJoinTicketDraft(ticket);
       await finishMistFarmSetup({
         farmId: parsed.farmId,
         farmName: farmName.trim() || DEFAULT_FARM_NAME,
@@ -112,8 +90,9 @@ export default function FreenetLoginJoin({
         farmSeed: parsed.farmSeed,
         skipPin,
         devicePin: skipPin ? undefined : devicePin,
-        role: DEFAULT_JOIN_ROLE,
-        joinTicketPending: true,
+        role: 'owner',
+        joinTicketPending: false,
+        recovered: true,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save mist session');
@@ -121,22 +100,57 @@ export default function FreenetLoginJoin({
     }
   };
 
-  const needCode = !parsed && kind === 'join-ticket';
+  const finishCrewJoin = async () => {
+    if (!invite) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await joinFarmWithCrewInvite({
+        invite,
+        farmName: farmName.trim() || 'Joined farm',
+        displayName: displayName.trim(),
+        skipPin,
+        devicePin: skipPin ? undefined : devicePin,
+      });
+      window.location.href = '/';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not join that farm');
+      setBusy(false);
+    }
+  };
+
+  if (kind === 'join-ticket' && !invite) {
+    return (
+      <LoginPanel>
+        <LoginBrand title="Freenet farm" subtitle="Crew type only an invite — never a FarmCode." />
+        <p className="text-sm text-rose-800 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+          That short ticket cannot open the farm. Ask the owner for a crew invite (PUF- and 26
+          letters).
+        </p>
+        <BackLink label="Back" onClick={onBack} />
+      </LoginPanel>
+    );
+  }
+
+  const title = invite ? 'Join with crew invite' : 'Recover this farm';
+  const subtitle = invite
+    ? 'This invite unwraps read keys — not the paper FarmCode.'
+    : 'Owner recover. The FarmCode stays on this device.';
 
   return (
     <LoginPanel>
-      <LoginBrand title="Freenet farm" subtitle="FarmCode first — then the join ticket." />
-
-      {ticket ? (
-        <p className="text-sm text-violet-800 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2">
-          That is the join ticket — kept for the next step. The paper FarmCode comes first.
-        </p>
-      ) : null}
+      <LoginBrand title={title} subtitle={subtitle} />
 
       {parsed ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
           <p className="font-semibold text-emerald-950">FarmCode accepted · farm id {parsed.farmId}</p>
         </div>
+      ) : null}
+
+      {invite ? (
+        <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+          Crew invite accepted. Type your name — you do not need the paper FarmCode.
+        </p>
       ) : null}
 
       {error ? (
@@ -145,74 +159,61 @@ export default function FreenetLoginJoin({
         </div>
       ) : null}
 
-      {needCode ? (
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void acceptTyped();
-          }}
-        >
-          <FarmCodeField id="loginFarmCode" value={farmCodeInput} onChange={setFarmCodeInput} />
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full py-3 rounded-xl bg-violet-700 text-white font-semibold disabled:opacity-60"
-          >
-            {busy ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Validate FarmCode'}
-          </button>
-        </form>
-      ) : (
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void finish();
-          }}
-        >
-          <div className="space-y-2">
-            <label htmlFor="join-fn-name" className="text-sm font-medium text-slate-700">
-              Your name
-            </label>
-            <input
-              id="join-fn-name"
-              ref={nameRef}
-              required
-              minLength={2}
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="join-fn-farm" className="text-sm font-medium text-slate-700">
-              Farm name <span className="text-slate-400 font-normal">(optional, display only)</span>
-            </label>
-            <input
-              id="join-fn-farm"
-              value={farmName}
-              onChange={(e) => setFarmName(e.target.value)}
-              placeholder={DEFAULT_FARM_NAME}
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-xl"
-            />
-          </div>
-          <DevicePinFields
-            optIn
-            skipPin={skipPin}
-            setSkipPin={setSkipPin}
-            devicePin={devicePin}
-            setDevicePin={setDevicePin}
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (invite) void finishCrewJoin();
+          else void finishOwnerRecover();
+        }}
+      >
+        <div className="space-y-2">
+          <label htmlFor="join-fn-name" className="text-sm font-medium text-slate-700">
+            Your name
+          </label>
+          <input
+            id="join-fn-name"
+            ref={nameRef}
+            required
+            minLength={2}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl"
           />
-          <button
-            type="submit"
-            disabled={busy || !parsed || displayName.trim().length < 2 || (!skipPin && devicePin.length !== 4)}
-            className="w-full py-3 rounded-xl bg-slate-900 text-white font-semibold disabled:opacity-50 inline-flex justify-center items-center gap-2"
-          >
-            {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-            Continue to join ticket
-          </button>
-        </form>
-      )}
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="join-fn-farm" className="text-sm font-medium text-slate-700">
+            Farm name <span className="text-slate-400 font-normal">(optional, display only)</span>
+          </label>
+          <input
+            id="join-fn-farm"
+            value={farmName}
+            onChange={(e) => setFarmName(e.target.value)}
+            placeholder={invite ? 'Joined farm' : DEFAULT_FARM_NAME}
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl"
+          />
+        </div>
+        <DevicePinFields
+          optIn
+          skipPin={skipPin}
+          setSkipPin={setSkipPin}
+          devicePin={devicePin}
+          setDevicePin={setDevicePin}
+        />
+        <button
+          type="submit"
+          disabled={
+            busy ||
+            displayName.trim().length < 2 ||
+            (!skipPin && devicePin.length !== 4) ||
+            (!invite && !parsed)
+          }
+          className="w-full py-3 rounded-xl bg-slate-900 text-white font-semibold disabled:opacity-50 inline-flex justify-center items-center gap-2"
+        >
+          {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+          {invite ? 'Join this farm' : 'Open this farm'}
+        </button>
+      </form>
 
       <BackLink label="Back" onClick={onBack} />
     </LoginPanel>

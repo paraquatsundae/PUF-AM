@@ -104,4 +104,13 @@ describe('join manifest shelf', () => {
     expect(store.deleteJoinManifest('PUF-0000-0006')).toBe(true);
     expect(store.getJoinManifest('PUF-0000-0006')).toBeNull();
   });
+
+  it('looks up a crew InviteToken and keeps the sealed envelope', () => {
+    const invite = 'PUF-0000-0000-0000-0000-0000-0000-00';
+    store.putJoinManifest(manifest(invite), undefined, undefined, 'aabbcc');
+
+    const entry = store.getJoinManifest(invite.toLowerCase().replace(/-/g, ' '));
+    expect(entry?.manifest.ticket).toBe(invite);
+    expect(entry?.sealedCrew).toBe('aabbcc');
+  });
 });

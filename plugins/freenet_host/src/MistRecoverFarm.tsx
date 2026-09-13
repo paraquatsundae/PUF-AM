@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import { FarmCodeError, parseFarmCode, type ParsedFarmCode } from '../../../units/mist-freenet/src/index.ts';
-import { DEFAULT_JOIN_ROLE, JOIN_TICKET_PREFIX } from '../../../shared/sync/joinTicket.ts';
+import { JOIN_TICKET_PREFIX } from '../../../shared/sync/joinTicket.ts';
 import { APP_NAME } from '../../../src/brand';
 import { finishMistFarmSetup } from '../../../src/mist/finishMistFarmSetup.ts';
 import { FarmCodeField } from './FarmCodeField';
@@ -53,11 +53,9 @@ export function MistRecoverFarm() {
         farmSeed: parsed.farmSeed,
         skipPin,
         devicePin: skipPin ? undefined : devicePin,
-        // Recovery proves identity, not membership: the manifest a join ticket
-        // resolves to is what grants the real role, so start at the default and
-        // hold the app on the ticket prompt until it arrives.
-        role: DEFAULT_JOIN_ROLE,
-        joinTicketPending: true,
+        role: 'owner',
+        joinTicketPending: false,
+        recovered: true,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save mist session');
@@ -73,10 +71,10 @@ export function MistRecoverFarm() {
             <p className="font-semibold text-emerald-950">Farm recovered</p>
             <p className="text-emerald-800 mt-1 font-mono text-xs break-all">farmId: {parsed.farmId}</p>
             <p className="text-emerald-700 text-xs mt-2">
-              Same cryptographic identity as the device that minted this FarmCode. Next you will be
-              asked for the farm owner&apos;s <strong>join ticket</strong> (
-              <code className="font-mono">{JOIN_TICKET_PREFIX}-K7M2-9Q4X</code>) — that is what brings
-              the diary, issues, and boundaries across.
+              Same cryptographic identity as the device that minted this FarmCode. This is owner
+              recover — not a crew join. Pull the farm later from Settings → Sync if the diary is
+              empty. Crew type a <code className="font-mono">{JOIN_TICKET_PREFIX}-</code> invite,
+              never this paper code.
             </p>
           </div>
 
@@ -128,7 +126,7 @@ export function MistRecoverFarm() {
             className="w-full py-3 rounded-xl bg-slate-900 text-white font-semibold disabled:opacity-50 inline-flex justify-center items-center gap-2"
           >
             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-            Continue to join ticket
+            Open this farm
           </button>
 
           <button
@@ -154,8 +152,9 @@ export function MistRecoverFarm() {
           <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Experimental</p>
           <h2 className="text-2xl font-extrabold text-slate-900 mt-1">Recover mist farm</h2>
           <p className="text-sm text-slate-600 mt-2">
-            Join an existing mist farm on this device using your paper <strong>FarmCode</strong>. {APP_NAME}{' '}
-            production login (Firebase invite PINs) is unchanged.
+            Owner recover with the paper <strong>FarmCode</strong>. Crew type a{' '}
+            <code className="font-mono">{JOIN_TICKET_PREFIX}-</code> invite at Join a farm — never
+            this code. {APP_NAME} production login (Firebase invite PINs) is unchanged.
           </p>
         </div>
 
@@ -164,9 +163,8 @@ export function MistRecoverFarm() {
           <div className="text-sm space-y-1">
             <p className="font-semibold">Recovery root — not day-to-day login</p>
             <p>
-              FarmCode re-derives your farm&apos;s cryptographic identity on this device. Diary,
-              issues, and boundaries arrive next, over Freenet, once you enter the owner&apos;s short{' '}
-              <strong>join ticket</strong>.
+              FarmCode re-derives the farm on this owner device. Diary and map may be empty until
+              you pull from Settings → Sync. Do not hand this paper code to crew.
             </p>
           </div>
         </div>

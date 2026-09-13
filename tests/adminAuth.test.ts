@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isPlatformAdminClaims } from '../src/lib/adminAuth.ts';
+import { isPlatformAdminClaims, resolveAdminSurface } from '../src/lib/adminAuth.ts';
 
 describe('isPlatformAdminClaims', () => {
   it('rejects farm-role admin tokens', () => {
@@ -15,5 +15,15 @@ describe('isPlatformAdminClaims', () => {
     expect(isPlatformAdminClaims({ platformAdmin: true, role: 'admin', farmId: 'farm_1' })).toBe(
       true
     );
+  });
+});
+
+describe('resolveAdminSurface', () => {
+  it('keeps hosted ops behind platform claims', () => {
+    expect(resolveAdminSurface({ isAdmin: true, isPlatformAdmin: true })).toBe('platform');
+  });
+
+  it('gives a farm admin the farm panel without hosted Cloud admin', () => {
+    expect(resolveAdminSurface({ isAdmin: true, isPlatformAdmin: false })).toBe('farm');
   });
 });

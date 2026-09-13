@@ -42,8 +42,10 @@ export function mistSetupDestination(input: {
   role: MistSessionRole;
   joinedViaTicket?: boolean;
   joinTicketPending?: boolean;
+  /** Owner recover — FarmCode path, not a first-run mint. */
+  recovered?: boolean;
 }): string {
-  if (input.joinedViaTicket || input.joinTicketPending) return '/';
+  if (input.recovered || input.joinedViaTicket || input.joinTicketPending) return '/';
   return input.role === 'owner' ? '/farm-setup' : '/';
 }
 
@@ -59,6 +61,8 @@ export async function finishMistFarmSetup(input: {
   joinedViaTicket?: boolean;
   /** Blocks the app on "Enter join ticket" until the farm data arrives. */
   joinTicketPending?: boolean;
+  /** Owner recover with FarmCode — stay out of the geometry wizard. */
+  recovered?: boolean;
 }): Promise<void> {
   setFarmStoreBackend('mist');
 
@@ -84,5 +88,6 @@ export async function finishMistFarmSetup(input: {
     role,
     joinedViaTicket: input.joinedViaTicket,
     joinTicketPending: input.joinTicketPending,
+    recovered: input.recovered,
   });
 }
