@@ -118,11 +118,14 @@ describe('planFarmSync — the Freenet rung', () => {
     expect(plan.via).toBe('freenet');
   });
 
-  it('never runs a Freenet route unattended', () => {
-    // A publish is minutes through a laptop's node and re-issues the join
-    // ticket; a pull replaces local records rather than merging them.
+  it('never auto-sends a farm (ticket remint stays a press)', () => {
     expect(planFarmSync(conditions({ freenet: 'publish' })).auto).toBe(false);
-    expect(planFarmSync(conditions({ freenet: 'read-only' })).auto).toBe(false);
+  });
+
+  it('auto-watches on a fetch-only node (cheap ping, merge on yes)', () => {
+    const plan = planFarmSync(conditions({ freenet: 'read-only' }));
+    expect(plan.auto).toBe(true);
+    expect(plan.route).toBe('freenet-pull');
   });
 
   it('offers a read-only tablet a fetch, not a send', () => {
@@ -179,7 +182,7 @@ describe('shouldAutoSyncNow', () => {
     ).toBe(true);
   });
 
-  it('never fires a Freenet rung from the timer', () => {
+  it('never fires a Freenet Send from the timer', () => {
     expect(
       shouldAutoSyncNow({
         plan: freenet,
@@ -189,6 +192,19 @@ describe('shouldAutoSyncNow', () => {
         trigger: 'timer',
       }),
     ).toBe(false);
+  });
+
+  it('does fire a Freenet watch-pull from the timer', () => {
+    const pull = planFarmSync(conditions({ freenet: 'read-only' }));
+    expect(
+      shouldAutoSyncNow({
+        plan: pull,
+        enabled: true,
+        busy: false,
+        lastAttemptAt: null,
+        trigger: 'timer',
+      }),
+    ).toBe(true);
   });
 
   it('holds off until the interval has passed', () => {

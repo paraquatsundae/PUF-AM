@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils';
 
 type Props = {
   event: DiaryEvent;
+  focused?: boolean;
   canEdit: boolean;
   deleteConfirmId: string | null;
   onAskDelete: (id: string) => void;
@@ -37,6 +38,7 @@ function applicationMethodLabel(method: DiaryEvent['applicationMethod']): string
 
 export function DiaryTimelineEventCard({
   event,
+  focused,
   canEdit,
   deleteConfirmId,
   onAskDelete,
@@ -50,7 +52,7 @@ export function DiaryTimelineEventCard({
   const status = event.status ?? 'planned';
 
   return (
-    <div className="relative group">
+    <div id={`diary-event-${event.id}`} className="relative group">
       <div className="absolute -left-[45px] top-4 w-2 h-2 rounded-full bg-slate-300 border-2 border-white z-10 group-hover:bg-slate-900 group-hover:scale-125 transition-all" />
 
       <div className="mb-2">
@@ -64,7 +66,12 @@ export function DiaryTimelineEventCard({
         </span>
       </div>
 
-      <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 group-hover:border-slate-300">
+      <div
+        className={cn(
+          'bg-white border p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 group-hover:border-slate-300',
+          focused ? 'border-teal-400 ring-2 ring-teal-200' : 'border-slate-200'
+        )}
+      >
         <div className="flex items-center justify-between mb-3">
           <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 px-2 py-1 rounded">
             {new Date(event.date + 'T12:00:00').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ===
@@ -134,6 +141,11 @@ export function DiaryTimelineEventCard({
         {event.type === 'work' && (
           <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
             <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+              {event.createdByName && (
+                <span>
+                  From: <strong className="text-slate-900">{event.createdByName}</strong>
+                </span>
+              )}
               {event.assignedToName && (
                 <span>
                   Assigned: <strong className="text-slate-900">{event.assignedToName}</strong>

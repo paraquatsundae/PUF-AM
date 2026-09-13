@@ -3,6 +3,7 @@ import type { Map as LeafletMap } from 'leaflet';
 import type { MapMode, MapSubTab } from '../components/map/editMapTypes';
 import type { UserGeoFix } from '../components/map/UserLocationLayer';
 import type { OrchardBlock } from '../lib/mapStore';
+import type { MapHighlightDoc } from '../lib/mapHighlights';
 import type { InfraTypeId } from '../../shared/farm/infraTypes';
 
 /** Chrome + selection state for OrchardMap. Not viewport / analytics / clicks. */
@@ -12,6 +13,7 @@ export function useOrchardMapChrome() {
   const [mapLayer, setMapLayer] = useState<'vector' | 'satellite'>('satellite');
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const [highlightSending, setHighlightSending] = useState(false);
+  const [inspectedHighlight, setInspectedHighlight] = useState<MapHighlightDoc | null>(null);
   const [userFix, setUserFix] = useState<UserGeoFix | null>(null);
   const [followUser, setFollowUser] = useState(false);
   const [namingBlock, setNamingBlock] = useState<OrchardBlock | null>(null);
@@ -53,6 +55,8 @@ export function useOrchardMapChrome() {
     setMapInstance,
     highlightSending,
     setHighlightSending,
+    inspectedHighlight,
+    setInspectedHighlight,
     userFix,
     setUserFix,
     followUser,

@@ -21,11 +21,12 @@
  *    sync and join with no Freenet node and no laptop on its Wi‑Fi. Below LAN
  *    because it is the long way round to the same machine. See
  *    `src/lib/farmGateway.ts`.
- * 2. **Freenet.** The farm moves between devices that cannot see each other.
- *    One press, never a timer: publishing goes through a laptop's node, and
- *    a Freenet pull *replaces* local records rather than merging them
- *    (`rehydrateLocalFarmFromHot`), which is not something to do to a device
- *    while nobody is looking.
+ * 2. **Freenet.** Sending a farm (Hot + bones + a join ticket) is still one
+ *    press — it remints the ticket. Day-to-day Hot updates (highlights, diary)
+ *    ride a small watch slot: other terminals ping generation/hash and fetch
+ *    only when it changed (`hotWatchSync.ts`). That pull *merges*, so it may
+ *    run unattended. A wholesale `rehydrateLocalFarmFromHot` replace stays on
+ *    the manual Pull button.
  * 3. **Neither.** Say so, and say which of the two would fix it.
  *
  * @see Plans/SETTINGS_SYNC_AND_CREW.md §9
@@ -92,8 +93,8 @@ export type SyncPlan = {
   /**
    * Safe to run on a timer with nobody watching.
    *
-   * True only for the two LAN routes. Both merge; both are seconds long; both
-   * are idempotent when nothing changed. Neither Freenet route is any of those.
+   * True for the two LAN routes and for `freenet-pull` (watch ping, merge).
+   * `freenet-publish` remints a join ticket and stays a press.
    */
   auto: boolean;
   /** The one line the Sync card shows for what would happen next. */
@@ -261,12 +262,12 @@ function planPipeSync(conditions: {
       return {
         route: 'freenet-pull',
         via: 'freenet',
-        auto: false,
-        label: 'Freenet — this device can fetch, not send',
+        auto: true,
+        label: 'Freenet — watching for updates',
         detail:
-          'The Freenet node on this device answers lookups, so the latest published copy of the ' +
-          'farm can be fetched here. It replaces what is on this device rather than merging, so ' +
-          'it waits for you to press it. Sending still needs a PUF-AM laptop. ' +
+          'This device pings a small Freenet watch slot every few seconds and fetches Hot only ' +
+          'when the generation changed — highlights and diary, no FarmSeed. Sending a farm ' +
+          '(a new join ticket) still needs a PUF-AM laptop. ' +
           peerDetail,
       };
     }
@@ -382,6 +383,9 @@ export function describeLastSync(entry: LastSyncEntry | null, now = Date.now()):
  * to be, not about load.
  */
 export const AUTO_SYNC_INTERVAL_MS = 3 * 60_000;
+
+/** Freenet Hot-watch poll — tens of seconds, not the LAN 3-minute floor. */
+export const FREENET_HOT_WATCH_POLL_MS = 20_000;
 
 /**
  * The floor under everything, including "the operator came back to the app".

@@ -45,6 +45,16 @@ async function applyOp(op: OutboxOp): Promise<void> {
       return;
     }
     if (op.payload) await setDoc(ref, stripUndefinedDeep(op.payload), { merge: true });
+    return;
+  }
+
+  if (op.kind === 'map_highlights') {
+    const ref = doc(db, `farms/${op.farmId}/mapHighlights`, op.entityId);
+    if (op.op === 'delete') {
+      await deleteDoc(ref);
+      return;
+    }
+    if (op.payload) await setDoc(ref, stripUndefinedDeep(op.payload), { merge: true });
   }
 }
 

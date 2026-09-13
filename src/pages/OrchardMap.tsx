@@ -13,6 +13,7 @@ import { useOrchardMapSearch } from '../hooks/useOrchardMapSearch';
 import { useOrchardMapViewport } from '../hooks/useOrchardMapViewport';
 import { useOrchardMapAnalytics } from '../hooks/useOrchardMapAnalytics';
 import { useOrchardMapClicks } from '../hooks/useOrchardMapClicks';
+import { useHighlightDraw } from '../hooks/useHighlightDraw';
 import { useOrchardMapChrome } from '../hooks/useOrchardMapChrome';
 import { useOrchardMapTrailPrefs } from '../hooks/useOrchardMapTrailPrefs';
 import { useDebouncedTrackName } from '../hooks/useDebouncedTrackName';
@@ -26,6 +27,7 @@ import { buildOrchardMapDrawLayerCtx } from '../lib/orchardMapDrawLayerCtx';
 import { orchardMapCanvasActions } from '../lib/orchardMapCanvasActions';
 import { orchardMapSheetActions } from '../lib/orchardMapSheetActions';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
+import { activeFarmPipe } from '../lib/farmPipes';
 import { useCrewPresence } from '../hooks/useCrewPresence';
 import { useMapHighlights } from '../hooks/useMapHighlights';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
@@ -142,7 +144,14 @@ export function OrchardMap() {
     fitBlockInView: viewportApi.fitBlockInView,
   });
 
-  const clicks = useOrchardMapClicks({
+  const highlight = useHighlightDraw({
+    mapInstance: chrome.mapInstance,
+    mapMode: chrome.mapMode,
+    activeDrawerRef: draw.activeDrawerRef,
+    setPlacingFlag: operate.setPlacingFlag,
+    setReportDraft: operate.setReportDraft,
+  });
+  useOrchardMapClicks({
     mapInstance: chrome.mapInstance,
     isLoaded,
     mapMode: chrome.mapMode,
@@ -150,7 +159,7 @@ export function OrchardMap() {
     blocks,
     featureGroupRef: chrome.featureGroupRef,
     layerMapRef: chrome.layerMapRef,
-    activeDrawerRef: draw.activeDrawerRef,
+    placingHighlightRef: highlight.placingHighlightRef,
     boundaryEditRef: draw.boundaryEditRef,
     internalBoundaryDrawRef: draw.internalBoundaryDrawRef,
     activeTabRef: chrome.activeTabRef,
@@ -236,10 +245,10 @@ export function OrchardMap() {
     setHighlightedBlockId: chrome.setHighlightedBlockId,
     setIssuesPanelBlockId: operate.setIssuesPanelBlockId,
     setSelectedIssue: operate.setSelectedIssue,
-    placingHighlight: clicks.placingHighlight,
-    highlightDraftGeo: clicks.highlightDraftGeo,
-    cancelHighlightPaint: clicks.cancelHighlightPaint,
-    startHighlightPaint: clicks.startHighlightPaint,
+    placingHighlight: highlight.placingHighlight,
+    highlightDraftGeo: highlight.highlightDraftGeo,
+    cancelHighlightPaint: highlight.cancelHighlightPaint,
+    startHighlightPaint: highlight.startHighlightPaint,
     placingFlag: operate.placingFlag,
     setPlacingFlag: operate.setPlacingFlag,
     setReportDraft: operate.setReportDraft,
@@ -247,7 +256,8 @@ export function OrchardMap() {
     fitBlockInView: viewportApi.fitBlockInView,
     setHighlightSending: chrome.setHighlightSending,
     createHighlight,
-    setHighlightDraftGeo: clicks.setHighlightDraftGeo,
+    clearHighlightDraft: highlight.clearHighlightDraft,
+    setInspectedHighlight: chrome.setInspectedHighlight,
     mapInstance: chrome.mapInstance,
     boundaryEditRef: draw.boundaryEditRef,
     setBoundaryEditTick: draw.setBoundaryEditTick,
@@ -426,6 +436,9 @@ export function OrchardMap() {
           mapHighlights={mapHighlights}
           canDeleteHighlight={canDeleteHighlight}
           onDeleteHighlight={removeHighlight}
+          inspectedHighlight={chrome.inspectedHighlight}
+          onInspectHighlight={chrome.setInspectedHighlight}
+          onCloseInspectHighlight={() => chrome.setInspectedHighlight(null)}
           userUid={userData?.uid}
           userRole={userData?.role}
           crewSelfTrail={crewSelfTrail}
@@ -439,13 +452,22 @@ export function OrchardMap() {
           onLocateMe={viewportApi.handleLocateMe}
           userFix={chrome.userFix}
           onToggleFlags={() => operate.setShowIssueFlags((v) => !v)}
-          placingHighlight={clicks.placingHighlight}
-          highlightDraftGeo={clicks.highlightDraftGeo}
+          placingHighlight={highlight.placingHighlight}
+          highlightDraftGeo={highlight.highlightDraftGeo}
+          highlightDrawMode={highlight.highlightDrawMode}
+          onHighlightDrawMode={highlight.setHighlightDrawMode}
+          onUndoHighlightPaint={highlight.undoHighlightPaint}
+          canUndoHighlightPaint={highlight.canUndoHighlightPaint}
+          onPaintStrokeEnd={highlight.acceptPaintStroke}
           placingFlag={operate.placingFlag}
           onTrailPrefs={updateTrailPrefs}
           selectedOperateBlock={operate.selectedOperateBlock}
           highlightSending={chrome.highlightSending}
-          onCancelHighlight={clicks.cancelHighlightPaint}
+          onCancelHighlight={highlight.cancelHighlightPaint}
+          highlightSessionName={userData?.displayName || userData?.email}
+          highlightSessionId={userData?.uid}
+          highlightPresence={crewOthers}
+          freenetHighlightSync={activeFarmPipe() !== 'cloud'}
           farmDefaultSeconds={settings.highlightDefaultSeconds}
           onCloseBlock={() => chrome.setHighlightedBlockId(null)}
           onReportIssue={operate.startReportForBlock}
@@ -468,7 +490,10 @@ export function OrchardMap() {
           onSaveBoundary={draw.saveBoundaryEdit}
           onCancelBoundary={draw.cancelBoundaryEditUi}
           internalBoundaryDrawing={draw.internalBoundaryDrawing}
-          onCancelDraw={draw.clearInternalBoundaryDraw}
+          onCancelDraw={() => {
+            draw.clearInternalBoundaryDraw();
+            highlight.cancelHighlightPaint();
+          }}
           {...canvasActions}
         />
       </div>

@@ -100,7 +100,7 @@ export function MapSoftKeys({
             title={
               placingHighlight || highlightDraftGeo
                 ? 'Cancel check-this highlight'
-                : 'Check this — paint an area for the crew'
+                : 'Check this — Click points or Paint an area'
             }
             aria-label={placingHighlight || highlightDraftGeo ? 'Cancel check-this highlight' : 'Check this area'}
             aria-pressed={placingHighlight || Boolean(highlightDraftGeo)}

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { diaryApi } from '../services/api';
 import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { mergeByLww } from '../../shared/sync/pufomBundle';
 import type { DiaryEvent, FarmSettings } from './farmDiaryTypes';
 import { getDefaultDiaryStartDate } from './farmDiaryTypes';
 
@@ -24,6 +25,8 @@ interface FarmDiaryState {
   updateSettings: (farmId: string, canEdit: boolean, newSettings: Partial<FarmSettings>) => Promise<void>;
   loadData: (farmId: string, startDate?: string, endDate?: string) => Promise<void>;
   loadMore: (farmId: string) => Promise<void>;
+  /** Incremental Hot merge — does not flip isLoaded / isLoading. */
+  mergeIncoming: (farmId: string, incoming: DiaryEvent[]) => void;
 }
 
 export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
@@ -64,7 +67,6 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
       hasMore: false,
     });
     const { listLocalEntities } = await import('./localFarmRepo');
-    const { mergeByLww } = await import('../../shared/sync/pufomBundle');
     try {
       const effectiveStart = startDate || getDefaultDiaryStartDate(90);
       const localEvents = await listLocalEntities<DiaryEvent>(farmId, 'diary');
@@ -247,6 +249,21 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
         console.error('Failed to save settings:', err);
       }
     }
+  },
+
+  mergeIncoming: (farmId, incoming) => {
+    if (!farmId || incoming.length === 0) return;
+    const state = get();
+    if (state.currentFarmId && state.currentFarmId !== farmId) return;
+    const start = state.currentStartDate;
+    const end = state.currentEndDate;
+    const merged = mergeByLww(state.events, incoming)
+      .filter((e) => (!start || e.date >= start) && (!end || e.date <= end))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    set({
+      events: merged,
+      currentFarmId: state.currentFarmId || farmId,
+    });
   },
 }));
 

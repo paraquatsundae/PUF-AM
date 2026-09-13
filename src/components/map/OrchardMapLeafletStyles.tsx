@@ -135,6 +135,14 @@ export function OrchardMapLeafletStyles() {
               0%, 100% { fill-opacity: 0.16; stroke-opacity: 0.75; }
               50% { fill-opacity: 0.38; stroke-opacity: 1; }
             }
+            .leaflet-container.pufam-highlight-paint {
+              touch-action: none;
+              cursor: crosshair;
+            }
+            .leaflet-container.pufam-highlight-paint .leaflet-overlay-pane path,
+            .leaflet-container.pufam-highlight-paint .leaflet-marker-pane {
+              pointer-events: none !important;
+            }
             .pufom-map-highlight-poly {
               animation: pufom-hl-pulse 1.6s ease-in-out infinite;
             }

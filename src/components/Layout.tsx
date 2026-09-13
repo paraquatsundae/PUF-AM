@@ -18,12 +18,14 @@ import {
 } from '../lib/navConfig';
 import { BottomNav } from './BottomNav';
 import { CloudMirrorBanner } from './CloudMirrorBanner';
+import { FreenetHotWatchHost } from './FreenetHotWatchHost';
 import { PackSurfaces } from './PackSurfaces';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
 import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
 import { isFarmCodeSession } from '../lib/farmPipes';
+import { sessionDisplayName } from '../lib/sessionIdentity';
 
 /** Below xl: overlay drawer (phone + tablet). xl+: permanent sidebar. */
 const NAV_DRAWER_MQ = '(max-width: 1279px)';
@@ -227,14 +229,14 @@ export function Layout() {
                 className="h-8 w-8 rounded-full bg-slate-800"
                 src={
                   user?.photoURL ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}`
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(sessionDisplayName(user, userData))}`
                 }
                 alt=""
                 referrerPolicy="no-referrer"
               />
               <div className="ml-3 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {user?.displayName || user?.email || 'Workshop User'}
+                  {sessionDisplayName(user, userData)}
                 </p>
               </div>
             </div>
@@ -287,6 +289,7 @@ export function Layout() {
         >
           <CloudMirrorBanner />
           <PackSurfaces surface="postSignInPrompt" />
+          <FreenetHotWatchHost />
           <Outlet />
         </main>
       </div>

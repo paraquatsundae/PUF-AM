@@ -22,6 +22,7 @@ export function useFarmDiaryPage(
 ) {
   const [searchParams, setSearchParams] = useSearchParams();
   const focusBlockId = searchParams.get('block');
+  const focusEventId = searchParams.get('event');
   const pageMode: DiaryPageMode = searchParams.get('view') === 'issues' ? 'issues' : 'timeline';
   const [filter, setFilter] = useState<DiaryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,6 +74,18 @@ export function useFarmDiaryPage(
     return () => window.clearTimeout(t);
   }, [focusBlockId, sortedBlockIds]);
 
+  useEffect(() => {
+    if (!focusEventId) return;
+    setFilter('all');
+    const t = window.setTimeout(() => {
+      document.getElementById(`diary-event-${focusEventId}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [focusEventId, filteredEvents]);
+
   const handleExport = () => downloadDiaryCsv(filteredEvents);
 
   const exportFarmJson = () => {
@@ -107,6 +120,7 @@ export function useFarmDiaryPage(
 
   return {
     focusBlockId,
+    focusEventId,
     pageMode,
     setPageMode,
     setFocusBlock,

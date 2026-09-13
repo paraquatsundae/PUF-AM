@@ -17,6 +17,7 @@ type Props = {
   groupedByBlock: Record<string, DiaryEvent[]>;
   sortedBlockIds: string[];
   focusBlockId: string | null;
+  focusEventId?: string | null;
   onFocusBlock: (blockId: string | null) => void;
   /** The filtered view on screen. */
   onExportCsv: () => void;
@@ -49,6 +50,7 @@ export function DiaryTimeline({
   groupedByBlock,
   sortedBlockIds,
   focusBlockId,
+  focusEventId,
   onFocusBlock,
   onExportCsv,
   exportBusy,
@@ -184,6 +186,7 @@ export function DiaryTimeline({
                       <Fragment key={event.id}>
                         <DiaryTimelineEventCard
                           event={event}
+                          focused={focusEventId === event.id}
                           canEdit={canEdit}
                           deleteConfirmId={deleteConfirmId}
                           onAskDelete={onAskDelete}

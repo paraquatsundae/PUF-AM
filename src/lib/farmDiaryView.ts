@@ -46,6 +46,7 @@ export function diaryEventMatchesSearch(event: DiaryEvent, query: string): boole
     event.productName?.toLowerCase().includes(q) ||
     event.title?.toLowerCase().includes(q) ||
     event.assignedToName?.toLowerCase().includes(q) ||
+    event.createdByName?.toLowerCase().includes(q) ||
     (event.type === 'spray' && !!event.sprayType?.toLowerCase().includes(q))
   );
 }

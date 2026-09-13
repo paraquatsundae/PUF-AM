@@ -5,7 +5,11 @@ import type { BreadTrailPrefs } from '../../lib/breadTrails';
 import { BlockOperateCard } from './BlockOperateCard';
 import { BlockIssuesSheet } from './BlockIssuesSheet';
 import { ReportIssueSheet } from './ReportIssueSheet';
+import type { HighlightComposePayload, MapHighlightDoc } from '../../lib/mapHighlights';
 import { HighlightComposeSheet } from './HighlightComposeSheet';
+import { HighlightDrawModeBar } from './HighlightDrawModeBar';
+import type { HighlightDrawMode } from '../../lib/highlightPaintStroke';
+import { HighlightInspectSheet } from './HighlightInspectSheet';
 import { BreadTrailToggles } from './BreadTrailToggles';
 import { OperateIssueDetailSheet } from './OperateIssueDetailSheet';
 
@@ -17,11 +21,23 @@ export function OperateMapOverlays({
   selectedOperateBlock,
   placingHighlight,
   highlightDraftGeo,
+  highlightDrawMode,
+  onHighlightDrawMode,
+  onUndoHighlightPaint,
+  canUndoHighlightPaint,
   highlightRole,
   farmDefaultSeconds,
+  highlightSessionName,
+  highlightSessionId,
+  highlightPresence,
+  freenetHighlightSync,
   highlightSending,
   onCancelHighlight,
   onSendHighlight,
+  inspectedHighlight,
+  canDeleteInspectedHighlight,
+  onCloseInspectHighlight,
+  onDeleteInspectedHighlight,
   openIssuesByBlock,
   onCloseBlock,
   onViewIssues,
@@ -48,11 +64,23 @@ export function OperateMapOverlays({
   selectedOperateBlock: OrchardBlock | null;
   placingHighlight: boolean;
   highlightDraftGeo: GeoJSON.Feature | GeoJSON.Geometry | null;
+  highlightDrawMode: HighlightDrawMode;
+  onHighlightDrawMode: (mode: HighlightDrawMode) => void;
+  onUndoHighlightPaint: () => void;
+  canUndoHighlightPaint: boolean;
   highlightRole: string | undefined;
   farmDefaultSeconds: number | undefined;
+  highlightSessionName?: string | null;
+  highlightSessionId?: string | null;
+  highlightPresence?: Array<{ uid?: string; displayName?: string | null }>;
+  freenetHighlightSync?: boolean;
   highlightSending: boolean;
   onCancelHighlight: () => void;
-  onSendHighlight: (payload: { note: string; durationSeconds: number }) => void;
+  onSendHighlight: (payload: HighlightComposePayload) => void;
+  inspectedHighlight: MapHighlightDoc | null;
+  canDeleteInspectedHighlight: boolean;
+  onCloseInspectHighlight: () => void;
+  onDeleteInspectedHighlight: (id: string) => void;
   openIssuesByBlock: Record<string, number>;
   onCloseBlock: () => void;
   onViewIssues: () => void;
@@ -92,20 +120,31 @@ export function OperateMapOverlays({
         </div>
       )}
 
-      {placingHighlight && !highlightDraftGeo && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1100] pointer-events-none">
-          <div className="bg-teal-700 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg">
-            Trace an area — Finish when done
-          </div>
-        </div>
+      {placingHighlight && (
+        <HighlightDrawModeBar mode={highlightDrawMode} onMode={onHighlightDrawMode} />
+      )}
+
+      {inspectedHighlight && !highlightDraftGeo && (
+        <HighlightInspectSheet
+          highlight={inspectedHighlight}
+          canDelete={canDeleteInspectedHighlight}
+          onClose={onCloseInspectHighlight}
+          onDelete={onDeleteInspectedHighlight}
+        />
       )}
 
       {highlightDraftGeo && (
         <HighlightComposeSheet
+          farmId={farmId}
           role={highlightRole}
           farmDefaultSeconds={farmDefaultSeconds}
+          sessionName={highlightSessionName}
+          sessionId={highlightSessionId}
+          presence={highlightPresence}
+          freenetSync={freenetHighlightSync}
           busy={highlightSending}
           onCancel={onCancelHighlight}
+          onUndo={canUndoHighlightPaint ? onUndoHighlightPaint : undefined}
           onSend={onSendHighlight}
         />
       )}
@@ -117,7 +156,8 @@ export function OperateMapOverlays({
           !highlightDraftGeo &&
           !issuesPanelOpen &&
           !reportDraft &&
-          !selectedIssue && (
+          !selectedIssue &&
+          !inspectedHighlight && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}

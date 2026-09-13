@@ -52,6 +52,11 @@ export interface DiaryEvent {
   completedAt?: string;
   /** Field issue this work plan was created from (map / Issues tab). */
   linkedIssueId?: string;
+  /** Map highlight this work plan was created from (“check this”). */
+  linkedHighlightId?: string;
+  /** Who created the entry (map highlight sender). */
+  createdBy?: string;
+  createdByName?: string;
   /** LWW / outbox stamp */
   updatedAt?: string;
 }

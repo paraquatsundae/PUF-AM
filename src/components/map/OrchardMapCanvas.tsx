@@ -24,6 +24,7 @@ import { MapSoftKeys } from './MapSoftKeys';
 import { OperateMapOverlays } from './OperateMapOverlays';
 import { MapStatusBar } from './MapStatusBar';
 import { DrawingActionBar } from './DrawingActionBar';
+import { HighlightPaintLayer } from './HighlightPaintLayer';
 import { BoundaryEditActionBar } from './BoundaryEditActionBar';
 import { CoverageZonesLegend, InternalBoundaryDrawBanner } from './EditMapBanners';
 import { OrchardMapLeafletStyles } from './OrchardMapLeafletStyles';
@@ -70,6 +71,9 @@ export function OrchardMapCanvas({
   mapHighlights,
   canDeleteHighlight,
   onDeleteHighlight,
+  inspectedHighlight,
+  onInspectHighlight,
+  onCloseInspectHighlight,
   userUid,
   userRole,
   crewSelfTrail,
@@ -85,6 +89,11 @@ export function OrchardMapCanvas({
   onToggleFlags,
   placingHighlight,
   highlightDraftGeo,
+  highlightDrawMode,
+  onHighlightDrawMode,
+  onUndoHighlightPaint,
+  canUndoHighlightPaint,
+  onPaintStrokeEnd,
   onToggleHighlight,
   placingFlag,
   onTogglePlaceFlag,
@@ -92,6 +101,10 @@ export function OrchardMapCanvas({
   selectedOperateBlock,
   highlightSending,
   onCancelHighlight,
+  highlightSessionName,
+  highlightSessionId,
+  highlightPresence,
+  freenetHighlightSync,
   onSendHighlight,
   farmDefaultSeconds,
   onCloseBlock,
@@ -187,9 +200,16 @@ export function OrchardMapCanvas({
 
         <MapHighlightsLayer
           highlights={mapHighlights}
-          canDelete={canDeleteHighlight}
-          onDelete={onDeleteHighlight}
+          onSelect={onInspectHighlight}
         />
+
+        {mapMode === 'operate' && (
+          <HighlightPaintLayer
+            painting={placingHighlight && highlightDrawMode === 'paint'}
+            draftGeo={highlightDraftGeo}
+            onStrokeEnd={onPaintStrokeEnd}
+          />
+        )}
 
         <BreadTrailLayer
           selfUid={userUid}
@@ -243,10 +263,24 @@ export function OrchardMapCanvas({
           selectedOperateBlock={selectedOperateBlock}
           placingHighlight={placingHighlight}
           highlightDraftGeo={highlightDraftGeo}
+          highlightDrawMode={highlightDrawMode}
+          onHighlightDrawMode={onHighlightDrawMode}
+          onUndoHighlightPaint={onUndoHighlightPaint}
+          canUndoHighlightPaint={canUndoHighlightPaint}
           highlightRole={userRole}
           farmDefaultSeconds={farmDefaultSeconds}
           highlightSending={highlightSending}
           onCancelHighlight={onCancelHighlight}
+          inspectedHighlight={inspectedHighlight}
+          canDeleteInspectedHighlight={
+            inspectedHighlight ? canDeleteHighlight(inspectedHighlight) : false
+          }
+          onCloseInspectHighlight={onCloseInspectHighlight}
+          onDeleteInspectedHighlight={onDeleteHighlight}
+          highlightSessionName={highlightSessionName}
+          highlightSessionId={highlightSessionId}
+          highlightPresence={highlightPresence}
+          freenetHighlightSync={freenetHighlightSync}
           onSendHighlight={onSendHighlight}
           openIssuesByBlock={openIssuesByBlock}
           onCloseBlock={onCloseBlock}
@@ -275,7 +309,10 @@ export function OrchardMapCanvas({
         map={mapInstance}
         enabled={
           (mapMode === 'edit' && canEdit && !boundaryEditBlockId) ||
-          (mapMode === 'operate' && placingHighlight) ||
+          (mapMode === 'operate' &&
+            placingHighlight &&
+            highlightDrawMode === 'points' &&
+            !canUndoHighlightPaint) ||
           Boolean(internalBoundaryDrawing && mapMode === 'edit' && canEdit)
         }
         onCancel={onCancelDraw}

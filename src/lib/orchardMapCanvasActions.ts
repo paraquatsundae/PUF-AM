@@ -2,7 +2,7 @@ import type { Map as LeafletMap } from 'leaflet';
 import { setBasemapSkipped, type BasemapPack } from './basemapPack';
 import { deleteSelectedVertex } from './boundaryEditSession';
 import type { FieldIssue } from './fieldStore';
-import type { MapHighlightDoc } from './mapHighlights';
+import type { HighlightComposePayload, MapHighlightDoc } from './mapHighlights';
 import type { OrchardBlock } from './mapStore';
 
 type InternalBoundaryKind = 'internal_passable' | 'internal_impassable';
@@ -33,9 +33,12 @@ type Deps = {
     geojson: GeoJSON.Feature | GeoJSON.Geometry;
     note?: string;
     audience?: 'all';
+    directedAtName?: string;
+    directedAtUid?: string;
     durationSeconds?: number | null;
   }) => Promise<MapHighlightDoc | null>;
-  setHighlightDraftGeo: (geo: HighlightDraft) => void;
+  clearHighlightDraft: () => void;
+  setInspectedHighlight: (h: MapHighlightDoc | null) => void;
   mapInstance: LeafletMap | null;
   boundaryEditRef: { current: any };
   setBoundaryEditTick: (fn: (t: number) => number) => void;
@@ -76,6 +79,7 @@ export function orchardMapCanvasActions(d: Deps) {
         d.cancelHighlightPaint();
         return;
       }
+      d.setInspectedHighlight(null);
       d.startHighlightPaint();
     },
     onTogglePlaceFlag: () => {
@@ -89,7 +93,12 @@ export function orchardMapCanvasActions(d: Deps) {
         d.fitBlockInView(d.selectedOperateBlock);
       }
     },
-    onSendHighlight: ({ note, durationSeconds }: { note: string; durationSeconds: number }) => {
+    onSendHighlight: ({
+      note,
+      durationSeconds,
+      directedAtName,
+      directedAtUid,
+    }: HighlightComposePayload) => {
       if (!d.highlightDraftGeo) return;
       d.setHighlightSending(true);
       void d
@@ -97,10 +106,12 @@ export function orchardMapCanvasActions(d: Deps) {
           geojson: d.highlightDraftGeo,
           note,
           durationSeconds,
+          directedAtName,
+          directedAtUid,
           audience: 'all',
         })
         .then(() => {
-          d.setHighlightDraftGeo(null);
+          d.clearHighlightDraft();
         })
         .finally(() => d.setHighlightSending(false));
     },

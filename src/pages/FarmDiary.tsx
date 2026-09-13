@@ -106,6 +106,7 @@ export function FarmDiary() {
                 groupedByBlock={page.groupedByBlock}
                 sortedBlockIds={page.sortedBlockIds}
                 focusBlockId={page.focusBlockId}
+                focusEventId={page.focusEventId}
                 onFocusBlock={page.setFocusBlock}
                 onExportCsv={page.handleExport}
                 exportBusy={page.exportBusy}

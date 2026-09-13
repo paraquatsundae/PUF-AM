@@ -7,11 +7,9 @@
  *
  * Two rules it exists to enforce:
  *
- * - **Only the Wi‑Fi rungs run unattended.** Both merge last-writer-wins, both
- *   are seconds, and both are a no-op when nothing changed. A Freenet publish is
- *   minutes through a laptop-only binary and re-issues the join ticket; a
- *   Freenet pull replaces local records instead of merging them. Neither belongs
- *   on a timer, so both wait for a press.
+ * - **Wi‑Fi rungs and Freenet watch-pull run unattended.** LAN merges in
+ *   seconds. Freenet *Send* remints a join ticket and stays a press. Freenet
+ *   *watch* is a cheap slot GET; a yes fetches Hot and merges highlights/diary.
  * - **No storms.** One attempt at a time, a floor between attempts that a wake,
  *   a tab switch and a Wi‑Fi reconnect all have to clear, and a content digest
  *   so an untouched farm re-uploads nothing.
@@ -50,6 +48,8 @@ import { pullLanBundle, pushLanBundle } from '../../lib/pufomSync';
 import { getLastFarm } from '../../lib/deviceSession';
 import { findJoinPreset } from '../../../shared/sync/joinGrant';
 import { isMistHotMirrorAvailable } from '../../mist/mistHotBridge';
+import { unlockedFarmSeed } from '../../mist/mistFarmSeedCache';
+import { pollFreenetHotWatch, refreshFarmUiAfterHotMerge } from '../../mist/hotWatchSync';
 import { getMistHotPublishStatus } from '../../mist/mistHotPublishMeta';
 import { syncSealedFarmOverLan } from '../../mist/mistLanShelf';
 import { publishFarmToFreenet } from '../../mist/mistFreenetClient';
@@ -91,7 +91,10 @@ async function probeSyncPeer(): Promise<SyncPeerState> {
 async function probeFreenet(): Promise<FreenetNodeState> {
   const runtime = await refreshFreenetRuntime().catch(() => null);
   if (!runtime || !canReachFreenetNode(runtime)) return 'none';
-  return detectFreenetReadOnly(runtime) ? 'read-only' : 'publish';
+  if (detectFreenetReadOnly(runtime)) return 'read-only';
+  // Native PUT may exist, but Send still needs FarmSeed. Crew hold Hot/Bones only.
+  if (!unlockedFarmSeed()) return 'read-only';
+  return 'publish';
 }
 
 function readConditions(peer: SyncPeerState, freenet: FreenetNodeState): SyncConditions {
@@ -240,25 +243,35 @@ export function useAutoSync(): AutoSyncState {
             ? `sent — join ticket ${result.shortTicket}`
             : 'sent, but no short join ticket could be published';
         } else if (current.route === 'freenet-pull') {
-          const status = getMistHotPublishStatus(farmId);
-          if (!status?.freenetUri || !status.bonesFreenetUri) {
-            throw new Error(
-              'This device has no Freenet address for the farm yet. Join with a ticket once ' +
-                'under “Send or join a farm over Freenet” below, and pulling works from then on.',
-            );
+          if (!manual) {
+            const watch = await pollFreenetHotWatch(farmId);
+            if (watch === 'applied') {
+              await refreshFarmUiAfterHotMerge(farmId);
+              summary = 'Freenet update applied';
+            } else {
+              summary = 'already up to date';
+            }
+          } else {
+            const status = getMistHotPublishStatus(farmId);
+            if (!status?.freenetUri || !status.bonesFreenetUri) {
+              throw new Error(
+                'This device has no Freenet address for the farm yet. Join with a ticket once ' +
+                  'under “Send or join a farm over Freenet” below, and pulling works from then on.',
+              );
+            }
+            const result = await fetchAndRehydrateFarmFromAddresses(farmId, {
+              hotUri: status.freenetUri,
+              bonesUri: status.bonesFreenetUri,
+              hotContentHash: status.contentHash,
+              bonesContentHash: status.bonesContentHash,
+            });
+            await refreshFarmUiAfterRecovery(farmId);
+            summary = countsLine({
+              diary: result.hot.after.diary,
+              blocks: result.geometry.after.blocks,
+              issues: result.hot.after.issues,
+            });
           }
-          const result = await fetchAndRehydrateFarmFromAddresses(farmId, {
-            hotUri: status.freenetUri,
-            bonesUri: status.bonesFreenetUri,
-            hotContentHash: status.contentHash,
-            bonesContentHash: status.bonesContentHash,
-          });
-          await refreshFarmUiAfterRecovery(farmId);
-          summary = countsLine({
-            diary: result.hot.after.diary,
-            blocks: result.geometry.after.blocks,
-            issues: result.hot.after.issues,
-          });
         }
 
         record(farmId, {

@@ -1,5 +1,6 @@
 /**
  * Pulsing timed area highlights with author name watermark.
+ * Tap opens a React inspect sheet (not a Leaflet popup) so it outlives the TTL.
  */
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
@@ -12,8 +13,7 @@ import {
 
 type Props = {
   highlights: MapHighlightDoc[];
-  canDelete: (h: MapHighlightDoc) => boolean;
-  onDelete: (id: string) => void;
+  onSelect: (h: MapHighlightDoc) => void;
 };
 
 function asFeature(geojson: GeoJSON.Feature | GeoJSON.Geometry): GeoJSON.Feature | null {
@@ -38,7 +38,7 @@ function watermarkIcon(name: string, colour: string): L.DivIcon {
   });
 }
 
-export function MapHighlightsLayer({ highlights, canDelete, onDelete }: Props) {
+export function MapHighlightsLayer({ highlights, onSelect }: Props) {
   const map = useMap();
 
   useEffect(() => {
@@ -72,32 +72,12 @@ export function MapHighlightsLayer({ highlights, canDelete, onDelete }: Props) {
           }
         });
 
-        const note = h.note?.trim();
-        const popup = L.popup({ maxWidth: 240 }).setContent(
-          `<div style="font:12px/1.35 system-ui,sans-serif;color:#0f172a">
-            <strong>${(h.displayName || 'Crew').replace(/[<>&]/g, '')}</strong>
-            ${note ? `<p style="margin:4px 0 0;color:#475569">${note.replace(/[<>&]/g, '')}</p>` : ''}
-            <p style="margin:6px 0 0;color:#94a3b8;font-size:10px">Expires ${new Date(h.expiresAt).toLocaleTimeString()}</p>
-            ${
-              canDelete(h)
-                ? `<button type="button" data-hl-del="${h.id}" style="margin-top:8px;font:600 11px system-ui;padding:4px 8px;border-radius:6px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;cursor:pointer">Remove</button>`
-                : ''
-            }
-          </div>`
-        );
-
-        layer.bindPopup(popup);
-        layer.on('popupopen', () => {
-          const el = popup.getElement();
-          const btn = el?.querySelector(`[data-hl-del="${h.id}"]`) as HTMLButtonElement | null;
-          if (!btn) return;
-          const handler = (ev: Event) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            onDelete(h.id);
-            map.closePopup();
-          };
-          btn.addEventListener('click', handler, { once: true });
+        layer.on('click', (ev: L.LeafletMouseEvent) => {
+          L.DomEvent.stopPropagation(ev);
+          if (ev.originalEvent) {
+            (ev.originalEvent as { _stopped?: boolean })._stopped = true;
+          }
+          onSelect(h);
         });
 
         layer.addTo(group);
@@ -122,7 +102,7 @@ export function MapHighlightsLayer({ highlights, canDelete, onDelete }: Props) {
     return () => {
       map.removeLayer(group);
     };
-  }, [map, highlights, canDelete, onDelete]);
+  }, [map, highlights, onSelect]);
 
   return null;
 }

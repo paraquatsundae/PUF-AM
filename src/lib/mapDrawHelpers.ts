@@ -74,7 +74,7 @@ const TAP_SLOP_PX = 12;
 export const DRAW_UI_HIT_PAD_PX = 28;
 
 const DRAW_UI_SELECTOR =
-  '.leaflet-control, .leaflet-draw-toolbar, .leaflet-draw-actions, .leaflet-draw-section, .pufom-draw-actions, .leaflet-control-zoom, button, a[role="button"]';
+  '.leaflet-control, .leaflet-draw-toolbar, .leaflet-draw-actions, .leaflet-draw-section, .pufom-draw-actions, .pufam-highlight-draw-bar, .pufam-highlight-compose, .leaflet-control-zoom, button, a[role="button"]';
 
 export function getCurrentDrawHandler(): LeafletDrawHandler | null {
   return currentDrawHandler;
@@ -119,7 +119,7 @@ export function pointHitsDrawUi(
   padPx: number = DRAW_UI_HIT_PAD_PX
 ): boolean {
   const nodes = root.querySelectorAll(
-    '.leaflet-draw-toolbar, .leaflet-draw-actions, .pufom-draw-actions, .leaflet-control-zoom, .leaflet-control'
+    '.leaflet-draw-toolbar, .leaflet-draw-actions, .pufom-draw-actions, .pufam-highlight-draw-bar, .pufam-highlight-compose, .leaflet-control-zoom, .leaflet-control'
   );
   for (const node of Array.from(nodes)) {
     const el = node as HTMLElement;

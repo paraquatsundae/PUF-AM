@@ -62,6 +62,8 @@ interface FieldState {
   bounds: Bounds | null;
   loadData: (farmId: string) => void;
   loadArchive: (farmId: string) => void;
+  /** Incremental Hot merge — does not flip isLoaded. */
+  mergeIncoming: (farmId: string, incoming: FieldIssue[], incomingArchive?: FieldIssue[]) => void;
   setBounds: (bounds: Bounds | null) => void;
   addIssue: (farmId: string, issue: FieldIssue) => Promise<void>;
   updateIssue: (farmId: string, id: string, updates: Partial<FieldIssue>) => Promise<void>;
@@ -87,6 +89,39 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       // Re-trigger loadData with new bounds
       get().loadData(currentFarmId);
     }
+  },
+
+  mergeIncoming: (farmId, incoming, incomingArchive = []) => {
+    if (!farmId) return;
+    const state = get();
+    if (state.currentFarmId && state.currentFarmId !== farmId) return;
+    const byId = new Map(state.issues.map((i) => [i.id, i]));
+    for (const row of incoming) {
+      if (!row?.id) continue;
+      const prev = byId.get(row.id);
+      const prevT = Date.parse(prev?.updatedAt || prev?.reportedAt || '') || 0;
+      const nextT = Date.parse(row.updatedAt || row.reportedAt || '') || 0;
+      if (!prev || nextT >= prevT) byId.set(row.id, row);
+    }
+    const issues = Array.from(byId.values());
+    localFieldIssues.saveOpen(farmId, issues);
+
+    const archiveById = new Map(state.archivedIssues.map((i) => [i.id, i]));
+    for (const row of incomingArchive) {
+      if (!row?.id) continue;
+      const prev = archiveById.get(row.id);
+      const prevT = Date.parse(prev?.updatedAt || prev?.archivedAt || prev?.reportedAt || '') || 0;
+      const nextT = Date.parse(row.updatedAt || row.archivedAt || row.reportedAt || '') || 0;
+      if (!prev || nextT >= prevT) archiveById.set(row.id, row);
+    }
+    const archivedIssues = Array.from(archiveById.values());
+    if (incomingArchive.length > 0) localFieldIssues.saveArchived(farmId, archivedIssues);
+
+    set({
+      issues,
+      archivedIssues,
+      currentFarmId: state.currentFarmId || farmId,
+    });
   },
 
   loadData: (farmId: string) => {

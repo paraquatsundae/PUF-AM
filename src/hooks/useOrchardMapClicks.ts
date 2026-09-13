@@ -1,13 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useEffect, type MutableRefObject } from 'react';
 import type { Map as LeafletMap } from 'leaflet';
-import L from '../lib/leaflet-setup';
 import { findBlockIdAtPoint } from '../lib/farmMapHit';
-import {
-  cancelActiveDrawer,
-  getCurrentDrawHandler,
-  startActiveDrawer,
-  type LeafletDrawHandler,
-} from '../lib/mapDrawHelpers';
+import { getCurrentDrawHandler } from '../lib/mapDrawHelpers';
 import type { OrchardBlock } from '../lib/mapStore';
 import type { LayerMapEntry } from '../lib/orchardMapDrawCreated';
 import type { MapMode, MapSubTab } from '../components/map/editMapTypes';
@@ -21,7 +15,6 @@ export function useOrchardMapClicks({
   blocks,
   featureGroupRef,
   layerMapRef,
-  activeDrawerRef,
   boundaryEditRef,
   internalBoundaryDrawRef,
   activeTabRef,
@@ -39,6 +32,7 @@ export function useOrchardMapClicks({
   setReportDraft,
   setIssuesPanelBlockId,
   setSelectedIssue,
+  placingHighlightRef,
 }: {
   mapInstance: LeafletMap | null;
   isLoaded: boolean;
@@ -47,7 +41,6 @@ export function useOrchardMapClicks({
   blocks: OrchardBlock[];
   featureGroupRef: { current: any };
   layerMapRef: MutableRefObject<Record<number, LayerMapEntry>>;
-  activeDrawerRef: MutableRefObject<LeafletDrawHandler | null>;
   boundaryEditRef: MutableRefObject<unknown>;
   internalBoundaryDrawRef: MutableRefObject<unknown>;
   activeTabRef: MutableRefObject<MapSubTab>;
@@ -65,50 +58,8 @@ export function useOrchardMapClicks({
   setReportDraft: (draft: { lat: number; lng: number; blockId?: string } | null) => void;
   setIssuesPanelBlockId: (id: string | null) => void;
   setSelectedIssue: (issue: FieldIssue | null) => void;
+  placingHighlightRef: MutableRefObject<boolean>;
 }) {
-  const [placingHighlight, setPlacingHighlight] = useState(false);
-  const [highlightDraftGeo, setHighlightDraftGeo] = useState<
-    GeoJSON.Feature | GeoJSON.Geometry | null
-  >(null);
-  const placingHighlightRef = useRef(false);
-  placingHighlightRef.current = placingHighlight;
-
-  const startHighlightPaint = useCallback(() => {
-    if (!mapInstance || mapMode !== 'operate') return;
-    setPlacingFlag(false);
-    setReportDraft(null);
-    setHighlightDraftGeo(null);
-    setPlacingHighlight(true);
-    if (!(L as { Draw?: unknown }).Draw) {
-      console.error('Leaflet Draw not initialized');
-      setPlacingHighlight(false);
-      return;
-    }
-    try {
-      startActiveDrawer(
-        activeDrawerRef,
-        new (L as any).Draw.Polygon(mapInstance, {
-          shapeOptions: {
-            color: '#0f766e',
-            fillColor: '#0f766e',
-            fillOpacity: 0.25,
-            weight: 2,
-          },
-        })
-      );
-    } catch (err) {
-      console.error('Failed to start highlight draw', err);
-      cancelActiveDrawer(activeDrawerRef);
-      setPlacingHighlight(false);
-    }
-  }, [mapInstance, mapMode, activeDrawerRef, setPlacingFlag, setReportDraft]);
-
-  const cancelHighlightPaint = useCallback(() => {
-    setPlacingHighlight(false);
-    setHighlightDraftGeo(null);
-    cancelActiveDrawer(activeDrawerRef);
-  }, [activeDrawerRef]);
-
   useEffect(() => {
     if (!mapInstance) return;
     const handleMapClick = (e: any) => {
@@ -152,50 +103,12 @@ export function useOrchardMapClicks({
   ]);
 
   useEffect(() => {
-    if (!mapInstance) return;
-    const DrawEvent = (L as unknown as { Draw?: { Event?: Record<string, string> } }).Draw?.Event;
-    const CREATED = DrawEvent?.CREATED || 'draw:created';
-    const onCreated = (e: {
-      layerType?: string;
-      layer: L.Layer & { toGeoJSON?: () => GeoJSON.Feature; remove?: () => void };
-    }) => {
-      if (!placingHighlightRef.current) return;
-      if (e.layerType && e.layerType !== 'polygon') return;
-      try {
-        const geojson = e.layer.toGeoJSON?.();
-        if (geojson) {
-          setHighlightDraftGeo(geojson);
-        }
-      } catch (err) {
-        console.warn('[OrchardMap] highlight geojson failed', err);
-      }
-      try {
-        e.layer.remove?.();
-        mapInstance.removeLayer(e.layer);
-      } catch {
-        /* ignore */
-      }
-      cancelActiveDrawer(activeDrawerRef);
-      setPlacingHighlight(false);
-    };
-    mapInstance.on(CREATED, onCreated as L.LeafletEventHandlerFn);
-    return () => {
-      mapInstance.off(CREATED, onCreated as L.LeafletEventHandlerFn);
-    };
-  }, [mapInstance, activeDrawerRef]);
-
-  useEffect(() => {
-    if (mapMode !== 'operate' && (placingHighlight || highlightDraftGeo)) {
-      cancelHighlightPaint();
-    }
-  }, [mapMode, placingHighlight, highlightDraftGeo, cancelHighlightPaint]);
-
-  useEffect(() => {
     if (!mapInstance || !featureGroupRef.current) return;
 
     const fg = featureGroupRef.current;
     const handleLayerClick = (e: any) => {
       if (
+        placingHighlightRef.current ||
         getCurrentDrawHandler()?._enabled ||
         boundaryEditRef.current ||
         internalBoundaryDrawRef.current
@@ -306,11 +219,4 @@ export function useOrchardMapClicks({
     }
   }, [highlightedBlockId, activeTab]);
 
-  return {
-    placingHighlight,
-    highlightDraftGeo,
-    setHighlightDraftGeo,
-    startHighlightPaint,
-    cancelHighlightPaint,
-  };
 }
