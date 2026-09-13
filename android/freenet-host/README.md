@@ -8,8 +8,8 @@ Phase 3 of [`Plans/FREENET_NETWORK_PACK.md`](../../Plans/FREENET_NETWORK_PACK.md
 
 - Capacitor plugin `FreenetHost` (`start` / `stop` / `status` / `attach`) in the WebView process.
 - Optional `FreenetNodeService` in `android:process=":freenet"` with a foreground notification.
-- **Product path today:** attach to **Freenet Android Node** (third-party APK) on `127.0.0.1:7509`. The page PUTs with `BrowserFreenetPutClient`. No JNI into their APK or into our WebView.
-- **Later path:** an `android-arm64` `libfreenet.so` in this process. Official freenet-core releases have no Android asset (`aarch64-unknown-linux-musl` is not bionic).
+- **Product path:** start the in-APK `android-arm64` node in `:freenet` when a Freenet farm is open / the pack is enabled. **Attach-if-port-taken** if Freenet Android Node (or any node) already owns `127.0.0.1:7509`. The page PUTs with `BrowserFreenetPutClient`. No JNI into their APK or into our WebView.
+- **Binary:** official freenet-core releases have no Android asset. Build the pin with `npm run android:vendor:freenet`. Without the so the service reports `no android-arm64 binary` and does not crash.
 
 ## Build a binary (spike)
 
@@ -21,4 +21,4 @@ Exits **2** unless NDK + `aarch64-linux-android` Rust target are present **and**
 
 ## Manifest pin
 
-`scripts/freenet-binaries.json` → `platforms.android-arm64.status` is `missing` until an official or workshop-built so exists.
+`scripts/freenet-binaries.json` → `platforms.android-arm64.status` is `workshop-built` (official GitHub still has no Android asset; so is gitignored).

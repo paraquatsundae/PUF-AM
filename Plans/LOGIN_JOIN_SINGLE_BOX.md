@@ -1,6 +1,6 @@
 # Login — single-box join
 
-**Status:** Design accepted 2026-09-11 — **FarmCode-first** for the single box (ticket held, never merged). **Crew join superseded 2026-09-12** — Decision below; FarmSeed stays on owner devices. The new unwrap is **not** being built.
+**Status:** Design accepted 2026-09-11 — **FarmCode-first** for the single box (ticket held, never merged). **Crew join superseded 2026-09-12** — Decision below; FarmSeed stays on owner devices. **Implemented 2026-09-12** — InviteToken (26 symbols) locates a public crew envelope wrapping Hot/Bones only; short 8-symbol `PUF-` is refused as an unwrap.
 **Experimental — not production** where it touches Freenet; the cloud invite-PIN path is the shipping path and is simplified, not changed in meaning.
 **Product:** PUF-AM · **Scope:** one "Join a farm" entry point at `/login` that classifies whatever code the user was handed (cloud invite PIN, FarmCode, `PUF-` join ticket), asks for the second Freenet piece only when needed, and lets the network pack start the node — without weakening hole 2 (FarmCode and ticket stay separate) or decision 5 (hosted web hides Freenet).
 
@@ -14,7 +14,12 @@ Requested by George, 2026-09-11: "the join farm should be a single button, then 
 
 **Decision — 2026-09-11 (B).** Hub pairing **stays out of the join box**. If it is ever offered at login, mint the new format as `HUB-XXXX-XXXX`; do not disambiguate today's unprefixed `XXXX-XXXX` pairing codes.
 
-**Decision — 2026-09-12.** **FarmSeed stays only on owner devices** (paper FarmCode + owner machines). Owner recover is **not** a join. **Crew type only an invite** (`PUF-` / grant) — never a FarmCode. The invite unwraps a **weaker read capability** (HotKey / BonesKey, or equivalent), not FarmSeed. FarmSeed must **never** ride on a short 40-bit `PUF-` ticket. Product (not implemented): Send must stop instructing anyone to read out the paper FarmCode. Hole 4 still applies — revoke ≠ kick for data already fetched; do not fake kick ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8). Hosted web still cannot run a Freenet node (decision 5). Grant/slot crypto home: [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) **Decision — 2026-09-12**. Do not renumber [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or `Plans/reference/*`. Experimental Freenet; shipping path remains Firebase Auth + invite PIN. **No application or crypto implementation until asked.** Design still owed before any code: slot locator without FarmSeed on the joiner; InviteToken-class wrap of the read keys; whether today's 40-bit ticket is long enough once it carries a capability; hole 4 honesty.
+**Decision — 2026-09-13.** Public nearby-farm browse is withdrawn. The join-box
+expander **Check it's the right farm (nearby)** and create-farm “show nearby”
+are gone; `GET /api/auth/nearby-farms` fails closed (410). Join is the code in
+the box — invite PIN, PUF- crew invite, or FarmCode — not a public farm list.
+
+**Decision — 2026-09-12.** **FarmSeed stays only on owner devices** (paper FarmCode + owner machines). Owner recover is **not** a join. **Crew type only an invite** (`PUF-` / grant) — never a FarmCode. The invite unwraps a **weaker read capability** (HotKey / BonesKey, or equivalent), not FarmSeed. FarmSeed must **never** ride on a short 40-bit `PUF-` ticket. **Implemented 2026-09-12:** Send no longer tells anyone to read out the paper FarmCode; the join box routes `PUF-`+26 to crew join and FarmCode to owner recover; a short 8-symbol ticket is refused. Slot locator is `HKDF(InviteToken, …)` — no FarmSeed on the joiner. Hole 4 still applies — revoke ≠ kick for data already fetched; do not fake kick ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8). Hosted web still cannot run a Freenet node (decision 5). Grant/slot crypto home: [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) **Decision — 2026-09-12**. Do not renumber [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or `Plans/reference/*`. Experimental Freenet; shipping path remains Firebase Auth + invite PIN.
 
 ---
 
@@ -53,10 +58,9 @@ Notation: **[tap]** = button/card/tab press; **{field}** = something typed; **(d
 1. /login  CloudSyncOptions — "Three ways to put the farm on the internet. Read who pays before you continue."
    cards: PUFworks cloud (Invite only) | Your own Firebase | PUFworks subscription (not open)
 2. [PUFworks cloud] → LoginCloudForm, tab Join a farm (default)
-   (GPS permission dialog fires immediately — useLoginFlow L110–114)
-   "Nearby farms" list · {Your name} · {Farm PIN} · [Sign in to farm]
+   Join box → Your name · Join farm (nearby-farm list withdrawn 2026-09-13)
    footer link: "Sign into PUFworks Firebase" (Google) with a caveat paragraph
-2'. [Create a farm] tab → {Farm name} {Your name} {Enrollment code} ☐ show nearby → [Create farm]
+2'. [Create a farm] tab → {Farm name} {Your name} {Enrollment code} → [Create farm]
 3'. LoginRecoveryScreen (owner recovery PIN, shown once) → [Continue to farm]
 ```
 (a) create cloud: 3 taps + 3 fields + 1 tap (Continue) = **4 taps, 3 fields, 1 dialog**.
@@ -89,7 +93,7 @@ Notation: **[tap]** = button/card/tab press; **{field}** = something typed; **(d
 
 1. **The first question is the owner's question.** "How should this farm be stored?" / "Read who pays" is asked of a worker who has been handed a code by somebody who already made that decision. A joiner cannot answer it and should not have to.
 2. **Three cloud cards before a PIN box.** Web users must pick "PUFworks cloud" before they can type the PIN they were given; the other two cards are for people setting up a farm, not joining one.
-3. **GPS prompt on arrival.** The nearby-farm loader fires the moment the join tab mounts, before the user has typed anything.
+3. **GPS prompt on arrival.** Was the nearby-farm loader on join-tab mount. **Withdrawn 2026-09-13** — no public farm list.
 4. **One box, three meanings.** "Farm PIN" accepts a staff invite PIN and the owner recovery PIN, and the helper text explains both plus the nearby list plus BYO.
 5. **Seven code-shaped things.** invite PIN, owner recovery PIN, enrollment code, FarmCode, join ticket, device PIN, unlock PIN (and hub pairing code, BYO farm ID). Nothing at login tells the user which box theirs belongs in.
 6. **Freenet join is four screens and a reload away**, behind a "How this works" essay, and the storage chooser's footnote ("never both") is now wrong.
@@ -228,8 +232,7 @@ Common screen 0 for every shell — **Join** is the landing step for a fresh dev
 **J2-cloud — "Your name"**
 - *Joining with an invite PIN. Type your name exactly as you will next time — the same name and PIN reopen your account.* (uid derives from both: `uidForPinRedeem`.)
 - {Your name} (prefilled from `getLastDisplayName()`), PIN shown masked as `K7••••QX` with **Change**.
-- Collapsed: **Check it's the right farm (nearby)** → loads `fetchNearbyFarms` on tap, not on mount. Picking one sets `expectedFarmId`.
-- Primary **Join farm** → `signInWithInvitePin(pin, name, expectedFarmId?)` → `/`.
+- Primary **Join farm** → `signInWithInvitePin(pin, name, expectedFarmId?)` → `/`. `expectedFarmId` still comes from welcome-back / BYO farm ID, not a nearby list.
 - On `Invite PIN not found`: append *"If this was a Freenet join ticket, it starts with PUF-. If it is the owner recovery PIN, the same box works — check the name is the one used at create."*
 - After sign-in, decision 7 hand-off (see 2.6): if `farmNetworkPacks.freenet_host.enabled` and this device has no seed for that cloud farm and the shell has a host capability, a dismissible prompt offers the FarmCode step.
 

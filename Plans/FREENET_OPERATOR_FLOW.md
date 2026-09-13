@@ -45,7 +45,7 @@ Join box → FarmCode step → ticket gate. Create is a secondary path (WelcomeC
 | Screen | Route / state | Operator sees |
 |--------|---------------|---------------|
 | Join a farm | `/login` · `join` | One box. PIN, paper FarmCode, or `PUF-` ticket. |
-| Your name | `join` · cloud-name | Invite PIN path. Name + Join farm. Nearby farms on tap. |
+| Your name | `join` · cloud-name | Invite PIN path. Name + Join farm. |
 | Freenet farm | `join` · `loginJoin` | FarmCode accepted (id only). Name. Continue to join ticket. |
 | Web refusal | `join` · freenet-unavailable | Hosted web: install desktop / pair a tablet. No mist path. |
 | How this works | `/login` · `freenet-explain` | **Create** only. Start → `/login/mist-new-farm`. |
@@ -161,7 +161,7 @@ Wire roles: `owner` \| `admin` \| `farmer` \| `viewer`. Presets ride in manifest
 |--|----------------|------------|
 | Hold a Freenet farm | Yes | Yes |
 | Start / recover with FarmCode | Yes (mist on) | Yes if mist baked |
-| Host Freenet node | Yes — bundled | No node in the APK |
+| Host Freenet node | Yes — bundled; starts when a Freenet farm is open | Yes — in-APK `android-arm64` when present; else attach to a third-party node on `:7509` |
 | Send / publish | Yes | No — needs a paired laptop hub |
 | Join / fetch | Yes | Yes via hub or farm gateway |
 | People ledger | This hub’s shelf | Paired hub only — empty if tickets live elsewhere |
@@ -194,7 +194,7 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 | 1 | Send is after farm-setup, not at create | UX | **Soon** | **Done** 2026-08-14 — FarmCode/PIN screens + dismissible Farm setup nudge (`plugins/freenet_host/src/FreenetSendNudge.tsx`). No auto-publish |
 | 3 | People list is per hub | Product | **Soon** | **Copy done** 2026-08-14 — empty-state names the hub first. Shared bones ledger still later |
 | 4 | Revoke is not kick | Crypto / product | **Later** | Open — do not fake |
-| 5 | Two tablets, no laptop | Product / APK | **Later** | Open — tracked as E-08 [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md), now Phase 3 of [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md). Needs native PUT + isolated host |
+| 5 | Two tablets, no laptop | Product / APK | **Later** | **In progress 2026-09-12** — isolated `:freenet` service now **spawns** a bundled android-arm64 node when `libfreenet.so` is in the APK; attach-if-port-taken if `:7509` is already up. Official asset still missing; `scripts/build-freenet-android.mjs` is the build chain. Hole stays open until two tablets exchange with **no** Freenet Android Node. |
 
 **Decisions — 2026-09-10** ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) §2; recorded here because they change how holes 4 and 5 are read):
 
@@ -207,11 +207,11 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 7. **Hybrid** (built 2026-09-11, § 4a): a cloud-hosted farm may enable the pack. Firestore stays authoritative; Freenet holds a sealed mirror and the join/recovery plane. **Hole 4 applies to the mirror unchanged:** the FarmCode, not the Firestore role, decides who can read it, and revoking a ticket does not take the mirror back from a device that already pulled. The enable screen says so (`FreenetHybridEnable.tsx` `RISK_COPY`). A mirror device is read-only and never becomes a Firebase member by joining.
 8. Vocabulary stays "network pack"; `kind: 'system'`, id `freenet_host`.
 
-**Decision — 2026-09-12.** **FarmSeed stays only on owner devices.** Crew type only an invite (`PUF-` / grant), never a FarmCode. Owner recover is not a join. The invite unwraps HotKey / BonesKey (or equivalent), not FarmSeed — FarmSeed must never ride on a short 40-bit `PUF-` ticket. Product (not implemented): Send must **stop** instructing anyone to read out the paper FarmCode (this supersedes the hole 6 “paper FarmCode (always)” checklist as *intent*; the card is unchanged until asked). Hole 4 stays open and honest — revoke ≠ kick for data already fetched; do not fake kick. Hosted web still cannot run a Freenet node (decision 5). Homes: [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) (join UX / hole 2) and [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) (grant / slot). Do not renumber [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or `Plans/reference/*`. **No application or crypto implementation until asked.**
+**Decision — 2026-09-12.** **FarmSeed stays only on owner devices.** Crew type only an invite (`PUF-` / grant), never a FarmCode. Owner recover is not a join. The invite unwraps HotKey / BonesKey (or equivalent), not FarmSeed — FarmSeed must never ride on a short 40-bit `PUF-` ticket. **Implemented 2026-09-12:** Send no longer tells anyone to read out the paper FarmCode; crew join uses a 26-symbol InviteToken. Hole 4 stays open and honest — revoke ≠ kick for data already fetched; do not fake kick. Hosted web still cannot run a Freenet node (decision 5). Homes: [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) (join UX / hole 2) and [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) (grant / slot). Do not renumber [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or `Plans/reference/*`.
 
 **Rules that survive the done items** (each was the fix for a hole and must not regress):
 
-- Hole 6 — the Send card lists three things: paper FarmCode (always), this join ticket (always, latest one), device PIN **only if the joiner set one**. Owner-side PIN (this tab sealed the farm) stays a separate field. **Decision — 2026-09-12** (product, not implemented): stop reading out the paper FarmCode to crew; the card stays as-is until asked.
+- Hole 6 — **Decision — 2026-09-12, implemented 2026-09-12:** Send reads out the crew invite only. The paper FarmCode stays on owner devices. Owner-side PIN (this tab sealed the farm) stays a separate field. Device PIN on the joiner is only if they set one.
 - Hole 7 — Invite PINs are a Firebase mechanism. Copy on a Freenet farm branches on `activeFarmPipe()`: FarmCode + join ticket (and personal unlock PIN as a local lock). Cloud copy unchanged.
 - Hole 2 — do **not** embed the FarmCode in the ticket, or print the FarmCode again after the write-it-down screen. That would break the “shown once” rule. **Decision — 2026-09-12** *is* crew-invite-only (no FarmCode on the joiner) — that is not this hole; wrapping FarmSeed in the ticket remains forbidden.
 - Hole 1 — do **not** auto-publish on create. Send is deliberate — it puts ciphertext on Freenet and mints a ticket. The nudge is dismissible.
@@ -227,7 +227,7 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 
 ### Hole 5 — Two tablets, no laptop (open)
 
-**Today:** Only a desktop hosts Freenet and can Send. Two tablets with no laptop cannot hand a farm to each other ([`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md)).
+**Today (2026-09-12):** Desktop hosts Freenet inside the AppImage when a Freenet farm is open. The debug APK now packs a workshop-built 0.2.135 `libfreenet.so` and the isolated `:freenet` service will spawn it when `:7509` is free. Attach-if-port-taken still wins if Freenet Android Node (or anything else) already owns the port. Hole stays open until two devices exchange with **no** second Freenet app.
 
 **Do:** keep pointing at a laptop hub. How this works already says this. **Do not:** fake a tablet Send, or ship a half-node in the APK. **When:** [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 3, detailed in [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) — not this workstream. Decided 2026-09-10 (decision 3 above): the answer is a whole node in an isolated process, after desktop has moved to native PUT (Phase 2).
 
@@ -255,13 +255,20 @@ Who should contribute once it means something — frozen in [`reference/MIST_NET
 
 ### 9.2 What PUF-AM publishes
 
-Three payload kinds reach Freenet. All three are **AEAD-sealed before insert** (§9.3), and all three are KiB-class single-block CHK — no splitfiles (frozen, MIST § Pre-Freenet workshop decisions #2).
+Four payload kinds reach Freenet. All are **AEAD-sealed before insert** (§9.3). Hot, bones and the join manifest are KiB-class single-block CHK — no splitfiles (frozen, MIST § Pre-Freenet workshop decisions #2). The Hot watch is a signed slot, same contract as the join slot.
 
 | Payload | MistStore key | Contents | Published when |
 |---------|---------------|----------|----------------|
-| **Hot** | `mist/v1/farm/{farmId}/hot/current` | Rolling window of diary events, field issues, archived issues — farm-export-shaped, mirrored from `pufom_farm_local` by [`src/mist/mistHotBridge.ts`](../src/mist/mistHotBridge.ts) | Operator presses **Send this farm**; auto-mirrored locally on each save while a mist session is unlocked |
+| **Hot** | `mist/v1/farm/{farmId}/hot/current` | Rolling window of diary events, field issues, archived issues, and **timed map highlights** (`map_highlight` — `pufom_farm_local` kind `map_highlights`) — farm-export-shaped diary/issues plus highlights, mirrored by [`src/mist/mistHotBridge.ts`](../src/mist/mistHotBridge.ts). Highlights are crew-readable (HotKey), not FarmSeed-only. | Highlight / diary save PUTs Hot and bumps the watch slot; **Send this farm** still publishes Hot + bones + a ticket |
+| **Hot watch** | slot from `HKDF(HotKey, "freenet-hot-watch-slot")` | `{ v:1, kind:"hot-watch", farmId, generation, hotUri, hotContentHash }` — sealed with HotKey. Cheap yes/no for other terminals. | Same moment as a Hot PUT |
 | **Bones** | `mist/v1/farm/{farmId}/bones/{assetId}` | Farm structure: block boundaries, pins, tracks, saved viewport — [`src/mist/bonesGeometry.ts`](../src/mist/bonesGeometry.ts) | Same publish action |
 | **Join manifest** | not a mist key — a LAN shelf entry, or the Freenet join slot | `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket }` — resolves a short `PUF-XXXX-XXXX` ticket to the two FN02 URIs | When a short join ticket is minted |
+
+**Decision — 2026-09-12 (map highlights).** “Check this” areas did not Freenet-sync because they lived only in Firestore / LAN (`/api/highlights`) and were never packed into Hot. They now persist locally and ride the same Hot snapshot as diary. `directedAtName` / `directedAtUid` name who the area is for. No kick/revoke.
+
+**Decision — 2026-09-12 (auto watch).** Manual Send/Pull was the wrong product and did not work: a highlight save only wrote local IndexedDB; each Freenet Hot PUT minted a **new** FN02 URI; the tablet kept the join-ticket URI and hash and never learned the new one; Send is owner-only (FarmSeed); Freenet rungs were `auto: false`; a 30s default expired in transit. Fix: publishing device PUTs Hot on save and updates the HotKey watch slot; other terminals poll that slot every **20 s** (no subscribe API on the 0.2.135 host plugin) and fetch Hot only on a hash/generation change. Crew decrypt with Hot/Bones. Default Freenet highlight duration is **300 s**. Both apps must be open with a node up. Hole 4 unchanged.
+
+**Decision — 2026-09-12 (highlight diary + no remount).** Incremental Hot apply must **merge** into live diary/issues/highlights and must **not** call `refreshFarmUiAfterRecovery` (that flips map `isLoaded` and remounts Leaflet). A note or directed-at name on “Check this” writes a diary `work` plan in the same save (sender, assignee, instructions, `linkedHighlightId` / `linkedDiaryEventId`) so one ping delivers both. The map inspect card stays until dismiss and opens `/diary?event=`.
 
 As of 2026-08-05 the join manifest lived only on the owner's LAN hub (`tmp/lan-sync/join-manifests.json`, `/api/sync/join-ticket`) because pack-contract URIs are immutable. The mutable Freenet **join slot** that lifts the same-Wi-Fi restriction landed ~2026-08-09 — [`reference/MIST_TWO_FEDORA_FREENET.md`](reference/MIST_TWO_FEDORA_FREENET.md) § Freenet slot contract; §4 above shows the lookup order.
 

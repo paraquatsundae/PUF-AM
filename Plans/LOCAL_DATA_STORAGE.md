@@ -34,7 +34,7 @@ Browser, Capacitor WebView, and Electron renderer all use the same set — Elect
 
 | DB | Object stores | Contents | Authority | Written by |
 |----|---------------|----------|-----------|------------|
-| `pufom_farm_local` | `entities`, `outbox` | Diary events, field issues, archived issues, keyed `{farmId}:{kind}:{id}`; `outbox` is the universal pending-write queue | **Authoritative** on mist / local-first; cache + queue on Firebase | [`localFarmRepo.ts`](../src/lib/localFarmRepo.ts), [`flushFarmOutbox.ts`](../src/lib/flushFarmOutbox.ts) |
+| `pufom_farm_local` | `entities`, `outbox` | Diary events, field issues, archived issues, timed map highlights (`map_highlights`), keyed `{farmId}:{kind}`; `outbox` is the universal pending-write queue (highlights stay local + their own cloud/LAN path — not outboxed) | **Authoritative** on mist / local-first; cache + queue on Firebase | [`localFarmRepo.ts`](../src/lib/localFarmRepo.ts), [`flushFarmOutbox.ts`](../src/lib/flushFarmOutbox.ts), [`mapHighlights.ts`](../src/lib/mapHighlights.ts) |
 | `sentinut_farm_geometry` | `geometry`, `pending` | Blocks, pins, tracks, saved viewport — one row per farm; `pending` is the geometry outbox | **Authoritative** on mist / local-first; mirrored to Firestore on Firebase | [`farmGeometryIdb.ts`](../src/lib/farmGeometryIdb.ts), [`farmGeometrySync.ts`](../src/lib/farmGeometrySync.ts) |
 | `sentinut_basemap` | `basemap_packs`, `basemap_tiles` | Offline Esri tile packs: one pack row per farm, tiles keyed by `z/x/y` | **Cache** — re-downloadable, but expensive on shed Wi-Fi | [`basemapPack.ts`](../src/lib/basemapPack.ts) |
 | `pufom_weather_cache` | `stations` | DPIRD station observations mirrored for offline blight/chill | **Cache** — derived, re-fetchable | [`weatherCacheIdb.ts`](../src/lib/weatherCacheIdb.ts) |
@@ -85,6 +85,7 @@ Legacy keys are still read so an operator upgrading from an old APK does not los
 | `pufam.mist.sessionMeta.v1` | Session metadata, including join-deferred state; non-secret `cloudFarmId` mirrors the sealed one so `farmPipes.ts` can answer `hybrid` without unlocking (2026-09-11) | Session |
 | `pufam.mist.deviceKey` | Device key material for the mist session | **Authoritative** — losing it means re-entering the FarmCode |
 | `pufam.mist.hotPublish.v1.{farmId}` | Last Hot publish: content hash, record counts, **FN02 Hot URI**, bones URI + hash, minted join ticket, role, expiry | **Authoritative** for "where this farm is on Freenet" — see below |
+| `pufam.mist.hotWatch.v1.{farmId}` | Last applied Hot-watch generation + hash + URI (2026-09-12). Cheap ping cursor — not FarmSeed | Cache of “what this device last fetched” |
 | `pufam.mist.bonesPublish.v1.{farmId}` | Same for the geometry bones publish | As above |
 
 **`pufam.mist.hotPublish.v1.*` is more load-bearing than it looks.** It holds the FN02 URIs this device published. Freenet has them, but nothing on the network will tell you the address — losing this row means a joiner needs a join ticket from the owner's hub, and the owner needs to publish again. It is not a cache.
@@ -105,16 +106,16 @@ Authoritative for a **Firebase farm**. Reproduced from [`NAMING.md`](NAMING.md) 
 |------|----------|
 | `farms/{farmId}` | Farm doc — `enabledModules`, `farmProfile` |
 | `farms/{farmId}/events/{id}` | Diary events (local kind `diary`) |
+| `farms/{farmId}/mapHighlights/{id}` | Timed map highlights (local kind `map_highlights`; also in Hot) |
 | `farms/{farmId}/issues/{id}` | Active field issues |
 | `farms/{farmId}/archived_issues/{id}` | Archived issues |
 | `farms/{farmId}/blocks\|pins\|tracks\|viewport/…` | Map geometry cloud mirror |
 | `farms/{farmId}/settings/{doc}` | e.g. `safety`, `model_params` |
 | `farms/{farmId}/harvests/{id}`, `tasks/{id}` | Harvest records, tasks |
 | `farms/{farmId}/presence/{uid}` | Crew GPS |
-| `farms/{farmId}/mapHighlights/{id}` | Map overlay highlights |
 | `farms/{farmId}/environmental_cache/{key}` | Per-farm environment cache |
 | `farms/{farmId}/nutrition_data/{id}` | Nutrition uploads |
-| `farms_public/{farmId}` | Nearby discovery — name + coarse location |
+| `farms_public/{farmId}` | Legacy nearby-discovery index — **withdrawn 2026-09-13**, deny-all, Express no longer writes it |
 | `users/{uid}` / `users_public/{uid}` | Membership, role, modules, `authEpoch` / display-safe profile |
 | `access_pins/{hash}` | Invite PIN hashes — **admin SDK only** |
 | `chill_cache/{station-season}`, `weather_cache/…` | Shared aggregates, DPIRD cache |

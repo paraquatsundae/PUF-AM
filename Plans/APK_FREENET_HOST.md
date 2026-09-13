@@ -2,6 +2,7 @@
 
 **Status:** Plan written 2026-08-14. Phase 1 (native PUT spike) **GO** 2026-08-15 on node 0.2.125. Phases 2–5 not built. **2026-09-10:** this plan is now **Phase 3** of the umbrella [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) — desktop moves to native PUT first (its Phase 2), then the Android host is built against the same `FreenetHostPlugin` seam. Version pin policy: umbrella decision 4. **2026-09-11:** umbrella Phase 2 built — desktop now publishes through the same `BrowserFreenetPutClient` / `BrowserFreenetSlotClient` this spike produced (§1 below), `fdev` is gone from every shell, and the node is pinned at 0.2.135 (live check pending). The Android host inherits those clients unchanged; what Phase 3 adds is the node process, not a PUT path.
 **2026-09-11 (Phase 3 slice, attach-first):** Capacitor `FreenetHost` + isolated `:freenet` service compile. **Product path is attach-if-port-taken** to Freenet Android Node on `127.0.0.1:7509` — `getFreenetHostCapability()` is `'android'` when the plugin is present or the last probe found a node; Send uses the page's native PUT clients; read-only is lifted when `:7509` answers. No official android-arm64 binary (manifest `missing`); our process reports `no android-arm64 binary` instead of crashing. Do not JNI-link their APK. Two-tablet-no-second-app remains blocked on a real so.
+**2026-09-12:** `:freenet` **spawns** `libfreenet.so` when present (nativeLibraryDir); attach still wins if `:7509` is taken; fail clean if the so is absent. Official v0.2.135 still has no Android asset. Build: `npm run android:vendor:freenet` (`scripts/build-freenet-android.mjs`). Capability `'android'` stays a live `:7509` health-check.
 **Experimental — not production.** Firebase Auth + invite PIN remains the shipping cloud path.
 **Product:** PUF-AM · **Scope:** one APK that owns a Freenet node and can Join **and** Send.
 
@@ -23,7 +24,7 @@ Related: [`reference/DESKTOP_FREENET_PLUGIN.md`](reference/DESKTOP_FREENET_PLUGI
 | 6 | **AGPL** | Publish the Android host/fork. PUF-AM talks over WS — same carve-out as desktop §8.4 |
 | 7 | **Milestone** | Join **and** Send from the tablet. Send was blocked on native PUT (no `fdev` in the APK); native PUT is now the only path on every shell (umbrella Phase 2, 2026-09-11), so Send waits only on the in-APK node |
 | 8 | **Storage** | Mobile `contribute_storage = false`. Ciphertext only. FarmCode stays the crypto boundary |
-| 9 | **Small APK** | Keep `apk:debug:firebase` (~7.5 MB). Freenet flavor will be ~100 MB |
+| 9 | **Small APK** | Keep `apk:debug:firebase` (~7.5 MB). Freenet flavor with workshop-built 0.2.135 `libfreenet.so` is ~28 MB debug APK (56 MB uncompressed so) |
 
 ```mermaid
 flowchart LR

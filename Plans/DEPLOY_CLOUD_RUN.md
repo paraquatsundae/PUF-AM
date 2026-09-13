@@ -136,7 +136,7 @@ Prefer **A′** for workshop cutover unless you already want an LB.
 
 > **Client IP for rate limiting — verify `TRUSTED_PROXY_CIDRS` after any change here.**
 >
-> Rate limits on `redeem-pin`, `create-farm` and `nearby-farms` key off the caller's
+> Rate limits on `redeem-pin` and `create-farm` key off the caller's
 > address, which `server/clientIp.ts` reads from the **right** of `X-Forwarded-For`
 > — the left of that list is written by the caller and is worthless.
 >
@@ -166,6 +166,11 @@ Prefer **A′** for workshop cutover unless you already want an LB.
 > redeploy. Until then it is being used as the rate-limit key, so everyone behind
 > that edge shares a bucket — coarse, but never forgeable.
 >
+> **Decision — 2026-09-13.** `GET /api/auth/nearby-farms` is withdrawn (410, no
+> farm list). It was an unauthenticated Admin-SDK query on this public host.
+> Rate-limit-only is not the fix; the route must stay fail-closed after deploy.
+> Tile proxy `/api/tiles/:z/:x/:y` stays unauthenticated (Leaflet `<img>`).
+
 > `TRUSTED_PROXY_HOPS` overrides all of the above with a plain count. Only use it on
 > B′, where ingress *can* be restricted to internal + load balancer: close ingress
 > first, then set it to 2. See `tests/api/clientIp.test.ts`.

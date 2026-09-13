@@ -122,7 +122,7 @@ Names and rename policy live here; **contents, authority, and how each store is 
 
 | DB name | Module | Legacy? | Notes |
 |---------|--------|---------|-------|
-| `pufom_farm_local` | `localFarmRepo.ts` | PUFOM wire era | Diary, issues, outbox — **keep** |
+| `pufom_farm_local` | `localFarmRepo.ts` | PUFOM wire era | Diary, issues, `map_highlights`, outbox — **keep** |
 | `sentinut_farm_geometry` | `farmGeometryIdb.ts` | Sentinut | Blocks, pins, tracks, viewport — **keep** |
 | `sentinut_basemap` | `basemapPack.ts` | Sentinut | Esri tile packs — **keep** |
 | `pufom_weather_cache` | `weatherCacheIdb.ts` | PUFOM | Device weather mirror — **keep** |
@@ -171,6 +171,7 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.mist.sessionMeta.v1` | `mistDeviceSession.ts`. Non-secret. Carries `cloudFarmId` when the sealed FarmSeed beside it belongs to a **hybrid** farm — the Firestore farm id this mist identity mirrors (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-11 |
 | `pufam.mist.deviceKey` | `mistDeviceSession.ts` |
 | `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts, FN02 URIs, minted join ticket |
+| `pufam.mist.hotWatch.v1.{farmId}` | `hotWatchSync.ts` — last applied Hot-watch generation + hash + URI. Added 2026-09-12 |
 | `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
 | `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag lives on its farm doc instead — `farms/{farmId}.networkPacks.freenet_host`, §8 below (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
 | `pufam.mist.joinTicketDraft.v1` | `sessionStorage`, ticket only (`PUF-XXXX-XXXX`). Written by the login Freenet join step when a ticket was typed before the FarmCode; the join-ticket gate reads then clears it. **Never the FarmCode.** Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
@@ -211,13 +212,16 @@ Two layers — do not confuse:
 
 **Kinds under `mist/v1/farm/{farmId}/`:** `bones/{assetId}`, `hot/{segment}`, `archive/{period}`, `manifest`.
 
+**Hot-watch HKDF infos (2026-09-12, IKM = HotKey, not FarmSeed):** `freenet-hot-watch-slot`, `freenet-hot-watch-slot-key`, `freenet-hot-watch-envelope`. Do not reuse `freenet-hot` or the crew-join infos.
+
 **FarmCode (recovery root — not day-to-day login):**
 
 - Printable form: **`mist-fc-2  XXXXX-XXXXX-XXXXX-XX`** — 17 Crockford Base32 symbols (16 payload = 80 bits, + 1 check). Legacy **`mist-fc-1`** (27 symbols, 128-bit) is still accepted on entry but never minted. See MIST doc § FarmCode encoding.
 - On entry the operator types **symbols only** — the `mist-fc-N` prefix and the dashes are filled in by the app, same as the join ticket.
 - **FarmCode ≠ invite PIN** — production PINs use Firebase `access_pins`; mist uses InviteToken + JoinEnvelope.
 - **FarmCode ≠ device unlock PIN** — 4–8 digit local lock only (`unlockPin.ts` / mist device PIN).
-- **FarmSeed owner-only (Decision — 2026-09-12).** Crew type only an invite (`PUF-` / grant), never a FarmCode. The invite unwraps HotKey / BonesKey (or equivalent), not FarmSeed. FarmCode remains the owner recovery root. Homes: [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md), [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md). Not implemented.
+- **FarmSeed owner-only (Decision — 2026-09-12, implemented 2026-09-12).** Crew type only an invite (`PUF-` / grant), never a FarmCode. The invite unwraps HotKey / BonesKey, not FarmSeed. FarmCode remains the owner recovery root. Homes: [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md), [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md).
+- **Crew InviteToken:** `PUF-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX` — 26 Crockford symbols after `PUF-` (`units/mist-freenet/src/invite-token.ts`). Locates a public crew-join envelope. A short 8-symbol `PUF-XXXX-XXXX` is a leftover pointer and cannot unwrap FarmSeed or the crew envelope.
 
 **Join ticket (short — points at a farm, does not open it):**
 
@@ -252,14 +256,14 @@ Top-level collections (production):
 | `farms/{farmId}/mapHighlights/{id}` | Map overlay highlights |
 | `farms/{farmId}/environmental_cache/{key}` | Per-farm env cache |
 | `farms/{farmId}/nutrition_data/{id}` | Nutrition uploads |
-| `farms_public/{farmId}` | Nearby discovery (name + coarse location) |
+| `farms_public/{farmId}` | Legacy nearby-discovery index (name + coarse location). **Withdrawn 2026-09-13** — Express no longer writes or lists it; rules stay deny-all |
 | `users/{uid}` | Membership, role, modules, `authEpoch` |
 | `users_public/{uid}` | Display-safe profile |
 | `access_pins/{hash}` | Invite PIN hashes (admin SDK only) |
 | `chill_cache/{station-season}` | Shared chill aggregates |
 | `weather_cache/…` | DPIRD station cache (functions) |
 
-**Naming rule:** Subcollection ids are **domain nouns** (`events`, not `diary`), while local IndexedDB uses kind `diary` — mapping lives in `flushFarmOutbox.ts`.
+**Naming rule:** Subcollection ids are **domain nouns** (`events`, not `diary`), while local IndexedDB uses kind `diary` — mapping lives in `flushFarmOutbox.ts`. Timed map overlays: local kind `map_highlights` → `farms/{farmId}/mapHighlights/{id}`.
 
 ---
 
@@ -328,6 +332,8 @@ Top-level collections (production):
 | CSS map classes | **`pufam-*`** | — |
 
 **New IndexedDB or localStorage keys:** use **`pufam.`** or **`pufam-`** prefix unless extending an existing `pufom_*` / `sentinut_*` store.
+
+**Map highlight input (session only, 2026-09-12):** `highlightDrawMode` is `'points'` (tap vertices) or `'paint'` (finger/mouse stroke). UI labels: **Click points** / **Paint**. Remembered in `sessionStorage` as `pufam.highlightDrawMode`. Not on the wire or in IndexedDB. CSS while painting: `pufam-highlight-paint`. Paint samples the whole finger path in screen pixels, buffers it to a corridor polygon, and unions further strokes into one zone until Send. Compose sheet: `pufam-highlight-compose`.
 
 ---
 

@@ -138,6 +138,14 @@ with no cloud farm behind it — so existing call sites did not move. The auto-s
 ladder (§9) treats a hybrid member as a cloud farm and a mirror device as
 `freenet-pull`, never automatic.
 
+### Decision — 2026-09-13: no public nearby-farm browse
+
+Join stays invite PIN / PUF- crew invite / FarmCode owner recover. There is no
+public farm signup and no GPS farm list on `am.pufworks.farm`.
+`GET /api/auth/nearby-farms` and Farm Management **Nearby discovery** are
+withdrawn (410, no enumeration). LAN hub pairing stays on the hub surface —
+local Wi‑Fi only, not the public internet. Nothing above is renumbered.
+
 ---
 
 ## §2 What Settings renders now
@@ -577,7 +585,7 @@ has a test in `tests/autoSyncLadder.test.ts`. Probing lives in
 | 2 | Peer reachable · cloud farm · signed in | **`lan-pufom`** | **yes** | `.pufom` bundle both ways (unchanged) |
 | 2′ | Peer reachable **at the farm gateway** (`reachable-remote`) | same two routes, `via: 'gateway'` | **yes** | The same shelf on the same hub, from outside the shed (§10) |
 | 3 | No peer · Freenet farm · node can publish | `freenet-publish` | no | Hot + bones + a fresh join ticket |
-| 4 | No peer · Freenet farm · read-only node | `freenet-pull` | no | Hot + bones down, from saved addresses |
+| 4 | No peer · Freenet farm · read-only node | `freenet-pull` | **watch** | Cheap slot ping; Hot only when generation/hash changed |
 | 5 | Anything else | `blocked` | — | Nothing, and it says which of the two would fix it |
 
 **A peer beats Freenet even when both are up.** Seconds against minutes, and the
@@ -610,8 +618,23 @@ its own does not have to wait for a code to be read out.
 
 Any one of those three would be enough. A background task that can silently
 delete a joiner's morning of diary entries is not something to ship because it
-would be convenient. So: **automatic means Wi‑Fi; Freenet is one press**, and the
+would be convenient. So: **automatic means Wi‑Fi; Freenet Send is one press**, and the
 card says so in those words.
+
+**Decision — 2026-09-12 (Freenet Hot watch).** A Freenet *Send* still remints a
+join ticket and stays a press (rung 3). Day-to-day Hot — timed map highlights
+and diary — now has a cheap analog of the LAN digest: a **watch slot** addressed
+and sealed from **HotKey** (crew never need FarmSeed; Hole 4 still revoke ≠ kick).
+Each Hot PUT mints a new FN02 URI (pack contracts are immutable); the slot holds
+`generation` + `hotContentHash` + the current URI. Terminals poll the slot every
+**20 s** while the farm is open and a node is up (`:7509` on the tablet, bundled
+node on the AppImage). Same hash → no Hot GET. New hash → fetch that URI and
+**merge** highlights (LWW diary/issues), not `rehydrateLocalFarmFromHot`. Apply
+refreshes live stores only — it must not flip map `isLoaded` or remount Leaflet.
+The 0.2.135 host plugin has no usable subscribe; this is an honest poll, not a push.
+Hybrid mirrors stay fetch-on-press (Phase 1). Highlight save on a publishing
+device PUTs Hot and bumps the slot — no Settings → Sync → Pull. Default Freenet
+highlight duration is **300 s** so the area outlives Opennet.
 
 ### The Wi‑Fi rung for a Freenet farm
 
@@ -710,6 +733,7 @@ holds — a mesh peer relays ciphertext or it does not relay.
 | Knob | Value | Why |
 |------|-------|-----|
 | `AUTO_SYNC_INTERVAL_MS` | 3 min | How stale the other device's map may be. The attempt is one `meta` request when nothing changed. |
+| `FREENET_HOT_WATCH_POLL_MS` | 20 s | Freenet watch-slot ping (2026-09-12). Same hash → no Hot GET. |
 | `AUTO_SYNC_MIN_GAP_MS` | 45 s | Floor under wake, tab-focus and `online` — all three fire together in the shed and must produce one sync. |
 | Push skip | digest match | `stablePufomDigest` ignores `exportedAt` and the AEAD nonce, so an untouched farm uploads nothing. |
 | Concurrency | one | A `runningRef` guard, not a queue. |
@@ -725,7 +749,10 @@ the honest question — how old is what I am looking at — is always answered.
 - **Sending a farm / issuing a join ticket** — `MistFarmSyncCard`, unchanged.
 - **Joining with a ticket** — unchanged.
 - **Cloud outbox flush** — `CloudSyncCard`, unchanged.
-- **Both Freenet rungs** — one press, for the three reasons in the table above.
+- **Freenet Send (rung 3)** — one press; remints the join ticket. Hot watch
+  (rung 4) is automatic since 2026-09-12 — see the dated decision under *Why
+  only Wi‑Fi runs unattended*. Manual Pull remains a full replace for disaster
+  recovery.
 
 ### Known limits
 

@@ -24,7 +24,7 @@ vendor/freenet/linux-x64/
   LICENSE.md       upstream AGPL-3.0 text (ships beside the binary)
   VENDOR.json      what landed, and when
 
-vendor/freenet/android-arm64/   # no official asset — see scripts/build-freenet-android.mjs
+vendor/freenet/android-arm64/   # workshop-built via `npm run android:vendor:freenet` (no official asset)
 ```
 
 Only the node. Since Phase 2 of [`Plans/FREENET_NETWORK_PACK.md`](../Plans/FREENET_NETWORK_PACK.md)

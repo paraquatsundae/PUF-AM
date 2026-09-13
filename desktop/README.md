@@ -71,9 +71,11 @@ code hashes, a fresh web + main bundle, and the `node_modules` allowlist. Do not
 ### Running the Fedora artifact
 
 ```bash
-./release/PUF-AM-0.1.0.AppImage                    # Firebase / local-only
-MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage     # ...and start the bundled Freenet node
+./release/PUF-AM-0.1.0.AppImage                    # open PUF-AM only
+MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage     # workshop: force the bundled node this launch
 ```
+
+Open PUF-AM and a Freenet farm — the bundled node starts. No second Freenet desktop app, no terminal. `MIST_FREENET=1` is a workshop override. If something is already bound on `:7509`, PUF-AM attaches and does not kill it.
 
 No install step, no root, no Node on the machine. Mark it executable if git or a browser dropped the
 bit (`chmod +x`).

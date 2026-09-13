@@ -12,14 +12,14 @@ PUFAM signs users in with **Firebase Auth custom tokens**. Farm owners **create 
 
 ## Worker flow
 
-1. `/login` → **Join a farm** → one box for the invite PIN (or a FarmCode / `PUF-` ticket). Nearby farms are optional and load on tap (GPS → `GET /api/auth/nearby-farms`).
+1. `/login` → **Join a farm** → one box for the invite PIN (or a FarmCode / `PUF-` ticket).
 2. Continue → your name + Join farm. Same **name + PIN** maps to the same UID.
 3. Optional `expectedFarmId` on redeem rejects PINs for a different farm.
 4. `POST /api/auth/redeem-pin` validates the PIN, writes `users/{uid}` with `farmId`, `role`, `modules`, `authEpoch`, returns a custom token.
 5. Client `signInWithCustomToken` — session persists until logout or access revoke.
 6. Same **name + PIN** maps to the same UID (stable return login) while the PIN stays active.
 
-Owners stamp location on **Create a farm** (opt-in “show nearby”) or later via **Farm Management → Nearby discovery**. Public index: `farms_public/{farmId}` (name + coarse lat/lng/geohash only).
+**Decision — 2026-09-13.** Public nearby-farm browse is withdrawn. Join is invite PIN / PUF- crew invite / FarmCode owner recover — there is no public farm signup and no GPS farm list. `GET /api/auth/nearby-farms` and `POST /api/auth/update-farm-discovery` fail closed (410, no enumeration). The login expander and Farm Management **Nearby discovery** card are gone. LAN hub pairing stays on the hub surface only. `farms_public` stays deny-all; Express no longer writes it.
 
 PINs are stored as SHA-256 hashes in `access_pins/{hash}` (clients cannot read this collection).
 

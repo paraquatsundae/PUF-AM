@@ -293,7 +293,7 @@ paste, then to validation, then to rules deployment.
 | **`chill_cache`** | Same shape — shared aggregates, `allow read, write: if false`, Admin SDK only. | Same owner-deployed weather function, later — not in the first BYO weather package. |
 | **`DPIRD_API_KEY`** | Server-only by rule ([`NAMING.md`](NAMING.md) §3 — never `VITE_*`). | **Never store a BYO owner's key on George's Cloud Run.** They set `DPIRD_API_KEY` in their own Secret Manager. Never `VITE_*`. |
 | **Google Maps** | There is no client Maps key. Online tiles are `GET /api/tiles/:z/:x/:y` on whichever PUF-AM server the client already talks to. Offline Esri packs stay in IndexedDB. | A BYO farm on `am.pufworks.farm` still uses George's tile proxy until they point the client at their own API. Imagery terms are the operator's responsibility — see `API_KEY_SECURITY.md`. |
-| **Nearby farm discovery** | `farms_public` is one project's collection; `/api/auth/nearby-farms` queries it with the Admin SDK. | Discovery becomes per-project. A BYO farm will not see George's farms and vice versa. Accept it and say so in the wizard — do not silently show an empty list. |
+| **Nearby farm discovery** | Withdrawn 2026-09-13. `/api/auth/nearby-farms` is 410; Express no longer writes `farms_public`. | Gone on hosted and BYO alike — join is invite PIN / FarmCode, not a public list. |
 | **Crew presence, invite PINs, members** | All Firestore/Auth in whichever project the farm lives in. | Work unchanged once #1 and #2 are solved. |
 | **The `.pufom` / LAN / Freenet pipes** | Do not touch Firebase at all. | Unaffected. This is why the XOR holds. |
 

@@ -1,6 +1,6 @@
 # API key security (workshop)
 
-**Last updated:** 9 September 2026
+**Last updated:** 13 September 2026
 
 ## DPIRD (weather) — server only
 
@@ -157,7 +157,10 @@ grounds:
   membership rather than any verified token, so a stranger's Google account no
   longer reaches the DPIRD key.
 - Firestore rules already require auth and membership, and deny client reads of
-  `farms_public` outright.
+  `farms_public` outright. **Decision — 2026-09-13:** `GET /api/auth/nearby-farms`
+  is withdrawn (410, no farm list). That public browse was the remaining
+  unauthenticated farm-index call; App Check is still not the answer and is
+  still not wired.
 - The cost is not the SDK call. It is reCAPTCHA for web, Play Integrity for the
   APK, a debug-token path for every workshop tree and CI runner, and a staged
   enforcement rollout — across three shells, one of which loads from a loopback
