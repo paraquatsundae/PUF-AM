@@ -16,6 +16,18 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Exec the bundled android-arm64 node from nativeLibraryDir (API 29+ W^X).
+    // Plans/FREENET_NETWORK_PACK.md Phase 3.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+    sourceSets {
+        main {
+            jniLibs.srcDir 'src/main/jniLibs'
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
@@ -43,6 +55,40 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+// Vendored android-arm64 node (gitignored). Copied into jniLibs so the
+// isolated :freenet process can exec it. Plans/FREENET_NETWORK_PACK.md Phase 3.
+def vendorFreenetSo = file("${rootDir}/../vendor/freenet/android-arm64/libfreenet.so")
+tasks.register('syncFreenetJni', Copy) {
+    from vendorFreenetSo
+    into file('src/main/jniLibs/arm64-v8a')
+    rename { 'libfreenet.so' }
+    onlyIf { vendorFreenetSo.isFile() }
+}
+// Tiny dumpable=0 wrapper so a rust abort is not an app crash dialog.
+def ndkClang = {
+    def sdk = System.getenv('ANDROID_SDK_ROOT') ?: System.getenv('ANDROID_HOME') ?: '/home/george/android-sdk'
+    def ndkRoot = file("${sdk}/ndk")
+    if (!ndkRoot.isDirectory()) return null
+    def versions = ndkRoot.listFiles()?.findAll { it.isDirectory() }?.sort { it.name }
+    if (!versions) return null
+    def clang = file("${versions.last()}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang")
+    return clang.isFile() ? clang : null
+}()
+tasks.register('compileFreenetWrap', Exec) {
+    def src = file('src/main/cpp/freenet_exec_wrap.c')
+    def outDir = file('src/main/jniLibs/arm64-v8a')
+    def out = file("${outDir}/libfnwrap.so")
+    inputs.file src
+    outputs.file out
+    doFirst { outDir.mkdirs() }
+    commandLine ndkClang, '-O2', '-fPIE', '-pie', '-o', out.absolutePath, src.absolutePath
+    onlyIf { ndkClang != null && src.isFile() }
+}
+tasks.named('preBuild').configure {
+    dependsOn 'syncFreenetJni'
+    dependsOn 'compileFreenetWrap'
+}
 
 try {
     def servicesJSON = file('google-services.json')

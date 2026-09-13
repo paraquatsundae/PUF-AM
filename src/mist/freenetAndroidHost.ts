@@ -81,7 +81,22 @@ export async function androidFreenetHostBringUp(deps: AndroidFreenetHostDeps = {
 
   const started = await (deps.pluginStart ?? androidFreenetHostStart)();
   if (started.mode === 'attached' || started.mode === 'managed') return started;
+  if (started.mode === 'failed') return started;
   if (await probe()) return androidAttachedStatus();
+  if (started.mode === 'starting') {
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      if (await probe()) {
+        return started.mode === 'starting'
+          ? { ...started, mode: 'managed', reachable: true }
+          : androidAttachedStatus();
+      }
+      const now = await (deps.pluginStatus ?? androidFreenetHostStatusNow)({ probe: true });
+      if (now.mode === 'attached' || now.mode === 'managed') return now;
+      if (now.mode === 'failed') return now;
+    }
+  }
   return started;
 }
 

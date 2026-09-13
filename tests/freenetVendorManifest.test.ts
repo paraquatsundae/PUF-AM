@@ -87,10 +87,10 @@ describe('freenet-binaries.json', () => {
     expect(manifest.license.url).toContain(manifest.releaseTag);
   });
 
-  it('pins android-arm64 as missing — no official GitHub Android asset', () => {
+  it('pins android-arm64 as missing or workshop-built — no official GitHub Android asset', () => {
     const row = manifest.platforms['android-arm64'];
     expect(row).toBeDefined();
-    expect(row.status).toMatch(/^(missing|pending-build)$/);
+    expect(row.status).toMatch(/^(missing|pending-build|workshop-built)$/);
     expect(row.binaries).toEqual([]);
   });
 

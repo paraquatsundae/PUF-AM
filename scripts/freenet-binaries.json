@@ -44,8 +44,8 @@
   "vendorDirTemplate": "vendor/freenet/{platformTag}",
   "platforms": {
     "linux-x64": {
-      "//": "musl builds: statically linked, so they run on Fedora without matching a host glibc. Status is `pending-live-check` until `npm run mist:smoke:native` has passed against this exact binary; it becomes `verified` then.",
-      "status": "pending-live-check",
+      "//": "musl builds: statically linked, so they run on Fedora without matching a host glibc. Flipped to `verified` 2026-09-12 after the AppImage↔tablet highlight ping on 0.2.135 (Plans/FREENET_NETWORK_PACK.md Phase 2 live check).",
+      "status": "verified",
       "binaries": [
         {
           "name": "freenet",
@@ -59,8 +59,8 @@
       ]
     },
     "android-arm64": {
-      "//": "No official GitHub release asset. aarch64-unknown-linux-musl is not Android bionic (Plans/FREENET_NETWORK_PACK.md decision 4 / Phase 3). Prior art: manikmakki/freenet-android-node (AGPL JNI cdylib). Spike: scripts/build-freenet-android.mjs. Attach-if-port-taken to Freenet Android Node on 127.0.0.1:7509 is the product path until a binary exists.",
-      "status": "missing",
+      "//": "No official GitHub release asset as of v0.2.135 (checked 2026-09-12). Workshop-built 2026-09-12 from the pinned tag via scripts/build-freenet-android.mjs (NDK 28.2, rustc 1.94.0). binaries[] stays empty — not an official fetchable asset. Attach-if-port-taken stays the fallback.",
+      "status": "workshop-built",
       "binaries": []
     },
     "win-x64": {

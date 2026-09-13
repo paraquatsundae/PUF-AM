@@ -20,6 +20,7 @@ import {
   freenetHostCapabilityCanRun,
   getFreenetHostCapability,
 } from '../../../src/lib/freenetHostCapability.ts';
+import { isFreenetHostPluginAvailable } from '../../../src/lib/androidFreenetHost.ts';
 import { getAndroidFreenetBridge } from '../../../src/mist/freenetAndroidHost.ts';
 import { probeLocalFreenetNode, subscribeLocalFreenetNode } from '../../../src/mist/freenetLocalNode.ts';
 import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
@@ -38,7 +39,7 @@ export const FREENET_HOST_RECONCILE_DEBOUNCE_MS = 1500;
 function hostHandle() {
   const capability = getFreenetHostCapability();
   if (capability === 'electron') return getDesktopBridge()?.freenet ?? null;
-  if (capability === 'android') return getAndroidFreenetBridge();
+  if (capability === 'android' || isFreenetHostPluginAvailable()) return getAndroidFreenetBridge();
   return null;
 }
 
@@ -84,15 +85,30 @@ export function useFreenetHostReconciler(): { want: boolean } {
         farmNetworkPacks,
         seedCloudFarmId: mirroredCloudFarmId(),
         capability,
+        canStartOwnNode: isFreenetHostPluginAvailable(),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [farmId, farmNetworkPacks, capability, enabledTick],
   );
 
+  const pluginPresent = isFreenetHostPluginAvailable();
   const reconciler = useMemo(
-    () => (freenetHostCapabilityCanRun(capability) ? shellReconciler() : null),
-    [capability],
+    () =>
+      freenetHostCapabilityCanRun(capability) || pluginPresent ? shellReconciler() : null,
+    [capability, pluginPresent],
   );
+
+  useEffect(() => {
+    if (!want) return;
+    const mist = getDesktopBridge()?.mist;
+    if (!mist) return;
+    void mist
+      .getPreference()
+      .then((pref) => {
+        if (!pref.enabled) return mist.setPreference(true);
+      })
+      .catch(() => {});
+  }, [want]);
 
   useEffect(() => {
     if (!reconciler) return;

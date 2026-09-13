@@ -20,6 +20,7 @@ import type { SystemPluginDef } from '../../../shared/farm/pluginsCatalog';
 import { isFarmFreenetHostEnabled } from '../../../shared/farm/networkPacks';
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { activeFarmPipes, mirroredCloudFarmId } from '../../../src/lib/farmPipes';
+import { isFreenetHostPluginAvailable } from '../../../src/lib/androidFreenetHost.ts';
 import { getFreenetHostCapability } from '../../../src/lib/freenetHostCapability.ts';
 import { isPackagedNativeAndroid } from '../../../src/lib/apiBase.ts';
 import {
@@ -35,7 +36,9 @@ type Props = { entry: SystemPluginDef; onOpenSync?: () => void };
 
 function unavailableReason(): string {
   if (isPackagedNativeAndroid()) {
-    return 'No Freenet node is listening on this tablet. Open Freenet Android Node, or pair a PUF-AM laptop hub.';
+    return isFreenetHostPluginAvailable()
+      ? 'PUF-AM starts its own Freenet node when this farm is open. If another node is already on this device, PUF-AM uses that one.'
+      : 'No Freenet node is listening on this tablet. Pair a PUF-AM laptop hub, or install a build that ships the in-APK node.';
   }
   return 'The web app has no Freenet node. Open this farm in the desktop app to enable Freenet.';
 }
@@ -44,6 +47,7 @@ export default function FreenetPluginTile({ entry, onOpenSync }: Props) {
   const { userData, isAdmin, farmNetworkPacks } = useAuth();
   const farmId = userData?.farmId ?? null;
   const capability = getFreenetHostCapability();
+  const shellCanHost = Boolean(capability) || isFreenetHostPluginAvailable();
   const [, setTick] = useState(0);
   useEffect(() => subscribeFreenetHostEnabled(() => setTick((n) => n + 1)), []);
   useEffect(() => subscribeFreenetHybridDevice(() => setTick((n) => n + 1)), []);
@@ -59,7 +63,7 @@ export default function FreenetPluginTile({ entry, onOpenSync }: Props) {
   const seedHere = cloudFarm && mirroredCloudFarmId() === farmId;
   const chosen = farmId ? hasFreenetHostChoice(farmId) : false;
 
-  const badge = !capability
+  const badge = !shellCanHost
     ? { label: 'Not available on this device', tone: 'muted' as const }
     : mirror
       ? { label: 'Mirror of a cloud farm', tone: 'active' as const }
@@ -92,20 +96,24 @@ export default function FreenetPluginTile({ entry, onOpenSync }: Props) {
         </span>
       </div>
 
-      {!capability && <p className="text-[10px] text-slate-500">{unavailableReason()}</p>}
+      {!shellCanHost && <p className="text-[10px] text-slate-500">{unavailableReason()}</p>}
 
-      {capability && mirror && (
+      {shellCanHost && !capability && isPackagedNativeAndroid() && (
+        <p className="text-[10px] text-slate-500">{unavailableReason()}</p>
+      )}
+
+      {shellCanHost && mirror && (
         <p className="text-[10px] text-slate-500">
           This device holds a read-only mirror of a cloud farm. The node below keeps it
           refreshable; to edit the farm, join it with an invite PIN.
         </p>
       )}
 
-      {capability && cloudFarm && farmId && (
+      {shellCanHost && cloudFarm && farmId && (
         <FreenetHybridEnable farmId={farmId} onOpenSync={onOpenSync} />
       )}
 
-      {capability && nativeFarm && farmId && (
+      {shellCanHost && nativeFarm && farmId && (
         <label className="flex items-start gap-2 text-[11px] text-slate-700">
           <input
             type="checkbox"
@@ -126,7 +134,7 @@ export default function FreenetPluginTile({ entry, onOpenSync }: Props) {
         </label>
       )}
 
-      {capability && nativeFarm && (
+      {shellCanHost && nativeFarm && (
         <div className="flex flex-wrap gap-2">
           {onOpenSync ? (
             <button

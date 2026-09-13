@@ -26,22 +26,31 @@ if (devices.status !== 0) {
   process.exit(1);
 }
 
-const connected = devices.stdout
+const serials = devices.stdout
   .split('\n')
   .slice(1)
-  .some((line) => /\tdevice$/.test(line.trim().replace(/ +/g, '\t')));
+  .map((line) => line.trim())
+  .filter((line) => /\sdevice(\s|$)/.test(line))
+  .map((line) => line.split(/\s+/)[0])
+  .filter(Boolean);
 
-if (!connected) {
+if (serials.length === 0) {
   console.error(
     'No adb device. Plug in USB with debugging on, or pair wireless debugging and run: adb connect <ip>:<port>',
   );
   process.exit(1);
 }
 
-const install = spawnSync('adb', ['install', '-r', apk], { stdio: 'inherit', shell });
-if (install.status !== 0) process.exit(install.status ?? 1);
+let failed = 0;
+for (const serial of serials) {
+  console.log(`\n[apk] adb -s ${serial} install -r`);
+  const install = spawnSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit', shell });
+  if (install.status !== 0) failed += 1;
+}
 
-console.log('\nInstalled.');
+if (failed) process.exit(1);
+
+console.log(`\nInstalled on ${serials.length} device(s): ${serials.join(', ')}`);
 console.log(
   'Packaged APKs load their own assets. For live reload, set CAP_SERVER_URL to this PC before `cap sync`.',
 );

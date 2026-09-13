@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ANDROID_FREENET_NO_BINARY,
   androidAttachedStatus,
+  androidFreenetHostStatus,
   androidMissingBinaryStatus,
 } from '../src/lib/androidFreenetHost.ts';
 import { freenetHostCapabilityFor, getFreenetHostCapability } from '../src/lib/freenetHostCapability.ts';
@@ -78,6 +79,38 @@ describe('androidFreenetHostBringUp', () => {
     });
     expect(pluginStart).toHaveBeenCalledTimes(1);
     expect(status.mode).toBe('attached');
+  });
+
+  it('waits for :7509 after the plugin reports starting, then treats it as managed', async () => {
+    let listening = false;
+    const pluginStart = vi.fn(async () =>
+      androidFreenetHostStatus({
+        mode: 'starting',
+        reachable: false,
+        binary: { path: '/data/app/libfreenet.so', source: 'bundled' },
+      }),
+    );
+    const pluginStatus = vi.fn(async () =>
+      listening
+        ? androidFreenetHostStatus({ mode: 'managed', reachable: true })
+        : androidFreenetHostStatus({ mode: 'starting', reachable: false }),
+    );
+    const pending = androidFreenetHostBringUp({
+      probe: async () => {
+        if (!listening) {
+          listening = true;
+          return false;
+        }
+        return true;
+      },
+      pluginAvailable: () => true,
+      pluginStart,
+      pluginStatus,
+    });
+    const status = await pending;
+    expect(pluginStart).toHaveBeenCalledTimes(1);
+    expect(status.reachable).toBe(true);
+    expect(status.mode === 'managed' || status.mode === 'attached').toBe(true);
   });
 });
 

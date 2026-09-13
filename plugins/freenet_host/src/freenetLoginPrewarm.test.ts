@@ -91,8 +91,31 @@ describe('prewarmFreenetHost', () => {
     const getBridge = vi.fn();
     await prewarmFreenetHost({
       getCapability: () => null,
+      pluginAvailable: () => false,
       getBridge,
     });
     expect(getBridge).not.toHaveBeenCalled();
+  });
+
+  it('starts the in-APK host when the plugin is present even if :7509 is down', async () => {
+    const start = vi.fn(async () => ({ mode: 'starting' as const, reachable: false }));
+    const peerStart = vi.fn(async () => ({}));
+    await prewarmFreenetHost({
+      getCapability: () => null,
+      pluginAvailable: () => true,
+      getBridge: () => null,
+      getHost: () =>
+        ({
+          status: async () => null,
+          start,
+          stop: async () => null,
+        }) as unknown as PrewarmHostHandle,
+      createReconciler: (host) =>
+        createFreenetHostReconciler({
+          host,
+          peer: { start: peerStart, stop: async () => {} },
+        }),
+    });
+    expect(start).toHaveBeenCalledTimes(1);
   });
 });

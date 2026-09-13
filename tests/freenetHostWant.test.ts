@@ -78,6 +78,19 @@ describe('computeFreenetHostWant — the other shapes', () => {
     expect(computeFreenetHostWant(input({ capability: null }))).toBe(false);
   });
 
+  it('can start an in-APK node before :7509 has answered', () => {
+    expect(
+      computeFreenetHostWant(
+        input({ capability: null, canStartOwnNode: true, pipe: 'freenet', farmId: 'mist-1' }),
+      ),
+    ).toBe(true);
+    expect(
+      computeFreenetHostWant(
+        input({ capability: null, canStartOwnNode: true, pipe: 'cloud', farmId: 'cloud-1' }),
+      ),
+    ).toBe(false);
+  });
+
   it('wants a node on Android the same as Electron', () => {
     expect(computeFreenetHostWant(input({ capability: 'android' }))).toBe(true);
   });

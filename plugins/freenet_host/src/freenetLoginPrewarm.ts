@@ -11,6 +11,7 @@ import {
   getFreenetHostCapability,
   type FreenetHostCapability,
 } from '../../../src/lib/freenetHostCapability.ts';
+import { isFreenetHostPluginAvailable } from '../../../src/lib/androidFreenetHost.ts';
 import { getAndroidFreenetBridge } from '../../../src/mist/freenetAndroidHost.ts';
 import { probeLocalFreenetNode } from '../../../src/mist/freenetLocalNode.ts';
 import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
@@ -27,12 +28,17 @@ export type PrewarmFreenetHostDeps = {
   getCapability?: () => FreenetHostCapability;
   getBridge?: () => DesktopBridge | null;
   getHost?: () => PrewarmHostHandle | null;
+  pluginAvailable?: () => boolean;
   createReconciler?: (host: PrewarmHostHandle) => FreenetHostReconciler | null;
 };
 
-function defaultHost(capability: FreenetHostCapability, bridge: DesktopBridge | null): PrewarmHostHandle | null {
+function defaultHost(
+  capability: FreenetHostCapability,
+  bridge: DesktopBridge | null,
+  pluginAvailable: boolean,
+): PrewarmHostHandle | null {
   if (capability === 'electron') return bridge?.freenet ?? null;
-  if (capability === 'android') return getAndroidFreenetBridge();
+  if (capability === 'android' || pluginAvailable) return getAndroidFreenetBridge();
   return null;
 }
 
@@ -54,7 +60,8 @@ export async function prewarmFreenetHost(deps: PrewarmFreenetHostDeps = {}): Pro
     await probeLocalFreenetNode().catch(() => false);
   }
   const capability = (deps.getCapability ?? getFreenetHostCapability)();
-  if (!freenetHostCapabilityCanRun(capability)) return;
+  const pluginAvailable = (deps.pluginAvailable ?? isFreenetHostPluginAvailable)();
+  if (!freenetHostCapabilityCanRun(capability) && !pluginAvailable) return;
 
   const bridge = (deps.getBridge ?? getDesktopBridge)();
   if (capability === 'electron' && bridge?.mist) {
@@ -66,7 +73,7 @@ export async function prewarmFreenetHost(deps: PrewarmFreenetHostDeps = {}): Pro
     }
   }
 
-  const host = (deps.getHost ?? (() => defaultHost(capability, bridge)))();
+  const host = (deps.getHost ?? (() => defaultHost(capability, bridge, pluginAvailable)))();
   if (!host) return;
 
   const reconciler = (deps.createReconciler ?? defaultReconciler)(host);

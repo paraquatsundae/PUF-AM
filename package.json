@@ -41,6 +41,7 @@
     "desktop:vendor:verify": "node scripts/fetch-freenet-binaries.mjs --verify",
     "desktop:vendor:verify:linux": "node scripts/fetch-freenet-binaries.mjs --verify --platform linux-x64",
     "desktop:vendor:verify:win": "node scripts/fetch-freenet-binaries.mjs --verify --platform win-x64",
+    "android:vendor:freenet": "node scripts/build-freenet-android.mjs",
     "desktop:verify:pack": "node scripts/verify-pack-contract.mjs",
     "desktop:verify:deps": "node scripts/verify-desktop-deps.mjs",
     "//mist:build:slot": "Rebuilds the join-slot contract WASM from units/mist-freenet/contracts/slot-contract. Needs cargo + wasm32-unknown-unknown only (the script writes the contract package header itself), but it is still not part of packaging — the vendored artifact is. Refuses to overwrite the pin unless --accept-new-hash, because re-pinning moves every slot address.",

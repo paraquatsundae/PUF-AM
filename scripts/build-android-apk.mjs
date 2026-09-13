@@ -101,7 +101,12 @@ console.log(`[apk] JDK ${major} (${java})`);
 run(process.execPath, ['scripts/build-android-web.mjs', ...(noMist ? ['--no-mist'] : [])], {
   // Belt-and-suspenders with build-android-web.mjs: a workshop .env must not
   // fold isWorkshopMode() true into a tablet APK (Plans/NAMING.md §3).
-  env: { VITE_WORKSHOP_MODE: 'false' },
+  // Packaged devices talk to Cloud Run; do not bake a LAN hub URL.
+  env: {
+    VITE_WORKSHOP_MODE: 'false',
+    VITE_API_BASE_URL: '',
+    VITE_APP_URL: 'https://am.pufworks.farm',
+  },
 });
 run(windows ? 'npx.cmd' : 'npx', ['cap', 'sync', 'android'], {
   env: live ? {} : { CAP_PACKAGED: '1' },

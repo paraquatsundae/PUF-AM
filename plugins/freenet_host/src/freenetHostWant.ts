@@ -13,8 +13,9 @@
  *   does not count.
  * - **Plain cloud farm** — never.
  *
- * Capability is the outer gate: Electron, or Android once a node on :7509
- * has answered. The Capacitor plugin alone does not count.
+ * Capability `'android'` still requires a live `:7509` (transport / Send).
+ * Starting our own in-APK node uses `canStartOwnNode` so the chicken-and-egg
+ * (capability needs :7509, :7509 needs a start) does not block bring-up.
  */
 
 import type { FarmNetworkPacksMap } from '../../../shared/farm/networkPacks';
@@ -38,10 +39,16 @@ export type FreenetHostWantInput = {
   /** The cloud farm id this device's sealed seed belongs to, or `null`. */
   seedCloudFarmId: string | null;
   capability: FreenetHostCapability;
+  /**
+   * Android: the Capacitor plugin is registered, so this device can attach or
+   * spawn even before `'android'` capability (live :7509) is true.
+   */
+  canStartOwnNode?: boolean;
 };
 
 export function computeFreenetHostWant(input: FreenetHostWantInput): boolean {
-  if (!input.farmId || !freenetHostCapabilityCanRun(input.capability)) return false;
+  if (!input.farmId) return false;
+  if (!freenetHostCapabilityCanRun(input.capability) && !input.canStartOwnNode) return false;
   if (input.pipe === 'freenet') return input.localEnabled;
   if (input.pipe === 'hybrid') {
     if (input.cloudMirror) return input.localEnabled;
