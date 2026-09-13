@@ -9,8 +9,6 @@ export function LoginCreateFarmForm({ flow }: { flow: LoginFlow }) {
     setFarmName,
     displayName,
     setDisplayName,
-    showNearbyOnCreate,
-    setShowNearbyOnCreate,
     enrollmentCode,
     setEnrollmentCode,
     byoActive,
@@ -104,19 +102,6 @@ export function LoginCreateFarmForm({ flow }: { flow: LoginFlow }) {
                 : ''}
             </p>
           </div>
-
-          <label className="flex items-start gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={showNearbyOnCreate}
-              onChange={(e) => setShowNearbyOnCreate(e.target.checked)}
-              className="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-            />
-            <span>
-              Show this farm to nearby joiners (uses this device’s location). Workers tap the name
-              instead of typing it.
-            </span>
-          </label>
         </>
       ) : (
         <p className="text-[11px] text-slate-500">

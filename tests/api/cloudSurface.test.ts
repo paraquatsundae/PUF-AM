@@ -124,6 +124,13 @@ describe('cloud API surface', () => {
       const res = await fetch(`${baseUrl}/api/tiles/99/0/0`);
       expect(res.status).toBe(400);
     });
+
+    it('GET /api/auth/nearby-farms is withdrawn (410, no farms)', async () => {
+      const res = await fetch(`${baseUrl}/api/auth/nearby-farms?lat=-31.95&lng=115.86`);
+      expect(res.status).toBe(410);
+      const body = (await res.json()) as { farms?: unknown };
+      expect(body.farms).toBeUndefined();
+    });
   });
 });
 

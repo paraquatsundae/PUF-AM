@@ -51,8 +51,7 @@ export function LoginJoinForm({ flow }: { flow: LoginFlow }) {
             className="w-full px-3 py-2.5 border border-slate-200 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
           <p className="text-[11px] text-slate-400">
-            Nearby discovery is not shared across Firebase projects. The owner reads this ID out
-            with the PIN.
+            The owner reads this ID out with the invite PIN. There is no public farm list.
           </p>
         </div>
       ) : null}

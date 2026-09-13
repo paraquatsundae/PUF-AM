@@ -1,7 +1,7 @@
 /**
  * `clientKey` used to key every rate limit on the *leftmost* `X-Forwarded-For`
  * entry, which is the one part of that header the caller writes. Rotating it
- * gave unlimited attempts at `redeem-pin`, `create-farm` and `nearby-farms`.
+ * gave unlimited attempts at `redeem-pin`, `create-farm` and (until 2026-09-13) `nearby-farms`.
  *
  * So the property under test throughout is: whatever the caller puts in the
  * header, the resolved address is one a proxy we run actually observed — or

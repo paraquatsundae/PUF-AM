@@ -15,7 +15,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { SafetyManagement } from '../components/SafetyManagement';
 import { InvitePinManager } from '../components/InvitePinManager';
-import { FarmDiscoveryCard } from '../components/FarmDiscoveryCard';
 import { FarmModulesCard } from '../components/FarmModulesCard';
 import { useFarmManagementOrg } from '../hooks/useFarmManagementOrg';
 import { type FarmMember, type PinRole } from '../lib/invitePinAuth';
@@ -275,7 +274,6 @@ export function FarmManagement() {
               {isAdmin ? (
                 <>
                   <FarmModulesCard />
-                  <FarmDiscoveryCard />
                   <InvitePinManager onCreated={() => void loadMembers()} />
                 </>
               ) : (

@@ -303,7 +303,8 @@ service cloud.firestore {
              );
     }
 
-    // Discovery index — written by Admin SDK / Express only (nearby join API).
+    // Legacy nearby-discovery index. Withdrawn 2026-09-13 — Express no longer
+    // writes it; keep the shape so leftover docs still fail closed.
     function isValidFarmPublic(data) {
       return hasOnlyAllowedFields(['farmId', 'name', 'lat', 'lng', 'geohash', 'showNearby', 'updatedAt']) &&
              hasRequiredFields(['farmId', 'name', 'lat', 'lng', 'geohash', 'showNearby', 'updatedAt']) &&
@@ -1290,7 +1291,7 @@ service cloud.firestore {
       allow write: if isOwner(userId) && isValidUsageMetrics(request.resource.data);
     }
 
-    // Nearby-farm discovery — clients use Express; keep locked to Admin SDK writes.
+    // Nearby-farm discovery withdrawn 2026-09-13 — stay locked (Admin SDK / client deny).
     match /farms_public/{farmId} {
       allow read: if false;
       allow write: if false;

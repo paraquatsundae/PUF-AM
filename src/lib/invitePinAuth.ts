@@ -40,19 +40,10 @@ async function readJsonResponse(res: Response): Promise<Record<string, unknown>>
   }
 }
 
-export type NearbyFarm = {
-  farmId: string;
-  name: string;
-  lat: number;
-  lng: number;
-  distanceKm: number;
-  showNearby: boolean;
-};
-
 export async function createFarmAccount(
   farmName: string,
   displayName: string,
-  opts?: { lat?: number; lng?: number; showNearby?: boolean; enrollmentCode?: string }
+  opts?: { lat?: number; lng?: number; enrollmentCode?: string }
 ): Promise<{
   token: string;
   farmId: string;
@@ -73,7 +64,7 @@ export async function createFarmAccount(
       displayName,
       lat: opts?.lat,
       lng: opts?.lng,
-      showNearby: opts?.showNearby !== false,
+      showNearby: false,
       // Cloud farms are gated — see server/enrollmentCodes.ts.
       enrollmentCode: opts?.enrollmentCode || '',
     }),
@@ -91,42 +82,6 @@ export async function createFarmAccount(
     authEpoch: number;
     recoveryPin: string;
   };
-}
-
-export async function fetchNearbyFarms(
-  lat: number,
-  lng: number,
-  radiusKm = 3
-): Promise<NearbyFarm[]> {
-  if (isByoFirebase()) return [];
-  const qs = new URLSearchParams({
-    lat: String(lat),
-    lng: String(lng),
-    radiusKm: String(radiusKm),
-  });
-  const res = await fetch(apiUrl(`/api/auth/nearby-farms?${qs}`));
-  const data = await readJsonResponse(res);
-  if (!res.ok) throw new Error(String(data.error || 'Failed to find nearby farms'));
-  return (data.farms as NearbyFarm[]) || [];
-}
-
-export async function updateFarmDiscovery(input: {
-  lat?: number;
-  lng?: number;
-  showNearby?: boolean;
-}): Promise<void> {
-  if (isByoFirebase()) {
-    throw new Error(
-      'Nearby discovery is per Firebase project and is not offered on your own project. Share the farm ID and an invite PIN instead.'
-    );
-  }
-  const res = await fetch(apiUrl('/api/auth/update-farm-discovery'), {
-    method: 'POST',
-    headers: await authHeaders(),
-    body: JSON.stringify(input),
-  });
-  const data = await readJsonResponse(res);
-  if (!res.ok) throw new Error(String(data.error || 'Failed to update farm location'));
 }
 
 /** Owner sets which modules this farm offers (worker grants are a subset). */

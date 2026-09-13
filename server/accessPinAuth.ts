@@ -14,6 +14,7 @@ import {
 import type { AccessPinRole } from './accessPinCrypto.ts';
 
 export const PINS = 'access_pins';
+/** Legacy nearby-discovery index. Withdrawn 2026-09-13; collection stays deny-all. */
 export const FARMS_PUBLIC = 'farms_public';
 export const GEO_PRECISION = 5;
 

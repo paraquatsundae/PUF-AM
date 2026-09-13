@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -7,8 +7,6 @@ import {
   getLastDisplayName,
   getLastFarm,
 } from '../lib/deviceSession';
-import { getDeviceCoords } from '../lib/deviceLocation';
-import { fetchNearbyFarms, type NearbyFarm } from '../lib/invitePinAuth';
 import { getFarmStoreBackend, isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
 import { getFreenetHostCapability } from '../lib/freenetHostCapability.ts';
 import { isNativePlatform } from '../lib/freenetRuntime.ts';
@@ -46,17 +44,11 @@ export function useLoginFlow() {
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [pendingFarm, setPendingFarm] = useState<{ farmId: string; farmName: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [nearby, setNearby] = useState<NearbyFarm[]>([]);
-  const [selectedFarm, setSelectedFarm] = useState<NearbyFarm | null>(() => {
+  const [selectedFarm, setSelectedFarm] = useState<{ farmId: string; name: string } | null>(() => {
     const last = getLastFarm();
-    return last
-      ? { farmId: last.farmId, name: last.farmName, lat: 0, lng: 0, distanceKm: 0, showNearby: true }
-      : null;
+    return last ? { farmId: last.farmId, name: last.farmName } : null;
   });
   const [welcomeBack, setWelcomeBack] = useState(() => canShowWelcomeBack());
-  const [locating, setLocating] = useState(false);
-  const [locationNote, setLocationNote] = useState<string | null>(null);
-  const [showNearbyOnCreate, setShowNearbyOnCreate] = useState(true);
   const [enrollmentCode, setEnrollmentCode] = useState('');
   const [byoDraftConfig, setByoDraftConfig] = useState<ByoFirebaseWebConfig | null>(null);
   const [byoFarmId, setByoFarmId] = useState(() => getLastFarm()?.farmId || '');
@@ -93,27 +85,6 @@ export function useLoginFlow() {
       navigate('/', { replace: true });
     }
   }, [user, userData, mistLocked, authError, loading, navigate, recoveryPin, pendingToken]);
-
-  const loadNearby = useCallback(async () => {
-    setLocating(true);
-    setLocalError(null);
-    setLocationNote(null);
-    try {
-      const coords = await getDeviceCoords();
-      const farms = await fetchNearbyFarms(coords.lat, coords.lng, 5);
-      setNearby(farms);
-      if (farms.length === 0) {
-        setLocationNote('No farms listed nearby. Enter a PIN from your manager, or create a farm.');
-      } else {
-        setLocationNote(`Found ${farms.length} farm${farms.length === 1 ? '' : 's'} nearby.`);
-      }
-    } catch (err: unknown) {
-      setNearby([]);
-      setLocationNote(err instanceof Error ? err.message : 'Location unavailable.');
-    } finally {
-      setLocating(false);
-    }
-  }, []);
 
   const handleGoogleSignIn = async () => {
     setIsSigningIn(true);
@@ -165,17 +136,9 @@ export function useLoginFlow() {
     setRecoveryPin(null);
     setPendingToken(null);
     try {
-      let opts: { lat?: number; lng?: number; showNearby?: boolean; enrollmentCode?: string } = {
-        showNearby: showNearbyOnCreate,
+      const result = await createFarm(farmName, displayName, {
         enrollmentCode: enrollmentCode.trim(),
-      };
-      try {
-        const coords = await getDeviceCoords(8000);
-        opts = { ...opts, lat: coords.lat, lng: coords.lng };
-      } catch {
-        /* optional — farm still created without discovery */
-      }
-      const result = await createFarm(farmName, displayName, opts);
+      });
       setRecoveryPin(result.recoveryPin);
       setPendingToken(result.token);
       setPendingFarm({ farmId: result.farmId, farmName: result.farmName });
@@ -245,14 +208,9 @@ export function useLoginFlow() {
     recoveryPin,
     pendingFarm,
     copied,
-    nearby,
     selectedFarm,
     setSelectedFarm,
     welcomeBack,
-    locating,
-    locationNote,
-    showNearbyOnCreate,
-    setShowNearbyOnCreate,
     enrollmentCode,
     setEnrollmentCode,
     byoDraftConfig,
@@ -268,7 +226,6 @@ export function useLoginFlow() {
     setStep,
     error,
     lastFarm,
-    loadNearby,
     handleGoogleSignIn,
     handlePinSignIn,
     handleCreateFarm,
