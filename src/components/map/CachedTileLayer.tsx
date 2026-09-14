@@ -3,9 +3,8 @@ import { useMap } from 'react-leaflet';
 import L from '../../lib/leaflet-setup';
 import {
   IMAGERY_ATTRIBUTION,
+  fetchTileBlob,
   getTileBlob,
-  tileUrl,
-  tileUrlTemplate,
 } from '../../lib/basemapPack';
 
 type Props = {
@@ -80,44 +79,41 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
           }
         };
 
-        const finish = (url: string, fromBlob: boolean) => {
+        const finishFromBlob = (blob: Blob) => {
+          const objectUrl = URL.createObjectURL(blob);
+          tile._pufomObjectUrl = objectUrl;
           tile.onload = () => {
             done(undefined, tile);
           };
           tile.onerror = () => {
-            // Blob decode glitch → try network once (unless offline-only).
-            if (fromBlob && !blockNetwork) {
-              revoke();
-              finish(tileUrl(z, x, y), false);
-              return;
-            }
             revoke();
             tile.style.background = '#1e293b';
             done(new Error('Tile load failed'), tile);
           };
-          tile.src = url;
+          tile.src = objectUrl;
         };
 
         (async () => {
           try {
-            const blob = await getTileBlob(farmId, z, x, y);
-            if (blob && blob.size > 0) {
-              const objectUrl = URL.createObjectURL(blob);
-              tile._pufomObjectUrl = objectUrl;
-              finish(objectUrl, true);
+            const cached = await getTileBlob(farmId, z, x, y);
+            if (cached && cached.size > 0) {
+              finishFromBlob(cached);
               return;
             }
 
             // Prefer network when allowed. Do not trust navigator.onLine alone —
             // Android WebView often reports offline while Wi‑Fi still works.
+            // Must go through `fetchTileBlob` / `apiFetch`: Cloud Run requires
+            // a Firebase bearer, and an `<img src>` cannot carry one.
             if (!blockNetwork) {
-              finish(tileUrl(z, x, y), false);
+              finishFromBlob(await fetchTileBlob(z, x, y));
               return;
             }
 
             tile.style.background = '#1e293b';
             done(undefined, tile);
           } catch (err) {
+            tile.style.background = '#1e293b';
             done(err as Error, tile);
           }
         })();
@@ -158,10 +154,60 @@ export function ImageryPreviewTileLayer() {
   const map = useMap();
 
   useEffect(() => {
-    const layer = L.tileLayer(tileUrlTemplate(), {
+    const Layer = L.GridLayer.extend({
+      createTile(coords: L.Coords, done: L.DoneCallback) {
+        const tile = document.createElement('img') as PufomTileImg;
+        tile.alt = '';
+        tile.setAttribute('role', 'presentation');
+        tile.style.width = '100%';
+        tile.style.height = '100%';
+        tile.style.objectFit = 'cover';
+
+        const revoke = () => {
+          if (tile._pufomObjectUrl) {
+            URL.revokeObjectURL(tile._pufomObjectUrl);
+            tile._pufomObjectUrl = undefined;
+          }
+        };
+
+        (async () => {
+          try {
+            const blob = await fetchTileBlob(coords.z, coords.x, coords.y);
+            const objectUrl = URL.createObjectURL(blob);
+            tile._pufomObjectUrl = objectUrl;
+            tile.onload = () => done(undefined, tile);
+            tile.onerror = () => {
+              revoke();
+              tile.style.background = '#1e293b';
+              done(new Error('Tile load failed'), tile);
+            };
+            tile.src = objectUrl;
+          } catch (err) {
+            tile.style.background = '#1e293b';
+            done(err as Error, tile);
+          }
+        })();
+
+        return tile;
+      },
+
+      _removeTile(key: string) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tile = (this as any)._tiles?.[key]?.el as PufomTileImg | undefined;
+        if (tile?._pufomObjectUrl) {
+          URL.revokeObjectURL(tile._pufomObjectUrl);
+          tile._pufomObjectUrl = undefined;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (L.GridLayer.prototype as any)._removeTile.call(this, key);
+      },
+    });
+
+    const layer = new (Layer as unknown as new (opts?: L.GridLayerOptions) => L.GridLayer)({
       attribution: IMAGERY_ATTRIBUTION,
       maxZoom: 20,
       maxNativeZoom: 19,
+      minZoom: 0,
     });
     layer.addTo(map);
     return () => {

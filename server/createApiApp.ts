@@ -144,8 +144,10 @@ export function createApiApp(opts: { surface?: ApiSurface } = {}): Express {
   registerLanSyncRoutes(app, surface);
   registerPluginPackageRoutes(app);
   // Both surfaces: a desktop hub serving tablets on the shed Wi-Fi needs to
-  // render imagery for them just as Cloud Run does for the web app.
-  registerTileProxyRoutes(app);
+  // render imagery for them just as Cloud Run does for the web app. Auth is
+  // cloud-only — the public internet is the cost surface; a hub has no Admin
+  // SDK and Leaflet on the LAN still fetches tiles as `<img src>`.
+  registerTileProxyRoutes(app, { requireAuth: surface === 'cloud' });
 
   // The LAN relay for clients with no Freenet host of their own: a paired tablet
   // reading through a desktop hub, or the browser on an `npm run dev` workshop

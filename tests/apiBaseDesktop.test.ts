@@ -51,6 +51,8 @@ describe('with the desktop bridge', () => {
     expect(apiUrl('/api/presence/ping')).toBe('/api/presence/ping');
     expect(apiUrl('/api/highlights/list')).toBe('/api/highlights/list');
     expect(apiUrl('/api/health')).toBe('/api/health');
+    // Imagery is rendered by this process — it must not bounce to Cloud Run.
+    expect(apiUrl('/api/tiles/12/3366/2431')).toBe('/api/tiles/12/3366/2431');
   });
 
   it('sends the secret-bearing routes to the cloud', () => {

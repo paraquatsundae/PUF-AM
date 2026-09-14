@@ -31,10 +31,10 @@ export const LOOPBACK_OPEN_PATHS: readonly string[] = ['/api/health'];
  * Path prefixes served without the token, matched by prefix rather than equality
  * because the path carries coordinates.
  *
- * `/api/tiles/` is here because Leaflet fetches tiles as `<img src>`, and an
- * image element cannot carry a header — so a guarded tile route is a route the
- * map cannot use, which would leave the desktop drawing its imagery from the
- * cloud instead of from the copy of the proxy already running inside it.
+ * `/api/tiles/` is here because Leaflet on this loopback still fetches some
+ * tiles as `<img src>`, and an image element cannot carry a header. Cloud Run
+ * requires a Firebase bearer on the same path; this process is not Cloud Run
+ * and has no Admin SDK, so the local copy stays open.
  *
  * Nothing is given away by opening it. The route holds no farm data, the
  * upstream host is fixed in `server/tileProxyRoutes.ts` so it cannot be aimed

@@ -59,10 +59,10 @@ function createAuth() {
 export const auth = createAuth();
 
 /**
- * Hand `apiFetch` a way to mint the bearer for `/api/auth/*`, `/api/weather/*`
- * and `/api/admin/*` without `apiBase` importing this module. `getIdToken()`
- * serves a cached token until it is close to expiry, so this is not a network
- * call per request.
+ * Hand `apiFetch` a way to mint the bearer for `/api/auth/*`, `/api/weather/*`,
+ * `/api/admin/*` and Cloud Run `/api/tiles/*` without `apiBase` importing this
+ * module. `getIdToken()` serves a cached token until it is close to expiry, so
+ * this is not a network call per request.
  */
 setApiIdTokenProvider(async () => {
   const user = auth.currentUser;

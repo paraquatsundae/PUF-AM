@@ -5,7 +5,7 @@
  * straight from a provider, so the provider, its terms and any key it needs stay
  * on the server. `server/tileProxyRoutes.ts` has the reasoning.
  */
-import { apiUrl } from './apiBase';
+import { apiFetch, apiUrl } from './apiBase';
 
 export const IMAGERY_ATTRIBUTION =
   'Imagery © Western Australian Land Information Authority (Landgate) — SLIP';
@@ -421,6 +421,30 @@ export function latToTileY(lat: number, z: number): number {
 /** One tile, through our proxy. `apiUrl` picks the hub or the cloud base. */
 export function tileUrl(z: number, x: number, y: number): string {
   return apiUrl(`/api/tiles/${z}/${x}/${y}`);
+}
+
+/**
+ * Fetch one tile as a blob, with the Firebase bearer when the URL is Cloud Run.
+ *
+ * Leaflet `<img src>` cannot carry `Authorization`, so every network tile load
+ * has to go through here (or `apiFetch` directly) rather than a URL template.
+ * Hub / LAN URLs get no bearer — those surfaces do not require one.
+ */
+export async function fetchTileBlob(
+  z: number,
+  x: number,
+  y: number,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const res = await apiFetch(tileUrl(z, x, y), {
+    signal,
+    mode: 'cors',
+    timeoutMs: 25_000,
+  });
+  if (!res.ok) {
+    throw new Error(`Tile fetch failed ${z}/${x}/${y}: HTTP ${res.status}`);
+  }
+  return await res.blob();
 }
 
 /**
