@@ -85,6 +85,13 @@ describe('BYO weather HTTP', () => {
     expect([...DPIRD_PROXY_PATHS]).toEqual(['stations', 'stations/summaries/hourly']);
   });
 
+  it('does not serve seasonal chill yet — later package, no PUFworks fallback', async () => {
+    requireCaller.mockImplementation(async () => ({ uid: 'member-1', farmId: 'farm-1' }));
+    const res = await fetch(`${baseUrl}/api/weather/chill-portions?stationCode=MA002`);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'API route not found' });
+  });
+
   it('fails closed when the secret is missing — no hosted-key fallback', async () => {
     apiKey = undefined;
     requireCaller.mockImplementation(async () => ({ uid: 'member-1', farmId: 'farm-1' }));

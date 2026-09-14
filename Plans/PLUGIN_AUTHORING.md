@@ -8,7 +8,7 @@
 **Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1) — a `kind: network` pack follows [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) instead (same folder layout and discovery, no modules, host capability, per-farm enable)  
 **Layout change done (2026-09-03):** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moved every pack's code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, and `registry.ts` now discovers packs instead of listing them — **a pack's code is one folder, and its UI wires itself.** Routes, nav and surfaces need no edit to `src/packs/registry.ts`, `App.tsx` or `navConfig.ts`. You still hand-add the three `shared/` pieces in §2–§4 below — the adapter, the module id, and the catalog row — so "no core edit" is true of the UI wiring, not of the whole job. Folding those in is Phase 2. Still statically compiled: discovery is a build-time glob, so the "Must not → hot-load" rule below **stands**.
 
-**Next (2026-09-15) — parallel to Freenet photos, not the same job.** The chill portions weather reference is **stale**. The standalone chill system and its DPIRD connections have changed. Update this crop pack from § Template pack below (copy [`plugins/chill_portions/`](../plugins/chill_portions/), **not** walnut blight). DPIRD: server-only `DPIRD_API_KEY`, never `VITE_DPIRD_API_KEY`; a BYO owner's key is never in Firestore, the client, or George's Secret Manager; a BYO farm with no weather endpoint fails closed (never falls back to `am.pufworks.farm`). Do **not** implement tonight. Freenet track: codebase health + security review, then issue photos (packet size). Photos are not shipped. See [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8.
+**Decision — 2026-09-15:** chill weather reference brought in line with the current DPIRD path (day-run §3). Copy [`plugins/chill_portions/`](../plugins/chill_portions/), **not** walnut blight. `DPIRD_API_KEY` is server-only — never `VITE_DPIRD_API_KEY`. A BYO owner's key is never in Firestore, the client, or George's Secret Manager. A BYO farm with no weather endpoint fails closed (never falls back to `am.pufworks.farm`). Details under § Template pack.
 
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.
 
@@ -205,15 +205,27 @@ Merged from `archive/CHILL_PORTIONS_PLUGIN.md` (2026-08-16) on 2026-09-10. Copy 
 | UI | `plugins/chill_portions/src/` — Weather events page, calculator and science panels, `packUi` registration |
 | Module | `chill` (not `dashboard`) |
 
-The `PUFworks-chill_calculator` folder is **release binaries only** (AppImage / exe / APK). It is not a drop-in PUF-AM zip. Engine logic was recovered from the APK `assets/www/app.js`.
+The standalone repo ([PUFworks-chill_calculator](https://github.com/paraquatsundae/PUFworks-chill_calculator)) holds calculator source (`web/`, `src/chillCalculator.ts`). AppImage / exe / APK are GitHub Release artifacts, not a PUF-AM zip. Do not put a DPIRD key in those builds. Engine in this pack was ported from that `app.js` / TypeScript.
 
 **Farm behaviour:** Install / Activate / Deactivate / Delete like walnut blight. Existing orchard / walnut farms are **migrated** (`migrateLegacyChillPack`) when an admin opens Dashboard or Plugins; until that write, `useChillPack()` still uses the old eligibility helper so the home card does not vanish. Deactivate hides nav + dashboard card and keeps the settings doc; Delete wipes `settings/chill_portions`.
 
-**Engine notes:** farm live totals use observed DPIRD hourly, Mar–Sep Perth window, Firestore `chill_cache`, unchanged API `GET /api/weather/chill-portions`. The calculator panel is daily Tmax/Tmin → solar hourly curve → the same Dynamic Model constants, no API key. SILO / BOM fetch from the standalone app is **not** in (needs a cloud proxy + email). Kelvin offset in `engine.json` is **273.0** (calculator); farm hourly previously used 273.15.
+**Weather path:** farm live totals use observed DPIRD hourly, Mar–Sep Perth window, Firestore `chill_cache`, API `GET /api/weather/chill-portions` (`server/chillRoutes.ts`). The pack UI calls that path only through `apiUrl` / `apiFetch` — membership bearer, never a client `api-key` header.
 
-**Not in this pack (open):** Utah model / chill hours · server-side pack gate on the chill API (also in the Lean follow-ups table above) · hot-load of React from the zip (never — see Must not).
+| Farm | Where `/api/weather/chill-portions` goes |
+|------|------------------------------------------|
+| Hosted on `am.pufworks.farm` | Same-origin Cloud Run (`pufom`) — George's `DPIRD_API_KEY` |
+| Packaged desktop / APK | Cloud Run (`https://am.pufworks.farm`) — a packaged hub has no DPIRD key |
+| Workshop `npm run dev` | Local Express if `DPIRD_API_KEY` is in `.env` |
+| BYO + pasted `weatherEndpoint` | Owner `byoWeatherApi` — their Secret Manager key |
+| BYO + no endpoint | Fail closed (`byo-weather.invalid`). Never `am.pufworks.farm` |
 
-**Next — 2026-09-15 (do not implement tonight):** weather reference + DPIRD wiring is stale after standalone chill-system changes. Bring `plugins/chill_portions/` and `shared/weather/chillPortions.ts` in line; keep the DPIRD rules in the header **Next**. This is not the Freenet photos job.
+The daily calculator is Tmax/Tmin → solar hourly curve → the same Dynamic Model constants, **no API key**. SILO / BOM fetch from the standalone app is **not** in (needs a cloud proxy + email). Kelvin offset in `engine.json` is **273.0** for both farm hourly and the calculator (the old farm-only 273.15 path is gone).
+
+**Residual — BYO chill route:** [`functions-byo-weather/`](../functions-byo-weather/) does not yet serve `GET /api/weather/chill-portions` or write `chill_cache` ([`FIREBASE_BILLING.md`](FIREBASE_BILLING.md) §3.3 / §7). A BYO farm with an endpoint still must not fall through to PUFworks; seasonal totals 404 until that package grows. The on-device calculator still works.
+
+**Not in this pack (open):** Utah model / chill hours · server-side pack gate on the chill API (also in the Lean follow-ups table above) · BYO `chill_cache` · hot-load of React from the zip (never — see Must not).
+
+**Decision — 2026-09-15:** the weather *reference* was stale after Design A / membership-gated weather / desktop cloud-only routing. The pack fetch helper was already on `apiUrl`. Docs, science copy, and tests now describe the table above. Not the Freenet photos job.
 
 ---
 

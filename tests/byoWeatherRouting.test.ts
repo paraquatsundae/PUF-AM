@@ -57,6 +57,9 @@ describe('BYO weather routing', () => {
     enableByo();
     setRuntimeByoWeatherEndpoint(FN);
     expect(apiUrl('/api/weather/ensure-cache')).toBe(`${FN}/api/weather/ensure-cache`);
+    expect(apiUrl('/api/weather/chill-portions?stationCode=MA002')).toBe(
+      `${FN}/api/weather/chill-portions?stationCode=MA002`
+    );
     expect(apiUrl('/api/weather/dpird/stations?limit=500')).toBe(
       `${FN}/api/weather/dpird/stations?limit=500`
     );
@@ -67,6 +70,9 @@ describe('BYO weather routing', () => {
     enableByo();
     const url = apiUrl('/api/weather/ensure-cache');
     expect(url).toBe(`${BYO_WEATHER_UNCONFIGURED_ORIGIN}/api/weather/ensure-cache`);
+    expect(apiUrl('/api/weather/chill-portions')).toBe(
+      `${BYO_WEATHER_UNCONFIGURED_ORIGIN}/api/weather/chill-portions`
+    );
     expect(url).not.toContain('am.pufworks.farm');
     expect(url).not.toContain('pufom-');
   });

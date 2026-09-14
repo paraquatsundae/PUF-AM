@@ -46,7 +46,7 @@ Do not send the DPIRD key anywhere.
 | Function | Role |
 |----------|------|
 | `byoRefreshWeatherCache` | Hourly (Australia/Perth). Fills `weather_cache` from DPIRD + MET Norway. |
-| `byoWeatherApi` | HTTP: `ensure-cache`, `ensure-forecast`, station list, hourly summaries. |
+| `byoWeatherApi` | HTTP: `ensure-cache`, `ensure-forecast`, station list, hourly summaries. Not seasonal chill (`GET /api/weather/chill-portions` / `chill_cache`) — that is a later package. |
 
 Auth is a Firebase ID token for **this** project plus farm membership.
 The DPIRD allow-list is the same as hosted PUF-AM: `stations` and

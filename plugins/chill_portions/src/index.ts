@@ -3,7 +3,8 @@
  *
  * The Dynamic Model itself is not in this folder. It stays in `shared/weather/`
  * because `server/chillRoutes.ts` computes seasonal portions from hourly DPIRD
- * data, and the server cannot import from a pack.
+ * data, and the server cannot import from a pack. The UI reaches that route
+ * through `apiUrl` — server-only `DPIRD_API_KEY`, never `VITE_DPIRD_API_KEY`.
  */
 import { IconSnowflake } from '@tabler/icons-react';
 import type { CropPackUiRegistration } from '../../../src/packs/types';

@@ -1,6 +1,10 @@
 /**
  * Client re-exports + fetch helper for farm chill portions.
  * Core model lives in shared/weather/chillPortions.ts (server + tests).
+ *
+ * Weather host is `apiUrl` / `apiFetch` — never a client DPIRD key
+ * (`Plans/API_KEY_SECURITY.md`, `Plans/NAMING.md` §3, `Plans/FIREBASE_BILLING.md` §3).
+ * Hosted → Cloud Run. BYO → owner function or fail closed. Never `VITE_DPIRD_API_KEY`.
  */
 export {
   CULTIVARS,
@@ -14,6 +18,7 @@ export {
   type CultivarId,
 } from '../../../shared/weather/chillPortions';
 
+import { isByoFirebase } from '../../../src/lib/byoFirebaseConfig';
 import { apiFetch, apiUrl } from '../../../src/lib/apiBase';
 
 export type FarmChillPortions = {
@@ -57,6 +62,11 @@ export async function fetchFarmChillPortions(input: {
     throw new Error(`Chill API returned non-JSON (${res.status})`);
   }
   if (!res.ok) {
+    if (res.status === 404 && isByoFirebase()) {
+      throw new Error(
+        'Seasonal DPIRD chill is not on this farm\'s weather function yet. The daily calculator still works. PUF-AM will not use the PUFworks weather API.'
+      );
+    }
     throw new Error(String(data.error || `Failed to load chill portions (${res.status})`));
   }
   return data as unknown as FarmChillPortions;

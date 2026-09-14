@@ -2,8 +2,9 @@
  * First-party chill portions package — loads `plugins/chill_portions/`.
  *
  * Catalog metadata, Dynamic Model constants, season defaults, and cultivar
- * targets live in that folder (zip-able). React UI and weather fetch stay
- * in the app; this module is the TS adapter.
+ * targets live in that folder (zip-able). React UI lives in `plugins/chill_portions/src/`.
+ * Farm hourly compute stays in `shared/weather/` for `server/chillRoutes.ts`.
+ * This module is the TS adapter.
  */
 import pluginJson from '../../plugins/chill_portions/plugin.json';
 import engineJson from '../../plugins/chill_portions/engine.json';

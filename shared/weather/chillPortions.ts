@@ -3,6 +3,8 @@
  *
  * Cultivar targets and model constants live in `plugins/chill_portions/engine.json`.
  * Daily Tmax/Tmin synthesis is `chillCalculator.ts` (standalone calculator port).
+ * Farm live totals: `GET /api/weather/chill-portions` (`server/chillRoutes.ts`).
+ * The pack fetches that via `apiUrl` — server-only `DPIRD_API_KEY`, never `VITE_*`.
  */
 
 import {

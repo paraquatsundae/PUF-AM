@@ -12,6 +12,11 @@ export function ChillEngineSciencePanel() {
         <code className="text-xs bg-slate-100 px-1 rounded">engine.json</code>.
       </p>
       <p>
+        Those hourly totals come from this farm's weather host — Cloud Run for PUFworks farms,
+        the owner's weather function for a bring-your-own Firebase farm. The DPIRD key stays on
+        that server. A BYO farm with no weather URL does not fall back to PUFworks.
+      </p>
+      <p>
         The <strong>daily calculator</strong> is the standalone Chill Portion Calculator: daily Tmax /
         Tmin, a solar day-length hourly curve, then the same Dynamic Model. That path does not need
         a DPIRD key — paste a CSV or type rows.
