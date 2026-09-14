@@ -131,7 +131,7 @@ describe('planFarmSync — the Freenet rung', () => {
   it('offers a read-only tablet a fetch, not a send', () => {
     const plan = planFarmSync(conditions({ freenet: 'read-only' }));
     expect(plan.route).toBe('freenet-pull');
-    expect(plan.detail).toMatch(/laptop/i);
+    expect(plan.detail).toMatch(/FarmSeed|owner device/i);
   });
 
   it('still offers a tablet its own node when it has found an unpaired hub', () => {

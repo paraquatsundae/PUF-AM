@@ -89,7 +89,7 @@ async function slotFetch<T>(
     throw new FreenetTransportError(
       'unreachable',
       `Could not reach the Freenet node on this device.${reason ? ` ${reason}` : ''} ` +
-        'A join ticket over Freenet needs a node here — start it from Settings → Mist workshop.',
+        'PUF-AM starts its own node — wait and try again. A laptop hub is not required.',
     );
   }
 

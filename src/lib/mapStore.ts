@@ -39,6 +39,7 @@ export interface OrchardBlock {
   irrigation: string;
   areaHa?: number;
   geojson: any;
+  updatedAt?: string;
 }
 
 export interface InfrastructurePin {
@@ -72,7 +73,6 @@ export interface MapViewport {
 }
 
 const DEFAULT_VIEWPORT: MapViewport = { lat: -33.9249, lng: 115.0750, zoom: 15 };
-
 /** Same place on the map, whatever object it arrived in. */
 export function sameViewport(a: MapViewport, b: MapViewport): boolean {
   return a.lat === b.lat && a.lng === b.lng && a.zoom === b.zoom;

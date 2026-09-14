@@ -10,7 +10,8 @@ import { weatherIdbKey } from '../src/lib/weatherCacheIdb';
 describe('photoOutbox helpers', () => {
   it('builds stable storage paths and ids', () => {
     expect(photoStoragePath('farm1', 'issue9')).toBe('farms/farm1/issues/issue9/photo.jpg');
-    expect(photoOutboxId('farm1', 'issue9')).toBe('farm1:issue9');
+    expect(photoStoragePath('farm1', 'issue9', 'p2')).toBe('farms/farm1/issues/issue9/p2.jpg');
+    expect(photoOutboxId('farm1', 'issue9')).toBe('farm1:issue:issue9:photo');
   });
 
   it('estimates data-URL byte size under the Firestore headroom cap', () => {

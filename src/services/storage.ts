@@ -5,7 +5,8 @@ export const storageApi = {
   uploadFile: async (path: string, file: File | Blob): Promise<string> => {
     try {
       const storageRef = ref(storage, path);
-      const snapshot = await uploadBytes(storageRef, file);
+      const contentType = file.type || 'image/jpeg';
+      const snapshot = await uploadBytes(storageRef, file, { contentType });
       const downloadURL = await getDownloadURL(snapshot.ref);
       return downloadURL;
     } catch (error) {
@@ -14,8 +15,23 @@ export const storageApi = {
     }
   },
   
-  uploadFieldIssuePhoto: async (farmId: string, issueId: string, file: File | Blob): Promise<string> => {
-    const path = `farms/${farmId}/issues/${issueId}/photo.jpg`;
+  uploadFieldIssuePhoto: async (
+    farmId: string,
+    issueId: string,
+    file: File | Blob,
+    photoId = 'photo',
+  ): Promise<string> => {
+    const path = `farms/${farmId}/issues/${issueId}/${photoId}.jpg`;
+    return storageApi.uploadFile(path, file);
+  },
+
+  uploadEventPhoto: async (
+    farmId: string,
+    eventId: string,
+    file: File | Blob,
+    photoId: string,
+  ): Promise<string> => {
+    const path = `farms/${farmId}/events/${eventId}/${photoId}.jpg`;
     return storageApi.uploadFile(path, file);
   },
   

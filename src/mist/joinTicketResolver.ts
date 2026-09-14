@@ -94,9 +94,9 @@ export const LAN_JOIN_UNAVAILABLE_MESSAGE =
 
 /** Every route failed. Says what each one was and what would make it work. */
 export const NO_JOIN_ROUTE_MESSAGE =
-  'Could not look that join ticket up. Either join on the same Wi‑Fi as the farm owner while ' +
-  'their PUF-AM is running, or start the Freenet node on this device (Settings → Mist ' +
-  'workshop) and try again in a few minutes — a freshly sent farm takes a while to spread.';
+  'Could not look that join ticket up. LAN on the owner’s Wi‑Fi is the fast path; if that ' +
+  'misses, Freenet on this device is the other route — wait for the in-app node and try again. ' +
+  'A freshly sent farm takes a few minutes to spread. Pairing a hub is not required.';
 
 /**
  * The hub the ticket lookup runs on, as the operator set it — an unreachable hub

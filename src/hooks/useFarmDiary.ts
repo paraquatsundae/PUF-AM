@@ -18,8 +18,9 @@ export function useFarmDiary(startDate?: string, endDate?: string) {
   }, [farmId, startDate, endDate]);
 
   const addEvent = useCallback(
-    (event: Omit<DiaryEvent, 'id'>) => {
-      if (farmId) store.addEvent(farmId, canEdit, event);
+    async (event: Omit<DiaryEvent, 'id'>) => {
+      if (!farmId) return undefined;
+      return store.addEvent(farmId, canEdit, event);
     },
     [farmId, canEdit, store.addEvent]
   );

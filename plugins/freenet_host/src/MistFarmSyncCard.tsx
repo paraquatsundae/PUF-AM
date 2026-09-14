@@ -58,19 +58,25 @@ import { MODULE_LABELS, type FarmModuleId } from '../../../shared/auth/farmModul
 import { packModulesToExclude } from '../../../shared/farm/cropPacks.ts';
 import { useCropPackActivation } from '../../../src/hooks/useCropPackActivation';
 import { isMistExperimentalEnabled } from '../../../src/mist/farmStoreBackend.ts';
+import { isFreenetHostPluginAvailable } from '../../../src/lib/androidFreenetHost.ts';
 import {
+  FREENET_CREW_CANNOT_SEND,
   FREENET_NO_HOST_DETAIL,
-  FREENET_NO_HOST_LABEL,
   canReachFreenetNode,
   detectFreenetReadOnly,
   detectFreenetRuntime,
   refreshFreenetRuntime,
   type FreenetRuntime,
 } from '../../../src/lib/freenetRuntime.ts';
+import { getAndroidFreenetBridge } from '../../../src/mist/freenetAndroidHost.ts';
+import { ensureFreenetHostListening } from '../../../src/mist/ensureFreenetHostListening.ts';
 import {
-  FREENET_LOCAL_NODE_DETAIL,
-  FREENET_LOCAL_NODE_LABEL,
-} from '../../../src/mist/freenetLocalNode.ts';
+  describeFreenetSyncReadiness,
+  freenetSendBlockedTitle,
+  hostIsUp,
+  type FreenetSyncReadiness,
+} from './freenetSyncReadiness.ts';
+import { FREENET_LOCAL_NODE_DETAIL } from '../../../src/mist/freenetLocalNode.ts';
 import {
   fetchFreenetPeerStatus,
   publishFarmToFreenet,
@@ -90,62 +96,17 @@ import {
   isMistHotMirrorAvailable,
   mistPublishNeedsDevicePin,
 } from '../../../src/mist/mistHotBridge.ts';
-import { getMistJoinState, getMistSessionMeta, mistSessionNeedsPin } from '../../../src/mist/mistDeviceSession.ts';
+import {
+  getMistJoinState,
+  getMistSessionMeta,
+  mistSessionCanSendFarm,
+  mistSessionNeedsPin,
+} from '../../../src/mist/mistDeviceSession.ts';
 import { fetchSyncSelf } from '../../../src/lib/mdnsPeers.ts';
 import { ensureSyncHub } from '../../../src/lib/syncHub.ts';
 
 type Mode = 'send' | 'join';
-
-type Readiness = {
-  ready: boolean;
-  /** One plain sentence: what is true now, or what to do about it. */
-  label: string;
-  tone: 'ok' | 'wait' | 'todo';
-};
-
-function hostIsUp(status: FreenetHostStatus | null): boolean {
-  return status?.mode === 'managed' || status?.mode === 'attached';
-}
-
-function describeReadiness(
-  peer: FreenetPeerStatus | null,
-  host: FreenetHostStatus | null,
-  onDesktop: boolean,
-  runtime: FreenetRuntime,
-  lookingForHub: boolean,
-): Readiness {
-  // Checked before the peer status because on Android there is no node to have a
-  // status: offering Connect here would be a button that can only ever fail.
-  if (!canReachFreenetNode(runtime)) {
-    if (lookingForHub) {
-      return {
-        ready: false,
-        label: 'Looking for a PUF-AM laptop on this Wi‑Fi…',
-        tone: 'wait',
-      };
-    }
-    return { ready: false, label: FREENET_NO_HOST_LABEL, tone: 'todo' };
-  }
-  if (peer?.freenet === 'connected') {
-    return { ready: true, label: 'Connected to Freenet — ready to send or join.', tone: 'ok' };
-  }
-  // A node app on this device is already up or it would not have answered the
-  // probe, so there is nothing here to connect and no peer status to wait for.
-  if (runtime === 'android-local-node') {
-    return { ready: true, label: FREENET_LOCAL_NODE_LABEL, tone: 'ok' };
-  }
-  if (peer?.freenet === 'connecting') {
-    return { ready: false, label: 'Connecting to Freenet…', tone: 'wait' };
-  }
-  if (onDesktop && !hostIsUp(host)) {
-    return {
-      ready: false,
-      label: 'Freenet is not running on this computer yet.',
-      tone: 'todo',
-    };
-  }
-  return { ready: false, label: 'Freenet is running, but this farm is not connected to it.', tone: 'todo' };
-}
+type Readiness = FreenetSyncReadiness;
 
 /** The raw FN02 ticket this device published — diagnostics and offline-LAN fallback. */
 function savedFreenetTicket(farmId: string | undefined): string {
@@ -233,13 +194,20 @@ export function MistFarmSyncCard() {
    */
   const [lookingForHub, setLookingForHub] = useState(() => !isDesktopShell());
   const [runtime, setRuntime] = useState<FreenetRuntime>(detectFreenetRuntime);
+  const canStartOwnNode = isFreenetHostPluginAvailable();
   useEffect(() => {
-    // Both lookups answer the same question — where is the node — and both are
-    // async, so the card starts on whatever is already known and settles.
-    void Promise.allSettled([ensureSyncHub(), refreshFreenetRuntime()]).then(() => {
+    // Start the in-app node first (AppImage bundled binary or APK libfreenet.so).
+    // LAN hub scan is a fast path, not a gate. Attach if :7509 is already up.
+    void (async () => {
+      try {
+        await ensureFreenetHostListening();
+      } catch {
+        /* Probe / start is best-effort; readiness copy says so. */
+      }
+      await Promise.allSettled([ensureSyncHub(), refreshFreenetRuntime()]);
       setRuntime(detectFreenetRuntime());
       setLookingForHub(false);
-    });
+    })();
   }, []);
   const hasNode = canReachFreenetNode(runtime);
 
@@ -370,18 +338,16 @@ export function MistFarmSyncCard() {
 
   if (!isMistExperimentalEnabled()) return null;
 
-  const readiness = describeReadiness(
-    peerStatus,
-    hostStatus,
-    Boolean(desktop),
+  const canSend = mistSessionCanSendFarm(getMistSessionMeta());
+  const readiness = describeFreenetSyncReadiness({
+    peer: peerStatus,
+    host: hostStatus,
+    onDesktop: Boolean(desktop),
     runtime,
     lookingForHub,
-  );
-  const blockedTitle = !hasNode
-    ? FREENET_NO_HOST_LABEL
-    : readOnly
-      ? 'Sending a farm needs a PUF-AM laptop — this tablet can only fetch one'
-      : 'Connect to Freenet first';
+    canStartOwnNode,
+  });
+  const blockedTitle = freenetSendBlockedTitle({ canSend, hasNode, readOnly });
   const parsedPaste = parseJoinTicketInput(paste);
   const freenetTicket = savedFreenetTicket(farmId);
   const joinTicketLooksRight = Boolean(normalizePufToken(joinTicket));
@@ -409,21 +375,25 @@ export function MistFarmSyncCard() {
   /** One button for the whole "is this thing on" problem: node, then peer. */
   const connect = () =>
     run(async () => {
-      const bridge = getDesktopBridge();
-      if (bridge && !hostIsUp(hostStatus)) {
-        const started = await bridge.freenet.start();
+      const desktopBridge = getDesktopBridge();
+      const android = isFreenetHostPluginAvailable() ? getAndroidFreenetBridge() : null;
+      const host = desktopBridge?.freenet ?? android;
+      if (host && !hostIsUp(hostStatus)) {
+        const started = await host.start();
         setHostStatus(started);
-        if (!started?.reachable) {
-          throw new Error(
-            started?.lastError ?? 'Freenet did not start on this computer.',
-          );
+        setRuntime(await refreshFreenetRuntime());
+        if (!started?.reachable && started?.mode !== 'starting') {
+          throw new Error(started?.lastError ?? 'Freenet did not start on this device.');
         }
+      }
+      if (android && !canReachFreenetNode(detectFreenetRuntime())) {
+        throw new Error('Freenet on this tablet is still starting — wait a moment and try again.');
       }
       const status = await startFreenetPeer({ contribute: false });
       setPeerStatus(status);
       setMessage(
         status.freenet === 'connected'
-          ? 'Connected. This laptop can now send or receive a farm.'
+          ? 'Connected. This device can now send or receive a farm.'
           : 'Freenet started. It can take a few minutes to find peers the first time — try again shortly.',
       );
     });
@@ -573,7 +543,7 @@ export function MistFarmSyncCard() {
           <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
         ) : null}
         <span className="flex-1">{readiness.label}</span>
-        {!readiness.ready && hasNode && !readOnly && (
+        {!readiness.ready && !readOnly && canSend && (hasNode || canStartOwnNode) && (
           <button
             type="button"
             disabled={busy}
@@ -588,6 +558,12 @@ export function MistFarmSyncCard() {
       {!hasNode && (
         <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
           {FREENET_NO_HOST_DETAIL}
+        </p>
+      )}
+
+      {!canSend && (
+        <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+          {FREENET_CREW_CANNOT_SEND}
         </p>
       )}
 
@@ -728,6 +704,7 @@ export function MistFarmSyncCard() {
                 type="button"
                 disabled={
                   busy ||
+                  !canSend ||
                   !readiness.ready ||
                   readOnly ||
                   (sendNeedsPin && devicePin.trim().length < 4)

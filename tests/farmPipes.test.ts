@@ -20,6 +20,7 @@ import {
   isHybridFarm,
   mirroredCloudFarmId,
   showFreenetFarmTools,
+  usesCloudSyncOutbox,
 } from '../src/lib/farmPipes';
 
 function seedSession(meta: Record<string, unknown>, backend: 'firebase' | 'mist') {
@@ -34,6 +35,7 @@ describe('cloud — no seed on the device', () => {
   it('is the default', () => {
     expect(activeFarmPipe()).toBe('cloud');
     expect(activeFarmPipes()).toEqual({ lan: true, cloud: true, freenet: false, files: true, cloudMirror: false });
+    expect(usesCloudSyncOutbox()).toBe(true);
     expect(hasFreenetPlane()).toBe(false);
     expect(isCloudMirror()).toBe(false);
     expect(isFarmCodeSession()).toBe(false);
@@ -54,6 +56,7 @@ describe('freenet — a Freenet-native farm is the login', () => {
     expect(mirroredCloudFarmId()).toBeNull();
     expect(freenetPlaneFarmId()).toBe('mist-1');
     expect(farmPipeLabel()).toBe('Freenet');
+    expect(usesCloudSyncOutbox()).toBe(false);
   });
 });
 
@@ -76,6 +79,7 @@ describe('hybrid — member device (cloud login + sealed seed for that farm)', (
     expect(freenetPlaneFarmId()).toBe('mist-1');
     expect(showFreenetFarmTools('cloud-1')).toBe(true);
     expect(farmPipeLabel()).toBe('Cloud sync + Freenet mirror');
+    expect(usesCloudSyncOutbox()).toBe(true);
   });
 
   it('a seed for a different cloud farm makes the open farm plain cloud', () => {
@@ -100,6 +104,7 @@ describe('hybrid — mirror device (joined a cloud farm over Freenet)', () => {
     expect(activeFarmPipes()).toEqual({ lan: true, cloud: false, freenet: true, files: true, cloudMirror: true });
     expect(hasFreenetPlane()).toBe(true);
     expect(mirroredCloudFarmId()).toBe('cloud-1');
+    expect(usesCloudSyncOutbox()).toBe(false);
   });
 
   it('ignores the cloud-farm hint — the mist session is the login', () => {

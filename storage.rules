@@ -39,7 +39,16 @@ service firebase.storage {
     }
 
     // Field issue photos — JPEG under farms/{farmId}/issues/{issueId}/
+    // First/legacy file is photo.jpg; extra photos are {photoId}.jpg (max 5).
     match /farms/{farmId}/issues/{issueId}/{fileName} {
+      allow read: if isFarmMember(farmId);
+      allow write: if canWriteFarm(farmId)
+        && request.resource.size < 8 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Diary photos — wire `events` (UI still says diary). {photoId}.jpg, max 5.
+    match /farms/{farmId}/events/{eventId}/{fileName} {
       allow read: if isFarmMember(farmId);
       allow write: if canWriteFarm(farmId)
         && request.resource.size < 8 * 1024 * 1024

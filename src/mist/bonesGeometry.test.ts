@@ -121,6 +121,52 @@ describe('bonesGeometry pack/unpack', () => {
     expect(readBack.blocks[0]?.id).toBe('block-1');
     expect(readBack.viewport?.zoom).toBe(14);
   });
+
+  it('mergeFarmGeometryFromBones keeps local-only paddocks and LWW on id', async () => {
+    const { mergeFarmGeometryFromBones } = await import('./bonesGeometry');
+    const linuxOnly: OrchardBlock = {
+      ...sampleBlock,
+      id: 'linux-only',
+      name: 'West dam',
+      updatedAt: '2026-09-13T01:00:00.000Z',
+    };
+    const sharedOld: OrchardBlock = {
+      ...sampleBlock,
+      id: 'shared',
+      name: 'North old',
+      updatedAt: '2026-09-13T02:00:00.000Z',
+    };
+    await farmGeometryIdb.saveFarmGeometry({
+      farmId: FARM_ID,
+      blocks: [linuxOnly, sharedOld],
+      pins: [],
+      tracks: [],
+      viewport: { lat: -34.2, lng: 150.1, zoom: 13 },
+      updatedAt: '2026-09-13T02:00:00.000Z',
+    });
+
+    const tabletEdit: OrchardBlock = {
+      ...sampleBlock,
+      id: 'shared',
+      name: 'North tablet',
+      updatedAt: '2026-09-13T03:00:00.000Z',
+    };
+    const result = await mergeFarmGeometryFromBones(FARM_ID, {
+      v: 1,
+      kind: 'farm-geometry',
+      farmId: FARM_ID,
+      exportedAt: '2026-09-13T03:00:00.000Z',
+      blocks: [tabletEdit],
+      pins: [],
+      tracks: [],
+      viewport: { lat: -33.9, lng: 115.0, zoom: 16 },
+    });
+
+    expect(result.after.blocks).toBe(2);
+    const names = result.bundle.blocks.map((b) => b.name).sort();
+    expect(names).toEqual(['North tablet', 'West dam']);
+    expect(result.bundle.viewport?.zoom).toBe(13);
+  });
 });
 
 describe('mist bones store round-trip', () => {

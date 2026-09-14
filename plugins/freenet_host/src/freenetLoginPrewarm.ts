@@ -1,7 +1,7 @@
 /**
  * Flip the desktop mist preference on (Electron) and start the node while the
  * joiner types their name. Same reconciler as `farmSession` — core never sees
- * a node. Android attaches to Freenet Android Node on :7509 the same way.
+ * a node. Android starts the in-APK :freenet host, or attaches if :7509 is taken.
  * `Plans/LOGIN_JOIN_SINGLE_BOX.md` §2.8.
  */
 

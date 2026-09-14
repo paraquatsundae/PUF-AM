@@ -38,7 +38,7 @@ function unavailableReason(): string {
   if (isPackagedNativeAndroid()) {
     return isFreenetHostPluginAvailable()
       ? 'PUF-AM starts its own Freenet node when this farm is open. If another node is already on this device, PUF-AM uses that one.'
-      : 'No Freenet node is listening on this tablet. Pair a PUF-AM laptop hub, or install a build that ships the in-APK node.';
+      : 'This install has no in-APK Freenet node. Rebuild the Freenet APK flavor so libfreenet.so is packaged. A laptop hub is optional, not required.';
   }
   return 'The web app has no Freenet node. Open this farm in the desktop app to enable Freenet.';
 }

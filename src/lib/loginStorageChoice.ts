@@ -22,9 +22,8 @@ export type FreenetOptionState =
   /** Gate is open — the operator can start or recover a mist farm now. */
   | 'available'
   /**
-   * Desktop shell with mist switched off. The node lives in this app, so the
-   * option is shown greyed with a pointer at the Settings toggle instead of
-   * pretending the feature does not exist.
+   * Leftover: Electron used to grey Freenet until a Settings toggle. The AppImage
+   * now starts its bundled node itself (FarmCode / create is the opt-in).
    */
   | 'needs-setting'
   /** No host capability here (hosted web, or an APK with the gate shut): Firebase is the only path. */
@@ -54,14 +53,15 @@ export function freenetOptionState(input: {
    */
   workshopHub?: boolean;
   /**
-   * Capacitor APK. With the mist gate open it still offers Freenet: attach to
-   * Freenet Android Node on :7509 (Phase 3) or read through a paired hub.
+   * Capacitor APK. With the mist gate open it offers Freenet: the in-APK node
+   * on :7509, or attach if something else is already bound there.
    */
   nativeReader?: boolean;
 }): FreenetOptionState {
   if (input.workshopHub) return 'available';
-  if (input.capability === 'electron') return input.mistEnabled ? 'available' : 'needs-setting';
-  if (input.capability === 'android') return 'available';
+  // Bundled linux-x64 in the AppImage — same as in-APK libfreenet.so. Opening a
+  // Freenet farm starts the node; MIST_FREENET=1 is a workshop override only.
+  if (input.capability === 'electron' || input.capability === 'android') return 'available';
   if (input.nativeReader && input.mistEnabled) return 'available';
   return 'hidden';
 }

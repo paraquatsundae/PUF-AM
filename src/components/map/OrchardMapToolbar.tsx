@@ -30,6 +30,7 @@ export function OrchardMapToolbar({
   crewError,
   pendingSyncCount,
   onFlushSync,
+  freenetPending,
   featureLoadWarning,
   searchQuery,
   onSearchQuery,
@@ -61,6 +62,8 @@ export function OrchardMapToolbar({
   crewError: string | null | undefined;
   pendingSyncCount: number;
   onFlushSync: () => void;
+  /** Honest Freenet status — never cloud-pending copy. */
+  freenetPending: { label: string; title: string } | null;
   featureLoadWarning: string | null;
   searchQuery: string;
   onSearchQuery: (value: string) => void;
@@ -148,6 +151,17 @@ export function OrchardMapToolbar({
             >
               <RefreshCw className="w-3 h-3" />
               {pendingSyncCount} pending sync
+            </button>
+          )}
+          {freenetPending && pendingSyncCount === 0 && (
+            <button
+              type="button"
+              onClick={onFlushSync}
+              className="hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md bg-violet-50 text-violet-800 text-[10px] font-semibold hover:bg-violet-100"
+              title={freenetPending.title}
+            >
+              <RefreshCw className="w-3 h-3" />
+              {freenetPending.label}
             </button>
           )}
 

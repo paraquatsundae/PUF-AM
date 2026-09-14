@@ -5,6 +5,7 @@ import {
   createMistSessionRecord,
   getMistSessionMeta,
   loadMistDeviceSession,
+  mistSessionCanSendFarm,
   mistSessionNeedsPin,
   saveMistDeviceSession,
 } from './mistDeviceSession.ts';
@@ -101,5 +102,21 @@ describe('mistDeviceSession', () => {
     expect(loaded?.hotKeyHex).toBe(session.hotKeyHex);
     expect(loaded?.bonesKeyHex).toBe(session.bonesKeyHex);
     expect(JSON.stringify(loaded)).not.toMatch(/farmSeed/i);
+  });
+
+  it('lets an owner session Send and refuses crew', async () => {
+    await saveMistDeviceSession(sampleSession());
+    expect(mistSessionCanSendFarm(getMistSessionMeta())).toBe(true);
+
+    const crew = createMistCrewSessionRecord({
+      farmId: 'e'.repeat(32),
+      farmName: 'Crew Farm',
+      displayName: 'Dana',
+      hotKey: new Uint8Array(32).fill(1),
+      bonesKey: new Uint8Array(32).fill(2),
+    });
+    await saveMistDeviceSession(crew);
+    expect(mistSessionCanSendFarm(getMistSessionMeta())).toBe(false);
+    expect(mistSessionCanSendFarm(null)).toBe(false);
   });
 });

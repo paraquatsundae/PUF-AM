@@ -7,8 +7,8 @@
  * Freenet is send-then-read-a-ticket, and which of the two is currently up. This
  * module holds the ladder that decides instead, and nothing else: it takes a
  * description of the conditions and returns a plan. Probing lives in
- * `components/sync/useAutoSync.ts`, so the ladder itself stays a pure function
- * with a test per rung.
+ * `components/sync/useAutoSync.ts` (React) and `src/lib/runFarmSync.ts` (I/O),
+ * so the ladder itself stays a pure function with a test per rung.
  *
  * The ladder, in order:
  *
@@ -267,7 +267,7 @@ function planPipeSync(conditions: {
         detail:
           'This device pings a small Freenet watch slot every few seconds and fetches Hot only ' +
           'when the generation changed — highlights and diary, no FarmSeed. Sending a farm ' +
-          '(a new join ticket) still needs a PUF-AM laptop. ' +
+          '(a new join ticket) needs the owner device that holds FarmSeed — pairing a hub does not unlock Send. ' +
           peerDetail,
       };
     }

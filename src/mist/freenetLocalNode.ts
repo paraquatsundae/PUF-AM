@@ -252,10 +252,10 @@ export const FREENET_LOCAL_NODE_LABEL =
 
 /** What that node can do once the page can PUT to it (Phase 3 attach). */
 export const FREENET_LOCAL_NODE_DETAIL =
-  'The Freenet node on this tablet answers lookups and can publish — join and Send work here ' +
-  'with no laptop. Open Freenet Android Node if the line above goes away.';
+  'The Freenet node in this app answers lookups and can publish — join and Send work here ' +
+  'with no laptop and no second Freenet app.';
 
-/** And when the node app is installed but not running. */
+/** And when our in-APK node has not answered yet. */
 export const FREENET_LOCAL_NODE_MISSING_DETAIL =
-  'If you have the Freenet node app on this tablet, open it and wait for it to say it is ' +
-  'connected, then try again.';
+  'PUF-AM is starting its own Freenet node. Wait a moment and try again — you do not need ' +
+  'Freenet Android Node or a laptop hub.';

@@ -126,7 +126,7 @@ export function FilesBackupCard({ sync }: { sync: FarmSync }) {
                 onChange={(e) => setIncludePhotos(e.target.checked)}
                 className="rounded border-slate-300"
               />
-              Include compressed issue photos in zip sidecar
+              Include compressed photos in zip sidecar (flat names; warns if Freenet JPEGs are missing)
             </label>
             <div className="flex flex-wrap gap-2">
               <button

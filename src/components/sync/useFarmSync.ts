@@ -352,7 +352,14 @@ export function useFarmSync() {
   const exportZip = (includePhotos: boolean) =>
     void run('files', 'export-zip', async () => {
       const farmName = getLastFarm()?.farmName;
-      const { filename } = await downloadFarmExportZip(farmId, { farmName, includePhotos });
+      const { filename, missingPhotos } = await downloadFarmExportZip(farmId, {
+        farmName,
+        includePhotos,
+      });
+      if (includePhotos && missingPhotos.length) {
+        const { farmExportPhotoMissingWarning } = await import('../../lib/farmExportPhotos');
+        return `Saved ${filename}. ${farmExportPhotoMissingWarning(missingPhotos)}`;
+      }
       return `Saved ${filename}`;
     });
 

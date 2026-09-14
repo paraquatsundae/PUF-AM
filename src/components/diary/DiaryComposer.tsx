@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils';
 import { DiaryComposerPlanFields } from './DiaryComposerPlanFields';
 import { DiaryComposerSprayFields } from './DiaryComposerSprayFields';
 import { DiaryComposerWaterFields } from './DiaryComposerWaterFields';
+import { IssuePhotoField } from '../map/IssuePhotoField';
 
 type Props = {
   canEdit: boolean;
@@ -67,6 +68,9 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
     allAdjuvants,
     availableProducts,
     handleSubmit,
+    pendingPhotos,
+    addPendingPhoto,
+    removePendingPhoto,
   } = composer;
 
   return (
@@ -243,6 +247,13 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
                           onDuration={setDuration}
                         />
                       )}
+
+                      <IssuePhotoField
+                        photos={pendingPhotos.map((row) => ({ id: row.id, src: row.src }))}
+                        onAdd={(blob) => addPendingPhoto(blob)}
+                        onRemove={removePendingPhoto}
+                        addLabel="Add photo"
+                      />
 
                       {activeTab !== 'plan' && (
                         <div>

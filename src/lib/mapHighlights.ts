@@ -24,8 +24,22 @@ import {
 export const HIGHLIGHT_DEFAULT_SECONDS = 30;
 /** Freenet Opennet is minutes; 30s expires before the other device can ping. */
 export const HIGHLIGHT_FREENET_DEFAULT_SECONDS = 300;
-export const HIGHLIGHT_DURATION_PRESETS_SEC = [30, 60, 120, 300] as const;
-export const HIGHLIGHT_MAX_SECONDS = 600;
+/** Compose chips: 30 sec, 5 min, 1 hour, 12 hr. Custom is hours, not a chip value. */
+export const HIGHLIGHT_DURATION_PRESETS_SEC = [30, 300, 3600, 12 * 3600] as const;
+export const HIGHLIGHT_DURATION_PRESET_LABELS: Readonly<Record<number, string>> = {
+  30: '30 sec',
+  300: '5 min',
+  3600: '1 hour',
+  [12 * 3600]: '12 hr',
+};
+/** Farm setup / Firestore `highlightDefaultSeconds` — viewers cannot pick compose Custom. */
+export const HIGHLIGHT_FARM_DEFAULT_PRESETS_SEC = [30, 60, 120, 300] as const;
+export const HIGHLIGHT_FARM_DEFAULT_MAX_SECONDS = 600;
+/** Compose-only Custom field (hours). Wire stays `durationSeconds` → `expiresAt`. */
+export const HIGHLIGHT_CUSTOM_HOURS_MIN = 0.1;
+export const HIGHLIGHT_CUSTOM_HOURS_MAX = 400;
+export const HIGHLIGHT_MIN_CUSTOM_SECONDS = Math.round(HIGHLIGHT_CUSTOM_HOURS_MIN * 3600);
+export const HIGHLIGHT_MAX_SECONDS = HIGHLIGHT_CUSTOM_HOURS_MAX * 3600;
 export const HIGHLIGHT_MAX_NOTE = 280;
 export const HIGHLIGHT_MAX_DIRECTED_NAME = 100;
 /** Window event after a Freenet pull rehydrates local highlights. */
@@ -93,6 +107,36 @@ export function isHighlightActive(
   return t > nowMs;
 }
 
+export function highlightCustomHoursError(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return 'Enter hours (0.1–400).';
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return 'Enter hours (0.1–400).';
+  if (n <= 0 || n < HIGHLIGHT_CUSTOM_HOURS_MIN) {
+    return 'Duration must be at least 0.1 hours (6 minutes).';
+  }
+  if (n > HIGHLIGHT_CUSTOM_HOURS_MAX) return 'Maximum is 400 hours.';
+  return null;
+}
+
+/** Custom compose hours → number, or null if empty / 0 / below 0.1 / above 400. */
+export function parseHighlightCustomHours(raw: string | number): number | null {
+  const text = typeof raw === 'number' ? String(raw) : raw;
+  if (highlightCustomHoursError(text)) return null;
+  const n = typeof raw === 'number' ? raw : Number(raw.trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+export function highlightCustomHoursToSeconds(hours: number): number | null {
+  const parsed = parseHighlightCustomHours(hours);
+  if (parsed == null) return null;
+  return Math.round(parsed * 3600);
+}
+
+export function isHighlightDurationPreset(sec: number): boolean {
+  return (HIGHLIGHT_DURATION_PRESETS_SEC as readonly number[]).includes(sec);
+}
+
 export function resolveHighlightDurationSeconds(opts: {
   role: 'admin' | 'farmer' | 'viewer' | string | undefined;
   farmDefaultSeconds?: number | null;
@@ -102,7 +146,7 @@ export function resolveHighlightDurationSeconds(opts: {
     typeof opts.farmDefaultSeconds === 'number' &&
     Number.isFinite(opts.farmDefaultSeconds) &&
     opts.farmDefaultSeconds > 0
-      ? Math.min(HIGHLIGHT_MAX_SECONDS, Math.round(opts.farmDefaultSeconds))
+      ? Math.min(HIGHLIGHT_FARM_DEFAULT_MAX_SECONDS, Math.round(opts.farmDefaultSeconds))
       : HIGHLIGHT_DEFAULT_SECONDS;
 
   const canChoose = opts.role === 'admin' || opts.role === 'farmer';

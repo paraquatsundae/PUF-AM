@@ -8,10 +8,19 @@
 import { zipSync } from 'fflate';
 import type { DiaryEvent } from './farmDiary';
 import type { FieldIssue } from './fieldStore';
+import { issueHasPhoto } from './issuePhotoMeta';
+import { listEventPhotoRefs, photosForFirestore } from './farmPhoto';
 import { getFarmGeometry } from './farmGeometryIdb';
 import { listLocalEntities } from './localFarmRepo';
-import { listPhotoOutbox } from './photoOutbox';
 import type { OrchardBlock } from './mapStore';
+import {
+  buildFarmExportPhotoEntries,
+  farmExportPhotoMissingWarning,
+  type FarmExportMissingPhoto,
+} from './farmExportPhotos';
+
+export { buildFarmExportPhotoEntries, farmExportPhotoMissingWarning };
+export type { FarmExportMissingPhoto };
 
 export const FARM_EXPORT_FORMAT = 'farm-export' as const;
 export const FARM_EXPORT_VERSION = 1 as const;
@@ -27,7 +36,9 @@ export type FarmExportScope = {
 export type FarmExportDiaryEvent = DiaryEvent & { blockName?: string };
 
 /** Issue row for export — photoData stripped; hasPhoto derived. */
-export type FarmExportIssue = Omit<FieldIssue, 'photoData'> & { hasPhoto: boolean };
+export type FarmExportIssue = Omit<FieldIssue, 'photoData' | 'photoStatus' | 'photoError'> & {
+  hasPhoto: boolean;
+};
 
 export type FarmExportV1 = {
   format: typeof FARM_EXPORT_FORMAT;
@@ -89,9 +100,10 @@ export function resolveBlockName(blockId: string | undefined, blockNames: Map<st
 }
 
 export function sanitizeIssueForExport(issue: FieldIssue): FarmExportIssue {
-  const { photoData, ...rest } = issue;
-  const hasPhoto = !!(issue.photoUrl || photoData);
-  return omitUndefined({ ...rest, hasPhoto }) as FarmExportIssue;
+  const { photoData, photoStatus, photoError, ...rest } = issue;
+  const hasPhoto = issueHasPhoto(issue);
+  const photos = photosForFirestore(issue.photos);
+  return omitUndefined({ ...rest, ...(photos ? { photos } : {}), hasPhoto }) as FarmExportIssue;
 }
 
 export function enrichDiaryForExport(
@@ -99,6 +111,8 @@ export function enrichDiaryForExport(
   blockNames: Map<string, string>
 ): FarmExportDiaryEvent {
   const row: Record<string, unknown> = { ...event };
+  const photos = photosForFirestore(listEventPhotoRefs(event));
+  if (photos) row.photos = photos;
   if (event.blockId) {
     const blockName = resolveBlockName(event.blockId, blockNames);
     if (blockName) row.blockName = blockName;
@@ -215,129 +229,25 @@ export function farmExportJsonString(bundle: FarmExportV1): string {
   return JSON.stringify(bundle, null, 2);
 }
 
-function dataUrlToBytes(dataUrl: string): Uint8Array | null {
-  const i = dataUrl.indexOf(',');
-  if (i < 0) return null;
-  const b64 = dataUrl.slice(i + 1);
-  try {
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
-    return bytes;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Compress issue photo to records-quality JPEG bytes (1280 px long edge, ~80% quality).
- * Works in browser (canvas) and Node test stubs when canvas unavailable.
- */
-export async function compressIssuePhotoForExport(source: Blob | string): Promise<Uint8Array | null> {
-  if (typeof source === 'string') {
-    const bytes = dataUrlToBytes(source);
-    return bytes;
-  }
-
-  if (typeof createImageBitmap === 'undefined' || typeof document === 'undefined') {
-    try {
-      const buf = await source.arrayBuffer();
-      return new Uint8Array(buf);
-    } catch {
-      return null;
-    }
-  }
-
-  try {
-    const bitmap = await createImageBitmap(source);
-    const maxEdge = 1280;
-    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-    const w = Math.max(1, Math.round(bitmap.width * scale));
-    const h = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      bitmap.close();
-      return null;
-    }
-    ctx.drawImage(bitmap, 0, 0, w, h);
-    bitmap.close();
-
-    const quality = 0.8;
-    const dataUrl = canvas.toDataURL('image/jpeg', quality);
-    return dataUrlToBytes(dataUrl);
-  } catch {
-    return null;
-  }
-}
-
-async function resolveIssuePhotoBytes(
-  farmId: string,
-  issue: FieldIssue,
-  outboxByIssue: Map<string, Blob>
-): Promise<Uint8Array | null> {
-  const outboxBlob = outboxByIssue.get(issue.id);
-  if (outboxBlob) {
-    return compressIssuePhotoForExport(outboxBlob);
-  }
-  if (issue.photoData) {
-    return compressIssuePhotoForExport(issue.photoData);
-  }
-  return null;
-}
-
-/** Build sidecar zip entries: photos/{issueId}.jpg for issues with local thumbnails. */
-export async function buildFarmExportPhotoEntries(
-  farmId: string,
-  bundle: FarmExportV1
-): Promise<Record<string, Uint8Array>> {
-  const outboxRows = await listPhotoOutbox(farmId);
-  const outboxByIssue = new Map<string, Blob>();
-  for (const row of outboxRows) {
-    outboxByIssue.set(row.issueId, row.blob);
-  }
-
-  const entries: Record<string, Uint8Array> = {};
-
-  const sourceIssues = await Promise.all([
-    listLocalEntities<FieldIssue>(farmId, 'issues'),
-    listLocalEntities<FieldIssue>(farmId, 'issues_archive'),
-  ]).then(([a, b]) => [...a, ...b]);
-
-  const byId = new Map(sourceIssues.map((i) => [i.id, i]));
-
-  for (const exported of [...bundle.issues, ...bundle.issuesArchive]) {
-    if (!exported.hasPhoto) continue;
-    const raw = byId.get(exported.id);
-    if (!raw) continue;
-    const bytes = await resolveIssuePhotoBytes(farmId, raw, outboxByIssue);
-    if (bytes && bytes.length > 0) {
-      entries[`photos/${exported.id}.jpg`] = bytes;
-    }
-  }
-
-  return entries;
-}
-
 /** Zip farm-export.json + optional photos/ sidecar. */
 export async function buildFarmExportZip(
   farmId: string,
   bundle: FarmExportV1,
   opts?: { includePhotos?: boolean }
-): Promise<Uint8Array> {
+): Promise<{ bytes: Uint8Array; missingPhotos: FarmExportMissingPhoto[] }> {
   const jsonName = 'farm-export.json';
   const files: Record<string, Uint8Array> = {
     [jsonName]: new TextEncoder().encode(farmExportJsonString(bundle)),
   };
+  let missingPhotos: FarmExportMissingPhoto[] = [];
 
   if (opts?.includePhotos) {
-    const photoEntries = await buildFarmExportPhotoEntries(farmId, bundle);
-    Object.assign(files, photoEntries);
+    const photoBuild = await buildFarmExportPhotoEntries(farmId, bundle);
+    Object.assign(files, photoBuild.entries);
+    missingPhotos = photoBuild.missing;
   }
 
-  return zipSync(files);
+  return { bytes: zipSync(files), missingPhotos };
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {
@@ -369,12 +279,19 @@ export async function downloadFarmExportJson(
 export async function downloadFarmExportZip(
   farmId: string,
   opts?: BuildFarmExportOpts & { includePhotos?: boolean }
-): Promise<{ bundle: FarmExportV1; filename: string; bytes: Uint8Array }> {
+): Promise<{
+  bundle: FarmExportV1;
+  filename: string;
+  bytes: Uint8Array;
+  missingPhotos: FarmExportMissingPhoto[];
+}> {
   const bundle = await buildFarmExportJson(farmId, opts);
-  const bytes = await buildFarmExportZip(farmId, bundle, { includePhotos: opts?.includePhotos });
+  const { bytes, missingPhotos } = await buildFarmExportZip(farmId, bundle, {
+    includePhotos: opts?.includePhotos,
+  });
   const { zipFilename } = farmExportFilenames(opts?.farmName, farmId, bundle.exportedAt);
   downloadBytes(bytes, zipFilename, 'application/zip');
-  return { bundle, filename: zipFilename, bytes };
+  return { bundle, filename: zipFilename, bytes, missingPhotos };
 }
 
 export function isFarmExportV1(value: unknown): value is FarmExportV1 {

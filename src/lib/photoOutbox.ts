@@ -1,7 +1,14 @@
 /**
- * Offline Firebase Storage queue for field-issue photos.
- * Blobs live in IndexedDB until flush; issues keep a compressed photoData preview.
+ * Offline Firebase Storage queue for field-issue and diary/event photos.
+ * Blobs live in IndexedDB until flush.
  */
+
+import {
+  hostedPhotoStoragePath,
+  LEGACY_PHOTO_ID,
+  photoOutboxRowId,
+  type FarmPhotoKind,
+} from './farmPhoto';
 
 export const PHOTO_OUTBOX_DB = 'pufom_photo_outbox';
 export const PHOTO_OUTBOX_VERSION = 1;
@@ -12,19 +19,38 @@ export const MAX_PHOTO_DATA_BYTES = 800_000;
 export type PhotoOutboxRow = {
   id: string;
   farmId: string;
+  kind?: FarmPhotoKind;
   issueId: string;
+  eventId?: string;
+  photoId?: string;
   path: string;
   blob: Blob;
   createdAt: string;
   status: 'pending' | 'uploading';
 };
 
-export function photoStoragePath(farmId: string, issueId: string): string {
-  return `farms/${farmId}/issues/${issueId}/photo.jpg`;
+export function photoStoragePath(
+  farmId: string,
+  issueId: string,
+  photoId: string = LEGACY_PHOTO_ID,
+): string {
+  return hostedPhotoStoragePath('issue', farmId, issueId, photoId);
 }
 
-export function photoOutboxId(farmId: string, issueId: string): string {
-  return `${farmId}:${issueId}`;
+export function eventPhotoStoragePath(
+  farmId: string,
+  eventId: string,
+  photoId: string,
+): string {
+  return hostedPhotoStoragePath('event', farmId, eventId, photoId);
+}
+
+export function photoOutboxId(
+  farmId: string,
+  issueId: string,
+  photoId: string = LEGACY_PHOTO_ID,
+): string {
+  return photoOutboxRowId('issue', farmId, issueId, photoId);
 }
 
 export function estimateDataUrlBytes(dataUrl: string): number {
@@ -51,13 +77,44 @@ function openDb(): Promise<IDBDatabase> {
 export async function enqueuePhoto(
   farmId: string,
   issueId: string,
-  blob: Blob
+  blob: Blob,
+  photoId: string = LEGACY_PHOTO_ID,
 ): Promise<PhotoOutboxRow> {
   const row: PhotoOutboxRow = {
-    id: photoOutboxId(farmId, issueId),
+    id: photoOutboxId(farmId, issueId, photoId),
     farmId,
+    kind: 'issue',
     issueId,
-    path: photoStoragePath(farmId, issueId),
+    photoId,
+    path: photoStoragePath(farmId, issueId, photoId),
+    blob,
+    createdAt: new Date().toISOString(),
+    status: 'pending',
+  };
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, 'readwrite');
+    tx.objectStore(PHOTO_STORE).put(row);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  return row;
+}
+
+export async function enqueueEventPhoto(
+  farmId: string,
+  eventId: string,
+  blob: Blob,
+  photoId: string,
+): Promise<PhotoOutboxRow> {
+  const row: PhotoOutboxRow = {
+    id: photoOutboxRowId('event', farmId, eventId, photoId),
+    farmId,
+    kind: 'event',
+    issueId: eventId,
+    eventId,
+    photoId,
+    path: eventPhotoStoragePath(farmId, eventId, photoId),
     blob,
     createdAt: new Date().toISOString(),
     status: 'pending',

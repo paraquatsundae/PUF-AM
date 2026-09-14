@@ -116,6 +116,20 @@ describe('farmExport envelope', () => {
     expect(out.note).toBe('Chewed leaves');
     expect('photoData' in out).toBe(false);
   });
+
+  it('derives hasPhoto from a Freenet photo hash without embedding bytes', () => {
+    const out = sanitizeIssueForExport({
+      ...sampleIssue,
+      photoData: undefined,
+      photoUrl: undefined,
+      photoHash: 'ab'.repeat(32),
+      photoFreenetUri: 'FN02@photo',
+    });
+    expect(out.hasPhoto).toBe(true);
+    expect(out.photoHash).toBe('ab'.repeat(32));
+    expect('photoData' in out).toBe(false);
+    expect('photoStatus' in out).toBe(false);
+  });
 });
 
 /** Split one CSV record, honouring RFC 4180 quoting. */

@@ -21,6 +21,7 @@ import {
   androidFreenetHostReadStatus,
   androidFreenetHostTakeDown,
   createAndroidFreenetBridge,
+  ensureAndroidFreenetListening,
 } from '../src/mist/freenetAndroidHost.ts';
 import { resetLocalFreenetNode, setLocalFreenetNodeFoundForTests } from '../src/mist/freenetLocalNode.ts';
 import { selectFreenetTransportKind } from '../src/mist/freenetPackTransport.ts';
@@ -79,6 +80,37 @@ describe('androidFreenetHostBringUp', () => {
     });
     expect(pluginStart).toHaveBeenCalledTimes(1);
     expect(status.mode).toBe('attached');
+  });
+
+  it('waits after a stale fail-clean so a new spawn can bind :7509', async () => {
+    let listening = false;
+    const pluginStart = vi.fn(async () =>
+      androidFreenetHostStatus({
+        mode: 'failed',
+        lastError: ANDROID_FREENET_NO_BINARY,
+      }),
+    );
+    const pluginStatus = vi.fn(async () =>
+      listening
+        ? androidFreenetHostStatus({ mode: 'managed', reachable: true })
+        : androidFreenetHostStatus({ mode: 'starting', reachable: false }),
+    );
+    const pending = androidFreenetHostBringUp({
+      probe: async () => {
+        if (!listening) {
+          listening = true;
+          return false;
+        }
+        return true;
+      },
+      pluginAvailable: () => true,
+      pluginStart,
+      pluginStatus,
+    });
+    const status = await pending;
+    expect(pluginStart).toHaveBeenCalledTimes(1);
+    expect(status.reachable).toBe(true);
+    expect(status.mode === 'managed' || status.mode === 'attached').toBe(true);
   });
 
   it('waits for :7509 after the plugin reports starting, then treats it as managed', async () => {
@@ -176,6 +208,32 @@ describe('transport + Send', () => {
 
   it('keeps the hub relay when :7509 is down even if a data bridge exists', () => {
     expect(selectFreenetTransportKind({ capability: null, bridgeHasDataPath: true })).toBe('relay');
+  });
+
+  it('starts the plugin when :7509 is down and the so can spawn', async () => {
+    let up = false;
+    const pluginStart = vi.fn(async () => {
+      up = true;
+      return androidAttachedStatus();
+    });
+    const listening = await ensureAndroidFreenetListening({
+      probe: async () => up,
+      pluginAvailable: () => true,
+      pluginStart,
+    });
+    expect(pluginStart).toHaveBeenCalledTimes(1);
+    expect(listening).toBe(true);
+  });
+
+  it('does not require a hub when :7509 is already live', async () => {
+    const pluginStart = vi.fn(async () => androidMissingBinaryStatus());
+    const listening = await ensureAndroidFreenetListening({
+      probe: async () => true,
+      pluginAvailable: () => true,
+      pluginStart,
+    });
+    expect(listening).toBe(true);
+    expect(pluginStart).not.toHaveBeenCalled();
   });
 
   it('lifts read-only when a local node can publish', () => {

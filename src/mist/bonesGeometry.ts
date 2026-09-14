@@ -5,7 +5,12 @@
  */
 
 import type { FarmGeometryBundle } from '../lib/farmGeometryIdb';
-import { getFarmGeometry, saveFarmGeometry } from '../lib/farmGeometryIdb';
+import {
+  getFarmGeometry,
+  mergeGeometryByUpdatedAt,
+  saveFarmGeometry,
+  withFarmGeometryWrite,
+} from '../lib/farmGeometryIdb';
 
 export const BONES_FARM_GEOMETRY_ASSET_ID = 'farm-geometry';
 
@@ -102,4 +107,33 @@ export async function rehydrateFarmGeometryFromBones(
   const after = countGeometry(bundle);
 
   return { before, after, bundle };
+}
+
+/**
+ * Incremental Bones apply — union by id + LWW. A tablet snapshot that is a
+ * subset must not wipe paddocks that exist only on this device.
+ *
+ * Viewport stays local (same rule as Hot merge — do not jump the map).
+ */
+export async function mergeFarmGeometryFromBones(
+  farmId: string,
+  payload: BonesFarmGeometryPayload,
+): Promise<RehydrateGeometryResult> {
+  if (payload.farmId !== farmId) {
+    throw new Error(`Bones farmId mismatch: expected ${farmId}, got ${payload.farmId}`);
+  }
+
+  const beforeBundle = await getFarmGeometry(farmId);
+  const before = countGeometry(beforeBundle);
+
+  const bundle = await withFarmGeometryWrite(farmId, (local) => ({
+    farmId,
+    blocks: mergeGeometryByUpdatedAt(local.blocks, payload.blocks),
+    pins: mergeGeometryByUpdatedAt(local.pins, payload.pins),
+    tracks: mergeGeometryByUpdatedAt(local.tracks, payload.tracks),
+    viewport: local.viewport ?? payload.viewport ?? null,
+    updatedAt: new Date().toISOString(),
+  }));
+
+  return { before, after: countGeometry(bundle), bundle };
 }

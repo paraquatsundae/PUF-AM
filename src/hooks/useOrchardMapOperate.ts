@@ -47,6 +47,12 @@ export function useOrchardMapOperate({
   }, [farmId, loadFieldData]);
 
   useEffect(() => {
+    if (!selectedIssue) return;
+    const live = fieldIssues.find((row) => row.id === selectedIssue.id);
+    if (live && live !== selectedIssue) setSelectedIssue(live);
+  }, [fieldIssues, selectedIssue]);
+
+  useEffect(() => {
     if (mapMode !== 'operate' || !highlightedBlockId || !mapInstance) return;
     const block = blocks.find((b) => b.id === highlightedBlockId);
     if (!block?.geojson) return;
@@ -115,6 +121,7 @@ export function useOrchardMapOperate({
       category: FieldIssue['category'];
       priority: FieldIssue['priority'];
       note: string;
+      photos?: Blob[];
     }) => {
       if (!farmId || !reportDraft || !uid) return;
       const issue: FieldIssue = {
@@ -127,10 +134,25 @@ export function useOrchardMapOperate({
         status: 'open',
         reportedBy: uid,
         reportedAt: new Date().toISOString(),
+        ...(reportDraft.blockId ? { blockId: reportDraft.blockId } : {}),
       };
       await addFieldIssue(farmId, issue);
+      if (data.photos?.length) {
+        const { attachIssuePhoto } = await import('../lib/attachIssuePhoto');
+        for (const photo of data.photos) {
+          try {
+            await attachIssuePhoto(farmId, issue.id, photo, {
+              createdBy: uid,
+              blockId: reportDraft.blockId,
+            });
+          } catch {
+            /* photoStatus is already failed — keep the pin */
+          }
+        }
+      }
       setReportDraft(null);
       setShowIssueFlags(true);
+      setSelectedIssue(useFieldStore.getState().issues.find((row) => row.id === issue.id) ?? issue);
     },
     [farmId, reportDraft, uid, addFieldIssue]
   );

@@ -27,7 +27,10 @@ import { buildOrchardMapDrawLayerCtx } from '../lib/orchardMapDrawLayerCtx';
 import { orchardMapCanvasActions } from '../lib/orchardMapCanvasActions';
 import { orchardMapSheetActions } from '../lib/orchardMapSheetActions';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
-import { activeFarmPipe } from '../lib/farmPipes';
+import { activeFarmPipe, usesCloudSyncOutbox } from '../lib/farmPipes';
+import { getLastFarm } from '../lib/deviceSession';
+import { syncFarmNow } from '../lib/runFarmSync';
+import { describeFreenetMapPending } from '../lib/freenetMapPending';
 import { useCrewPresence } from '../hooks/useCrewPresence';
 import { useMapHighlights } from '../hooks/useMapHighlights';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
@@ -346,8 +349,18 @@ export function OrchardMap() {
         crewPublishStatus={crewPublishStatus}
         crewSharing={crewSharing}
         crewError={crewError}
-        pendingSyncCount={pendingSyncCount}
-        onFlushSync={() => void flushSync(farmId)}
+        pendingSyncCount={
+          usesCloudSyncOutbox() && !isLocalOnlyFarmSession() ? pendingSyncCount : 0
+        }
+        onFlushSync={() => {
+          if (isLocalOnlyFarmSession()) return;
+          if (!usesCloudSyncOutbox()) {
+            void syncFarmNow(farmId, { farmName: getLastFarm()?.farmName, manual: true });
+            return;
+          }
+          void flushSync(farmId);
+        }}
+        freenetPending={describeFreenetMapPending(farmId)}
         featureLoadWarning={featureLoad?.message ?? null}
         searchQuery={search.searchQuery}
         onSearchQuery={search.setSearchQuery}
@@ -368,7 +381,9 @@ export function OrchardMap() {
           chrome.setActiveTab(tab);
           chrome.setShowSidebar(true);
         }}
-        syncError={syncError}
+        syncError={
+          usesCloudSyncOutbox() && !isLocalOnlyFarmSession() ? syncError : null
+        }
         onClearSyncError={clearSyncError}
       />
 

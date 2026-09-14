@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { diaryApi } from '../services/api';
 import type { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { mergeByLww } from '../../shared/sync/pufomBundle';
+import { keepEventPhotosIfMissing } from './farmPhoto';
 import type { DiaryEvent, FarmSettings } from './farmDiaryTypes';
 import { getDefaultDiaryStartDate } from './farmDiaryTypes';
 
@@ -19,8 +20,14 @@ interface FarmDiaryState {
   currentEndDate: string | null;
   setEvents: (events: DiaryEvent[]) => void;
   setSettings: (settings: FarmSettings) => void;
-  addEvent: (farmId: string, canEdit: boolean, event: Omit<DiaryEvent, 'id'>) => Promise<void>;
-  updateEvent: (farmId: string, canEdit: boolean, id: string, updates: Partial<DiaryEvent>) => Promise<void>;
+  addEvent: (farmId: string, canEdit: boolean, event: Omit<DiaryEvent, 'id'>) => Promise<DiaryEvent | undefined>;
+  updateEvent: (
+    farmId: string,
+    canEdit: boolean,
+    id: string,
+    updates: Partial<DiaryEvent>,
+    opts?: { queueCloud?: boolean; publishHot?: boolean },
+  ) => Promise<void>;
   removeEvent: (farmId: string, canEdit: boolean, id: string) => Promise<void>;
   updateSettings: (farmId: string, canEdit: boolean, newSettings: Partial<FarmSettings>) => Promise<void>;
   loadData: (farmId: string, startDate?: string, endDate?: string) => Promise<void>;
@@ -149,7 +156,7 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
   },
 
   addEvent: async (farmId, canEdit, event) => {
-    if (!farmId || !canEdit) return;
+    if (!farmId || !canEdit) return undefined;
     const newEvent: DiaryEvent = {
       ...event,
       id: crypto.randomUUID(),
@@ -168,15 +175,18 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     scheduleMistHotAutoPublish(farmId);
 
     try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return newEvent;
       await diaryApi.saveEvent(farmId, newEvent);
     } catch (err) {
       console.warn('[farmDiary.addEvent] Cloud save deferred to outbox', err);
     }
+    return newEvent;
   },
 
-  updateEvent: async (farmId, canEdit, id, updates) => {
+  updateEvent: async (farmId, canEdit, id, updates, opts) => {
     if (!farmId || !canEdit) return;
+    const queueCloud = opts?.queueCloud !== false;
+    const publishHot = opts?.publishHot !== false;
     const previous = get().events;
     const next = previous.map((e) => {
       if (e.id !== id) return e;
@@ -197,12 +207,15 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     if (!updated) return;
 
     const { upsertLocalEntity } = await import('./localFarmRepo');
-    await upsertLocalEntity(farmId, 'diary', updated, { queueCloud: true });
+    await upsertLocalEntity(farmId, 'diary', updated, { queueCloud });
 
-    const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
-    scheduleMistHotAutoPublish(farmId);
+    if (publishHot) {
+      const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
+      scheduleMistHotAutoPublish(farmId);
+    }
 
     try {
+      if (!queueCloud) return;
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       await diaryApi.saveEvent(farmId, updated);
     } catch (err) {
@@ -257,7 +270,12 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
     if (state.currentFarmId && state.currentFarmId !== farmId) return;
     const start = state.currentStartDate;
     const end = state.currentEndDate;
+    const localById = new Map(state.events.map((row) => [row.id, row]));
     const merged = mergeByLww(state.events, incoming)
+      .map((row) => {
+        const prev = localById.get(row.id);
+        return prev ? keepEventPhotosIfMissing(prev, row) : row;
+      })
       .filter((e) => (!start || e.date >= start) && (!end || e.date <= end))
       .sort((a, b) => b.date.localeCompare(a.date));
     set({

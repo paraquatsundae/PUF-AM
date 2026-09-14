@@ -186,6 +186,7 @@ export function DiaryTimeline({
                       <Fragment key={event.id}>
                         <DiaryTimelineEventCard
                           event={event}
+                          farmId={farmId}
                           focused={focusEventId === event.id}
                           canEdit={canEdit}
                           deleteConfirmId={deleteConfirmId}

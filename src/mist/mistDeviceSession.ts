@@ -220,6 +220,15 @@ export function getMistSessionMeta(): MistSessionMeta | null {
   }
 }
 
+/**
+ * Owner create/recover can Send. Crew joined on an invite cannot — they have
+ * Hot/Bones only. Pairing a hub does not change that.
+ */
+export function mistSessionCanSendFarm(meta: MistSessionMeta | null): boolean {
+  if (!meta) return false;
+  return !meta.joinedViaTicket;
+}
+
 export function hasMistDeviceSession(): boolean {
   return Boolean(ls()?.getItem(SESSION_BLOB_KEY));
 }

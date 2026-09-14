@@ -108,6 +108,15 @@ describe('createFreenetHostReconciler', () => {
     expect(d.peer.start).not.toHaveBeenCalled();
   });
 
+  it('owns a node that is still starting so a later :7509 bind is ours', async () => {
+    const d = deps('stopped');
+    d.host.start = vi.fn(async () => status('starting'));
+    const r = createFreenetHostReconciler(d);
+    await r.reconcile(true);
+    expect(r.state.startedHere).toBe(true);
+    expect(d.peer.start).not.toHaveBeenCalled();
+  });
+
   it('reports failures through onError instead of throwing', async () => {
     const d = deps('stopped');
     d.host.start = vi.fn(async () => {

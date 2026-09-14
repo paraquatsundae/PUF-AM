@@ -33,8 +33,9 @@ export function AutoSyncCard() {
   const sync = useAutoSync();
   if (!sync.farmId) return null;
 
-  const { plan, last, busy, settling } = sync;
+  const { plan, last, busy, settling, canKickFreenet } = sync;
   const live = plan.route !== 'blocked';
+  const canPress = live || canKickFreenet;
   const wifi = plan.via === 'wifi';
   const gateway = plan.via === 'gateway';
 
@@ -89,9 +90,9 @@ export function AutoSyncCard() {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={busy || settling || !live}
+          disabled={busy || settling || !canPress}
           onClick={sync.syncNow}
-          title={live ? undefined : plan.detail}
+          title={canPress ? undefined : plan.detail}
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50"
         >
           {busy ? (

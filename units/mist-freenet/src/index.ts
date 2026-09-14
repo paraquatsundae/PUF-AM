@@ -193,7 +193,7 @@ export {
   unwrapHotWatchPing,
   wrapHotWatchPing,
 } from './hot-watch.ts';
-export type { HotWatchPing } from './hot-watch.ts';
+export type { HotWatchChangeCursor, HotWatchPing } from './hot-watch.ts';
 
 export { isMistAeadEnvelope, assertCiphertextForFreenet } from './ciphertext-guard.ts';
 export type { AssertCiphertextOptions } from './ciphertext-guard.ts';

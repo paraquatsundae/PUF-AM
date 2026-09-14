@@ -3,9 +3,11 @@ import { AlertTriangle, CheckCircle2, ShieldCheck, Trash2, X } from 'lucide-reac
 import { AnimatePresence, motion } from 'motion/react';
 import type { DiaryEvent } from '../../lib/farmDiary';
 import { cn } from '../../lib/utils';
+import { DiaryEventPhotos } from './DiaryEventPhotos';
 
 type Props = {
   event: DiaryEvent;
+  farmId?: string;
   focused?: boolean;
   canEdit: boolean;
   deleteConfirmId: string | null;
@@ -38,6 +40,7 @@ function applicationMethodLabel(method: DiaryEvent['applicationMethod']): string
 
 export function DiaryTimelineEventCard({
   event,
+  farmId,
   focused,
   canEdit,
   deleteConfirmId,
@@ -296,6 +299,8 @@ export function DiaryTimelineEventCard({
             <p className="text-xs text-slate-600 leading-relaxed">{event.notes}</p>
           </div>
         )}
+
+        <DiaryEventPhotos event={event} farmId={farmId} canEdit={canEdit} />
       </div>
     </div>
   );

@@ -99,6 +99,18 @@ public class FreenetNodePolicyTest {
     }
 
     @Test
+    public void failureMessageNamesTheClassWhenTheThrowableHasNoMessage() {
+        assertEquals("RuntimeException", FreenetNodePolicy.failureMessage(new RuntimeException()));
+        assertEquals("no android-arm64 binary", FreenetNodePolicy.failureMessage(null));
+        assertEquals("boom", FreenetNodePolicy.failureMessage(new RuntimeException("boom")));
+    }
+
+    @Test
+    public void processAliveIsFalseForNull() {
+        assertFalse(FreenetNodePolicy.processAlive(null));
+    }
+
+    @Test
     public void applySpawnEnvSetsHomeAndDropsPreload() {
         java.util.Map<String, String> env = new java.util.HashMap<>();
         env.put("LD_PRELOAD", "evil.so");

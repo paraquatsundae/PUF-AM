@@ -3,6 +3,7 @@ import { ArrowDownUp, Loader2, MapPin, X } from 'lucide-react';
 import type { FieldIssue } from '../../lib/fieldStore';
 import { COMMON_ISSUE_PRESETS } from '../../lib/issuePresets';
 import { cn } from '../../lib/utils';
+import { IssuePhotoField } from './IssuePhotoField';
 
 type Dock = 'top' | 'bottom';
 
@@ -14,6 +15,7 @@ type Props = {
     category: FieldIssue['category'];
     priority: FieldIssue['priority'];
     note: string;
+    photos?: Blob[];
   }) => Promise<void>;
 };
 
@@ -22,6 +24,7 @@ export function ReportIssueSheet({ location: _location, blockName, onCancel, onS
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dock, setDock] = useState<Dock>('top');
+  const [photos, setPhotos] = useState<{ id: string; blob: Blob; src: string }[]>([]);
 
   const commit = async (data: {
     category: FieldIssue['category'];
@@ -32,7 +35,7 @@ export function ReportIssueSheet({ location: _location, blockName, onCancel, onS
     setSaving(true);
     setError(null);
     try {
-      await onSave(data);
+      await onSave({ ...data, photos: photos.map((row) => row.blob) });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save issue');
       setSaving(false);
@@ -122,6 +125,22 @@ export function ReportIssueSheet({ location: _location, blockName, onCancel, onS
               </button>
             ))}
           </div>
+
+          <IssuePhotoField
+            disabled={saving}
+            photos={photos.map((row) => ({ id: row.id, src: row.src }))}
+            onAdd={(blob) => {
+              const src = URL.createObjectURL(blob);
+              setPhotos((prev) => [...prev, { id: `${prev.length}-${blob.size}`, blob, src }]);
+            }}
+            onRemove={(id) => {
+              setPhotos((prev) => {
+                const gone = prev.find((row) => row.id === id);
+                if (gone) URL.revokeObjectURL(gone.src);
+                return prev.filter((row) => row.id !== id);
+              });
+            }}
+          />
 
           <div className="flex gap-2">
             <input

@@ -157,8 +157,22 @@ export async function refreshFreenetRuntime(): Promise<FreenetRuntime> {
 
 /** One sentence when nothing is listening on this tablet — never when :7509 answers. */
 export const FREENET_NO_HOST_LABEL =
-  'No Freenet node is listening on this tablet — open Freenet Android Node, or use a PUF-AM laptop.';
+  'Freenet on this tablet is not up yet — PUF-AM starts its own node in the app.';
+
+/** Shown while the isolated :freenet process is coming up. */
+export const FREENET_STARTING_LABEL = 'Starting Freenet on this tablet…';
+
+/** AppImage / desktop host while the bundled node is binding :7509. */
+export const FREENET_DESKTOP_STARTING_LABEL = 'Starting Freenet on this computer…';
 
 /** The follow-up an operator needs once they have read the label. */
 export const FREENET_NO_HOST_DETAIL =
-  'Nothing answered on this tablet’s Freenet port. Open Freenet Android Node and wait until it says it is connected, then try again — Send and join then work here with no laptop. Or borrow a PUF-AM laptop: put both on the same Wi‑Fi, start PUF-AM there, then use Settings → Sync → Wi‑Fi (LAN) → Scan for hubs (or type the laptop address). See Plans/APK_FREENET_HOST.md.';
+  'Wait until this line says Freenet is ready, then Send or join. A laptop on the same Wi‑Fi is a faster optional path, not required. You do not need Freenet Android Node, and you do not need to pair a hub for a Freenet farm.';
+
+/** Crew device — no FarmSeed, so Send is the owner's job. */
+export const FREENET_CREW_CANNOT_SEND =
+  'This device is crew — it can Pull and watch, but cannot Send (no FarmSeed). Ask the farm owner to Send from the tablet or laptop that created or recovered the farm. Pairing a laptop hub does not unlock Send.';
+
+/** Owner tablet whose node is not publishing yet. */
+export const FREENET_OWNER_SEND_NEEDS_NODE =
+  'Send uses the Freenet node in this app. If it is not up yet, wait — do not pair a laptop hub for that.';

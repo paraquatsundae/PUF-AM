@@ -1,4 +1,5 @@
 import type { FarmProfile } from '../../shared/farm/farmTypes';
+import type { FarmPhotoRef } from './farmPhoto';
 import { resolveFarmProfile } from '../../shared/farm/farmTypes';
 
 export type { FarmProfile };
@@ -59,6 +60,8 @@ export interface DiaryEvent {
   createdByName?: string;
   /** LWW / outbox stamp */
   updatedAt?: string;
+  /** Up to 5 photos. Bytes live in Storage / Freenet — not in this doc. */
+  photos?: FarmPhotoRef[];
 }
 
 export interface FarmSettings {

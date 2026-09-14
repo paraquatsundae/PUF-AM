@@ -8,6 +8,7 @@ import {
   getLastFarm,
 } from '../lib/deviceSession';
 import { getFarmStoreBackend, isMistExperimentalEnabled } from '../mist/farmStoreBackend.ts';
+import { isFreenetHostPluginAvailable } from '../lib/androidFreenetHost.ts';
 import { getFreenetHostCapability } from '../lib/freenetHostCapability.ts';
 import { isNativePlatform } from '../lib/freenetRuntime.ts';
 import { freenetJoinAvailability } from '../lib/joinCodeFlow.ts';
@@ -66,6 +67,7 @@ export function useLoginFlow() {
     capability: getFreenetHostCapability(),
     native: isNativePlatform(),
     workshopHub: import.meta.env.DEV,
+    canStartOwnNode: isFreenetHostPluginAvailable(),
   });
   const join = useJoinCode({ availability: joinAvailability });
   const [step, setStep] = useState<LoginStep>(() =>

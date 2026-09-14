@@ -12,7 +12,6 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ArrowDownToLine, Loader2, Ticket, Wifi } from 'lucide-react';
 
 import { FreenetHowItWorksButton } from './FreenetHowItWorks';
@@ -44,6 +43,7 @@ import {
   startFreenetPeer,
   type FreenetPeerStatus,
 } from '../../../src/mist/mistFreenetClient.ts';
+import { isFreenetHostPluginAvailable } from '../../../src/lib/androidFreenetHost.ts';
 import {
   canReachFreenetNode,
   detectFreenetRuntime,
@@ -52,14 +52,15 @@ import {
   shouldPollHubPeerStatus,
   FREENET_NO_HOST_DETAIL,
   FREENET_NO_HOST_LABEL,
+  FREENET_STARTING_LABEL,
   type FreenetRuntime,
 } from '../../../src/lib/freenetRuntime.ts';
+import { ensureFreenetHostListening } from '../../../src/mist/ensureFreenetHostListening.ts';
 import { FREENET_LOCAL_NODE_LABEL } from '../../../src/mist/freenetLocalNode.ts';
 import { takeJoinTicketDraft } from '../../../src/lib/joinTicketDraft.ts';
 
 export function MistJoinTicketGate({ children }: { children: React.ReactNode }) {
   const { userData, logout } = useAuth();
-  const navigate = useNavigate();
   const farmId = userData?.farmId;
 
   const [pending, setPending] = useState(() => Boolean(getMistJoinState()?.joinTicketPending));
@@ -87,14 +88,21 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!pending) return;
     let cancelled = false;
-    void refreshFreenetRuntime()
-      .then((next) => {
+    void (async () => {
+      try {
+        await ensureFreenetHostListening();
+      } catch {
+        /* Join still tries Freenet after a LAN miss. */
+      }
+      try {
+        const next = await refreshFreenetRuntime();
         if (!cancelled) setRuntime(next);
-      })
-      .catch(() => {})
-      .finally(() => {
+      } catch {
+        /* Probe is best-effort. */
+      } finally {
         if (!cancelled) setRuntimeSettled(true);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -331,21 +339,14 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
                 <strong>Freenet</strong> if this device cannot see it. The farm itself always travels
                 over Freenet, encrypted.
               </>
+            ) : isFreenetHostPluginAvailable() ? (
+              <>
+                <strong>{FREENET_STARTING_LABEL}</strong> {FREENET_NO_HOST_DETAIL} LAN on the
+                owner&apos;s Wi‑Fi is a faster optional path — not the only one.
+              </>
             ) : (
               <>
-                <strong>{FREENET_NO_HOST_LABEL}</strong> {FREENET_NO_HOST_DETAIL}{' '}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    deferMistJoinTicket();
-                    setPending(false);
-                    navigate('/settings?tab=sync');
-                  }}
-                  className="font-semibold text-emerald-700 hover:underline disabled:opacity-50"
-                >
-                  Find the laptop hub
-                </button>
+                <strong>{FREENET_NO_HOST_LABEL}</strong> {FREENET_NO_HOST_DETAIL}
               </>
             )}
             {freenetReachable && !localNode && peer && peer.freenet !== 'connected' ? (

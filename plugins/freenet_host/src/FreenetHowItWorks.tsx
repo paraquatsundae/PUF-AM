@@ -135,15 +135,15 @@ export function FreenetHowItWorksBody() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-slate-900">Add a person</h3>
         <ol className="list-decimal pl-5 space-y-1">
-          <li>On a PUF-AM laptop, Settings → Sync → Send this farm.</li>
+          <li>On the owner&apos;s PUF-AM (tablet or laptop), Settings → Sync → Send this farm.</li>
           <li>Pick who it is for (a label on this computer) and what they may see.</li>
           <li>
             Read out the new <span className="font-mono">PUF-</span> crew invite. They type only
             that — never the paper FarmCode.
           </li>
           <li>
-            Keep this laptop on and on the same Wi‑Fi while they join if you can. The ticket is
-            looked up here first; the farm itself always travels on Freenet.
+            Same Wi‑Fi as the owner is the fast path. If that misses, Freenet still finds the
+            invite — a laptop hub is not required.
           </li>
         </ol>
         <p>
@@ -161,8 +161,9 @@ export function FreenetHowItWorksBody() {
           <li>Crew never need the FarmCode. Revoking an invite stops new joins, not a copy already fetched.</li>
         </ol>
         <p>
-          A tablet can hold and fetch a farm. Only a laptop can Send. Two tablets with no laptop
-          cannot hand a farm to each other.
+          A tablet or laptop that created or recovered the farm can Send through its own Freenet
+          node. Crew devices Pull and watch — they do not need a laptop hub. Two owner devices
+          can hand a farm to each other with no second Freenet app.
         </p>
       </div>
     </div>

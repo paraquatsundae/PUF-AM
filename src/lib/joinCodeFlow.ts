@@ -38,10 +38,13 @@ export function freenetJoinAvailability(input: {
   capability: FreenetHostCapability;
   native: boolean;
   workshopHub: boolean;
+  /** Capacitor FreenetHost plugin — this APK can start :7509 itself. */
+  canStartOwnNode?: boolean;
 }): FreenetJoinAvailability {
   if (input.capability === 'electron' || input.capability === 'android' || input.workshopHub) {
     return 'host';
   }
+  if (input.native && input.canStartOwnNode) return 'host';
   if (input.native) return 'reader';
   return 'none';
 }

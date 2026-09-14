@@ -319,6 +319,12 @@ export async function publishBonesToFreenet(
   });
 
   rememberUri('bones', farmId, result);
+  try {
+    const { publishHotWatchAfterBonesPut } = await import('./hotWatchSync.ts');
+    await publishHotWatchAfterBonesPut(farmId);
+  } catch (error) {
+    console.warn('[mistFreenetClient] Hot watch slot update after Bones failed:', error);
+  }
   return result;
 }
 

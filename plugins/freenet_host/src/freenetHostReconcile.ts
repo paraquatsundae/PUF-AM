@@ -60,9 +60,16 @@ export function createFreenetHostReconciler(deps: FreenetHostDeps) {
     }
     try {
       const after = await deps.host.start();
-      if (!nodeIsUp(after)) return;
-      state.startedHere = true;
-      await deps.peer.start();
+      if (nodeIsUp(after)) {
+        state.startedHere = true;
+        await deps.peer.start();
+        return;
+      }
+      if (after?.mode === 'starting') {
+        // Isolated :freenet is up; :7509 may still be binding. Do not treat as failed.
+        state.startedHere = true;
+        return;
+      }
     } catch (error) {
       deps.onError?.('start', error);
     }

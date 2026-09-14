@@ -1,13 +1,21 @@
 /**
  * After painting a “check this” area — note, who it’s for, duration, then send.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Send, Undo2, X } from 'lucide-react';
 import { useHighlightAssignees } from '../../hooks/useHighlightAssignees';
 import {
+  HIGHLIGHT_CUSTOM_HOURS_MAX,
+  HIGHLIGHT_CUSTOM_HOURS_MIN,
   HIGHLIGHT_DEFAULT_SECONDS,
-  HIGHLIGHT_FREENET_DEFAULT_SECONDS,
+  HIGHLIGHT_DURATION_PRESET_LABELS,
   HIGHLIGHT_DURATION_PRESETS_SEC,
+  HIGHLIGHT_FREENET_DEFAULT_SECONDS,
+  HIGHLIGHT_MIN_CUSTOM_SECONDS,
+  highlightCustomHoursError,
+  highlightCustomHoursToSeconds,
+  isHighlightDurationPreset,
+  parseHighlightCustomHours,
   resolveHighlightDurationSeconds,
   type HighlightComposePayload,
 } from '../../lib/mapHighlights';
@@ -47,10 +55,6 @@ export function HighlightComposeSheet({
     farmDefaultSeconds:
       farmDefaultSeconds ?? (freenetSync ? HIGHLIGHT_FREENET_DEFAULT_SECONDS : undefined),
   });
-  const presets = useMemo(() => {
-    const set = new Set<number>([farmDefault, ...HIGHLIGHT_DURATION_PRESETS_SEC]);
-    return [...set].sort((a, b) => a - b);
-  }, [farmDefault]);
 
   const assignees = useHighlightAssignees({
     farmId,
@@ -61,12 +65,37 @@ export function HighlightComposeSheet({
   });
 
   const [note, setNote] = useState('');
+  const [durationMode, setDurationMode] = useState<'preset' | 'custom'>(() =>
+    isHighlightDurationPreset(farmDefault)
+      ? 'preset'
+      : farmDefault >= HIGHLIGHT_MIN_CUSTOM_SECONDS
+        ? 'custom'
+        : 'preset'
+  );
   const [durationSeconds, setDurationSeconds] = useState(farmDefault);
+  const [customHours, setCustomHours] = useState(() =>
+    !isHighlightDurationPreset(farmDefault) && farmDefault >= HIGHLIGHT_MIN_CUSTOM_SECONDS
+      ? String(farmDefault / 3600)
+      : ''
+  );
   const [assigneeKey, setAssigneeKey] = useState('everyone');
   const [otherName, setOtherName] = useState('');
 
+  const customHoursParsed = parseHighlightCustomHours(customHours);
+  const customHoursMessage = highlightCustomHoursError(customHours);
+  const chosenSeconds =
+    durationMode === 'custom'
+      ? customHoursParsed == null
+        ? null
+        : highlightCustomHoursToSeconds(customHoursParsed)
+      : durationSeconds;
+  const sendBlocked = Boolean(busy || (canChoose && durationMode === 'custom' && chosenSeconds == null));
+
   const labelFor = (sec: number) => {
+    const preset = HIGHLIGHT_DURATION_PRESET_LABELS[sec];
+    if (preset) return preset;
     if (sec < 60) return `${sec}s`;
+    if (sec % 3600 === 0) return `${sec / 3600} hour${sec === 3600 ? '' : 's'}`;
     if (sec % 60 === 0) return `${sec / 60}m`;
     return `${Math.floor(sec / 60)}m ${sec % 60}s`;
   };
@@ -174,24 +203,72 @@ export function HighlightComposeSheet({
         <div>
           <span className="text-[9px] font-bold text-slate-400 uppercase">Duration</span>
           {canChoose ? (
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {presets.map((sec) => (
+            <>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {HIGHLIGHT_DURATION_PRESETS_SEC.map((sec) => (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => {
+                      setDurationMode('preset');
+                      setDurationSeconds(sec);
+                    }}
+                    className={cn(
+                      'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
+                      durationMode === 'preset' && durationSeconds === sec
+                        ? 'bg-teal-700 text-white border-teal-700'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
+                    )}
+                  >
+                    {labelFor(sec)}
+                    {sec === farmDefault ? ' · default' : ''}
+                  </button>
+                ))}
                 <button
-                  key={sec}
                   type="button"
-                  onClick={() => setDurationSeconds(sec)}
+                  onClick={() => setDurationMode('custom')}
                   className={cn(
                     'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
-                    durationSeconds === sec
+                    durationMode === 'custom'
                       ? 'bg-teal-700 text-white border-teal-700'
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
                   )}
                 >
-                  {labelFor(sec)}
-                  {sec === farmDefault ? ' · default' : ''}
+                  Custom
                 </button>
-              ))}
-            </div>
+              </div>
+              {durationMode === 'custom' && (
+                <div className="mt-1.5">
+                  <label className="block">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">
+                      Hours
+                    </span>
+                    <input
+                      id="highlight-custom-hours"
+                      type="number"
+                      inputMode="decimal"
+                      min={HIGHLIGHT_CUSTOM_HOURS_MIN}
+                      max={HIGHLIGHT_CUSTOM_HOURS_MAX}
+                      step="any"
+                      value={customHours}
+                      onChange={(e) => setCustomHours(e.target.value)}
+                      placeholder={`${HIGHLIGHT_CUSTOM_HOURS_MIN}–${HIGHLIGHT_CUSTOM_HOURS_MAX}`}
+                      className="mt-0.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm"
+                    />
+                  </label>
+                  <p
+                    className={cn(
+                      'mt-1 text-[11px]',
+                      customHours.trim() && customHoursMessage ? 'text-rose-600' : 'text-slate-500'
+                    )}
+                  >
+                    {customHours.trim() && customHoursMessage
+                      ? customHoursMessage
+                      : '0.1–400 hours (6 minutes minimum). Decimal hours allowed.'}
+                  </p>
+                </div>
+              )}
+            </>
           ) : (
             <p className="mt-1 text-xs text-slate-600 font-medium">
               {labelFor(farmDefault || HIGHLIGHT_DEFAULT_SECONDS)} (farm default)
@@ -226,16 +303,18 @@ export function HighlightComposeSheet({
           </button>
           <button
             type="button"
-            disabled={busy}
-            onClick={() =>
+            disabled={sendBlocked}
+            onClick={() => {
+              const seconds = canChoose
+                ? chosenSeconds
+                : farmDefault || HIGHLIGHT_DEFAULT_SECONDS;
+              if (seconds == null || seconds <= 0) return;
               onSend({
                 note: note.trim(),
-                durationSeconds: canChoose
-                  ? durationSeconds
-                  : farmDefault || HIGHLIGHT_DEFAULT_SECONDS,
+                durationSeconds: seconds,
                 ...directedAt(),
-              })
-            }
+              });
+            }}
             className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
           >
             <Send className="w-3.5 h-3.5" />

@@ -43,6 +43,28 @@ final class FreenetNodePolicy {
         return "node exited " + exitCode;
     }
 
+    /**
+     * {@code NetworkOnMainThreadException} and similar have a null message.
+     * Mapping that to {@link FreenetHostPlugin#NO_BINARY} sent operators to a
+     * laptop hub while {@code libfreenet.so} was sitting in nativeLibraryDir.
+     */
+    static String failureMessage(Throwable error) {
+        if (error == null) return FreenetHostPlugin.NO_BINARY;
+        String msg = error.getMessage();
+        if (msg != null && !msg.isEmpty()) return msg;
+        return error.getClass().getSimpleName();
+    }
+
+    static boolean processAlive(Process proc) {
+        if (proc == null) return false;
+        try {
+            proc.exitValue();
+            return false;
+        } catch (IllegalThreadStateException e) {
+            return true;
+        }
+    }
+
     static String[] spawnArgs(String binaryPath, String configDir, String dataDir, String logDir) {
         return new String[] {
             binaryPath,

@@ -4,8 +4,11 @@
 import { deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { listOutbox, putOutboxOp, removeOutboxOp, type OutboxOp } from './localFarmRepo';
+import { usesCloudSyncOutbox } from './farmPipes';
 import { isLocalOnlyFarmSession } from './workshopMode';
 import { flushPhotoOutbox } from './flushPhotoOutbox';
+import { omitIssuePhotoLocalFields } from './issuePhotoMeta';
+import { withPhotosForFirestore } from './farmPhoto';
 import { stripUndefinedDeep } from './stripUndefined';
 
 /**
@@ -33,7 +36,9 @@ async function applyOp(op: OutboxOp): Promise<void> {
       await deleteDoc(ref);
       return;
     }
-    if (op.payload) await setDoc(ref, stripUndefinedDeep(op.payload), { merge: true });
+    if (op.payload) {
+      await setDoc(ref, stripUndefinedDeep(withPhotosForFirestore({ ...op.payload })), { merge: true });
+    }
     return;
   }
 
@@ -44,7 +49,13 @@ async function applyOp(op: OutboxOp): Promise<void> {
       await deleteDoc(ref);
       return;
     }
-    if (op.payload) await setDoc(ref, stripUndefinedDeep(op.payload), { merge: true });
+    if (op.payload) {
+      await setDoc(
+        ref,
+        stripUndefinedDeep(omitIssuePhotoLocalFields({ ...op.payload })),
+        { merge: true },
+      );
+    }
     return;
   }
 
@@ -59,7 +70,7 @@ async function applyOp(op: OutboxOp): Promise<void> {
 }
 
 export async function flushFarmOutbox(farmId?: string): Promise<{ flushed: number; failed: number }> {
-  if (isLocalOnlyFarmSession()) return { flushed: 0, failed: 0 };
+  if (isLocalOnlyFarmSession() || !usesCloudSyncOutbox()) return { flushed: 0, failed: 0 };
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return { flushed: 0, failed: 0 };
   }

@@ -4,6 +4,8 @@ import { collection, query, doc, setDoc, deleteDoc, updateDoc, getDoc, writeBatc
 import { handleFirestoreError, OperationType } from './firestoreErrors';
 import { isLocalOnlyFarmSession } from './workshopMode';
 import { localFieldIssues } from './localFieldIssues';
+import type { FarmPhotoRef } from './farmPhoto';
+import { keepIssuePhotoIfMissing, omitIssuePhotoLocalFields } from './issuePhotoMeta';
 
 function isPermissionOrOfflineError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
@@ -17,9 +19,9 @@ function isPermissionOrOfflineError(error: unknown): boolean {
   );
 }
 
-/** Firestore rejects `undefined` field values. */
+/** Firestore rejects `undefined` field values. Photo meta stays local this slice. */
 function issueForFirestore(issue: FieldIssue): Record<string, unknown> {
-  const data: Record<string, unknown> = { ...issue };
+  const data: Record<string, unknown> = omitIssuePhotoLocalFields({ ...issue });
   for (const key of Object.keys(data)) {
     if (data[key] === undefined) delete data[key];
   }
@@ -35,6 +37,18 @@ export interface FieldIssue {
   note?: string;
   photoData?: string;
   photoUrl?: string;
+  photoStatus?: 'local' | 'uploading' | 'ready' | 'failed';
+  photoError?: string;
+  photoBytes?: number;
+  photoWidth?: number;
+  photoHeight?: number;
+  photoContentType?: string;
+  photoHash?: string;
+  photoFreenetUri?: string;
+  /** Up to 5 photos. First/legacy also mirrors `photoUrl` / `photo.jpg`. */
+  photos?: FarmPhotoRef[];
+  /** Optional paddock — on the record, not in the Storage file name. */
+  blockId?: string;
   status: 'open' | 'in-progress' | 'resolved' | 'archived';
   isMistake?: boolean;
   reportedBy: string;
@@ -66,7 +80,12 @@ interface FieldState {
   mergeIncoming: (farmId: string, incoming: FieldIssue[], incomingArchive?: FieldIssue[]) => void;
   setBounds: (bounds: Bounds | null) => void;
   addIssue: (farmId: string, issue: FieldIssue) => Promise<void>;
-  updateIssue: (farmId: string, id: string, updates: Partial<FieldIssue>) => Promise<void>;
+  updateIssue: (
+    farmId: string,
+    id: string,
+    updates: Partial<FieldIssue>,
+    opts?: { queueCloud?: boolean; publishHot?: boolean },
+  ) => Promise<void>;
   archiveIssue: (farmId: string, id: string, archivedBy: string) => Promise<void>;
   deleteIssue: (farmId: string, id: string) => Promise<void>;
 }
@@ -101,7 +120,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       const prev = byId.get(row.id);
       const prevT = Date.parse(prev?.updatedAt || prev?.reportedAt || '') || 0;
       const nextT = Date.parse(row.updatedAt || row.reportedAt || '') || 0;
-      if (!prev || nextT >= prevT) byId.set(row.id, row);
+      if (!prev || nextT >= prevT) byId.set(row.id, prev ? keepIssuePhotoIfMissing(prev, row) : row);
     }
     const issues = Array.from(byId.values());
     localFieldIssues.saveOpen(farmId, issues);
@@ -112,7 +131,9 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       const prev = archiveById.get(row.id);
       const prevT = Date.parse(prev?.updatedAt || prev?.archivedAt || prev?.reportedAt || '') || 0;
       const nextT = Date.parse(row.updatedAt || row.archivedAt || row.reportedAt || '') || 0;
-      if (!prev || nextT >= prevT) archiveById.set(row.id, row);
+      if (!prev || nextT >= prevT) {
+        archiveById.set(row.id, prev ? keepIssuePhotoIfMissing(prev, row) : row);
+      }
     }
     const archivedIssues = Array.from(archiveById.values());
     if (incomingArchive.length > 0) localFieldIssues.saveArchived(farmId, archivedIssues);
@@ -271,7 +292,9 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     }
   },
 
-  updateIssue: async (farmId, id, updates) => {
+  updateIssue: async (farmId, id, updates, opts) => {
+    const queueCloud = opts?.queueCloud !== false;
+    const publishHot = opts?.publishHot !== false;
     const withStamp = {
       ...updates,
       updatedAt: new Date().toISOString(),
@@ -285,17 +308,19 @@ export const useFieldStore = create<FieldState>((set, get) => ({
     const updated = next.find((i) => i.id === id);
     if (updated) {
       const { upsertLocalEntity } = await import('./localFarmRepo');
-      await upsertLocalEntity(farmId, 'issues', updated, { queueCloud: true });
-      const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
-      scheduleMistHotAutoPublish(farmId);
+      await upsertLocalEntity(farmId, 'issues', updated, { queueCloud });
+      if (publishHot) {
+        const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
+        scheduleMistHotAutoPublish(farmId);
+      }
     }
 
-    if (isLocalOnlyFarmSession()) return;
+    if (!queueCloud || isLocalOnlyFarmSession()) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
     try {
       const clean: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(withStamp)) {
+      for (const [key, value] of Object.entries(omitIssuePhotoLocalFields({ ...withStamp }))) {
         if (value !== undefined) clean[key] = value;
       }
       await updateDoc(doc(db, `farms/${farmId}/issues`, id), clean);

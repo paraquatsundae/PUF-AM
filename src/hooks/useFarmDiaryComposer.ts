@@ -6,11 +6,13 @@ import { type LogTab, todayInputDate } from '../lib/farmDiaryView';
 
 type ComposerDeps = {
   settings: FarmSettings;
-  addEvent: (event: Omit<DiaryEvent, 'id'>) => void;
+  addEvent: (event: Omit<DiaryEvent, 'id'>) => Promise<DiaryEvent | undefined> | DiaryEvent | undefined | void;
   updateSettings: (patch: Partial<FarmSettings>) => void;
   focusBlockId: string | null;
   markIssueInProgress: (issueId: string) => void;
   onSwitchToTimeline: () => void;
+  farmId?: string;
+  createdBy?: string;
 };
 
 export function useFarmDiaryComposer({
@@ -20,6 +22,8 @@ export function useFarmDiaryComposer({
   focusBlockId,
   markIssueInProgress,
   onSwitchToTimeline,
+  farmId,
+  createdBy,
 }: ComposerDeps) {
   const [activeTab, setActiveTab] = useState<LogTab>('plan');
   const [composerOpen, setComposerOpen] = useState(false);
@@ -44,6 +48,7 @@ export function useFarmDiaryComposer({
   const [customCarrier, setCustomCarrier] = useState('');
   const [showCustomAdjuvant, setShowCustomAdjuvant] = useState(false);
   const [customAdjuvant, setCustomAdjuvant] = useState('');
+  const [pendingPhotos, setPendingPhotos] = useState<{ id: string; blob: Blob; src: string }[]>([]);
 
   useEffect(() => {
     if (focusBlockId) setSelectedBlockId(focusBlockId);
@@ -89,10 +94,11 @@ export function useFarmDiaryComposer({
     setWorkPriority(issue.priority);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) return;
 
+    let saved: DiaryEvent | undefined;
     if (activeTab === 'spray') {
       const finalAgent = showCustomAgent ? customAgent : agentName;
       const finalCarrier = showCustomCarrier ? customCarrier : carrier;
@@ -112,7 +118,7 @@ export function useFarmDiaryComposer({
         updateSettings({ customAdjuvants: [...(settings.customAdjuvants || []), customAdjuvant] });
       }
 
-      addEvent({
+      saved = (await addEvent({
         date,
         type: 'spray',
         status: 'done',
@@ -123,12 +129,13 @@ export function useFarmDiaryComposer({
         carrier: finalCarrier || undefined,
         adjuvant: finalAdjuvant || undefined,
         notes: notes || undefined,
-      });
+        createdBy,
+      })) || undefined;
     } else if (activeTab === 'irrigation') {
       const numAmount = parseFloat(amount);
       const numDuration = parseFloat(duration);
       if (isNaN(numAmount)) return;
-      addEvent({
+      saved = (await addEvent({
         date,
         type: 'irrigation',
         status: 'done',
@@ -136,11 +143,12 @@ export function useFarmDiaryComposer({
         irrigationAmount: numAmount,
         durationMinutes: isNaN(numDuration) ? undefined : numDuration,
         notes: notes || undefined,
-      });
+        createdBy,
+      })) || undefined;
     } else {
       if (!workTitle.trim()) return;
       const issueId = linkedIssueId || undefined;
-      addEvent({
+      saved = (await addEvent({
         date,
         type: 'work',
         status: 'planned',
@@ -150,8 +158,20 @@ export function useFarmDiaryComposer({
         priority: workPriority,
         notes: notes || undefined,
         linkedIssueId: issueId,
-      });
+        createdBy,
+      })) || undefined;
       if (issueId) markIssueInProgress(issueId);
+    }
+
+    if (saved && farmId && createdBy && pendingPhotos.length) {
+      const { attachEventPhoto } = await import('../lib/attachEventPhoto');
+      for (const row of pendingPhotos) {
+        try {
+          await attachEventPhoto(farmId, saved.id, row.blob, { createdBy });
+        } catch {
+          /* photoStatus is already failed — keep the diary row */
+        }
+      }
     }
 
     setAmount('');
@@ -169,6 +189,8 @@ export function useFarmDiaryComposer({
     setAssigneeName('');
     setWorkPriority('medium');
     setLinkedIssueId(null);
+    for (const row of pendingPhotos) URL.revokeObjectURL(row.src);
+    setPendingPhotos([]);
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
@@ -226,6 +248,18 @@ export function useFarmDiaryComposer({
     allCarriers,
     allAdjuvants,
     availableProducts,
+    pendingPhotos,
+    addPendingPhoto: (blob: Blob) => {
+      const src = URL.createObjectURL(blob);
+      setPendingPhotos((prev) => [...prev, { id: `${prev.length}-${blob.size}`, blob, src }]);
+    },
+    removePendingPhoto: (id: string) => {
+      setPendingPhotos((prev) => {
+        const gone = prev.find((row) => row.id === id);
+        if (gone) URL.revokeObjectURL(gone.src);
+        return prev.filter((row) => row.id !== id);
+      });
+    },
     createPlanFromIssue,
     handleSubmit,
   };

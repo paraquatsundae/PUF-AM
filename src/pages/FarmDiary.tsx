@@ -31,6 +31,8 @@ export function FarmDiary() {
     focusBlockId: page.focusBlockId,
     markIssueInProgress,
     onSwitchToTimeline: () => page.setPageMode('timeline'),
+    farmId,
+    createdBy: userData?.uid,
   });
 
   const confirmDelete = (event: DiaryEvent) => {

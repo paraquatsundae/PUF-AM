@@ -10,6 +10,7 @@ import {
 } from '../../shared/sync/pufomBundle';
 import type { DiaryEvent } from './farmDiary';
 import type { FieldIssue } from './fieldStore';
+import { pendingGeometryCount } from './farmGeometrySync';
 import {
   getFarmGeometry,
   listPending,
@@ -38,7 +39,7 @@ export type SyncPendingCounts = {
 export async function getSyncPendingCounts(farmId: string): Promise<SyncPendingCounts> {
   const [outbox, geometry, photos] = await Promise.all([
     pendingOutboxCount(farmId),
-    listPending(farmId).then((p) => p.length),
+    pendingGeometryCount(farmId),
     pendingPhotoCount(farmId),
   ]);
   return { outbox, geometry, photos, total: outbox + geometry + photos };

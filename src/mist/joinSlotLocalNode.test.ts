@@ -22,6 +22,7 @@ import {
   setLocalFreenetClientFactory,
 } from './freenetLocalNode.ts';
 import {
+  FREENET_SLOT_NEEDS_LOCAL_NODE,
   JoinSlotUnavailableError,
   publishJoinTicketToFreenetSlot,
   resolveJoinTicketFromFreenetSlot,
@@ -275,5 +276,28 @@ describe('join slot read from a Freenet node on this device', () => {
       /has not found that ticket yet/i,
     );
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not tell a Freenet farm to pair a laptop when :7509 is down', async () => {
+    capacitor.native = true;
+    vi.unstubAllEnvs();
+    vi.stubGlobal('window', { location: { protocol: 'https:', hostname: 'localhost' } });
+    resetLocalFreenetNode();
+    class ClosedWebSocket {
+      onopen: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onclose: (() => void) | null = null;
+      constructor() {
+        setTimeout(() => this.onerror?.(), 0);
+      }
+      close() {}
+    }
+    vi.stubGlobal('WebSocket', ClosedWebSocket);
+    vi.stubGlobal('fetch', vi.fn());
+
+    await expect(resolveJoinTicketFromFreenetSlot(TICKET, FARM_ID)).rejects.toThrow(
+      FREENET_SLOT_NEEDS_LOCAL_NODE,
+    );
+    expect(FREENET_SLOT_NEEDS_LOCAL_NODE).not.toMatch(/Scan for hubs|Tablet hub/i);
   });
 });

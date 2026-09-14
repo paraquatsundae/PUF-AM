@@ -81,6 +81,21 @@ export function isCloudFarm(): boolean {
   return activeFarmPipe() === 'cloud';
 }
 
+/**
+ * Whether this farm has a Firestore outbox at all.
+ *
+ * True for hosted/BYO cloud farms and a hybrid *member* device. False on a
+ * Freenet-native farm and a hybrid mirror — those have no Firebase farm, so
+ * a "pending cloud" count can never clear. Workshop still *reports* cloud
+ * (`SETTINGS` §1); callers also check `isLocalOnlyFarmSession()` before they
+ * open Firestore.
+ *
+ * @see Plans/SETTINGS_SYNC_AND_CREW.md §1
+ */
+export function usesCloudSyncOutbox(): boolean {
+  return activeFarmPipes().cloud;
+}
+
 export function isHybridFarm(cloudFarmId?: string | null): boolean {
   return activeFarmPipe(cloudFarmId) === 'hybrid';
 }

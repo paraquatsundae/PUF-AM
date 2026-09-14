@@ -12,8 +12,8 @@ describe('freenetOptionState', () => {
     expect(freenetOptionState({ capability: 'electron', mistEnabled: true })).toBe('available');
   });
 
-  it('points a desktop operator at the Settings toggle instead of hiding it', () => {
-    expect(freenetOptionState({ capability: 'electron', mistEnabled: false })).toBe('needs-setting');
+  it('offers Freenet on the AppImage even when the launch mist pref is off', () => {
+    expect(freenetOptionState({ capability: 'electron', mistEnabled: false })).toBe('available');
   });
 
   it('hides it on the hosted web even when the build baked the mist flag (decision 5)', () => {

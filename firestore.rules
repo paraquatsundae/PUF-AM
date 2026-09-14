@@ -362,6 +362,34 @@ service cloud.firestore {
              data.zoom is number;
     }
 
+    function isValidFarmPhotoRef(p) {
+      return p is map &&
+             p.keys().hasOnly(['id', 'createdAt', 'createdBy', 'blockId', 'directedAtUid', 'directedAtName', 'url', 'bytes', 'width', 'height', 'contentType']) &&
+             p.id is string && p.id.size() > 0 && p.id.size() < 80 &&
+             (!('createdAt' in p) || (p.createdAt is string && p.createdAt.size() < 50)) &&
+             (!('createdBy' in p) || (p.createdBy is string && p.createdBy.size() < 100)) &&
+             (!('blockId' in p) || (p.blockId is string && p.blockId.size() < 100)) &&
+             (!('directedAtUid' in p) || (p.directedAtUid is string && p.directedAtUid.size() < 100)) &&
+             (!('directedAtName' in p) || (p.directedAtName is string && p.directedAtName.size() < 200)) &&
+             (!('url' in p) || (p.url is string && p.url.size() < 5000)) &&
+             (!('bytes' in p) || (p.bytes is number && p.bytes >= 0 && p.bytes <= 614400)) &&
+             (!('width' in p) || (p.width is number && p.width > 0 && p.width <= 1600)) &&
+             (!('height' in p) || (p.height is number && p.height > 0 && p.height <= 1600)) &&
+             (!('contentType' in p) || (p.contentType is string && p.contentType.size() < 80));
+    }
+
+    function isValidFarmPhotos(data) {
+      return !('photos' in data) || (
+        data.photos is list &&
+        data.photos.size() <= 5 &&
+        (data.photos.size() == 0 || isValidFarmPhotoRef(data.photos[0])) &&
+        (data.photos.size() < 2 || isValidFarmPhotoRef(data.photos[1])) &&
+        (data.photos.size() < 3 || isValidFarmPhotoRef(data.photos[2])) &&
+        (data.photos.size() < 4 || isValidFarmPhotoRef(data.photos[3])) &&
+        (data.photos.size() < 5 || isValidFarmPhotoRef(data.photos[4]))
+      );
+    }
+
     function isValidDiaryEvent(data) {
       return hasOnlyAllowedFields([
                'id', 'date', 'type', 'status', 'blockId',
@@ -369,7 +397,8 @@ service cloud.firestore {
                'irrigationAmount', 'durationMinutes', 'notes',
                'productName', 'rate', 'rateUnit', 'nRate', 'pRate', 'kRate', 'nutritionMethod',
                'title', 'assignedTo', 'assignedToName', 'priority',
-               'safetyChecklistAccepted', 'acceptedAt', 'completedAt', 'linkedIssueId'
+               'safetyChecklistAccepted', 'acceptedAt', 'completedAt', 'linkedIssueId',
+               'linkedHighlightId', 'createdBy', 'createdByName', 'updatedAt', 'photos'
              ]) &&
              hasRequiredFields(['id', 'date', 'type']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
@@ -399,7 +428,12 @@ service cloud.firestore {
              (!('safetyChecklistAccepted' in data) || data.safetyChecklistAccepted is bool) &&
              (!('acceptedAt' in data) || (data.acceptedAt is string && data.acceptedAt.size() < 50)) &&
              (!('completedAt' in data) || (data.completedAt is string && data.completedAt.size() < 50)) &&
-             (!('linkedIssueId' in data) || (data.linkedIssueId is string && data.linkedIssueId.size() < 100));
+             (!('linkedIssueId' in data) || (data.linkedIssueId is string && data.linkedIssueId.size() < 100)) &&
+             (!('linkedHighlightId' in data) || (data.linkedHighlightId is string && data.linkedHighlightId.size() < 100)) &&
+             (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() < 100)) &&
+             (!('createdByName' in data) || (data.createdByName is string && data.createdByName.size() < 200)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() < 50)) &&
+             isValidFarmPhotos(data);
     }
 
     function isValidFarmSettings(data) {
@@ -523,7 +557,7 @@ service cloud.firestore {
     }
 
     function isValidFieldIssueShape(data) {
-      return hasOnlyAllowedFields(['id', 'lat', 'lng', 'category', 'priority', 'note', 'photoData', 'photoUrl', 'status', 'isMistake', 'reportedBy', 'reportedAt', 'resolvedAt', 'archivedAt', 'archivedBy']) &&
+      return hasOnlyAllowedFields(['id', 'lat', 'lng', 'category', 'priority', 'note', 'photoData', 'photoUrl', 'photoBytes', 'photoWidth', 'photoContentType', 'status', 'isMistake', 'reportedBy', 'reportedAt', 'resolvedAt', 'archivedAt', 'archivedBy', 'updatedAt', 'blockId', 'photos']) &&
              hasRequiredFields(['id', 'lat', 'lng', 'category', 'priority', 'status', 'reportedBy', 'reportedAt']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              data.lat is number &&
@@ -533,13 +567,19 @@ service cloud.firestore {
              (!('note' in data) || (data.note == null || (data.note is string && data.note.size() < 2000))) &&
              (!('photoData' in data) || (data.photoData == null || (data.photoData is string && data.photoData.size() < 1048576))) &&
              (!('photoUrl' in data) || (data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() < 5000))) &&
+             (!('photoBytes' in data) || (data.photoBytes == null || (data.photoBytes is number && data.photoBytes >= 0 && data.photoBytes <= 614400))) &&
+             (!('photoWidth' in data) || (data.photoWidth == null || (data.photoWidth is number && data.photoWidth > 0 && data.photoWidth <= 1600))) &&
+             (!('photoContentType' in data) || (data.photoContentType == null || (data.photoContentType is string && data.photoContentType.size() < 80))) &&
              data.status in ['open', 'in-progress', 'resolved', 'archived'] &&
              (!('isMistake' in data) || data.isMistake is bool) &&
              data.reportedBy is string && data.reportedBy.size() > 0 && data.reportedBy.size() < 100 &&
              data.reportedAt is string &&
              (!('resolvedAt' in data) || (data.resolvedAt == null || data.resolvedAt is string)) &&
              (!('archivedAt' in data) || (data.archivedAt == null || data.archivedAt is string)) &&
-             (!('archivedBy' in data) || (data.archivedBy == null || data.archivedBy is string));
+             (!('archivedBy' in data) || (data.archivedBy == null || data.archivedBy is string)) &&
+             (!('updatedAt' in data) || (data.updatedAt == null || data.updatedAt is string)) &&
+             (!('blockId' in data) || (data.blockId == null || (data.blockId is string && data.blockId.size() < 100))) &&
+             isValidFarmPhotos(data);
     }
 
     /** Create: reporter must be the signed-in user. */

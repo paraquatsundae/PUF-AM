@@ -99,6 +99,7 @@ export function OperateMapOverlays({
     category: FieldIssue['category'];
     priority: FieldIssue['priority'];
     note: string;
+    photos?: Blob[];
   }) => Promise<void>;
   onCloseIssue: () => void;
   onResolveSelected: () => void;
@@ -198,6 +199,7 @@ export function OperateMapOverlays({
       {selectedIssue && !reportDraft && (
         <OperateIssueDetailSheet
           issue={selectedIssue}
+          farmId={farmId}
           canResolve={Boolean(farmId)}
           onClose={onCloseIssue}
           onResolve={onResolveSelected}

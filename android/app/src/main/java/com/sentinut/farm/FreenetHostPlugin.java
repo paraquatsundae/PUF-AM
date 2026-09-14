@@ -3,6 +3,7 @@ package com.sentinut.farm;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.StrictMode;
 import android.util.Log;
 
 import com.getcapacitor.JSObject;
@@ -15,11 +16,13 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.concurrent.Callable;
 
 /**
- * Capacitor lifecycle for the Freenet node. Product path is attach-if-port-taken
- * (Freenet Android Node on 127.0.0.1:7509). Our :freenet process is optional
- * and must not block attach. Plans/FREENET_NETWORK_PACK.md Phase 3.
+ * Capacitor lifecycle for the Freenet node. Attach-if-port-taken if :7509 is
+ * already bound; otherwise start the isolated :freenet process and exec the
+ * bundled libfreenet.so. Probe and bring-up must not run on the main thread
+ * (debug StrictMode). Plans/FREENET_NETWORK_PACK.md Phase 3.
  */
 @CapacitorPlugin(name = "FreenetHost")
 public class FreenetHostPlugin extends Plugin {
@@ -30,74 +33,67 @@ public class FreenetHostPlugin extends Plugin {
     static final String WS_URL = "ws://127.0.0.1:7509/v1/contract/command";
     static final String NO_BINARY = "no android-arm64 binary";
     private static final int PROBE_MS = 400;
-    /** Same order of magnitude as the desktop host start timeout. */
-    private static final int BIND_WAIT_MS = 45_000;
-    private static final int BIND_POLL_MS = 750;
+    /** Short wait so a fast bind returns managed; JS waits longer on {@code starting}. */
+    private static final int BIND_WAIT_MS = 4_000;
+    private static final int BIND_POLL_MS = 250;
+
+    private void runOffMain(PluginCall call, Callable<JSObject> work) {
+        new Thread(() -> {
+            try {
+                call.resolve(work.call());
+            } catch (Throwable t) {
+                Log.w(TAG, "plugin", t);
+                call.resolve(statusObject("failed", false, FreenetNodePolicy.failureMessage(t), null));
+            }
+        }, "freenet-host-plugin").start();
+    }
 
     @PluginMethod
     public void start(PluginCall call) {
-        try {
-            call.resolve(bringUp(getContext()));
-        } catch (Throwable t) {
-            Log.w(TAG, "start", t);
-            String msg = t.getMessage() != null ? t.getMessage() : NO_BINARY;
-            call.resolve(statusObject("failed", false, msg, null));
-        }
+        runOffMain(call, () -> bringUp(getContext()));
     }
 
     @PluginMethod
     public void attach(PluginCall call) {
-        try {
-            if (probeLoopback()) {
-                call.resolve(statusObject("attached", true, null, null));
-                return;
-            }
-            call.resolve(statusObject("failed", false, "nothing listening on 127.0.0.1:7509", null));
-        } catch (Throwable t) {
-            Log.w(TAG, "attach", t);
-            call.resolve(statusObject("failed", false, "nothing listening on 127.0.0.1:7509", null));
-        }
+        runOffMain(call, () -> {
+            if (probeLoopback()) return statusObject("attached", true, null, null);
+            return statusObject("failed", false, "nothing listening on 127.0.0.1:7509", null);
+        });
     }
 
     @PluginMethod
     public void stop(PluginCall call) {
-        Context ctx = getContext();
-        try {
-            Intent stop = new Intent(ctx, FreenetNodeService.class);
-            stop.setAction(FreenetNodeService.ACTION_STOP);
-            ctx.startService(stop);
-            ctx.stopService(new Intent(ctx, FreenetNodeService.class));
-        } catch (Throwable e) {
-            Log.w(TAG, "stopService", e);
-        }
-        FreenetHostStatusStore.write(ctx, "stopped", false, null, null);
-        // Never kill Freenet Android Node — if :7509 still answers, we stay attached.
-        if (probeLoopback()) {
-            FreenetHostStatusStore.write(ctx, "attached", true, null, null);
-            call.resolve(statusObject("attached", true, null, null));
-            return;
-        }
-        call.resolve(statusObject("stopped", false, null, null));
+        runOffMain(call, () -> {
+            Context ctx = getContext();
+            try {
+                Intent stop = new Intent(ctx, FreenetNodeService.class);
+                stop.setAction(FreenetNodeService.ACTION_STOP);
+                ctx.startService(stop);
+                ctx.stopService(new Intent(ctx, FreenetNodeService.class));
+            } catch (Throwable e) {
+                Log.w(TAG, "stopService", e);
+            }
+            FreenetHostStatusStore.write(ctx, "stopped", false, null, null);
+            // Never kill a third-party node — if :7509 still answers, we stay attached.
+            if (probeLoopback()) {
+                FreenetHostStatusStore.write(ctx, "attached", true, null, null);
+                return statusObject("attached", true, null, null);
+            }
+            return statusObject("stopped", false, null, null);
+        });
     }
 
     @PluginMethod
     public void status(PluginCall call) {
-        try {
-            boolean probe = Boolean.TRUE.equals(call.getBoolean("probe", true));
+        final boolean probe = Boolean.TRUE.equals(call.getBoolean("probe", true));
+        runOffMain(call, () -> {
             if (probe && probeLoopback()) {
-                call.resolve(statusObject("attached", true, null, null));
-                return;
+                return statusObject("attached", true, null, null);
             }
             JSObject stored = FreenetHostStatusStore.read(getContext());
-            if (stored != null) {
-                call.resolve(stored);
-                return;
-            }
-            call.resolve(statusObject("stopped", false, null, null));
-        } catch (Throwable t) {
-            Log.w(TAG, "status", t);
-            call.resolve(statusObject("stopped", false, null, null));
-        }
+            if (stored != null) return stored;
+            return statusObject("stopped", false, null, null);
+        });
     }
 
     static JSObject bringUp(Context ctx) {
@@ -108,10 +104,17 @@ public class FreenetHostPlugin extends Plugin {
         }
         File binary = FreenetNodeService.findBinary(ctx);
         if (binary == null) {
-            JSObject failed = statusObject("failed", false, NO_BINARY, null);
-            FreenetHostStatusStore.write(ctx, "failed", false, NO_BINARY, null);
+            String looked = ctx.getApplicationInfo().nativeLibraryDir;
+            String msg = NO_BINARY + " (looked in " + looked + ")";
+            Log.w(TAG, msg);
+            JSObject failed = statusObject("failed", false, msg, null);
+            FreenetHostStatusStore.write(ctx, "failed", false, msg, null);
             return failed;
         }
+        Log.i(TAG, "starting :freenet; binary=" + binary.getAbsolutePath());
+        // Overwrite a stale fail-clean from a previous launch so the wait loop
+        // does not treat last night's NetworkOnMainThread as this start.
+        FreenetHostStatusStore.write(ctx, "starting", false, null, binary.getAbsolutePath());
         Intent intent = new Intent(ctx, FreenetNodeService.class);
         intent.setAction(FreenetNodeService.ACTION_START);
         try {
@@ -121,7 +124,7 @@ public class FreenetHostPlugin extends Plugin {
                 ctx.startService(intent);
             }
         } catch (Throwable e) {
-            String msg = e.getMessage() != null ? e.getMessage() : NO_BINARY;
+            String msg = FreenetNodePolicy.failureMessage(e);
             JSObject failed = statusObject("failed", false, msg, null);
             FreenetHostStatusStore.write(ctx, "failed", false, msg, null);
             return failed;
@@ -142,6 +145,7 @@ public class FreenetHostPlugin extends Plugin {
                     /* no mode field */
                 }
                 if ("failed".equals(mode)) return stored;
+                if ("managed".equals(mode) || "attached".equals(mode)) return stored;
             }
             try {
                 Thread.sleep(BIND_POLL_MS);
@@ -150,13 +154,15 @@ public class FreenetHostPlugin extends Plugin {
                 break;
             }
         }
-        JSObject timeout = statusObject(
-                "failed", false, "node did not bind 127.0.0.1:" + WS_PORT, binary.getAbsolutePath());
-        FreenetHostStatusStore.write(ctx, "failed", false, "node did not bind 127.0.0.1:" + WS_PORT, binary.getAbsolutePath());
-        return timeout;
+        JSObject starting = statusObject("starting", false, null, binary.getAbsolutePath());
+        FreenetHostStatusStore.write(ctx, "starting", false, null, binary.getAbsolutePath());
+        return starting;
     }
 
     static boolean probeLoopback() {
+        StrictMode.ThreadPolicy previous = StrictMode.getThreadPolicy();
+        StrictMode.setThreadPolicy(
+                new StrictMode.ThreadPolicy.Builder(previous).permitNetwork().build());
         Socket socket = null;
         try {
             socket = new Socket();
@@ -171,6 +177,7 @@ public class FreenetHostPlugin extends Plugin {
                 } catch (IOException ignored) {
                 }
             }
+            StrictMode.setThreadPolicy(previous);
         }
     }
 

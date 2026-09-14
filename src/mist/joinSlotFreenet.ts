@@ -43,12 +43,13 @@ import {
   type JoinRole,
 } from '../../shared/sync/joinTicket.ts';
 import { encodeFreenet02Uri } from '../../units/mist-freenet/src/freenet02-uri.ts';
-import { apiHubMissing, NO_API_HUB_MESSAGE } from '../lib/apiBase.ts';
+import { apiHubMissing } from '../lib/apiBase.ts';
 import {
   localFreenetSearchBudgetMs,
   readLocalFreenetBlob,
   shouldUseLocalFreenetForReads,
 } from './freenetLocalNode.ts';
+import { ensureFreenetHostListening } from './ensureFreenetHostListening.ts';
 import { FreenetTransportError } from './freenetPackTransport.ts';
 import { getFreenetPackTransport } from './freenetTransportSelect.ts';
 import { loadMistDeviceSession } from './mistDeviceSession.ts';
@@ -112,10 +113,14 @@ function unavailable(error: unknown, fallback: string): JoinSlotUnavailableError
  * and "no node here" are different failures and only the second one is fatal.
  */
 /** Shared by the leftover FarmSeed ticket slot and the crew InviteToken slot. */
+export const FREENET_SLOT_NEEDS_LOCAL_NODE =
+  'Freenet on this device is not answering yet. PUF-AM starts its own node — wait and try again. A laptop hub is not required for a Freenet farm.';
+
 export async function readJoinSlotState(
   instanceIdBase58: string,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
+  await ensureFreenetHostListening();
   const transport = getFreenetPackTransport();
   // The relay needs a hub to exist; the host is its own hub.
   const hubAvailable = transport.kind === 'host' || !apiHubMissing();
@@ -136,10 +141,10 @@ export async function readJoinSlotState(
   }
 
   if (!hubAvailable) {
-    if (!localReason) throw new JoinSlotUnavailableError(NO_API_HUB_MESSAGE);
+    if (!localReason) throw new JoinSlotUnavailableError(FREENET_SLOT_NEEDS_LOCAL_NODE);
     throw new JoinSlotUnavailableError(
       `${localReason.charAt(0).toUpperCase()}${localReason.slice(1)}. A freshly sent farm takes a ` +
-        'few minutes to spread — try again shortly, or join on the same Wi‑Fi as the farm owner.',
+        'few minutes to spread — try again shortly.',
     );
   }
 
@@ -193,6 +198,7 @@ export async function publishJoinTicketToFreenetSlot(
     throw new Error('Cannot publish a Freenet slot for a malformed join ticket');
   }
 
+  await ensureFreenetHostListening();
   const farmSeed = await loadFarmSeed(input.devicePin);
   const address = await deriveJoinSlotAddress(farmSeed, canonical);
   const signingSeed = await deriveJoinSlotSigningSeed(farmSeed);

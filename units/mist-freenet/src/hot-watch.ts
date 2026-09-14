@@ -3,8 +3,9 @@
  *
  * Pack-contract Hot PUTs mint a new FN02 URI each time. Join tickets point at a
  * snapshot, so a later highlight never arrives unless something stable names the
- * new URI. This slot is that pointer: generation + hash + current Hot URI.
- * Addressed and sealed from HotKey (never FarmSeed) so a crew device can ping it.
+ * new URI. This slot is that pointer: generation + hashes + current Hot URI
+ * (and optional Bones URI after a geometry PUT). Addressed and sealed from
+ * HotKey (never FarmSeed) so a crew device can ping it.
  *
  * Freenet 0.2.135 has no usable subscribe on the host plugin; clients poll.
  *
@@ -41,6 +42,12 @@ export type HotWatchPing = {
   hotUri: string;
   hotContentHash: string;
   updatedAt: string;
+  /** Optional — same slot also pings Bones so one poll sees paddock edits. */
+  bonesUri?: string;
+  bonesContentHash?: string;
+  /** Optional — photo index CHK; fetch photos only when this hash changes. */
+  photoIndexUri?: string;
+  photoIndexHash?: string;
 };
 
 export class HotWatchError extends Error {
@@ -164,6 +171,17 @@ export function parseHotWatchPing(value: unknown): HotWatchPing | null {
   if (!farmId || !hotUri || !hotContentHash || !updatedAt || !Number.isFinite(generation)) return null;
   if (hotContentHash.length !== 64) return null;
 
+  const bonesUri = typeof o.bonesUri === 'string' ? o.bonesUri.trim() : '';
+  const bonesContentHash =
+    typeof o.bonesContentHash === 'string' ? o.bonesContentHash.trim() : '';
+  if (bonesContentHash && bonesContentHash.length !== 64) return null;
+  if ((bonesUri && !bonesContentHash) || (bonesContentHash && !bonesUri)) return null;
+
+  const photoIndexUri = typeof o.photoIndexUri === 'string' ? o.photoIndexUri.trim() : '';
+  const photoIndexHash = typeof o.photoIndexHash === 'string' ? o.photoIndexHash.trim() : '';
+  if (photoIndexHash && photoIndexHash.length !== 64) return null;
+  if ((photoIndexUri && !photoIndexHash) || (photoIndexHash && !photoIndexUri)) return null;
+
   return {
     v: 1,
     kind: 'hot-watch',
@@ -172,16 +190,35 @@ export function parseHotWatchPing(value: unknown): HotWatchPing | null {
     hotUri,
     hotContentHash,
     updatedAt,
+    ...(bonesUri && bonesContentHash ? { bonesUri, bonesContentHash } : {}),
+    ...(photoIndexUri && photoIndexHash ? { photoIndexUri, photoIndexHash } : {}),
   };
 }
 
+export type HotWatchChangeCursor = {
+  generation: number;
+  hotContentHash: string;
+  bonesContentHash?: string;
+  photoIndexHash?: string;
+};
+
 export function hotWatchPingChanged(
-  local: { generation: number; hotContentHash: string } | null,
-  remote: Pick<HotWatchPing, 'generation' | 'hotContentHash'>,
+  local: HotWatchChangeCursor | null,
+  remote: Pick<HotWatchPing, 'generation' | 'hotContentHash'> & {
+    bonesContentHash?: string;
+    photoIndexHash?: string;
+  },
 ): boolean {
   if (!local) return true;
-  if (remote.hotContentHash === local.hotContentHash) return false;
-  return remote.generation > local.generation || remote.hotContentHash !== local.hotContentHash;
+  const hotChanged = remote.hotContentHash !== local.hotContentHash;
+  const bonesChanged =
+    Boolean(remote.bonesContentHash) &&
+    remote.bonesContentHash !== (local.bonesContentHash ?? '');
+  const photoChanged =
+    Boolean(remote.photoIndexHash) &&
+    remote.photoIndexHash !== (local.photoIndexHash ?? '');
+  if (!hotChanged && !bonesChanged && !photoChanged) return false;
+  return true;
 }
 
 export async function wrapHotWatchPing(ping: HotWatchPing, hotKey: Uint8Array): Promise<Uint8Array> {

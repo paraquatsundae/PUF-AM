@@ -10,7 +10,7 @@ import { CropPacksCard } from '../components/CropPacksCard';
 import { cn } from '../lib/utils';
 import {
   HIGHLIGHT_DEFAULT_SECONDS,
-  HIGHLIGHT_DURATION_PRESETS_SEC,
+  HIGHLIGHT_FARM_DEFAULT_PRESETS_SEC,
 } from '../lib/mapHighlights';
 import {
   FARM_ENTERPRISES,
@@ -340,7 +340,7 @@ export function FarmSetup() {
             onChange={(e) => setHighlightDefaultSeconds(Number(e.target.value))}
             disabled={!canEdit}
           >
-            {[...new Set([HIGHLIGHT_DEFAULT_SECONDS, ...HIGHLIGHT_DURATION_PRESETS_SEC, highlightDefaultSeconds])]
+            {[...new Set([HIGHLIGHT_DEFAULT_SECONDS, ...HIGHLIGHT_FARM_DEFAULT_PRESETS_SEC, highlightDefaultSeconds])]
               .sort((a, b) => a - b)
               .map((sec) => (
                 <option key={sec} value={sec}>

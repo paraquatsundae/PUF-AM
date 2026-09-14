@@ -104,12 +104,17 @@ export async function saveFarmGeometry(bundle: FarmGeometryBundle): Promise<void
   });
 }
 
+function withGeometryStamp<T>(entity: T): T & { updatedAt: string } {
+  return { ...entity, updatedAt: new Date().toISOString() };
+}
+
 export async function upsertBlockLocal(farmId: string, block: OrchardBlock): Promise<void> {
   await withFarmGeometryWrite(farmId, (data) => {
+    const next = withGeometryStamp(block);
     const blocks = [...data.blocks];
-    const idx = blocks.findIndex((b) => b.id === block.id);
-    if (idx >= 0) blocks[idx] = block;
-    else blocks.push(block);
+    const idx = blocks.findIndex((b) => b.id === next.id);
+    if (idx >= 0) blocks[idx] = next;
+    else blocks.push(next);
     return { ...data, blocks };
   });
 }
@@ -123,10 +128,11 @@ export async function deleteBlockLocal(farmId: string, id: string): Promise<void
 
 export async function upsertPinLocal(farmId: string, pin: InfrastructurePin): Promise<void> {
   await withFarmGeometryWrite(farmId, (data) => {
+    const next = withGeometryStamp(pin);
     const pins = [...data.pins];
-    const idx = pins.findIndex((p) => p.id === pin.id);
-    if (idx >= 0) pins[idx] = pin;
-    else pins.push(pin);
+    const idx = pins.findIndex((p) => p.id === next.id);
+    if (idx >= 0) pins[idx] = next;
+    else pins.push(next);
     return { ...data, pins };
   });
 }
@@ -140,10 +146,11 @@ export async function deletePinLocal(farmId: string, id: string): Promise<void> 
 
 export async function upsertTrackLocal(farmId: string, track: FarmTrack): Promise<void> {
   await withFarmGeometryWrite(farmId, (data) => {
+    const next = withGeometryStamp(track);
     const tracks = [...data.tracks];
-    const idx = tracks.findIndex((t) => t.id === track.id);
-    if (idx >= 0) tracks[idx] = track;
-    else tracks.push(track);
+    const idx = tracks.findIndex((t) => t.id === next.id);
+    if (idx >= 0) tracks[idx] = next;
+    else tracks.push(next);
     return { ...data, tracks };
   });
 }
@@ -214,4 +221,28 @@ export function mergeGeometryById<T extends { id: string }>(local: T[], remote: 
   for (const item of remote) map.set(item.id, item);
   for (const item of local) map.set(item.id, item);
   return Array.from(map.values());
+}
+
+function geometryStamp(row: { updatedAt?: string; createdAt?: string }): number {
+  return Date.parse(row.updatedAt || row.createdAt || '') || 0;
+}
+
+/**
+ * Union by id, last-write-wins on collision. A subset snapshot cannot drop
+ * ids that exist only locally (`Plans/SETTINGS_SYNC_AND_CREW.md` §9).
+ */
+export function mergeGeometryByUpdatedAt<T extends { id: string; updatedAt?: string; createdAt?: string }>(
+  local: T[],
+  incoming: T[],
+): T[] {
+  const byId = new Map<string, T>();
+  for (const row of local) {
+    if (row?.id) byId.set(row.id, row);
+  }
+  for (const row of incoming) {
+    if (!row?.id) continue;
+    const prev = byId.get(row.id);
+    if (!prev || geometryStamp(row) >= geometryStamp(prev)) byId.set(row.id, row);
+  }
+  return [...byId.values()];
 }

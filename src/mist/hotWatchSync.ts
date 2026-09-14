@@ -1,10 +1,11 @@
 /**
- * Cheap Freenet Hot watch: ping generation/hash, fetch Hot only when it changed.
+ * Cheap Freenet Hot/Bones watch: ping generation + hashes, fetch only what changed.
  *
- * Apply merges map highlights (and LWW diary/issues). Does not need FarmSeed —
- * crew HotKey decrypts. Does not remint a join ticket.
+ * Apply merges map highlights (and LWW diary/issues) and Bones geometry
+ * (union by id + updatedAt). Does not need FarmSeed — crew HotKey/BonesKey
+ * decrypt. Does not remint a join ticket.
  *
- * @see Plans/SETTINGS_SYNC_AND_CREW.md §9 Decision 2026-09-12
+ * @see Plans/SETTINGS_SYNC_AND_CREW.md §9 Decision 2026-09-12 · 2026-09-13
  */
 
 import { hotWatchPingChanged, type HotWatchPing } from '../../units/mist-freenet/src/hot-watch.ts';
@@ -20,10 +21,20 @@ import {
   notifyMapHighlightsChanged,
   replaceLocalHighlights,
 } from '../lib/mapHighlights';
+import { mergeIssuesKeepingPhotos } from '../lib/issuePhotoMeta';
 import { hotStateToFarmEntities, type HotFarmEntities } from './hotAdapter.ts';
 import { publishHotWatchSlot, readHotWatchSlot } from './hotWatchSlot.ts';
-import { getMistHotPublishStatus, saveFreenetHotUri } from './mistHotPublishMeta.ts';
-import { pullHotFromFreenetByUri } from './mistFreenetClient.ts';
+import { getMistPhotoIndexStatus } from './mistPhotoBridge.ts';
+import { getFarmGeometry } from '../lib/farmGeometryIdb';
+import { mergeFarmGeometryFromBones } from './bonesGeometry.ts';
+import { readMistBonesFarmGeometry } from './mistBonesBridge.ts';
+import {
+  getMistBonesPublishStatus,
+  getMistHotPublishStatus,
+  saveFreenetBonesUri,
+  saveFreenetHotUri,
+} from './mistHotPublishMeta.ts';
+import { pullBonesFromFreenetByUri, pullHotFromFreenetByUri } from './mistFreenetClient.ts';
 import {
   readMistHotCurrent,
   resolveMistReadKeys,
@@ -39,6 +50,10 @@ export type HotWatchCursor = {
   generation: number;
   hotContentHash: string;
   hotUri?: string;
+  bonesContentHash?: string;
+  bonesUri?: string;
+  photoIndexHash?: string;
+  photoIndexUri?: string;
   appliedAt?: string;
 };
 
@@ -62,6 +77,8 @@ export function readHotWatchCursor(farmId: string): HotWatchCursor | null {
   try {
     const row = JSON.parse(raw) as HotWatchCursor;
     if (typeof row.generation !== 'number' || typeof row.hotContentHash !== 'string') return null;
+    if (row.bonesContentHash && typeof row.bonesContentHash !== 'string') return null;
+    if (row.photoIndexHash && typeof row.photoIndexHash !== 'string') return null;
     return row;
   } catch {
     return null;
@@ -114,11 +131,15 @@ export async function mergeHotEntitiesIntoLocal(
   await Promise.all([
     replaceLocalHighlights(farmId, highlights),
     replaceLocalEntities(farmId, 'diary', mergeByUpdatedAt(localDiary, entities.diary)),
-    replaceLocalEntities(farmId, 'issues', mergeByUpdatedAt(localIssues, entities.issues)),
+    replaceLocalEntities(
+      farmId,
+      'issues',
+      mergeIssuesKeepingPhotos(localIssues, mergeByUpdatedAt(localIssues, entities.issues)),
+    ),
     replaceLocalEntities(
       farmId,
       'issues_archive',
-      mergeByUpdatedAt(localArchive, entities.issuesArchive),
+      mergeIssuesKeepingPhotos(localArchive, mergeByUpdatedAt(localArchive, entities.issuesArchive)),
     ),
   ]);
   notifyMapHighlightsChanged(farmId);
@@ -148,6 +169,53 @@ export async function refreshFarmUiAfterHotMerge(farmId: string): Promise<void> 
   useFarmDiaryStore.getState().mergeIncoming(farmId, diary);
   useFieldStore.getState().mergeIncoming(farmId, issues, archive);
   notifyMapHighlightsChanged(farmId);
+  await refreshFarmUiAfterBonesMerge(farmId);
+}
+
+/**
+ * Apply IDB geometry into the live map store without flipping `isLoaded`
+ * or replacing viewport (`Plans/SETTINGS_SYNC_AND_CREW.md` §9).
+ */
+export async function refreshFarmUiAfterBonesMerge(farmId: string): Promise<void> {
+  const { useMapStoreInternal } = await import('../lib/mapStore');
+  const state = useMapStoreInternal.getState();
+  if (state.currentFarmId && state.currentFarmId !== farmId) return;
+  if (!state.isLoaded) return;
+
+  const bundle = await getFarmGeometry(farmId);
+  useMapStoreInternal.setState({
+    blocks: bundle.blocks,
+    pins: bundle.pins,
+    tracks: bundle.tracks,
+  });
+}
+
+function bonesWatchChanged(
+  local: HotWatchCursor | null,
+  ping: HotWatchPing,
+): boolean {
+  return Boolean(ping.bonesContentHash) && ping.bonesContentHash !== (local?.bonesContentHash ?? '');
+}
+
+function photoWatchChanged(
+  local: HotWatchCursor | null,
+  ping: HotWatchPing,
+): boolean {
+  return Boolean(ping.photoIndexHash) && ping.photoIndexHash !== (local?.photoIndexHash ?? '');
+}
+
+async function applyBonesWatchPing(farmId: string, ping: HotWatchPing): Promise<void> {
+  if (!ping.bonesUri || !ping.bonesContentHash) return;
+  await pullBonesFromFreenetByUri(farmId, ping.bonesUri, ping.bonesContentHash);
+  const readBack = await readMistBonesFarmGeometry(farmId);
+  if (!readBack) {
+    throw new Error('Pulled Bones but could not decrypt — unlock this farm (Hot/Bones keys).');
+  }
+  await mergeFarmGeometryFromBones(farmId, readBack.payload);
+  saveFreenetBonesUri(farmId, {
+    freenetUri: ping.bonesUri,
+    contentHash: ping.bonesContentHash,
+  });
 }
 
 export async function applyHotWatchPing(
@@ -157,27 +225,60 @@ export async function applyHotWatchPing(
   const local = readHotWatchCursor(farmId);
   if (!hotWatchPingChanged(local, ping)) return 'unchanged';
 
-  await pullHotFromFreenetByUri(farmId, ping.hotUri, ping.hotContentHash);
-  const readBack = await readMistHotCurrent(farmId);
-  if (!readBack) {
-    throw new Error('Pulled Hot but could not decrypt — unlock this farm (Hot/Bones keys).');
+  const hotChanged = !local || ping.hotContentHash !== local.hotContentHash;
+  if (hotChanged) {
+    await pullHotFromFreenetByUri(farmId, ping.hotUri, ping.hotContentHash);
+    const readBack = await readMistHotCurrent(farmId);
+    if (!readBack) {
+      throw new Error('Pulled Hot but could not decrypt — unlock this farm (Hot/Bones keys).');
+    }
+    await mergeHotEntitiesIntoLocal(farmId, hotStateToFarmEntities(readBack.hot));
+    saveFreenetHotUri(farmId, {
+      freenetUri: ping.hotUri,
+      contentHash: ping.hotContentHash,
+    });
   }
 
-  await mergeHotEntitiesIntoLocal(farmId, hotStateToFarmEntities(readBack.hot));
-  saveFreenetHotUri(farmId, {
-    freenetUri: ping.hotUri,
-    contentHash: ping.hotContentHash,
-  });
+  if (bonesWatchChanged(local, ping)) {
+    await applyBonesWatchPing(farmId, ping);
+  }
+
+  if (photoWatchChanged(local, ping) && ping.photoIndexUri && ping.photoIndexHash) {
+    const { applyPhotoIndexWatch } = await import('./mistPhotoFreenet.ts');
+    await applyPhotoIndexWatch(farmId, ping.photoIndexUri, ping.photoIndexHash);
+  }
+
   writeHotWatchCursor(farmId, {
     generation: ping.generation,
     hotContentHash: ping.hotContentHash,
     hotUri: ping.hotUri,
+    bonesContentHash: ping.bonesContentHash,
+    bonesUri: ping.bonesUri,
+    photoIndexHash: ping.photoIndexHash,
+    photoIndexUri: ping.photoIndexUri,
     appliedAt: new Date().toISOString(),
   });
   return 'applied';
 }
 
-/** After a Hot PUT: bump the watch slot so other terminals see a cheap yes. */
+function bonesFieldsFromStatus(farmId: string): Pick<HotWatchPing, 'bonesUri' | 'bonesContentHash'> {
+  const bones = getMistBonesPublishStatus(farmId);
+  const hot = getMistHotPublishStatus(farmId);
+  const bonesUri = bones?.freenetUri || hot?.bonesFreenetUri;
+  const bonesContentHash = bones?.contentHash || hot?.bonesContentHash;
+  if (!bonesUri || !bonesContentHash) return {};
+  return { bonesUri, bonesContentHash };
+}
+
+function photoFieldsFromStatus(
+  farmId: string,
+): Pick<HotWatchPing, 'photoIndexUri' | 'photoIndexHash'> {
+  const photos = getMistPhotoIndexStatus(farmId);
+  if (!photos?.freenetUri || !photos.contentHash) return {};
+  return { photoIndexUri: photos.freenetUri, photoIndexHash: photos.contentHash };
+}
+
+/** After a Hot or Bones PUT: bump the watch slot so other terminals see a cheap yes. */
 export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWatchPing | null> {
   if (mistSessionCloudFarmId()) return null;
   const keys = await resolveMistReadKeys();
@@ -186,6 +287,8 @@ export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWat
   if (!status?.freenetUri || !status.contentHash) return null;
 
   const generation = nextHotWatchGeneration(farmId);
+  const bones = bonesFieldsFromStatus(farmId);
+  const photos = photoFieldsFromStatus(farmId);
   const ping: HotWatchPing = {
     v: 1,
     kind: 'hot-watch',
@@ -194,15 +297,31 @@ export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWat
     hotUri: status.freenetUri,
     hotContentHash: status.contentHash,
     updatedAt: new Date().toISOString(),
+    ...bones,
+    ...photos,
   };
   await publishHotWatchSlot(ping, keys.hotKey);
   writeHotWatchCursor(farmId, {
     generation,
     hotContentHash: ping.hotContentHash,
     hotUri: ping.hotUri,
+    bonesContentHash: ping.bonesContentHash,
+    bonesUri: ping.bonesUri,
+    photoIndexHash: ping.photoIndexHash,
+    photoIndexUri: ping.photoIndexUri,
     appliedAt: ping.updatedAt,
   });
   return ping;
+}
+
+/** After a Bones PUT: same slot, new bones hash so geometry-only edits ping. */
+export async function publishHotWatchAfterBonesPut(farmId: string): Promise<HotWatchPing | null> {
+  return publishHotWatchAfterHotPut(farmId);
+}
+
+/** After a photo PUT: same slot, new photo-index hash — do not republish Hot. */
+export async function publishHotWatchAfterPhotoPut(farmId: string): Promise<HotWatchPing | null> {
+  return publishHotWatchAfterHotPut(farmId);
 }
 
 /** Background poll: slot GET, fetch Hot only when generation/hash changed. */

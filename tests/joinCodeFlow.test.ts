@@ -101,10 +101,21 @@ describe('freenetJoinAvailability', () => {
     );
   });
 
-  it('is reader on an APK', () => {
+  it('is reader on an APK that cannot start its own node', () => {
     expect(freenetJoinAvailability({ capability: null, native: true, workshopHub: false })).toBe(
       'reader',
     );
+  });
+
+  it('is host on an APK that can start its own node even before :7509 answers', () => {
+    expect(
+      freenetJoinAvailability({
+        capability: null,
+        native: true,
+        workshopHub: false,
+        canStartOwnNode: true,
+      }),
+    ).toBe('host');
   });
 
   it('is host on Electron', () => {

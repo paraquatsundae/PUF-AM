@@ -73,4 +73,69 @@ describe('hot watch ping', () => {
       ),
     ).toBe(true);
   });
+
+  it('treats a new Bones hash as a change even when Hot hash is unchanged', () => {
+    const hot = 'ab'.repeat(32);
+    expect(
+      hotWatchPingChanged(
+        { generation: 100, hotContentHash: hot, bonesContentHash: '11'.repeat(32) },
+        samplePing({
+          generation: 101,
+          hotContentHash: hot,
+          bonesUri: 'FN02@bones',
+          bonesContentHash: '22'.repeat(32),
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('parses optional Bones fields on the same ping', () => {
+    const ping = parseHotWatchPing(
+      samplePing({
+        bonesUri: 'FN02@bones',
+        bonesContentHash: '33'.repeat(32),
+      }),
+    );
+    expect(ping?.bonesUri).toBe('FN02@bones');
+    expect(ping?.bonesContentHash).toBe('33'.repeat(32));
+  });
+
+  it('treats a new photo-index hash as a change even when Hot hash is unchanged', () => {
+    const hot = 'ab'.repeat(32);
+    expect(
+      hotWatchPingChanged(
+        { generation: 100, hotContentHash: hot, photoIndexHash: '11'.repeat(32) },
+        samplePing({
+          generation: 101,
+          hotContentHash: hot,
+          photoIndexUri: 'FN02@photos',
+          photoIndexHash: '22'.repeat(32),
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('wraps photo-index fields with HotKey only', async () => {
+    const hotKey = await deriveHotContractKey(FARM_SEED);
+    const sealed = await wrapHotWatchPing(
+      samplePing({ photoIndexUri: 'FN02@photos', photoIndexHash: '55'.repeat(32) }),
+      hotKey,
+    );
+    const opened = await unwrapHotWatchPing(sealed, hotKey);
+    expect(opened.photoIndexUri).toBe('FN02@photos');
+    expect(opened.photoIndexHash).toBe('55'.repeat(32));
+    expect(JSON.stringify(opened)).not.toMatch(/farmSeed/i);
+  });
+
+  it('wraps Bones fields with HotKey only', async () => {
+    const hotKey = await deriveHotContractKey(FARM_SEED);
+    const sealed = await wrapHotWatchPing(
+      samplePing({ bonesUri: 'FN02@bones', bonesContentHash: '44'.repeat(32) }),
+      hotKey,
+    );
+    const opened = await unwrapHotWatchPing(sealed, hotKey);
+    expect(opened.bonesUri).toBe('FN02@bones');
+    expect(opened.bonesContentHash).toBe('44'.repeat(32));
+    expect(JSON.stringify(opened)).not.toMatch(/farmSeed/i);
+  });
 });

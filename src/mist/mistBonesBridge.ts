@@ -8,7 +8,7 @@ import {
   bonesKey,
   decryptBonesBlob,
   decryptBonesBlobWithKey,
-  encryptBonesBlob,
+  encryptBonesBlobWithKey,
   sha256Hex,
   type MistStore,
 } from '../../units/mist-freenet/src/index.ts';
@@ -20,7 +20,7 @@ import {
   type BonesFarmGeometryPayload,
 } from './bonesGeometry.ts';
 import { ensureBrowserMistStore } from './createFarmStore.ts';
-import { hasMistDeviceSession } from './mistDeviceSession.ts';
+import { hasMistDeviceSession, mistSessionCloudFarmId } from './mistDeviceSession.ts';
 import {
   getMistHotPublishStatus,
   saveMistBonesPublishStatus,
@@ -30,7 +30,7 @@ import {
   clearCachedFarmSeedForHot,
   farmSeedLockedError,
   getMistStoreForHotBridge,
-  resolveMistFarmSeed,
+  isMistHotMirrorAvailable,
   resolveMistReadKeys,
 } from './mistHotBridge.ts';
 
@@ -54,8 +54,24 @@ export type ReadMistBonesResult = {
 
 export { BONES_FARM_GEOMETRY_ASSET_ID };
 
+export type PublishMistBonesOpts = {
+  devicePin?: string;
+  /** Skip when keys are still locked (auto-publish). */
+  auto?: boolean;
+  /**
+   * Hybrid (`Plans/FREENET_NETWORK_PACK.md` §3): read geometry from the
+   * cloud farm's local cache, seal under the mist `farmId`.
+   */
+  cloudFarmId?: string;
+};
+
+const autoPublishTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const AUTO_PUBLISH_DEBOUNCE_MS = 2500;
+
 /**
  * Publish local geometry snapshot to mist bones (`farm-geometry` asset).
+ *
+ * Seals with **BonesKey** — crew or owner. Never requires FarmSeed.
  *
  * `opts.cloudFarmId` is the hybrid case (`Plans/FREENET_NETWORK_PACK.md` §3):
  * geometry is read from the Firestore farm's local cache under the cloud id,
@@ -64,23 +80,26 @@ export { BONES_FARM_GEOMETRY_ASSET_ID };
 export async function publishLocalGeometryToMistBones(
   farmId: string,
   devicePin?: string,
-  opts?: { cloudFarmId?: string },
+  opts?: PublishMistBonesOpts,
 ): Promise<PublishMistBonesResult | null> {
   if (!hasMistDeviceSession()) return null;
 
   const store = await getMistStoreForHotBridge();
   if (!store) return null;
 
-  const farmSeed = await resolveMistFarmSeed(devicePin);
-  if (!farmSeed) {
-    throw farmSeedLockedError('publish bones', devicePin);
+  const readKeys = await resolveMistReadKeys(devicePin ?? opts?.devicePin);
+  if (!readKeys) {
+    if (opts?.auto) return null;
+    throw farmSeedLockedError('publish bones', devicePin ?? opts?.devicePin);
   }
 
   const { payload, plainBytes } = await packFarmGeometryFromIdb(
     opts?.cloudFarmId?.trim() || farmId,
   );
   const canEncrypt = hasSubtleCrypto();
-  const storedBytes = canEncrypt ? await encryptBonesBlob(plainBytes, farmSeed) : plainBytes;
+  const storedBytes = canEncrypt
+    ? await encryptBonesBlobWithKey(plainBytes, readKeys.bonesKey)
+    : plainBytes;
 
   const storageKey = bonesKey(farmId, BONES_FARM_GEOMETRY_ASSET_ID);
   const contentHash = sha256Hex(storedBytes);
@@ -172,4 +191,38 @@ export { clearCachedFarmSeedForHot as clearCachedFarmSeedForBones };
 export async function getMistStoreForBonesBridge(): Promise<MistStore | null> {
   if (!hasMistDeviceSession()) return null;
   return ensureBrowserMistStore();
+}
+
+/**
+ * Debounced auto-publish after local paddock / pin / track writes.
+ *
+ * Writes local bones, PUTs to Freenet, bumps the Hot-watch slot with a bones
+ * hash so the other terminal's 20s poll sees geometry change
+ * (`Plans/SETTINGS_SYNC_AND_CREW.md` §9 Decision 2026-09-13).
+ *
+ * Skipped on a hybrid device: same Send-only rule as Hot.
+ */
+export function scheduleMistBonesAutoPublish(farmId: string): void {
+  if (!isMistHotMirrorAvailable()) return;
+  if (mistSessionCloudFarmId()) return;
+
+  const existing = autoPublishTimers.get(farmId);
+  if (existing) clearTimeout(existing);
+
+  autoPublishTimers.set(
+    farmId,
+    setTimeout(() => {
+      autoPublishTimers.delete(farmId);
+      void publishLocalGeometryToMistBones(farmId, undefined, { auto: true })
+        .then((result) => {
+          if (!result) return;
+          return import('./mistFreenetClient.ts').then(({ publishBonesToFreenet }) =>
+            publishBonesToFreenet(farmId),
+          );
+        })
+        .catch((err) => {
+          console.warn('[mistBonesBridge] auto-publish failed:', err);
+        });
+    }, AUTO_PUBLISH_DEBOUNCE_MS),
+  );
 }

@@ -1,8 +1,17 @@
 /**
  * Local-first farm geometry: IndexedDB is source of truth on device;
- * Firestore is the cloud mirror when online and not in workshop mode.
+ * Firestore is the cloud mirror on hosted/BYO farms when online.
+ *
+ * A Freenet / mist farm has no Firebase farm. Queuing "needs cloud write"
+ * there left the map banner on *pending sync* forever and made Retry say
+ * the map was waiting to sync to the farm cloud. Cloud rungs stay on
+ * `usesCloudSyncOutbox()` only. Freenet paddock/pin/track saves publish
+ * Bones and bump the Hot-watch slot (`scheduleMistBonesAutoPublish`).
+ *
+ * @see Plans/SETTINGS_SYNC_AND_CREW.md §1 · §9
  */
 import { mapApi } from '../services/api';
+import { usesCloudSyncOutbox } from './farmPipes';
 import { isLocalOnlyFarmSession } from './workshopMode';
 import { localMapStore } from './localMapStore';
 import type { OrchardBlock, InfrastructurePin, FarmTrack, MapViewport } from './mapStore';
@@ -27,6 +36,11 @@ import {
 } from './farmGeometryIdb';
 
 const online = () => typeof navigator === 'undefined' || navigator.onLine;
+
+/** Workshop, Freenet-native, or a hybrid mirror — no Firestore geometry. */
+function skipCloudGeometry(): boolean {
+  return isLocalOnlyFarmSession() || !usesCloudSyncOutbox();
+}
 
 export type GeometrySyncResult = {
   synced: boolean;
@@ -95,7 +109,8 @@ export async function loadFarmGeometryLocalFirst(farmId: string): Promise<FarmGe
   let local = await getFarmGeometry(farmId);
   local = await migrateLocalStorageIfNeeded(farmId, local);
 
-  if (isLocalOnlyFarmSession() || !online()) {
+  if (skipCloudGeometry() || !online()) {
+    if (skipCloudGeometry()) await clearPendingForFarm(farmId);
     return local;
   }
 
@@ -137,6 +152,17 @@ export async function loadFarmGeometryLocalFirst(farmId: string): Promise<FarmGe
   }
 }
 
+/**
+ * After a Freenet-native map write: debounce a Bones PUT + watch bump.
+ * Workshop and cloud farms do not go here. Viewport pans are not a publish.
+ */
+function scheduleFreenetGeometryPublish(farmId: string): void {
+  if (isLocalOnlyFarmSession() || usesCloudSyncOutbox()) return;
+  void import('../mist/mistBonesBridge').then(({ scheduleMistBonesAutoPublish }) => {
+    scheduleMistBonesAutoPublish(farmId);
+  });
+}
+
 async function tryCloudOrQueue(
   farmId: string,
   collection: PendingGeometryOp['collection'],
@@ -145,8 +171,9 @@ async function tryCloudOrQueue(
   cloudFn: () => Promise<void>,
   payload?: PendingGeometryOp['payload']
 ): Promise<GeometrySyncResult> {
-  // Workshop: IndexedDB only (no cloud queue). Offline: queue for later sync.
-  if (isLocalOnlyFarmSession()) {
+  // Workshop / Freenet / hybrid mirror: IndexedDB only (no cloud queue).
+  if (skipCloudGeometry()) {
+    if (collection !== 'viewport') scheduleFreenetGeometryPublish(farmId);
     return { synced: true, queued: false, message: null };
   }
   if (!online()) {
@@ -215,9 +242,13 @@ export async function persistViewport(farmId: string, viewport: MapViewport): Pr
   );
 }
 
-/** Push queued offline edits to Firestore. */
+/** Push queued offline edits to Firestore. No-op (and drop leftovers) off-cloud. */
 export async function flushPendingGeometry(farmId: string): Promise<{ flushed: number; failed: number }> {
-  if (isLocalOnlyFarmSession() || !online()) {
+  if (skipCloudGeometry()) {
+    await clearPendingForFarm(farmId);
+    return { flushed: 0, failed: 0 };
+  }
+  if (!online()) {
     return { flushed: 0, failed: 0 };
   }
 
@@ -260,6 +291,7 @@ export async function flushPendingGeometry(farmId: string): Promise<{ flushed: n
 }
 
 export async function pendingGeometryCount(farmId: string): Promise<number> {
+  if (skipCloudGeometry()) return 0;
   return (await listPending(farmId)).length;
 }
 

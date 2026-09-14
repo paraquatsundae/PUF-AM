@@ -69,6 +69,21 @@ async function defaultSlotGet(instanceIdBase58: string): Promise<Uint8Array | nu
 }
 
 /**
+ * Start the in-APK node when :7509 is down, then health-check. Attach wins if
+ * something is already listening. A Freenet farm must not wait for a hub.
+ */
+export async function ensureAndroidFreenetListening(
+  deps: AndroidFreenetHostDeps = {},
+): Promise<boolean> {
+  const probe = deps.probe ?? (() => probeLocalFreenetNode({ force: true }));
+  if (await probe()) return true;
+  const pluginAvailable = (deps.pluginAvailable ?? isFreenetHostPluginAvailable)();
+  if (!pluginAvailable) return false;
+  await androidFreenetHostBringUp(deps);
+  return probe();
+}
+
+/**
  * Attach first. A live :7509 is the host, even when our process has no binary.
  * Native start only runs when nothing is listening.
  */
@@ -81,20 +96,20 @@ export async function androidFreenetHostBringUp(deps: AndroidFreenetHostDeps = {
 
   const started = await (deps.pluginStart ?? androidFreenetHostStart)();
   if (started.mode === 'attached' || started.mode === 'managed') return started;
-  if (started.mode === 'failed') return started;
   if (await probe()) return androidAttachedStatus();
-  if (started.mode === 'starting') {
+  // `starting`, or a stale fail-clean racing a new spawn — wait for :7509.
+  if (started.mode === 'starting' || started.mode === 'failed') {
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 750));
       if (await probe()) {
-        return started.mode === 'starting'
-          ? { ...started, mode: 'managed', reachable: true }
-          : androidAttachedStatus();
+        return { ...started, mode: 'managed', reachable: true, lastError: undefined };
       }
       const now = await (deps.pluginStatus ?? androidFreenetHostStatusNow)({ probe: true });
       if (now.mode === 'attached' || now.mode === 'managed') return now;
-      if (now.mode === 'failed') return now;
+      if (now.mode === 'failed' && now.lastError && !/no android-arm64 binary/i.test(now.lastError)) {
+        return now;
+      }
     }
   }
   return started;

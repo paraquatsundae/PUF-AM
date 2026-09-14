@@ -191,4 +191,71 @@ describe('hot watch sync', () => {
     expect(diaryStore.events.some((e) => e.id === saved.diary?.id)).toBe(true);
     expect(saved.highlight.linkedDiaryEventId).toBe(saved.diary?.id);
   });
+
+  it('Bones merge applies paddocks without flipping isLoaded or viewport', async () => {
+    const { mergeFarmGeometryFromBones } = await import('../src/mist/bonesGeometry');
+    const { refreshFarmUiAfterBonesMerge } = await import('../src/mist/hotWatchSync');
+    const { saveFarmGeometry, getFarmGeometry } = await import('../src/lib/farmGeometryIdb');
+
+    const viewport = { lat: -34.24, lng: 116.14, zoom: 16 };
+    const linuxOnly = {
+      id: 'linux-only',
+      name: 'West dam',
+      cultivar: '',
+      density: '',
+      irrigation: '',
+      geojson: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [] } },
+      updatedAt: '2026-09-13T01:00:00.000Z',
+    };
+    await saveFarmGeometry({
+      farmId: FARM_ID,
+      blocks: [linuxOnly],
+      pins: [],
+      tracks: [],
+      viewport,
+      updatedAt: '2026-09-13T01:00:00.000Z',
+    });
+
+    useMapStoreInternal.setState({
+      isLoaded: true,
+      isLoading: false,
+      currentFarmId: FARM_ID,
+      viewport,
+      blocks: [linuxOnly],
+      pins: [],
+      tracks: [],
+    });
+
+    const tabletBlock = {
+      id: 'tablet-1',
+      name: 'North',
+      cultivar: '',
+      density: '',
+      irrigation: '',
+      geojson: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [] } },
+      updatedAt: '2026-09-13T03:00:00.000Z',
+    };
+    await mergeFarmGeometryFromBones(FARM_ID, {
+      v: 1,
+      kind: 'farm-geometry',
+      farmId: FARM_ID,
+      exportedAt: '2026-09-13T03:00:00.000Z',
+      blocks: [tabletBlock],
+      pins: [],
+      tracks: [],
+      viewport: { lat: -33.9, lng: 115.0, zoom: 10 },
+    });
+    await refreshFarmUiAfterBonesMerge(FARM_ID);
+
+    const map = useMapStoreInternal.getState();
+    expect(map.isLoaded).toBe(true);
+    expect(map.isLoading).toBe(false);
+    expect(map.viewport).toBe(viewport);
+    expect(map.blocks.some((b) => b.id === 'linux-only')).toBe(true);
+    expect(map.blocks.some((b) => b.id === 'tablet-1' && b.name === 'North')).toBe(true);
+
+    const stored = await getFarmGeometry(FARM_ID);
+    expect(stored.blocks).toHaveLength(2);
+    expect(stored.viewport).toEqual(viewport);
+  });
 });

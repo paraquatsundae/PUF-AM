@@ -8,6 +8,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -32,10 +34,15 @@ public class FreenetNodeService extends Service {
 
     private Process child;
     private volatile boolean stopping;
+    private HandlerThread worker;
+    private Handler workerHandler;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        worker = new HandlerThread("freenet-host-worker");
+        worker.start();
+        workerHandler = new Handler(worker.getLooper());
         installQuietDeath();
         try {
             ensureChannel();
@@ -52,14 +59,26 @@ public class FreenetNodeService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        try {
-            return handleStart(intent);
-        } catch (Throwable t) {
-            Log.e(FreenetHostPlugin.TAG, "onStartCommand", t);
-            String msg = t.getMessage() != null ? t.getMessage() : FreenetHostPlugin.NO_BINARY;
-            failClean(msg, null);
-            return START_NOT_STICKY;
+        final Intent captured = intent;
+        Handler handler = workerHandler;
+        if (handler == null) {
+            try {
+                return handleStart(captured);
+            } catch (Throwable t) {
+                Log.e(FreenetHostPlugin.TAG, "onStartCommand", t);
+                failClean(FreenetNodePolicy.failureMessage(t), null);
+                return START_NOT_STICKY;
+            }
         }
+        handler.post(() -> {
+            try {
+                handleStart(captured);
+            } catch (Throwable t) {
+                Log.e(FreenetHostPlugin.TAG, "onStartCommand", t);
+                failClean(FreenetNodePolicy.failureMessage(t), null);
+            }
+        });
+        return START_NOT_STICKY;
     }
 
     private int handleStart(Intent intent) {
@@ -78,8 +97,15 @@ public class FreenetNodeService extends Service {
         File binary = findBinary(this);
         FreenetNodePolicy.Action action = FreenetNodePolicy.decide(false, binary);
         if (action != FreenetNodePolicy.Action.SPAWN) {
-            Log.w(FreenetHostPlugin.TAG, FreenetHostPlugin.NO_BINARY);
-            failClean(FreenetHostPlugin.NO_BINARY, null);
+            String looked = getApplicationInfo().nativeLibraryDir;
+            String msg = FreenetHostPlugin.NO_BINARY + " (looked in " + looked + ")";
+            Log.w(FreenetHostPlugin.TAG, msg);
+            failClean(msg, null);
+            return START_NOT_STICKY;
+        }
+        if (FreenetNodePolicy.processAlive(child)) {
+            Log.i(FreenetHostPlugin.TAG, "child still running — not respawning");
+            FreenetHostStatusStore.write(this, "starting", false, null, binary.getAbsolutePath());
             return START_NOT_STICKY;
         }
         try {
@@ -87,7 +113,7 @@ public class FreenetNodeService extends Service {
             FreenetHostStatusStore.write(this, "starting", false, null, binary.getAbsolutePath());
             return START_NOT_STICKY;
         } catch (Throwable e) {
-            String msg = e.getMessage() != null ? e.getMessage() : FreenetHostPlugin.NO_BINARY;
+            String msg = FreenetNodePolicy.failureMessage(e);
             Log.w(FreenetHostPlugin.TAG, "spawn", e);
             failClean(msg, binary.getAbsolutePath());
             return START_NOT_STICKY;
@@ -98,6 +124,11 @@ public class FreenetNodeService extends Service {
     public void onDestroy() {
         stopping = true;
         destroyChild();
+        if (worker != null) {
+            worker.quitSafely();
+            worker = null;
+            workerHandler = null;
+        }
         super.onDestroy();
     }
 
@@ -108,11 +139,15 @@ public class FreenetNodeService extends Service {
 
     static File findBinary(Context ctx) {
         File nativeLib = new File(ctx.getApplicationInfo().nativeLibraryDir, "libfreenet.so");
-        if (nativeLib.isFile()) return nativeLib;
+        if (nativeLib.isFile()) {
+            Log.i(FreenetHostPlugin.TAG, "binary " + nativeLib.getAbsolutePath());
+            return nativeLib;
+        }
         File files = new File(ctx.getFilesDir(), "freenet/android-arm64/freenet");
         if (files.isFile()) return files;
         File vendorHint = new File(ctx.getFilesDir(), "freenet/libfreenet.so");
         if (vendorHint.isFile()) return vendorHint;
+        Log.w(FreenetHostPlugin.TAG, "no binary in " + ctx.getApplicationInfo().nativeLibraryDir);
         return null;
     }
 

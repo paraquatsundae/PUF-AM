@@ -138,12 +138,8 @@ export const diaryApi = {
     }
     try {
       const path = `farms/${farmId}/events`;
-      const dataToSave = { ...event };
-      Object.keys(dataToSave).forEach(key => {
-        if ((dataToSave as any)[key] === undefined) {
-          delete (dataToSave as any)[key];
-        }
-      });
+      const { withPhotosForFirestore } = await import('../lib/farmPhoto');
+      const dataToSave = withPhotosForFirestore({ ...event } as Record<string, unknown>);
       await setDoc(doc(db, path, event.id), dataToSave);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/events/${event.id}`);

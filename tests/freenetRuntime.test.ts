@@ -1,11 +1,8 @@
 /**
- * The APK must not offer a Connect button with nothing on the other end.
+ * Where the Freenet node this device talks to lives.
  *
- * Android cannot host a Freenet node — the peer is a native Rust binary PUF-AM
- * has no way to spawn there — so the tablet's only honest answers are "a hub
- * holds the node" or "not on this device yet". Getting this wrong is worse than
- * hiding the feature: an operator in a paddock would read a timeout as a network
- * fault and go looking for signal. Plan: `Plans/reference/APK_FREENET_PLUGIN.md`.
+ * The APK hosts its own node on :7509 (isolated :freenet). A hub is an optional
+ * LAN fast path, not the only answer. Plan: `Plans/APK_FREENET_HOST.md`.
  */
 
 import { describe, expect, it } from 'vitest';

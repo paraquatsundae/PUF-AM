@@ -122,7 +122,9 @@ async function resolveCrewInviteOnLan(
       resolvedBy: body.resolvedFrom ? `lan (${body.resolvedFrom})` : 'lan',
     };
   } catch (error) {
-    throw new JoinTicketMismatchError(
+    // A hub that answered with bytes we cannot open is a LAN miss — Freenet
+    // may still have the crew envelope. A mismatch (wrong farm) stops the walk.
+    throw new JoinTicketUnavailableError(
       error instanceof Error ? error.message : 'The hub crew invite could not be opened.',
     );
   }

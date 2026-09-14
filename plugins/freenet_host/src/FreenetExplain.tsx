@@ -50,8 +50,8 @@ export function FreenetExplain({
 
       {!canStart && (
         <p className="text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-          Freenet is switched off in this install. On a PUF-AM desktop, turn on Settings →{' '}
-          <strong>Farm sync between laptops</strong>.
+          Freenet is not available in this browser. Use PUF-AM Desktop or the Android app —
+          each starts its own node. You do not pair a laptop hub.
         </p>
       )}
 
