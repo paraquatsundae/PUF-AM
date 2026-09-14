@@ -122,6 +122,8 @@ export function useOrchardMapOperate({
       priority: FieldIssue['priority'];
       note: string;
       photos?: Blob[];
+      directedAtName?: string;
+      directedAtUid?: string;
     }) => {
       if (!farmId || !reportDraft || !uid) return;
       const issue: FieldIssue = {
@@ -135,6 +137,8 @@ export function useOrchardMapOperate({
         reportedBy: uid,
         reportedAt: new Date().toISOString(),
         ...(reportDraft.blockId ? { blockId: reportDraft.blockId } : {}),
+        ...(data.directedAtName ? { directedAtName: data.directedAtName } : {}),
+        ...(data.directedAtUid ? { directedAtUid: data.directedAtUid } : {}),
       };
       await addFieldIssue(farmId, issue);
       if (data.photos?.length) {
@@ -144,6 +148,8 @@ export function useOrchardMapOperate({
             await attachIssuePhoto(farmId, issue.id, photo, {
               createdBy: uid,
               blockId: reportDraft.blockId,
+              directedAtName: data.directedAtName,
+              directedAtUid: data.directedAtUid,
             });
           } catch {
             /* photoStatus is already failed — keep the pin */

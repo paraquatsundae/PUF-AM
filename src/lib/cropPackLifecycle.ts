@@ -4,8 +4,8 @@
  */
 import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import {
-  getCropPack,
-  isCropPackId,
+  getInstallablePack,
+  isInstallablePackId,
   migrateLegacyPacks,
   moduleListEquals,
   planActivatePack,
@@ -14,9 +14,9 @@ import {
   planInstallPack,
   resolveFarmCropPacks,
   syncModulesWithCropPacks,
-  type CropPackId,
   type CropPackLifecycleCtx,
   type FarmCropPacksMap,
+  type InstallablePackId,
 } from '../../shared/farm/cropPacks';
 import { resolveFarmEnabledModules, type FarmModuleId } from '../../shared/auth/farmModules';
 import { db } from '../firebase';
@@ -51,8 +51,8 @@ async function writeCropPacks(farmId: string, cropPacks: FarmCropPacksMap): Prom
   }
 }
 
-async function wipePackSettings(farmId: string, packId: CropPackId): Promise<void> {
-  const pack = getCropPack(packId);
+async function wipePackSettings(farmId: string, packId: InstallablePackId): Promise<void> {
+  const pack = getInstallablePack(packId);
   if (!pack.settingsDocId) return;
   const ref = doc(db, 'farms', farmId, 'settings', pack.settingsDocId);
   const keys = pack.settingsOwnedKeys;
@@ -100,11 +100,11 @@ export async function ensureLegacyPacksMigrated(
 
 export async function installCropPack(
   ctx: CropPackLifecycleCtx,
-  packId: CropPackId,
+  packId: InstallablePackId,
   opts?: { activate?: boolean }
 ): Promise<CropPackLifecycleResult> {
-  if (!isCropPackId(packId)) throw new Error(`Unknown crop pack: ${packId}`);
-  const pack = getCropPack(packId);
+  if (!isInstallablePackId(packId)) throw new Error(`Unknown pack: ${packId}`);
+  const pack = getInstallablePack(packId);
   const check = pack.canInstall?.(ctx);
   if (check && check.hard && !check.ok) {
     throw new Error(check.hint || 'This pack cannot be installed on this farm.');
@@ -125,9 +125,9 @@ export async function installCropPack(
 
 export async function activateCropPack(
   ctx: CropPackLifecycleCtx,
-  packId: CropPackId
+  packId: InstallablePackId
 ): Promise<CropPackLifecycleResult> {
-  if (!isCropPackId(packId)) throw new Error(`Unknown crop pack: ${packId}`);
+  if (!isInstallablePackId(packId)) throw new Error(`Unknown pack: ${packId}`);
   const state = await readFarmPackState(ctx.farmId);
   const planned = planActivatePack(
     state.cropPacks,
@@ -142,9 +142,9 @@ export async function activateCropPack(
 
 export async function deactivateCropPack(
   ctx: CropPackLifecycleCtx,
-  packId: CropPackId
+  packId: InstallablePackId
 ): Promise<CropPackLifecycleResult> {
-  if (!isCropPackId(packId)) throw new Error(`Unknown crop pack: ${packId}`);
+  if (!isInstallablePackId(packId)) throw new Error(`Unknown pack: ${packId}`);
   const state = await readFarmPackState(ctx.farmId);
   const planned = planDeactivatePack(state.cropPacks, state.modules, packId);
   await writeCropPacks(ctx.farmId, planned.cropPacks);
@@ -154,9 +154,9 @@ export async function deactivateCropPack(
 
 export async function deleteCropPack(
   ctx: CropPackLifecycleCtx,
-  packId: CropPackId
+  packId: InstallablePackId
 ): Promise<CropPackLifecycleResult> {
-  if (!isCropPackId(packId)) throw new Error(`Unknown crop pack: ${packId}`);
+  if (!isInstallablePackId(packId)) throw new Error(`Unknown pack: ${packId}`);
   const state = await readFarmPackState(ctx.farmId);
   const planned = planDeletePack(state.cropPacks, state.modules, packId);
   await wipePackSettings(ctx.farmId, packId);

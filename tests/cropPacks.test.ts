@@ -8,6 +8,7 @@ import {
   allPackModuleIds,
   defaultModulesWithoutCropPacks,
   listCropPacks,
+  listFarmPacks,
   migrateLegacyChillPack,
   migrateLegacyPacks,
   migrateLegacyWalnutPack,
@@ -79,8 +80,11 @@ describe('cropPacks catalog', () => {
     expect(owned).toEqual(
       expect.arrayContaining(['blight', 'chill', 'water', 'nutrition', 'harvest', 'drying'])
     );
+    expect(owned).toContain('farm_feed');
     expect(owned).toHaveLength(
-      new Set(listCropPacks().flatMap((p) => p.modules)).size
+      new Set(
+        [...listCropPacks(), ...listFarmPacks()].flatMap((p) => p.modules)
+      ).size
     );
 
     const mods = defaultModulesWithoutCropPacks();
@@ -90,6 +94,7 @@ describe('cropPacks catalog', () => {
     expect(mods).not.toContain('nutrition');
     expect(mods).not.toContain('harvest');
     expect(mods).not.toContain('drying');
+    expect(mods).not.toContain('farm_feed');
     expect(mods).toContain('map');
     expect(withPackModules(mods, 'walnut_blight')).toContain('blight');
     expect(withoutPackModules(withPackModules(mods, 'walnut_blight'), 'walnut_blight')).not.toContain(
@@ -99,7 +104,7 @@ describe('cropPacks catalog', () => {
 
   it('excludes pack modules from PIN/join presets when the pack is not offered', () => {
     expect(packModulesToExclude({})).toEqual(
-      expect.arrayContaining(['blight', 'chill', 'water', 'nutrition', 'harvest', 'drying'])
+      expect.arrayContaining(['blight', 'chill', 'water', 'nutrition', 'harvest', 'drying', 'farm_feed'])
     );
     expect(
       packModulesToExclude(
@@ -184,6 +189,7 @@ describe('Farm Modules pack labeling helpers (CP-03)', () => {
   it('maps blight to walnut blight pack and keeps ops modules unowned', () => {
     expect(packOwningModule('blight')?.id).toBe('walnut_blight');
     expect(packOwningModule('chill')?.id).toBe('chill_portions');
+    expect(packOwningModule('farm_feed')?.id).toBe('farm_feed');
     expect(packOwningModule('map')).toBeUndefined();
     expect(optionalOpsModules()).toContain('map');
     expect(optionalOpsModules()).not.toContain('blight');
@@ -192,6 +198,7 @@ describe('Farm Modules pack labeling helpers (CP-03)', () => {
     expect(optionalOpsModules()).not.toContain('nutrition');
     expect(optionalOpsModules()).not.toContain('harvest');
     expect(optionalOpsModules()).not.toContain('drying');
+    expect(optionalOpsModules()).not.toContain('farm_feed');
   });
 
   it('offers pack modules only when pack is active', () => {
@@ -415,5 +422,20 @@ describe('migrateLegacyPacks', () => {
     expect(result.cropPacks.harvest?.status).toBe('active');
     expect(result.cropPacks.drying?.status).toBe('active');
     expect(result.modules).toContain('drying');
+  });
+
+  it('does not silently install farm_feed on an existing farm', () => {
+    const result = migrateLegacyPacks({
+      cropPacks: {},
+      modules: defaultModulesWithoutCropPacks(),
+      profile: {
+        enterprises: ['orchard_tree'],
+        livestockEnabled: false,
+        defaultSpeciesId: 'walnut',
+      },
+      nowIso: '2026-09-15T12:00:00.000Z',
+    });
+    expect(result.cropPacks.farm_feed).toBeUndefined();
+    expect(result.modules).not.toContain('farm_feed');
   });
 });

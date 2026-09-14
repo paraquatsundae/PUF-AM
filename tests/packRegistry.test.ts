@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CROP_PACK_IDS } from '../shared/farm/cropPacks';
+import { CROP_PACK_IDS, FARM_PACK_IDS } from '../shared/farm/cropPacks';
 import { SYSTEM_PLUGINS } from '../shared/farm/pluginsCatalog';
 import {
   PACK_UI_REGISTRY,
@@ -29,11 +29,26 @@ describe('pack UI registry (CP-04)', () => {
    * This pins the result, because nothing else would notice the menu changing.
    */
   it('follows catalog order, not the alphabetical order the glob returns', () => {
-    const catalogOrder = [...CROP_PACK_IDS, ...SYSTEM_PLUGINS.map((p) => p.id)];
+    const catalogOrder = [
+      ...CROP_PACK_IDS,
+      ...FARM_PACK_IDS,
+      ...SYSTEM_PLUGINS.map((p) => p.id),
+    ];
     expect(PACK_UI_REGISTRY.map((p) => p.packId)).toEqual(catalogOrder);
     expect(PACK_UI_REGISTRY.map((p) => p.packId)).not.toEqual(
       [...catalogOrder].sort((a, b) => a.localeCompare(b))
     );
+  });
+
+  it('exposes farm feed route and dashboard card after crop packs', () => {
+    const ui = getPackUi('farm_feed')!;
+    expect(ui.routes.map((r) => r.path)).toContain('farm-feed');
+    expect(ui.routes[0]?.moduleId).toBe('farm_feed');
+    expect(ui.surfaces.dashboardCard).toBeTruthy();
+    expect(allPackNavItems().some((i) => i.href === '/farm-feed' && i.groupId === 'field')).toBe(
+      true
+    );
+    expect(packRouteModuleIds()).toContain('farm_feed');
   });
 
   it('lists the network pack after every crop pack and exposes its public routes and surfaces', () => {

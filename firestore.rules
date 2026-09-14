@@ -557,7 +557,7 @@ service cloud.firestore {
     }
 
     function isValidFieldIssueShape(data) {
-      return hasOnlyAllowedFields(['id', 'lat', 'lng', 'category', 'priority', 'note', 'photoData', 'photoUrl', 'photoBytes', 'photoWidth', 'photoContentType', 'status', 'isMistake', 'reportedBy', 'reportedAt', 'resolvedAt', 'archivedAt', 'archivedBy', 'updatedAt', 'blockId', 'photos']) &&
+      return hasOnlyAllowedFields(['id', 'lat', 'lng', 'category', 'priority', 'note', 'photoData', 'photoUrl', 'photoBytes', 'photoWidth', 'photoContentType', 'status', 'isMistake', 'reportedBy', 'reportedAt', 'resolvedAt', 'archivedAt', 'archivedBy', 'updatedAt', 'blockId', 'photos', 'directedAtName', 'directedAtUid']) &&
              hasRequiredFields(['id', 'lat', 'lng', 'category', 'priority', 'status', 'reportedBy', 'reportedAt']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              data.lat is number &&
@@ -579,6 +579,8 @@ service cloud.firestore {
              (!('archivedBy' in data) || (data.archivedBy == null || data.archivedBy is string)) &&
              (!('updatedAt' in data) || (data.updatedAt == null || data.updatedAt is string)) &&
              (!('blockId' in data) || (data.blockId == null || (data.blockId is string && data.blockId.size() < 100))) &&
+             (!('directedAtName' in data) || (data.directedAtName == null || (data.directedAtName is string && data.directedAtName.size() < 120))) &&
+             (!('directedAtUid' in data) || (data.directedAtUid == null || (data.directedAtUid is string && data.directedAtUid.size() < 80))) &&
              isValidFarmPhotos(data);
     }
 

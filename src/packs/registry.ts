@@ -18,7 +18,7 @@
  * a pack's actual screens stays behind the `lazyWithRetry` calls inside it.
  */
 import type { FarmModuleId } from '../../shared/auth/farmModules';
-import { CROP_PACKS, type CropPackId } from '../../shared/farm/cropPacks';
+import { CROP_PACKS, FARM_PACKS, type CropPackId, type FarmPackId } from '../../shared/farm/cropPacks';
 import { SYSTEM_PLUGINS, type SystemPluginId } from '../../shared/farm/pluginsCatalog';
 import type {
   PackCultivarOption,
@@ -41,8 +41,9 @@ const discovered = import.meta.glob<{ packUi?: PackUiRegistration }>(
  *
  * The glob hands back paths sorted by filename, which would put chill portions
  * above blight and reshuffle the Crop menu. `CROP_PACKS` is where pack order is
- * already decided, so nav ordering follows it rather than the alphabet. Network
- * packs (`SYSTEM_PLUGINS`) sort after every crop pack — they contribute no
+ * already decided, so nav ordering follows it rather than the alphabet. Farm
+ * packs (`FARM_PACKS`) sort after crop packs. Network
+ * packs (`SYSTEM_PLUGINS`) sort last — they contribute no
  * menu items today, and Settings → Plugins lists them under their own heading.
  *
  * A folder with no catalog entry is skipped rather than thrown on: an
@@ -51,7 +52,11 @@ const discovered = import.meta.glob<{ packUi?: PackUiRegistration }>(
  * the two sets, and `audit:codebase` checks every pack folder registers.
  */
 const catalogOrder = new Map<string, number>(
-  [...CROP_PACKS.map((pack) => pack.id as string), ...SYSTEM_PLUGINS.map((p) => p.id as string)].map(
+  [
+    ...CROP_PACKS.map((pack) => pack.id as string),
+    ...FARM_PACKS.map((p) => p.id as string),
+    ...SYSTEM_PLUGINS.map((p) => p.id as string),
+  ].map(
     (id, i) => [id, i]
   )
 );
@@ -65,7 +70,9 @@ export const PACK_UI_REGISTRY: readonly PackUiRegistration[] = Object.entries(di
   .sort((a, b) => catalogOrder.get(a.id)! - catalogOrder.get(b.id)!)
   .map((entry) => entry.packUi);
 
-export function getPackUi(packId: CropPackId | SystemPluginId): PackUiRegistration | undefined {
+export function getPackUi(
+  packId: CropPackId | FarmPackId | SystemPluginId
+): PackUiRegistration | undefined {
   return PACK_UI_REGISTRY.find((p) => p.packId === packId);
 }
 

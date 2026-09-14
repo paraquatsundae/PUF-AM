@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "kind": "farm",
+  "id": "farm_feed",
+  "version": "0.1.0",
+  "label": "Farm feed",
+  "blurb": "Whole-farm stream of issues, highlights, and diary. For you when Directed at names this person. Empty is Everyone.",
+  "category": "generic",
+  "modules": ["farm_feed"],
+  "settingsDocId": null,
+  "settingsOwnedKeys": [],
+  "primaryPath": "/farm-feed",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

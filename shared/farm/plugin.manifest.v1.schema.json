@@ -20,8 +20,8 @@
     "schemaVersion": { "const": 1 },
     "kind": {
       "type": "string",
-      "enum": ["crop_pack", "network", "system"],
-      "description": "crop_pack: per-farm Install lifecycle. network: network pack (Plans/NETWORK_PACK_PLUGIN.md). system: legacy spelling of network."
+      "enum": ["crop_pack", "farm", "network", "system"],
+      "description": "crop_pack: per-farm Install lifecycle. farm: whole-farm (not crop) capability such as farm_feed (Plans/FARM_MESSAGING.md). network: network pack (Plans/NETWORK_PACK_PLUGIN.md). system: legacy spelling of network."
     },
     "id": {
       "type": "string",

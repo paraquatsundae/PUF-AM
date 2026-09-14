@@ -6,7 +6,7 @@
 import type { ComponentType, LazyExoticComponent } from 'react';
 import type { Icon } from '@tabler/icons-react';
 import type { FarmModuleId } from '../../shared/auth/farmModules';
-import type { CropPackId } from '../../shared/farm/cropPacks';
+import type { CropPackId, FarmPackId } from '../../shared/farm/cropPacks';
 import type { SystemPluginId } from '../../shared/farm/pluginsCatalog';
 import type { OrchardBlock } from '../lib/mapStore';
 
@@ -150,7 +150,7 @@ export type PackCultivarOption = {
 
 /** What every pack registers — the shape `registry.ts` discovers. */
 export type PackUiRegistration = {
-  packId: CropPackId | SystemPluginId;
+  packId: CropPackId | FarmPackId | SystemPluginId;
   routes: readonly PackRouteRegistration[];
   navItems: readonly PackNavRegistration[];
   surfaces: PackSurfaceComponents;
@@ -161,6 +161,7 @@ export type PackUiRegistration = {
 };
 
 export type CropPackUiRegistration = PackUiRegistration & { packId: CropPackId };
+export type FarmPackUiRegistration = PackUiRegistration & { packId: FarmPackId };
 
 /**
  * A network pack (Plans/NETWORK_PACK_PLUGIN.md). Same discovery and the same

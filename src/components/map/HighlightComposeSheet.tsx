@@ -20,6 +20,7 @@ import {
   type HighlightComposePayload,
 } from '../../lib/mapHighlights';
 import { cn } from '../../lib/utils';
+import { DirectedAtPicker, directedAtFromPicker } from './DirectedAtPicker';
 
 type Props = {
   farmId?: string | null;
@@ -100,16 +101,8 @@ export function HighlightComposeSheet({
     return `${Math.floor(sec / 60)}m ${sec % 60}s`;
   };
 
-  const directedAt = (): Pick<HighlightComposePayload, 'directedAtName' | 'directedAtUid'> => {
-    if (assigneeKey === 'everyone') return {};
-    if (assigneeKey === 'other') {
-      const name = otherName.trim();
-      return name ? { directedAtName: name } : {};
-    }
-    const picked = assignees.find((a) => a.id === assigneeKey);
-    if (!picked) return {};
-    return { directedAtName: picked.name, directedAtUid: picked.id };
-  };
+  const directedAt = (): Pick<HighlightComposePayload, 'directedAtName' | 'directedAtUid'> =>
+    directedAtFromPicker(assigneeKey, otherName, assignees);
 
   return (
     <div className="pufam-highlight-compose absolute bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 z-[1200] w-[calc(100%-1.5rem)] max-w-md pointer-events-auto">
@@ -132,61 +125,14 @@ export function HighlightComposeSheet({
           </button>
         </div>
 
-        <div>
-          <span className="text-[9px] font-bold text-slate-400 uppercase">Directed at</span>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setAssigneeKey('everyone')}
-              className={cn(
-                'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
-                assigneeKey === 'everyone'
-                  ? 'bg-teal-700 text-white border-teal-700'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
-              )}
-            >
-              Everyone
-            </button>
-            {assignees.map((person) => (
-              <button
-                key={person.id}
-                type="button"
-                onClick={() => setAssigneeKey(person.id)}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
-                  assigneeKey === person.id
-                    ? 'bg-teal-700 text-white border-teal-700'
-                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
-                )}
-              >
-                {person.name}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setAssigneeKey('other')}
-              className={cn(
-                'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors',
-                assigneeKey === 'other'
-                  ? 'bg-teal-700 text-white border-teal-700'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
-              )}
-            >
-              Someone else
-            </button>
-          </div>
-          {assigneeKey === 'other' && (
-            <input
-              type="text"
-              maxLength={100}
-              value={otherName}
-              onChange={(e) => setOtherName(e.target.value)}
-              placeholder="Name"
-              className="mt-1.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm"
-              autoFocus
-            />
-          )}
-        </div>
+        <DirectedAtPicker
+          assignees={assignees}
+          assigneeKey={assigneeKey}
+          otherName={otherName}
+          disabled={busy}
+          onAssigneeKey={setAssigneeKey}
+          onOtherName={setOtherName}
+        />
 
         <label className="block">
           <span className="text-[9px] font-bold text-slate-400 uppercase">Note (optional)</span>

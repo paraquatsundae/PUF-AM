@@ -100,6 +100,8 @@ export function OperateMapOverlays({
     priority: FieldIssue['priority'];
     note: string;
     photos?: Blob[];
+    directedAtName?: string;
+    directedAtUid?: string;
   }) => Promise<void>;
   onCloseIssue: () => void;
   onResolveSelected: () => void;
@@ -191,6 +193,10 @@ export function OperateMapOverlays({
         <ReportIssueSheet
           location={reportDraft}
           blockName={reportBlockName}
+          farmId={farmId}
+          sessionName={highlightSessionName}
+          sessionId={highlightSessionId}
+          presence={highlightPresence}
           onCancel={onCancelReport}
           onSave={onSaveIssue}
         />

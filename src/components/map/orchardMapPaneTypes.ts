@@ -99,6 +99,8 @@ export type OrchardMapCanvasProps = {
     priority: FieldIssue['priority'];
     note: string;
     photos?: Blob[];
+    directedAtName?: string;
+    directedAtUid?: string;
   }) => Promise<void>;
   onCloseIssue: () => void;
   onResolveSelected: () => void;

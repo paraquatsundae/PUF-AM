@@ -3,8 +3,11 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, X } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { isDirectedAtYou } from '../../lib/directedAtMatch';
 import { highlightDiaryPath } from '../../lib/highlightDiary';
 import { isHighlightActive, type MapHighlightDoc } from '../../lib/mapHighlights';
+import { sessionDisplayName } from '../../lib/sessionIdentity';
 
 type Props = {
   highlight: MapHighlightDoc;
@@ -15,8 +18,15 @@ type Props = {
 
 export function HighlightInspectSheet({ highlight, canDelete, onClose, onDelete }: Props) {
   const navigate = useNavigate();
+  const { user, userData } = useAuth();
   const note = highlight.note?.trim();
   const directed = highlight.directedAtName?.trim();
+  const forYou = isDirectedAtYou({
+    directedAtUid: highlight.directedAtUid,
+    directedAtName: highlight.directedAtName,
+    personUid: userData?.uid,
+    personNames: [userData?.displayName, user?.displayName, sessionDisplayName(user, userData)],
+  });
   const diaryId = highlight.linkedDiaryEventId;
   const pulseLive = isHighlightActive(highlight.expiresAt);
 
@@ -51,7 +61,7 @@ export function HighlightInspectSheet({ highlight, canDelete, onClose, onDelete 
 
         {directed && (
           <p className="text-xs font-semibold text-teal-800">
-            For {directed}
+            {forYou ? 'For you' : `For ${directed}`}
           </p>
         )}
 

@@ -5,10 +5,12 @@
 **Date:** 2026-09-03  
 **Contract / history:** [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md)  
 **Limits / debug / audit:** [`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)  
-**Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1) — a `kind: network` pack follows [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) instead (same folder layout and discovery, no modules, host capability, per-farm enable)  
+**Not this:** Freenet / network pack ([`NAMING.md`](NAMING.md) §1) — a `kind: network` pack follows [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) instead (same folder layout and discovery, no modules, host capability, per-farm enable). **Also not this:** farm feed / For you — that is a **farm pack** (`farm_feed`), not a crop pack and not `freenet_host`. Plan: [`FARM_MESSAGING.md`](FARM_MESSAGING.md). Copy chill portions **shape**; `kind`/`category` stay farm / `generic`. **Shipped 2026-09-15.**  
 **Layout change done (2026-09-03):** [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) moved every pack's code from `src/packs/<id>/` + `src/components/<id>/` into `plugins/<id>/src/`, and `registry.ts` now discovers packs instead of listing them — **a pack's code is one folder, and its UI wires itself.** Routes, nav and surfaces need no edit to `src/packs/registry.ts`, `App.tsx` or `navConfig.ts`. You still hand-add the three `shared/` pieces in §2–§4 below — the adapter, the module id, and the catalog row — so "no core edit" is true of the UI wiring, not of the whole job. Folding those in is Phase 2. Still statically compiled: discovery is a build-time glob, so the "Must not → hot-load" rule below **stands**.
 
 **Decision — 2026-09-15:** chill weather reference brought in line with the current DPIRD path (day-run §3). Copy [`plugins/chill_portions/`](../plugins/chill_portions/), **not** walnut blight. `DPIRD_API_KEY` is server-only — never `VITE_DPIRD_API_KEY`. A BYO owner's key is never in Firestore, the client, or George's Secret Manager. A BYO farm with no weather endpoint fails closed (never falls back to `am.pufworks.farm`). Details under § Template pack.
+
+**Decision — 2026-09-15 (farm pack):** farm feed + For you is **not** a crop pack. Id `farm_feed`, `kind: farm` in `plugin.manifest.v1.schema.json` and `PLUGIN_PACKAGE_KINDS`, Settings `category: generic`. Catalog row is `FARM_PACKS` / `shared/farm/farmPacks.ts`, not `CROP_PACKS`. Same discovery (`plugins/<id>/` + `plugin.json` + `src/index.ts`). Do not stuff it into `freenet_host`. **Phase 0 shipped** — [`FARM_MESSAGING.md`](FARM_MESSAGING.md).
 
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.
 
@@ -16,7 +18,7 @@ Start here when adding a pack. The contract file is the why and the acceptance b
 
 ## What a pack is (v1)
 
-A crop pack is **in-app code** plus a **disk package** the catalog reads. Unpacking a zip does **not** register a pack. Settings → Plugins only lists ids in `shared/farm/cropPacks.ts`.
+A crop pack is **in-app code** plus a **disk package** the catalog reads. Unpacking a zip does **not** register a pack. Settings → Plugins lists crop ids in `shared/farm/cropPacks.ts` and farm-pack ids in `shared/farm/farmPacks.ts` (same farm-doc `cropPacks` map).
 
 | Layer | Lives in | Job |
 |-------|----------|-----|
@@ -46,6 +48,7 @@ Replace `<id>` with a snake_case pack id (`apple_scab`). Module id can match the
 | `plugins/<id>/plugin.json` | Yes | Schema: `shared/farm/plugin.manifest.v1.schema.json` |
 | `plugins/<id>/engine.json` | If the pack has numbers | Constants / defaults only. No React |
 | `plugins/<id>/README.md` | Should | What the folder owns vs what stays in the app |
+| `plugins/.gitignore` allow-list | Yes | `*/` ignores new folders; add `!<id>/` and `!<id>/**` |
 
 ```json
 {
@@ -65,7 +68,8 @@ Replace `<id>` with a snake_case pack id (`apple_scab`). Module id can match the
 }
 ```
 
-- `category`: `crop` \| `network` \| `generic`. Use `generic` if unsure. Do **not** use `network` — that row is Freenet. Category is Settings → Plugins grouping only — shell menu is `navItems.groupId` ([`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)).
+- `kind`: `crop_pack` \| `farm` \| `network` \| `system`. Farm feed is **`farm`**.
+- `category`: `crop` \| `network` \| `generic`. Use `generic` if unsure. Do **not** use `network` — that row is Freenet. Farm feed (`farm_feed`) uses **`generic`** and is a **farm pack**, not a crop — [`FARM_MESSAGING.md`](FARM_MESSAGING.md). Category is Settings → Plugins grouping only — shell menu is `navItems.groupId` ([`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)).
 - `settingsDocId`: dedicated doc id for new packs (`<id>`). Use `null` if there are no farm knobs.
 - `settingsOwnedKeys`: list every field Delete may wipe. Required when sharing a doc (legacy blight only).
 - `modules`: must already exist on `FARM_MODULE_IDS` after step 3, or the adapter must fail closed.
@@ -103,7 +107,11 @@ Never put a pack module in `ALWAYS_ON_MODULES`.
 
 ### 4. Catalog
 
-In `shared/farm/cropPacks.ts`:
+**Crop pack:** `shared/farm/cropPacks.ts` — import the adapter, append to `CROP_PACK_IDS` / `CROP_PACKS`.
+
+**Farm pack** (not a crop — `farm_feed`): `shared/farm/farmPacks.ts` — append to `FARM_PACK_IDS` / `FARM_PACKS`. Same Install map (`cropPacks` on the farm doc). Do not put a farm pack on `CROP_PACKS`.
+
+For a crop pack in `shared/farm/cropPacks.ts`:
 
 1. Import the adapter
 2. Append the id to `CROP_PACK_IDS`

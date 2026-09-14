@@ -12,6 +12,7 @@ export const FARM_MODULE_IDS = [
   'nutrition',
   'harvest',
   'drying',
+  'farm_feed',
   'financials',
   'farm_management',
   'farm_setup',
@@ -32,6 +33,7 @@ export const MODULE_LABELS: Record<FarmModuleId, string> = {
   nutrition: 'Nutrition',
   harvest: 'Harvest',
   drying: 'Drying',
+  farm_feed: 'Farm feed',
   financials: 'Financials',
   farm_management: 'Farm Management',
   farm_setup: 'Farm Setup',
@@ -67,6 +69,7 @@ export const MODULE_BLURBS: Record<FarmModuleId, string> = {
   nutrition: 'Fertiliser diary (nutrition pack)',
   harvest: 'Yield by block (harvest pack)',
   drying: 'Dryer list and moisture sessions (drying pack)',
+  farm_feed: 'Farm-wide issues, highlights, and diary directed at you',
   financials: 'Costs & records',
   farm_management: 'Team, PINs, discovery',
   farm_setup: 'Farm type, people, map highlights',
@@ -84,9 +87,10 @@ export const WORK_MODULES: FarmModuleId[] = [
   'nutrition',
   'harvest',
   'drying',
+  'farm_feed',
 ];
 
-export const FIELD_ONLY_MODULES: FarmModuleId[] = ['dashboard', 'map', 'diary'];
+export const FIELD_ONLY_MODULES: FarmModuleId[] = ['dashboard', 'map', 'diary', 'farm_feed'];
 
 export const CROP_SCOUT_MODULES: FarmModuleId[] = [
   'dashboard',
@@ -95,6 +99,7 @@ export const CROP_SCOUT_MODULES: FarmModuleId[] = [
   'water',
   'nutrition',
   'drying',
+  'farm_feed',
 ];
 
 export const RECORDS_MODULES: FarmModuleId[] = [

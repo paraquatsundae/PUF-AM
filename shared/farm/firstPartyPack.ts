@@ -6,12 +6,14 @@ import { FARM_MODULE_IDS, type FarmModuleId } from '../auth/farmModules';
 import {
   parsePluginPackageManifestJson,
   pluginPackageIssues,
+  type PluginPackageKind,
   type PluginPackageManifestV1,
 } from './pluginPackage';
 
 export function loadFirstPartyPackManifest(
   pluginJson: unknown,
-  expectedId: string
+  expectedId: string,
+  expectedKind: PluginPackageKind = 'crop_pack'
 ): { manifest: PluginPackageManifestV1; modules: FarmModuleId[] } {
   const parsed = parsePluginPackageManifestJson(JSON.stringify(pluginJson));
   if (!parsed.ok) {
@@ -22,8 +24,8 @@ export function loadFirstPartyPackManifest(
   if (parsed.manifest.id !== expectedId) {
     throw new Error(`[${expectedId} package] plugin.json id must be ${expectedId}`);
   }
-  if (parsed.manifest.kind !== 'crop_pack') {
-    throw new Error(`[${expectedId} package] plugin.json kind must be crop_pack`);
+  if (parsed.manifest.kind !== expectedKind) {
+    throw new Error(`[${expectedId} package] plugin.json kind must be ${expectedKind}`);
   }
   if (!parsed.manifest.primaryPath) {
     throw new Error(`[${expectedId} package] plugin.json primaryPath is required`);

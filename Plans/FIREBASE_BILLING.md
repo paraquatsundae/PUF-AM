@@ -17,6 +17,8 @@ Related: [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §1 (the XOR) 
 [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md) ·
 [`NAMING.md`](NAMING.md) §8 (Firestore paths).
 
+**Decision — 2026-09-15 (Farm feed Phase 0):** pack `farm_feed` adds **zero new Firestore paths** on `pufworks-am`. It derives the feed from issues / diary / local highlights this farm already syncs. No `messages` collection, no farm-wide chat `onSnapshot`, no Cloud Function / FCM fan-out. Last-seen is `pufam.farmFeed.lastSeen.v1.{farmId}` (localStorage). Hosted issue photos on feed cards reuse existing issue `photoUrl` / `photos[]` — no new Storage upload. BYO farms stay on their own project; weather still fails closed. [`FARM_MESSAGING.md`](FARM_MESSAGING.md).
+
 ---
 
 ## §0 The locked decision this sits on

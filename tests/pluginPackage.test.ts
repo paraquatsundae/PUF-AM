@@ -20,6 +20,21 @@ const valid = {
 };
 
 describe('pluginPackage manifest', () => {
+  it('accepts kind farm', () => {
+    const result = validatePluginPackageManifest({
+      ...valid,
+      kind: 'farm',
+      id: 'farm_feed',
+      label: 'Farm feed',
+      category: 'generic',
+      modules: ['farm_feed'],
+      settingsDocId: null,
+      primaryPath: '/farm-feed',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.manifest.kind).toBe('farm');
+  });
+
   it('accepts a valid v1 manifest', () => {
     const result = validatePluginPackageManifest(valid);
     expect(result.ok).toBe(true);

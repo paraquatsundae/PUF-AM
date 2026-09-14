@@ -1,6 +1,9 @@
 import type { Express, Request, Response } from 'express';
 import { resolveFarmEnabledModules } from '../shared/auth/farmModules.ts';
-import { defaultModulesWithoutCropPacks } from '../shared/farm/cropPacks.ts';
+import {
+  defaultModulesWithoutCropPacks,
+  planDefaultFarmFeedOnCreate,
+} from '../shared/farm/cropPacks.ts';
 import { parseGeoInput } from '../shared/geo/geohash.ts';
 import {
   generatePinCode,
@@ -71,8 +74,9 @@ export function registerAccessPinFarmRoutes(app: Express) {
       const uid = uidForPinRedeem(recoveryCode, displayName);
       const email = syntheticEmail(uid);
       const now = new Date().toISOString();
-      // New farms start without crop packs (e.g. blight). Install under Settings → Plugins.
-      const modules = defaultModulesWithoutCropPacks();
+      // New farms start without crop packs (e.g. blight). Farm feed is default-on.
+      const planned = planDefaultFarmFeedOnCreate(defaultModulesWithoutCropPacks(), now);
+      const modules = planned.modules;
       const authEpoch = 1;
 
       const existingUser = await auth.getUser(uid).catch(() => null);
@@ -108,8 +112,9 @@ export function registerAccessPinFarmRoutes(app: Express) {
         name: farmName.slice(0, 120),
         ownerUid: uid,
         createdAt: now,
-        // Core modules only — crop-pack modules added by Settings → Plugins (or one-time migrate).
+        // Core modules + default-on farm feed. Crop packs still Install under Settings.
         enabledModules: modules,
+        cropPacks: planned.cropPacks,
         farmProfile: {
           enterprises: [],
           livestockEnabled: false,

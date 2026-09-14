@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { ArrowDownUp, Loader2, MapPin, X } from 'lucide-react';
 import type { FieldIssue } from '../../lib/fieldStore';
 import { COMMON_ISSUE_PRESETS } from '../../lib/issuePresets';
+import { useHighlightAssignees } from '../../hooks/useHighlightAssignees';
 import { cn } from '../../lib/utils';
+import { DirectedAtPicker, directedAtFromPicker } from './DirectedAtPicker';
 import { IssuePhotoField } from './IssuePhotoField';
 
 type Dock = 'top' | 'bottom';
@@ -10,21 +12,45 @@ type Dock = 'top' | 'bottom';
 type Props = {
   location: { lat: number; lng: number };
   blockName?: string;
+  farmId?: string | null;
+  sessionName?: string | null;
+  sessionId?: string | null;
+  presence?: Array<{ uid?: string; displayName?: string | null }>;
   onCancel: () => void;
   onSave: (data: {
     category: FieldIssue['category'];
     priority: FieldIssue['priority'];
     note: string;
     photos?: Blob[];
+    directedAtName?: string;
+    directedAtUid?: string;
   }) => Promise<void>;
 };
 
-export function ReportIssueSheet({ location: _location, blockName, onCancel, onSave }: Props) {
+export function ReportIssueSheet({
+  location: _location,
+  blockName,
+  farmId,
+  sessionName,
+  sessionId,
+  presence,
+  onCancel,
+  onSave,
+}: Props) {
   const [customText, setCustomText] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dock, setDock] = useState<Dock>('top');
   const [photos, setPhotos] = useState<{ id: string; blob: Blob; src: string }[]>([]);
+  const [assigneeKey, setAssigneeKey] = useState('everyone');
+  const [otherName, setOtherName] = useState('');
+  const assignees = useHighlightAssignees({
+    farmId,
+    sessionName,
+    sessionId,
+    presence,
+    enabled: Boolean(farmId),
+  });
 
   const commit = async (data: {
     category: FieldIssue['category'];
@@ -35,7 +61,11 @@ export function ReportIssueSheet({ location: _location, blockName, onCancel, onS
     setSaving(true);
     setError(null);
     try {
-      await onSave({ ...data, photos: photos.map((row) => row.blob) });
+      await onSave({
+        ...data,
+        ...directedAtFromPicker(assigneeKey, otherName, assignees),
+        photos: photos.map((row) => row.blob),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save issue');
       setSaving(false);
@@ -125,6 +155,15 @@ export function ReportIssueSheet({ location: _location, blockName, onCancel, onS
               </button>
             ))}
           </div>
+
+          <DirectedAtPicker
+            assignees={assignees}
+            assigneeKey={assigneeKey}
+            otherName={otherName}
+            disabled={saving}
+            onAssigneeKey={setAssigneeKey}
+            onOtherName={setOtherName}
+          />
 
           <IssuePhotoField
             disabled={saving}

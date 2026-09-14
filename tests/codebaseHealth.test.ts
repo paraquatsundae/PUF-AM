@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { FARM_MODULE_IDS, allFarmModules, resolveFarmEnabledModules } from '../shared/auth/farmModules';
 import {
   CROP_PACK_IDS,
+  FARM_PACK_IDS,
   listCropPacks,
+  listFarmPacks,
   migrateLegacyPacks,
   resolveFarmCropPacks,
 } from '../shared/farm/cropPacks';
@@ -67,8 +69,29 @@ describe('pack golden set', () => {
         expect(ui!.routes.every((r) => pack.modules.includes(r.moduleId))).toBe(true);
       }
     }
+    for (const pack of listFarmPacks()) {
+      expect(FARM_PACK_IDS).toContain(pack.id);
+      const manifestPath = join(ROOT, 'plugins', pack.id, 'plugin.json');
+      expect(existsSync(manifestPath), `missing ${manifestPath}`).toBe(true);
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+        id: string;
+        kind: string;
+        category: string;
+        modules: string[];
+        primaryPath?: string;
+      };
+      expect(manifest.id).toBe(pack.id);
+      expect(manifest.kind).toBe('farm');
+      expect(manifest.category).toBe(pack.category);
+      expect(manifest.modules).toEqual(pack.modules);
+      const ui = getPackUi(pack.id);
+      expect(ui, `missing PACK_UI_REGISTRY for ${pack.id}`).toBeTruthy();
+      if (pack.primaryPath) {
+        expect(ui!.navItems.some((n) => n.href === pack.primaryPath)).toBe(true);
+      }
+    }
     expect(PACK_UI_REGISTRY.map((p) => p.packId).sort()).toEqual(
-      [...CROP_PACK_IDS, ...SYSTEM_PLUGINS.map((p) => p.id)].sort()
+      [...CROP_PACK_IDS, ...FARM_PACK_IDS, ...SYSTEM_PLUGINS.map((p) => p.id)].sort()
     );
   });
 
@@ -203,7 +226,9 @@ describe('empty catalog fallback', () => {
     expect(resolveFarmEnabledModules(undefined)).toEqual(all);
     expect(resolveFarmEnabledModules([])).toEqual(all);
     expect(all).toContain('drying');
+    expect(all).toContain('farm_feed');
     expect(defaultModulesWithoutCropPacks()).not.toContain('drying');
+    expect(defaultModulesWithoutCropPacks()).not.toContain('farm_feed');
   });
 });
 

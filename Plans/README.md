@@ -1,6 +1,6 @@
 # Plans index
 
-**Product:** PUF-AM — Ag Manager · **Updated:** 2026-09-15 (day-run: health + security + chill, then Freenet photos) · 2026-09-14 (three-device Bones milestone; bake 0.0.2) · 2026-09-10 consolidation: 37 docs → 20 live + 4 reference + 2 logs + 13 archived
+**Product:** PUF-AM — Ag Manager · **Updated:** 2026-09-15 (farm messaging is farm pack `farm_feed`, not core) · 2026-09-15 (farm messaging: feed + directed For you; DMs deferred) · 2026-09-15 (park Freenet photos; next: in-farm messaging) · 2026-09-15 (day-run: health + security + chill, then Freenet photos planned) · 2026-09-14 (three-device Bones milestone; bake 0.0.2) · 2026-09-10 consolidation: 37 docs → 20 live + 4 reference + 2 logs + 13 archived
 
 One row per document. Status: **Live spec** (describes current behaviour; code depends on it) · **Active plan** (open work) · **Reference** (finished; cited by `§` number from source — headings frozen) · **Log** (append-only) · **Archived** (closed; kept for history under [`archive/`](archive/INDEX.md)).
 
@@ -10,7 +10,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 
 | Doc | Status | Purpose |
 |-----|--------|---------|
-| [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md) | Active plan | **Today:** leftover 0.0.2 GitHub drafts (git already shipped), `audit:codebase`, focused Freenet/mist security (no App Check), chill portions weather/DPIRD (parallel after 1–2), then issue photos over Freenet (packet size; **item 4 planned**, not shipped). George's order. |
+| [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md) | Active plan | **Today:** leftover 0.0.2 GitHub drafts (git already shipped), `audit:codebase`, focused Freenet/mist security (no App Check), chill portions weather/DPIRD (parallel after 1–2), then issue photos over Freenet (packet size; **item 4 planned**, not shipped). **Parked / next:** photos stay planned; in-farm messaging is [`FARM_MESSAGING.md`](FARM_MESSAGING.md) (not this day-run’s code). George's order. |
 
 ## Product & naming
 
@@ -31,7 +31,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 
 | Doc | Status | Purpose |
 |-----|--------|---------|
-| [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | Live spec | Start here to add a crop pack: files, `plugin.json`, what Install does, **template pack (chill portions)**. **Next — 2026-09-15:** chill weather + DPIRD — checklist [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md) §3 (not walnut blight; parallel to Freenet photos) |
+| [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | Live spec | Start here to add a crop pack: files, `plugin.json`, what Install does, **template pack (chill portions)**. **Farm feed** is a **farm pack** (`farm_feed`, `kind: farm`), not a crop — Phase 0 shipped 2026-09-15; [`FARM_MESSAGING.md`](FARM_MESSAGING.md) |
 | [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Live spec | Contract (D1–D15), lifecycle, packaging, acceptance checks |
 | [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) | Live spec | Network pack contract (`kind: network`): host capability, per-farm enable with a per-device node, surfaces, *not available on this device*. Consumer: `plugins/freenet_host/` |
 | [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) | Active plan | Self-contained `plugins/<id>/src/` migration — Phases 0–1 done, Phase 2 open |
@@ -53,6 +53,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 | Doc | Status | Purpose |
 |-----|--------|---------|
 | [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) | Live spec / Active plan | Settings → Sync, join tickets, auto-sync ladder, farm gateway, crew presence over Freenet (§5). Most-cited plan in source by `§n` — do not renumber |
+| [`FARM_MESSAGING.md`](FARM_MESSAGING.md) | Active plan | Whole-farm feed + directed-at **For you** ping. **Farm pack** id **`farm_feed`**. **Phase 0 shipped 2026-09-15** (`plugins/farm_feed/`, zero new Firestore paths). Core **keeps** Directed at; pack **reads** them. Default on for new farms; existing hosted Install from Settings → Plugins → General. Phase 2 DMs / pair keys **deferred**. Freenet is a **20 s** watch, not instant. Hosted chat store not approved (billing Q1). Photos stay parked. |
 | [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Live spec | Every on-device store across browser, APK, Electron, LAN hub; authoritative vs cache |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Live spec | `farm-export.json` and xlsx sheet shapes (v1 shipped) |
 | [`DPIRD_CACHE_FRESHNESS.md`](DPIRD_CACHE_FRESHNESS.md) | Active plan | `ensure-cache` gate, dryer hourly proxy, chill season freeze — design only |
@@ -61,7 +62,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 
 | Doc | Status | Purpose |
 |-----|--------|---------|
-| [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Live spec / Active plan | Create / recover / send / join / People as the code stands; source for in-app "How this works". **§8** the seven known holes (E-07: 1, 2, 6, 7 done; 3 copy done; 4 open; 5 advanced 2026-09-14 three-device Bones, still open). **§9** what is published, sealed, and never on Freenet. **Milestone — 2026-09-14:** three-device Bones paddock sync (bake **0.0.2**). **Next (2026-09-15):** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md). **Decision — 2026-09-15:** issue photos planned (parts + index), not shipped |
+| [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Live spec / Active plan | Create / recover / send / join / People as the code stands; source for in-app "How this works". **§8** the seven known holes (E-07: 1, 2, 6, 7 done; 3 copy done; 4 open; 5 advanced 2026-09-14 three-device Bones, still open). **§9** what is published, sealed, and never on Freenet. **Milestone — 2026-09-14:** three-device Bones paddock sync (bake **0.0.2**). **Next (2026-09-15):** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md). **Decision — 2026-09-15:** issue photos planned (parts + index), not shipped. **Parked / next (2026-09-15):** photos stay planned; messaging is [`FARM_MESSAGING.md`](FARM_MESSAGING.md) (**Decision — 2026-09-15:** farm feed + directed For you; DMs deferred) |
 | [`FREENET_ISSUE_PHOTOS.md`](FREENET_ISSUE_PHOTOS.md) | Active plan | Issue / diary photos over Freenet: pack PUT is **64 KiB**, product JPEG cap is **600 KB**. **Recommended:** HotKey-sealed content-addressed parts + existing photo index. **Planned 2026-09-15, not shipped.** |
 | [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) | Active plan | The app's own Freenet client as a per-farm network pack on desktop and Android; native PUT everywhere; hybrid mirror for cloud farms; two-terminal goal. Decisions dated 2026-09-10 (E-08 umbrella). **Decision — 2026-09-12:** FarmSeed owner-only; crew invite unwraps Hot/Bones, not FarmSeed |
 | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | Active plan | Network pack inside the APK; native PUT spike GO, phases 2–5 not built (E-08) — now Phase 3 of `FREENET_NETWORK_PACK.md` |

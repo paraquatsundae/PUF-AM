@@ -54,6 +54,9 @@ export interface FieldIssue {
   photos?: FarmPhotoRef[];
   /** Optional paddock — on the record, not in the Storage file name. */
   blockId?: string;
+  /** Who to ping — same Directed at as highlights. Empty = Everyone. */
+  directedAtName?: string;
+  directedAtUid?: string;
   status: 'open' | 'in-progress' | 'resolved' | 'archived';
   isMistake?: boolean;
   reportedBy: string;

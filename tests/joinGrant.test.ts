@@ -71,6 +71,7 @@ describe('join presets', () => {
       'water',
       'nutrition',
       'drying',
+      'farm_feed',
     ]);
   });
 });
@@ -78,7 +79,10 @@ describe('join presets', () => {
 describe('buildJoinPermissions', () => {
   it('writes only values a manifest may carry', () => {
     const permissions = buildJoinPermissions(preset('field_only'));
-    expect(permissions).toEqual({ preset: 'field_only', modules: 'dashboard,map,diary' });
+    expect(permissions).toEqual({
+      preset: 'field_only',
+      modules: 'dashboard,map,diary,farm_feed',
+    });
     for (const value of Object.values(permissions)) {
       expect(['boolean', 'number', 'string']).toContain(typeof value);
     }
@@ -90,7 +94,7 @@ describe('buildJoinPermissions', () => {
     );
     expect(parsed?.permissions).toEqual({
       preset: 'crop_scout',
-      modules: 'dashboard,blight,chill,water,nutrition,drying',
+      modules: 'dashboard,blight,chill,water,nutrition,drying,farm_feed',
     });
   });
 });

@@ -25,6 +25,8 @@ import { enqueuePhoto } from './photoOutbox';
 export type AttachIssuePhotoInput = {
   createdBy: string;
   blockId?: string;
+  directedAtName?: string;
+  directedAtUid?: string;
 };
 
 export type AttachIssuePhotoResult = {
@@ -96,6 +98,8 @@ export async function attachIssuePhoto(
     createdAt: now,
     createdBy: meta.createdBy,
     ...(meta.blockId ? { blockId: meta.blockId } : {}),
+    ...(meta.directedAtUid ? { directedAtUid: meta.directedAtUid } : {}),
+    ...(meta.directedAtName ? { directedAtName: meta.directedAtName } : {}),
     bytes: compressed.bytes,
     width: compressed.width,
     height: compressed.height,

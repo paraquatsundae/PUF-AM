@@ -167,7 +167,7 @@ function auditPackFolders() {
     if (!existsSync(manifest)) continue;
     const json = JSON.parse(readFileSync(manifest, 'utf8'));
     // Crop packs and network packs both register UI; anything else is skipped.
-    if (json.kind !== 'crop_pack' && json.kind !== 'network') continue;
+    if (json.kind !== 'crop_pack' && json.kind !== 'farm' && json.kind !== 'network') continue;
     if (json.id !== name) {
       fail(`plugins/${name}/plugin.json id is ${json.id}`);
       failed += 1;

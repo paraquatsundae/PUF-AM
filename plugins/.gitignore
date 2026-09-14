@@ -21,3 +21,5 @@
 !drying/**
 !freenet_host/
 !freenet_host/**
+!farm_feed/
+!farm_feed/**

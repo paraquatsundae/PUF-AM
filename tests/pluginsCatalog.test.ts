@@ -41,8 +41,9 @@ describe('pluginsCatalog', () => {
     expect(crop.entries.some((e) => e.id === 'chill_portions')).toBe(true);
     const generic = groups.find((g) => g.category === 'generic')!;
     expect(generic.entries.map((e) => e.id)).toEqual(
-      expect.arrayContaining(['water', 'nutrition', 'harvest'])
+      expect.arrayContaining(['water', 'nutrition', 'harvest', 'farm_feed'])
     );
+    expect(generic.entries.find((e) => e.id === 'farm_feed')?.kind).toBe('farm');
     expect(crop.entries.some((e) => e.id === 'drying')).toBe(true);
     const network = groups.find((g) => g.category === 'network')!;
     expect(network.entries.some((e) => e.id === 'freenet_host')).toBe(true);

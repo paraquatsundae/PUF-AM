@@ -56,6 +56,16 @@ import {
   walnutBlightManifest,
   walnutBlightModules,
 } from './walnutBlightPackage';
+import {
+  FARM_FEED_PACK_ID,
+  FARM_PACK_IDS,
+  FARM_PACKS,
+  farmFeedDefaultsOnWithoutMap,
+  getFarmPack,
+  isFarmPackId,
+  type FarmPackDef,
+  type FarmPackId,
+} from './farmPacks';
 
 export {
   WALNUT_BLIGHT_PACK_ID,
@@ -102,6 +112,8 @@ export const CROP_PACK_IDS = [
   ...CORE_OPS_PACK_IDS,
 ] as const;
 export type CropPackId = (typeof CROP_PACK_IDS)[number];
+/** Crop packs plus farm packs (`farm_feed`). Same farm-doc `cropPacks` map. */
+export type InstallablePackId = CropPackId | FarmPackId;
 
 export type CropPackStatus = 'active' | 'inactive';
 
@@ -111,7 +123,7 @@ export type FarmCropPackEntry = {
   activatedAt?: string;
 };
 
-export type FarmCropPacksMap = Partial<Record<CropPackId, FarmCropPackEntry>>;
+export type FarmCropPacksMap = Partial<Record<InstallablePackId, FarmCropPackEntry>>;
 
 export type CropPackBlockLike = { species?: string | null };
 
@@ -150,6 +162,8 @@ export type CropPackDef = {
   primaryPath?: string;
   canInstall?: (ctx: CropPackLifecycleCtx) => CropPackInstallCheck;
 };
+
+export type InstallablePackDef = CropPackDef | FarmPackDef;
 
 export const CROP_PACKS: readonly CropPackDef[] = [
   {
@@ -242,10 +256,18 @@ export function isCropPackId(value: unknown): value is CropPackId {
   return typeof value === 'string' && (CROP_PACK_IDS as readonly string[]).includes(value);
 }
 
+export function isInstallablePackId(value: unknown): value is InstallablePackId {
+  return isCropPackId(value) || isFarmPackId(value);
+}
+
 export function getCropPack(id: CropPackId): CropPackDef {
   const found = CROP_PACKS.find((p) => p.id === id);
   if (!found) throw new Error(`Unknown crop pack: ${id}`);
   return found;
+}
+
+export function getInstallablePack(id: InstallablePackId): InstallablePackDef {
+  return isFarmPackId(id) ? getFarmPack(id) : getCropPack(id);
 }
 
 export function listCropPacks(): readonly CropPackDef[] {
@@ -261,7 +283,7 @@ export function resolveFarmCropPacks(input: unknown): FarmCropPacksMap {
   if (!input || typeof input !== 'object') return {};
   const raw = input as Record<string, unknown>;
   const out: FarmCropPacksMap = {};
-  for (const id of CROP_PACK_IDS) {
+  for (const id of [...CROP_PACK_IDS, ...FARM_PACK_IDS]) {
     const entry = raw[id];
     if (!entry || typeof entry !== 'object') continue;
     const e = entry as Record<string, unknown>;
@@ -282,18 +304,18 @@ export function resolveFarmCropPacks(input: unknown): FarmCropPacksMap {
   return out;
 }
 
-export function isPackInstalled(packs: FarmCropPacksMap, id: CropPackId): boolean {
+export function isPackInstalled(packs: FarmCropPacksMap, id: InstallablePackId): boolean {
   return Boolean(packs[id]);
 }
 
-export function isPackActive(packs: FarmCropPacksMap, id: CropPackId): boolean {
+export function isPackActive(packs: FarmCropPacksMap, id: InstallablePackId): boolean {
   return packs[id]?.status === 'active';
 }
 
 /** Modules owned by any known pack (for stripping when inactive). */
 export function allPackModuleIds(): FarmModuleId[] {
   const set = new Set<FarmModuleId>();
-  for (const pack of CROP_PACKS) {
+  for (const pack of [...CROP_PACKS, ...FARM_PACKS]) {
     for (const m of pack.modules) set.add(m);
   }
   return [...set];
@@ -318,9 +340,9 @@ export function packModulesToExclude(
 ): FarmModuleId[] {
   const farm = farmModules ? new Set(farmModules) : null;
   const out: FarmModuleId[] = [];
-  for (const pack of CROP_PACKS) {
+  for (const pack of [...CROP_PACKS, ...FARM_PACKS]) {
     const offered =
-      offeredLegacy?.[pack.id] ??
+      (isCropPackId(pack.id) ? offeredLegacy?.[pack.id] : undefined) ??
       (isPackActive(packs, pack.id) ||
         (!isPackInstalled(packs, pack.id) &&
           farm != null &&
@@ -332,7 +354,7 @@ export function packModulesToExclude(
 
 export function modulesForActivePacks(packs: FarmCropPacksMap): FarmModuleId[] {
   const set = new Set<FarmModuleId>();
-  for (const pack of CROP_PACKS) {
+  for (const pack of [...CROP_PACKS, ...FARM_PACKS]) {
     if (isPackActive(packs, pack.id)) {
       for (const m of pack.modules) set.add(m);
     }
@@ -368,8 +390,11 @@ export function moduleListEquals(
 }
 
 /** Which catalog pack owns this module (if any). */
-export function packOwningModule(moduleId: FarmModuleId): CropPackDef | undefined {
-  return CROP_PACKS.find((p) => p.modules.includes(moduleId));
+export function packOwningModule(moduleId: FarmModuleId): InstallablePackDef | undefined {
+  return (
+    CROP_PACKS.find((p) => p.modules.includes(moduleId)) ??
+    FARM_PACKS.find((p) => p.modules.includes(moduleId))
+  );
 }
 
 /** True when module is not pack-owned, or its pack is active. */
@@ -420,11 +445,11 @@ export function optionalOpsModules(): FarmModuleId[] {
 /** Pack modules to show on Farm Modules — from installed packs only. */
 export function installedPackModuleRows(packs: FarmCropPacksMap): Array<{
   moduleId: FarmModuleId;
-  pack: CropPackDef;
+  pack: InstallablePackDef;
   active: boolean;
 }> {
-  const rows: Array<{ moduleId: FarmModuleId; pack: CropPackDef; active: boolean }> = [];
-  for (const pack of CROP_PACKS) {
+  const rows: Array<{ moduleId: FarmModuleId; pack: InstallablePackDef; active: boolean }> = [];
+  for (const pack of [...CROP_PACKS, ...FARM_PACKS]) {
     if (!isPackInstalled(packs, pack.id)) continue;
     const active = isPackActive(packs, pack.id);
     for (const moduleId of pack.modules) {
@@ -436,17 +461,17 @@ export function installedPackModuleRows(packs: FarmCropPacksMap): Array<{
 
 export function withPackModules(
   modules: FarmModuleId[],
-  packId: CropPackId
+  packId: InstallablePackId
 ): FarmModuleId[] {
-  const pack = getCropPack(packId);
+  const pack = getInstallablePack(packId);
   return resolveFarmEnabledModules([...modules, ...pack.modules]);
 }
 
 export function withoutPackModules(
   modules: FarmModuleId[],
-  packId: CropPackId
+  packId: InstallablePackId
 ): FarmModuleId[] {
-  const ban = new Set(getCropPack(packId).modules);
+  const ban = new Set(getInstallablePack(packId).modules);
   return resolveFarmEnabledModules(modules.filter((m) => !ban.has(m)));
 }
 
@@ -454,7 +479,7 @@ export function withoutPackModules(
 export function planInstallPack(
   packs: FarmCropPacksMap,
   modules: FarmModuleId[],
-  packId: CropPackId,
+  packId: InstallablePackId,
   nowIso: string,
   activate = true
 ): { cropPacks: FarmCropPacksMap; modules: FarmModuleId[] } {
@@ -474,7 +499,7 @@ export function planInstallPack(
 export function planActivatePack(
   packs: FarmCropPacksMap,
   modules: FarmModuleId[],
-  packId: CropPackId,
+  packId: InstallablePackId,
   nowIso: string
 ): { cropPacks: FarmCropPacksMap; modules: FarmModuleId[] } {
   const prev = packs[packId];
@@ -491,7 +516,7 @@ export function planActivatePack(
 export function planDeactivatePack(
   packs: FarmCropPacksMap,
   modules: FarmModuleId[],
-  packId: CropPackId
+  packId: InstallablePackId
 ): { cropPacks: FarmCropPacksMap; modules: FarmModuleId[] } {
   const prev = packs[packId];
   if (!prev) {
@@ -507,11 +532,31 @@ export function planDeactivatePack(
 export function planDeletePack(
   packs: FarmCropPacksMap,
   modules: FarmModuleId[],
-  packId: CropPackId
+  packId: InstallablePackId
 ): { cropPacks: FarmCropPacksMap; modules: FarmModuleId[] } {
   const cropPacks = { ...packs };
   delete cropPacks[packId];
   return { cropPacks, modules: withoutPackModules(modules, packId) };
+}
+
+/** New hosted / BYO farms mark Farm feed active (Plans/FARM_MESSAGING.md). */
+export function planDefaultFarmFeedOnCreate(
+  modules: FarmModuleId[],
+  nowIso: string
+): { cropPacks: FarmCropPacksMap; modules: FarmModuleId[] } {
+  return planInstallPack({}, modules, FARM_FEED_PACK_ID, nowIso, true);
+}
+
+/**
+ * Hosted: Install map wins. Freenet / workshop have no farm-doc map — default on.
+ * Existing hosted farms without an entry stay off until Settings → Plugins → Install.
+ */
+export function isFarmFeedActive(
+  packs: FarmCropPacksMap,
+  opts: { mistSession: boolean; workshop: boolean }
+): boolean {
+  if (isPackInstalled(packs, FARM_FEED_PACK_ID)) return isPackActive(packs, FARM_FEED_PACK_ID);
+  return farmFeedDefaultsOnWithoutMap(opts);
 }
 
 /** @deprecated Prefer syncModulesWithCropPacks — kept for walnut-specific call sites. */

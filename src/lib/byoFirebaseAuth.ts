@@ -27,7 +27,10 @@ import {
   where,
 } from 'firebase/firestore';
 import { type FarmModuleId, type FarmRole } from '../../shared/auth/farmModules';
-import { defaultModulesWithoutCropPacks } from '../../shared/farm/cropPacks';
+import {
+  defaultModulesWithoutCropPacks,
+  planDefaultFarmFeedOnCreate,
+} from '../../shared/farm/cropPacks';
 import {
   BYO_JOIN_TICKETS,
   byoAuthCredentials,
@@ -126,8 +129,9 @@ export async function createByoFarmAccount(
   const user = await signInByoAccount(recoveryPin, person);
   const uid = user.uid;
   const farmId = newFarmId();
-  const modules = defaultModulesWithoutCropPacks();
   const now = new Date().toISOString();
+  const planned = planDefaultFarmFeedOnCreate(defaultModulesWithoutCropPacks(), now);
+  const modules = planned.modules;
   const stored = readStoredByoFirebase();
 
   await setDoc(doc(db, 'farms', farmId), {
@@ -136,6 +140,7 @@ export async function createByoFarmAccount(
     ownerUid: uid,
     createdAt: now,
     enabledModules: modules,
+    cropPacks: planned.cropPacks,
     cloudKind: 'byo',
     firebaseProjectId: byoProjectId(),
     billingAckText: stored?.billingAck.text ?? BILLING_ACK_TEXT,

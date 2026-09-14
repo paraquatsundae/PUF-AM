@@ -89,6 +89,7 @@ Legacy keys are still read so an operator upgrading from an old APK does not los
 | `pufam.mist.hotWatch.v1.{farmId}` | Last applied Hot-watch generation + hash + URI (2026-09-12). Cheap ping cursor — not FarmSeed | Cache of “what this device last fetched” |
 | `pufam.mist.bonesPublish.v1.{farmId}` | Same for the geometry bones publish | As above |
 | `pufam.mist.photoIndex.v1.{farmId}` | Last Freenet photo-index URI + hash (2026-09-14) | Cache of “which photos this device last published / applied” |
+| `pufam.farmFeed.lastSeen.v1.{farmId}` | Farm feed For you badge watermark (ISO). Added 2026-09-15 | Local UI only — not a farm record |
 
 **`pufam.mist.hotPublish.v1.*` is more load-bearing than it looks.** It holds the FN02 URIs this device published. Freenet has them, but nothing on the network will tell you the address — losing this row means a joiner needs a join ticket from the owner's hub, and the owner needs to publish again. It is not a cache.
 

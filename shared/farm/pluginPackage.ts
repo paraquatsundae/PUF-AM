@@ -23,11 +23,13 @@ export const PLUGIN_PACKAGES_DIRNAME = 'plugins';
 
 /**
  * `crop_pack` — Install / Activate / Deactivate / Delete per farm.
+ * `farm` — whole-farm (not crop) capability; same Install lifecycle, Settings
+ * `category: generic` (Plans/FARM_MESSAGING.md). Not a network pack.
  * `network` — a network pack (Plans/NETWORK_PACK_PLUGIN.md): enabled per farm,
  * needs a host capability from the shell; the catalog row keeps `kind: 'system'`.
  * `system` — legacy manifest spelling of the same row; still accepted.
  */
-export const PLUGIN_PACKAGE_KINDS = ['crop_pack', 'network', 'system'] as const;
+export const PLUGIN_PACKAGE_KINDS = ['crop_pack', 'farm', 'network', 'system'] as const;
 export type PluginPackageKind = (typeof PLUGIN_PACKAGE_KINDS)[number];
 
 /**

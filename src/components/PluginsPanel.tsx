@@ -10,12 +10,12 @@ import { Loader2, Package, Plug, Trash2 } from 'lucide-react';
 import {
   isPackActive,
   isPackInstalled,
-  type CropPackId,
   type CropPackLifecycleCtx,
+  type InstallablePackId,
 } from '../../shared/farm/cropPacks';
 import {
   groupPluginsByCategory,
-  isCropPackPlugin,
+  isInstallablePlugin,
   type PluginCatalogEntry,
 } from '../../shared/farm/pluginsCatalog';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,7 +45,7 @@ export function PluginsPanel({
   const { blocks, loadData, isLoaded } = useMapStore();
   const farmId = userData?.farmId;
 
-  const [busyId, setBusyId] = useState<CropPackId | null>(null);
+  const [busyId, setBusyId] = useState<InstallablePackId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
@@ -140,7 +140,7 @@ export function PluginsPanel({
     await refreshFarmCropPacks();
   }, [refreshFarmModules, refreshFarmCropPacks]);
 
-  const run = async (packId: CropPackId, action: () => Promise<unknown>, okText: string) => {
+  const run = async (packId: InstallablePackId, action: () => Promise<unknown>, okText: string) => {
     if (!ctx) return;
     setBusyId(packId);
     setError(null);
@@ -164,8 +164,9 @@ export function PluginsPanel({
           Plugins
         </h2>
         <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
-          Install optional tools for this farm — crop packs (blight, chill, drying) and general
-          packs (water, nutrition, harvest). Freenet is under Network & storage. Install updates
+          Install optional tools for this farm — crop packs (blight, chill, drying), Farm feed
+          under General, and ops packs (water, nutrition, harvest). Freenet is under Network &
+          storage. Install updates
           the farm catalog; existing farmer PINs do not get the new page until you grant the
           module under{' '}
           <Link to="/farm-management" className="text-emerald-700 font-semibold hover:underline">
@@ -208,7 +209,7 @@ export function PluginsPanel({
           <div className="space-y-2">
             {group.entries.map((entry) => (
               <div key={entry.id}>
-                {isCropPackPlugin(entry) ? (
+                {isInstallablePlugin(entry) ? (
                   <CropPackPluginRow
                     entry={entry}
                     disk={diskById.get(entry.id)}
@@ -293,14 +294,14 @@ function CropPackPluginRow({
   busy,
   onRun,
 }: {
-  entry: Extract<PluginCatalogEntry, { kind: 'crop_pack' }>;
+  entry: Extract<PluginCatalogEntry, { kind: 'crop_pack' | 'farm' }>;
   disk?: PluginPackageManifestV1;
   ctx: CropPackLifecycleCtx | null;
   isAdmin: boolean;
   farmCropPacks: ReturnType<typeof useAuth>['farmCropPacks'];
   farmEnabledModules: string[];
   busy: boolean;
-  onRun: (packId: CropPackId, action: () => Promise<unknown>, okText: string) => Promise<void>;
+  onRun: (packId: InstallablePackId, action: () => Promise<unknown>, okText: string) => Promise<void>;
 }) {
   const installed = isPackInstalled(farmCropPacks, entry.id);
   const active = isPackActive(farmCropPacks, entry.id);

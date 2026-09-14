@@ -13,10 +13,12 @@ This is **limits + one source of truth + concern + cost + a procedure**. It is n
 ## Layering (one-way)
 
 ```
-farmModules → cropPacks (catalog + migrate) → pack UI registry → nav / App
+farmModules → cropPacks / farmPacks (catalog + migrate) → pack UI registry → nav / App
 farmModules → AuthContext ← cropPacks
 AuthContext → useOfferedFarmModules ← cropPacks
 ```
+
+**Decision — 2026-09-15:** manifest `kind: farm` and `FARM_PACKS` (`farm_feed`) are a tiny catalog seam, not a fourth Settings category. Pack UI stays in `plugins/farm_feed/`. Do not grow `AuthContext` with pack hooks.
 
 - [`shared/auth/farmModules.ts`](../shared/auth/farmModules.ts) must **never** import `cropPacks`.
 - [`src/contexts/AuthContext.tsx`](../src/contexts/AuthContext.tsx) must **never** import pack hooks.
@@ -209,6 +211,17 @@ After a review: triage take / dismiss / later; prepend a short note to the check
 ## Size appendix
 
 Newest first. Short table here; full command output in [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md).
+
+### 2026-09-15
+
+`npm run audit:codebase` **passed** (day-run item 1). No split, no leftover `harvest_drying`, layering/SoC/cycles green. `KNOWN_OVERSIZE` still Freenet only (WARN, not fail). In-scope at the 600 hard cap: `mapStore.ts` 600. Next nearest: `mapDrawHelpers.ts` 593.
+
+| Lines | File |
+|------:|------|
+| 1095 | `plugins/freenet_host/src/MistWorkshopCard.tsx` |
+| 1003 | `plugins/freenet_host/src/MistFarmSyncCard.tsx` |
+
+Full log: [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md) 2026-09-15.
 
 ### 2026-09-14
 
