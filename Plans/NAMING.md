@@ -94,7 +94,7 @@ Related plans (not duplicated here):
 
 **Decision — 2026-09-14:** Track workshop bakes as `0.0.#` until George cuts public **v 0.1** (`0.1.0`). `package.json` was set to `0.1.0` on 2026-07-13 as STEP-04 package-identity rename (`react-example` → `walnut-farm-manager`), not as a shipped milestone — staying on `0.1.0` for every AppImage would pretend each bake was the first public release. NAMING never froze a public `0.1.0`. This afternoon’s issue-apply + satellite-preserve bake is **`0.0.1`** (`androidVersionCode` `1`). Bump the **patch** and `androidVersionCode` together when we ship a new AppImage+APK pair (`npm run release:bump`). Do **not** bump for docs-only. When George says cut v 0.1, set `version` to `0.1.0` and increment `androidVersionCode` once more.
 
-**Bake — 2026-09-14 evening:** three-device Freenet Bones paddock-sync milestone is **`0.0.2`** (`androidVersionCode` `2`). Public v 0.1 remains a future `0.1.0`. **Next (2026-09-15) — two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack. Do not implement tonight.
+**Bake — 2026-09-14 evening:** three-device Freenet Bones paddock-sync milestone is **`0.0.2`** (`androidVersionCode` `2`). Public v 0.1 remains a future `0.1.0`. **Next (2026-09-15):** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md).
 
 ---
 
@@ -289,7 +289,7 @@ Top-level collections (production):
 | `farms/{farmId}/issues/{issueId}/{photoId}.jpg` | Extra issue photos (same folder; `photoId` is opaque, never a paddock or person name) |
 | `farms/{farmId}/events/{eventId}/{photoId}.jpg` | Diary photos (wire `events`; UI still says diary) |
 
-Export zip is flat: `photos/{issueId}_{photoId}.jpg` and `photos/{eventId}_{photoId}.jpg`. Who / where / when live on the record (`createdAt`, `createdBy`, optional `blockId`, `directedAt*` only when the diary/highlight already has an assignee). Max **5** photos per issue and per event. Freenet: `mist/v1/farm/{id}/hot/photo/{issueId}/{photoId}` (legacy first photo stays `hot/photo/{issueId}`) and `mist/v1/farm/{id}/hot/photo/event/{eventId}/{photoId}` — HotKey only, never FarmSeed.
+Export zip is flat: `photos/{issueId}_{photoId}.jpg` and `photos/{eventId}_{photoId}.jpg`. Who / where / when live on the record (`createdAt`, `createdBy`, optional `blockId`, `directedAt*` only when the diary/highlight already has an assignee). Max **5** photos per issue and per event. Freenet: `mist/v1/farm/{id}/hot/photo/{issueId}/{photoId}` (legacy first photo stays `hot/photo/{issueId}`) and `mist/v1/farm/{id}/hot/photo/event/{eventId}/{photoId}` — HotKey only, never FarmSeed. **Planned 2026-09-15, not shipped:** multi-part additive keys `…/hot/photo/{issueId}/{photoId}/p/{i}` and `…/hot/photo/event/{eventId}/{photoId}/p/{i}` — [`FREENET_ISSUE_PHOTOS.md`](FREENET_ISSUE_PHOTOS.md). Do not rename the single-blob keys.
 
 ---
 

@@ -7,7 +7,7 @@ Exact operator path as the code stands. Login still picks the backend a farm is 
 **Known holes:** §8 below (merged from `archive/FREENET_HOLES.md`, 2026-09-10)  
 **What is on Freenet, sealed, or never on Freenet:** §9 below (merged from `archive/FREENET_CONTRIBUTE_AND_STORAGE.md`, 2026-09-10)  
 **Milestone — 2026-09-14:** three-device Bones paddock sync — §8 below. Bake that records it: **0.0.2**.  
-**Next (2026-09-15) — two parallel tracks (do not mix):** (1) `npm run audit:codebase` + security review, then issue photos over Freenet (packet size is the hurdle). Photos are **not** shipped. (2) Chill portions crop pack + weather reference is stale — standalone chill and DPIRD connections changed. Update from [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack (`plugins/chill_portions/`, not walnut blight). DPIRD: server-only `DPIRD_API_KEY`, never `VITE_DPIRD_API_KEY`; BYO key never in Firestore / client / George's Secret Manager; BYO with no weather endpoint fails closed. Do not implement tonight.  
+**Next (2026-09-15):** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md) — health + security, then issue photos over Freenet (packet size; **planned**, not shipped — [`FREENET_ISSUE_PHOTOS.md`](FREENET_ISSUE_PHOTOS.md)); **parallel after 1–2:** chill portions weather/DPIRD ([`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack).  
 **In-app copy:** [`plugins/freenet_host/src/FreenetHowItWorks.tsx`](../plugins/freenet_host/src/FreenetHowItWorks.tsx) (login + Settings → Sync + Farm setup → People + join gate). All Freenet UI lives in the `freenet_host` network pack since 2026-09-10 ([`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md))
 
 The rest of the Freenet instruction set (do not duplicate here):
@@ -265,9 +265,9 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 
 This advances Hole 5 past a two-Android live pair: three PUF-AM shells (two APK + AppImage) exchanged Bones on Opennet. It does **not** close Hole 5 — two Android devices still need to exchange with **no** Freenet Android Node (official `libfreenet.so` still missing from GitHub; FAN cannot be force-stopped from this uid).
 
-**Honest residual:** first Opennet can take minutes; Freenet Android Node cannot be force-stopped; hosted web still cannot run a node; FarmSeed paper-only; version still experimental `0.0.#` mist.
+**Honest residual:** first Opennet can take minutes; Freenet Android Node cannot be force-stopped; hosted web still cannot run a node; FarmSeed paper-only; phone wireless adb port changes; version still experimental `0.0.#` mist.
 
-**Next (2026-09-15) — two parallel tracks (do not mix):** (1) `npm run audit:codebase` + a security review before sharing issue pictures over Freenet. Packet size is the hurdle. Do **not** claim photos are shipped. (2) Chill portions crop pack + weather reference is stale — [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack (`plugins/chill_portions/`, not walnut blight). DPIRD: server-only `DPIRD_API_KEY`, never `VITE_DPIRD_API_KEY`; BYO key never in Firestore / client / George's Secret Manager; BYO with no weather endpoint fails closed. Do not implement tonight.
+**Next (2026-09-15):** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md).
 
 ---
 
@@ -308,7 +308,9 @@ Four payload kinds reach Freenet. All are **AEAD-sealed before insert** (§9.3).
 
 **Decision — 2026-09-14 (Bones auto-publish + watch URI).** A paddock / pin / track save on a Freenet farm marks Bones **pending** and PUTs Bones (BonesKey) without a second **Send this farm**. The 20 s watch poll retries if the PUT failed (Listening / not On Opennet / Send in flight). Local pack must not wipe the last Hot/Bones FN02 URI or advertise a new hash with an old URI. Watchers fetch when `bonesHash` **or** `bonesUri` changes. Apply merges (union by id); empty Bones does not wipe tablet-local paddocks; map `isLoaded` stays put. Rebuild the APK/AppImage to pick this up. Experimental; shipping path remains Firebase Auth + PIN.
 
-**Milestone — 2026-09-14 (Bones field-validated).** Three-device paddock sync on Opennet — see §8. Hours-old paddocks arrived on Linux once it was on the Freenet farm session. Next: health + security review, then issue photos (packet size). Photos are not shipped.
+**Milestone — 2026-09-14 (Bones field-validated).** Three-device paddock sync on Opennet — see §8. Hours-old paddocks arrived on Linux once it was on the Freenet farm session. Next: [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md). Photos are not shipped.
+
+**Decision — 2026-09-15 (issue photos: parts + index, not shipped).** A 600 KB JPEG cannot be one pack PUT: `FREENET02_MAX_BLOB_BYTES` is **64 KiB** (`units/mist-freenet/src/freenet02-pack-id.ts`; native PUT → `assertBlobSize`). Desktop IPC 8 MiB is a runaway guard. Planned approach: HotKey-sealed **content-addressed parts** plus the existing photo index; watch still only carries `photoIndexHash`. Product compressor stays 1600 px / 0.72→0.40 / **600 KB**. Not Freenet splitfiles ([`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) § Pre-Freenet workshop decisions #2). Not FarmSeed. Not BonesKey. Do not remount the map. **Implementation not started.** Home: [`FREENET_ISSUE_PHOTOS.md`](FREENET_ISSUE_PHOTOS.md).
 
 **Decision — 2026-09-12 (highlight diary + no remount).** Incremental Hot apply must **merge** into live diary/issues/highlights and must **not** call `refreshFarmUiAfterRecovery` (that flips map `isLoaded` and remounts Leaflet). A note or directed-at name on “Check this” writes a diary `work` plan in the same save (sender, assignee, instructions, `linkedHighlightId` / `linkedDiaryEventId`) so one ping delivers both. The map inspect card stays until dismiss and opens `/diary?event=`.
 
@@ -336,7 +338,7 @@ The guard is the load-bearing part: as a throw inside `put()` it is a rule that 
 |---------------|-----|------------------------|
 | **Everything in a Firebase farm** — unless the farm turned its mirror on | Different backend entirely. A hybrid farm (§ 4a, 2026-09-11) publishes its sealed export envelope on Send, and only then; roles, PINs, membership, presence stay in Firestore | Firestore |
 | **The FarmSeed of a hybrid farm** | Only the public mist FarmId and the enabled flag go on the farm doc | Paper; `pufam.mist.session.v1` per device |
-| **Issue photos (splitfile)** | Multi-block Freenet splitfile is deferred | Compressed JPEG ≤ 600 KB (2026-09-14): HotKey-sealed at `hot/photo/{issueId}/{photoId}` (legacy first photo `hot/photo/{issueId}`) + one photo index; diary/events at `hot/photo/event/{eventId}/{photoId}`; hosted `pufom_photo_outbox` → `photo.jpg` kept as first + `{photoId}.jpg` (max 5). Same index hash still drives the 20 s watch |
+| **Issue photos (splitfile)** | Multi-block Freenet splitfile is deferred. **2026-09-15 planned (not shipped):** app-level HotKey-sealed parts + index — [`FREENET_ISSUE_PHOTOS.md`](FREENET_ISSUE_PHOTOS.md). Pack PUT stays 64 KiB. | Compressed JPEG ≤ 600 KB (2026-09-14): HotKey-sealed at `hot/photo/{issueId}/{photoId}` (legacy first photo `hot/photo/{issueId}`) + one photo index; diary/events at `hot/photo/event/{eventId}/{photoId}`; hosted `pufom_photo_outbox` → `photo.jpg` kept as first + `{photoId}.jpg` (max 5). Same index hash still drives the 20 s watch. Helpers exist; Opennet transfer is **not** field-validated |
 | **Basemap / Esri tile packs** | Tens of MB; bones design names them as a later splitfile case | `sentinut_basemap` IDB, device transfer |
 | **Weather cache** | Derived from DPIRD; re-fetchable, farm-independent | `pufom_weather_cache` IDB |
 | **Crew presence / live GPS** | Ephemeral by design — never Freenet (coarse “last seen” over Freenet is a frozen later design, `SETTINGS_SYNC_AND_CREW.md` §5) | Firestore `presence/`, LAN presence routes |

@@ -660,10 +660,7 @@ pack must not wipe the last FN02 pair.
 **Milestone — 2026-09-14:** three-device Bones paddock sync on Opennet (Clare
 Downs; SM-T545 write → SM-S911B + Linux AppImage watch, including hours-old
 paddocks). See [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8. Bake
-**0.0.2**. **Next (2026-09-15) — two tracks:** codebase health + security
-review, then issue photos over Freenet (packet size; photos not shipped);
-**parallel:** chill portions pack + weather/DPIRD wiring stale —
-[`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack (not walnut blight).
+**0.0.2**. **Next (2026-09-15):** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md).
 Nothing above is renumbered.
 
 **Decision — 2026-09-14 (issue photos on the Hot watch).** Same 20 s slot, new
@@ -678,6 +675,13 @@ say “sync to cloud” for a Freenet photo. **Same day:** keep `photo.jpg` as
 first/legacy; ≤5 photos per issue; diary photos wire as `events` (`hot/photo/event/{eventId}/…`,
 HotKey only); who/where/when on the record; export zip stays flat and **warns**
 when Freenet-cached JPEGs are missing. Nothing above is renumbered.
+**Decision — 2026-09-15 (photos: parts + index, not shipped).** A 600 KB
+JPEG cannot take one pack PUT (`FREENET02_MAX_BLOB_BYTES` = 64 KiB). Planned
+path is HotKey-sealed content-addressed parts plus this same photo index;
+watch still only carries `photoIndexHash`. Product cap stays 600 KB / 1600 px.
+Not Freenet splitfiles; not FarmSeed; not BonesKey; do not remount the map.
+**Implementation not started.** [`FREENET_ISSUE_PHOTOS.md`](FREENET_ISSUE_PHOTOS.md).
+Nothing above is renumbered.
 
 ### The Wi‑Fi rung for a Freenet farm
 

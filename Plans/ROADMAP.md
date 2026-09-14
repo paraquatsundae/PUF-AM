@@ -1,7 +1,7 @@
 # PUFAM (Ag Manager) — Production Roadmap
 
 **Created:** 13 July 2026  
-**Last updated:** 14 September 2026 (three-device Freenet Bones milestone; bake 0.0.2)  
+**Last updated:** 15 September 2026 (day-run plan; 0.0.2 git-shipped, GitHub drafts leftover)  
 **Status:** Active — Phases A–C code complete; Phase D polish mostly done (D-07 mesh P3 open); Phase E crop-pack + blight + desktop Freenet in code, zip-as-engine still next  
 **Public name:** PUFAM — Ag Manager (local clone folder `PUF-AM`)  
 **Companion doc:** [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) §5 (13-step checklist)  
@@ -153,7 +153,9 @@ Record every status change here (newest first). Rows dated 2026-07-13 (Phases A�
 
 | Date | Step | Action | Notes |
 |------|------|--------|-------|
-| 2026-09-14 | E-07 / E-08 | Three-device Bones paddock sync | Clare Downs: tablet SM-T545 write → phone SM-S911B + Linux AppImage watch on Freenet 0.2 Opennet, including hours-old paddocks. Bake **0.0.2**. Hole 5 advanced, not closed. **Next (2026-09-15), two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — `PLUGIN_AUTHORING.md` § Template pack. `FREENET_OPERATOR_FLOW.md` §8 |
+| 2026-09-15 | Docs | Freenet photos planned | [`FREENET_ISSUE_PHOTOS.md`](FREENET_ISSUE_PHOTOS.md) — 64 KiB pack PUT vs 600 KB JPEG; recommend content-addressed HotKey parts + index. **Not shipped.** Day-run item 4 ticked planned. |
+| 2026-09-15 | Docs | Day-run plan | [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md). 0.0.2 is on `origin/master` (`e280abc`); two unpublished GitHub `v0.0.2` drafts leftover (do not finish from the plan write). Order: unjam note → `audit:codebase` → Freenet/mist security (no App Check) → chill portions (parallel) → Freenet photos after 1+2 (packet size; plan only). |
+| 2026-09-14 | E-07 / E-08 | Three-device Bones paddock sync | Clare Downs: tablet SM-T545 write → phone SM-S911B + Linux AppImage watch on Freenet 0.2 Opennet, including hours-old paddocks. Bake **0.0.2**. Hole 5 advanced, not closed. **Next:** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md). `FREENET_OPERATOR_FLOW.md` §8 |
 | 2026-09-11 | E-08 | Network pack Phase 2 (hermetic) | Native PUT is the only PUT on every shell (`BrowserFreenetPutClient` / `BrowserFreenetSlotClient`); `fdev` and Hyphanet FCP deleted; node pinned 0.2.135; `npm run mist:smoke:native` added. Live check, Windows first launch and native A→B still pending — `FREENET_NETWORK_PACK.md` §5 Phase 2 |
 | 2026-09-10 | E-08 | Freenet network pack plan | `FREENET_NETWORK_PACK.md` — decisions: native PUT on every shell (drop `fdev`), `FreenetHostPlugin` as the data seam, isolated `:freenet` process on Android, one node pin, web hidden, per-farm enable, hybrid for cloud farms. Read-only assessment preceded it |
 | 2026-09-10 | Docs | `Plans/` consolidation | Index + `AGENTS.md`; `reference/` and `logs/` folders; Freenet holes + storage merged into `FREENET_OPERATOR_FLOW.md` §8–9; chill pack into `PLUGIN_AUTHORING.md`; review posture into `CODEBASE_HEALTH.md`; Steps 1–13 detail → `archive/ROADMAP_HISTORY.md` |
@@ -183,6 +185,7 @@ Record every status change here (newest first). Rows dated 2026-07-13 (Phases A�
 |----------|---------|
 | [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) | Architecture notes, mist/Freenet phases, §5 checklist |
 | [Plans/README.md](README.md) | Index of every plan, with status and folder convention |
+| [Plans/DAY_RUN_2026_09_15.md](./DAY_RUN_2026_09_15.md) | Today’s checklist (2026-09-15): leftover 0.0.2 GitHub drafts, health, security, chill, then Freenet photos |
 | [Plans/FREENET_OPERATOR_FLOW.md](./FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands; §8 the seven known holes (E-07; Hole 5 advanced 2026-09-14); §9 what is on Freenet |
 | [Plans/APK_FREENET_HOST.md](./APK_FREENET_HOST.md) | E-08 — Freenet network pack inside the APK |
 | [Plans/PLUGIN_AUTHORING.md](./PLUGIN_AUTHORING.md) | How to add a crop pack (file list; chill portions template) |

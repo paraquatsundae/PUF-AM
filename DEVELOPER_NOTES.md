@@ -2,7 +2,7 @@
 
 **Last updated:** 14 August 2026  
 **Current shape:** One React SPA in three shells — workshop (`npm run dev`), Electron desktop (AppImage / portable exe), Capacitor APK. Firebase Auth + invite PIN is the shipping cloud path; mist/Freenet stays experimental.  
-**Companions:** [`Plans/ROADMAP.md`](Plans/ROADMAP.md) · [`Plans/NAMING.md`](Plans/NAMING.md) · [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) · [`Plans/APK_FREENET_HOST.md`](Plans/APK_FREENET_HOST.md)
+**Companions:** [`Plans/ROADMAP.md`](Plans/ROADMAP.md) · [`Plans/NAMING.md`](Plans/NAMING.md) · [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) · [`Plans/APK_FREENET_HOST.md`](Plans/APK_FREENET_HOST.md) · **today:** [`Plans/DAY_RUN_2026_09_15.md`](Plans/DAY_RUN_2026_09_15.md)
 
 Packaging sizes as of 12 Aug 2026: AppImage **~157 MB**, Windows portable **~103 MB**, debug APK **~7.5 MB**. Mist opt-in is Settings (desktop prefs); `MIST_FREENET=1` is a workshop override.
 
@@ -50,7 +50,7 @@ Quick map: operators see **PUF-AM** (`src/brand.ts`); wire/sync stays **PUFOM** 
 
 #### Milestone — three-device Bones paddock sync (2026-09-14)
 
-**Tablet write → phone + Linux watch on Freenet 0.2 Opennet.** Clare Downs (do not delete; FarmSeed paper-only). Tablet SM-T545 created a paddock; phone SM-S911B saw it almost instantly; Linux AppImage **0.0.1** (21:35, leftover Freenet-native seed adopted) then caught up **all** paddocks, including ones made many hours earlier. The bake that records this is **0.0.2**. Experimental mist; public v 0.1 remains a future `0.1.0`. Hole 5 advanced, not closed. **Next (2026-09-15) — two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) § Template pack. Home: [`Plans/FREENET_OPERATOR_FLOW.md`](Plans/FREENET_OPERATOR_FLOW.md) §8.
+**Tablet write → phone + Linux watch on Freenet 0.2 Opennet.** Clare Downs (do not delete; FarmSeed paper-only). Tablet SM-T545 created a paddock; phone SM-S911B saw it almost instantly; Linux AppImage **0.0.1** (21:35, leftover Freenet-native seed adopted) then caught up **all** paddocks, including ones made many hours earlier. The bake that records this is **0.0.2**. Experimental mist; public v 0.1 remains a future `0.1.0`. Hole 5 advanced, not closed. **Next (2026-09-15):** [`Plans/DAY_RUN_2026_09_15.md`](Plans/DAY_RUN_2026_09_15.md). Home: [`Plans/FREENET_OPERATOR_FLOW.md`](Plans/FREENET_OPERATOR_FLOW.md) §8.
 
 #### Milestone — two-laptop AppImage join over Freenet Opennet (~2026-08-04)
 
@@ -97,7 +97,7 @@ Team workshop captured the following before wiring live Freenet. Full detail: [`
 
 - Cross-device Hot/bones sync via in-process Freenet client — **Hot + Bones watch live 2026-09-14** (three-device paddock sync on Opennet; see milestone below). Archive / Manifest still deferred
 - Reticulum unit, invite join QR, `sealHotPeriod` app trigger
-- **Next (2026-09-15) — two parallel tracks:** (1) codebase health + security review, then issue photos over Freenet (packet size is the hurdle). Photos are not shipped. (2) Chill portions crop pack + weather reference is stale — [`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) § Template pack (`plugins/chill_portions/`, not walnut blight). DPIRD: server-only `DPIRD_API_KEY`, never `VITE_DPIRD_API_KEY`; BYO key never in Firestore / client / George's Secret Manager; BYO with no weather endpoint fails closed. Do not implement tonight.
+- **Next (2026-09-15):** [`Plans/DAY_RUN_2026_09_15.md`](Plans/DAY_RUN_2026_09_15.md) — health + security, then Freenet photos (packet size; **planned**, not shipped — [`Plans/FREENET_ISSUE_PHOTOS.md`](Plans/FREENET_ISSUE_PHOTOS.md)); **parallel after 1–2:** chill portions / DPIRD ([`Plans/PLUGIN_AUTHORING.md`](Plans/PLUGIN_AUTHORING.md) § Template pack).
 
 ### Freenet operator flow (today)
 
