@@ -1,7 +1,7 @@
 # PUFAM (Ag Manager) — Production Roadmap
 
 **Created:** 13 July 2026  
-**Last updated:** 10 September 2026 (custom domain live on `pufworks-am`; `Plans/` consolidated — see [`README.md`](README.md); Steps 1–13 detail moved to [`archive/ROADMAP_HISTORY.md`](archive/ROADMAP_HISTORY.md))  
+**Last updated:** 14 September 2026 (three-device Freenet Bones milestone; bake 0.0.2)  
 **Status:** Active — Phases A–C code complete; Phase D polish mostly done (D-07 mesh P3 open); Phase E crop-pack + blight + desktop Freenet in code, zip-as-engine still next  
 **Public name:** PUFAM — Ag Manager (local clone folder `PUF-AM`)  
 **Companion doc:** [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) §5 (13-step checklist)  
@@ -142,8 +142,8 @@ Not part of the original 13 steps. Track here so plugin work does not vanish bet
 | E-04 | Chill portions on dashboard (packaged APK) | `done` | Walnut pack / species / tree cropKind; packaged Android weather/auth → Cloud Run |
 | E-05 | Plugin zip drop (`plugins/`, `plugin.json`) | `done` | First-party `plugins/walnut_blight/` is catalog + engine defaults. React/Ji still in-app. `npm run plugins:pack` |
 | E-06 | Dead-limb cleanup | `done` | 2026-08-13 — FieldOps/FieldMode/taskStore removed; `/field-ops` still redirects to `/map` |
-| E-07 | Freenet operator holes | `in_progress` | Copy + UX done 2026-08-14 (holes 1, 2, 3-copy, 6, 7). Revoke-kick stays later. Hole 5 waits on E-08. Tracker: `FREENET_OPERATOR_FLOW.md` §8 |
-| E-08 | Freenet network pack (desktop + APK) | `in_progress` | Umbrella: [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) — per-farm pack, native PUT everywhere, hybrid mirror for cloud farms, two-terminal goal. Android host detail: [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) (Phase 3). Native PUT spike GO 2026-08-15 |
+| E-07 | Freenet operator holes | `in_progress` | Copy + UX done 2026-08-14 (holes 1, 2, 3-copy, 6, 7). Revoke-kick stays later. Hole 5 **advanced 2026-09-14** (three-device Bones paddock sync) — still open until two Android devices exchange with no Freenet Android Node. Tracker: `FREENET_OPERATOR_FLOW.md` §8 |
+| E-08 | Freenet network pack (desktop + APK) | `in_progress` | Umbrella: [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) — per-farm pack, native PUT everywhere, hybrid mirror for cloud farms, two-terminal goal. Android host detail: [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) (Phase 3). Native PUT spike GO 2026-08-15. **2026-09-14:** tablet + phone + Linux AppImage Bones live on Opennet (bake 0.0.2). Phase 4 clean-install scripts and Hole 5 close still open |
 
 ---
 
@@ -153,6 +153,7 @@ Record every status change here (newest first). Rows dated 2026-07-13 (Phases A�
 
 | Date | Step | Action | Notes |
 |------|------|--------|-------|
+| 2026-09-14 | E-07 / E-08 | Three-device Bones paddock sync | Clare Downs: tablet SM-T545 write → phone SM-S911B + Linux AppImage watch on Freenet 0.2 Opennet, including hours-old paddocks. Bake **0.0.2**. Hole 5 advanced, not closed. **Next (2026-09-15), two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — `PLUGIN_AUTHORING.md` § Template pack. `FREENET_OPERATOR_FLOW.md` §8 |
 | 2026-09-11 | E-08 | Network pack Phase 2 (hermetic) | Native PUT is the only PUT on every shell (`BrowserFreenetPutClient` / `BrowserFreenetSlotClient`); `fdev` and Hyphanet FCP deleted; node pinned 0.2.135; `npm run mist:smoke:native` added. Live check, Windows first launch and native A→B still pending — `FREENET_NETWORK_PACK.md` §5 Phase 2 |
 | 2026-09-10 | E-08 | Freenet network pack plan | `FREENET_NETWORK_PACK.md` — decisions: native PUT on every shell (drop `fdev`), `FreenetHostPlugin` as the data seam, isolated `:freenet` process on Android, one node pin, web hidden, per-farm enable, hybrid for cloud farms. Read-only assessment preceded it |
 | 2026-09-10 | Docs | `Plans/` consolidation | Index + `AGENTS.md`; `reference/` and `logs/` folders; Freenet holes + storage merged into `FREENET_OPERATOR_FLOW.md` §8–9; chill pack into `PLUGIN_AUTHORING.md`; review posture into `CODEBASE_HEALTH.md`; Steps 1–13 detail → `archive/ROADMAP_HISTORY.md` |
@@ -182,7 +183,7 @@ Record every status change here (newest first). Rows dated 2026-07-13 (Phases A�
 |----------|---------|
 | [DEVELOPER_NOTES.md](../DEVELOPER_NOTES.md) | Architecture notes, mist/Freenet phases, §5 checklist |
 | [Plans/README.md](README.md) | Index of every plan, with status and folder convention |
-| [Plans/FREENET_OPERATOR_FLOW.md](./FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands; §8 the seven known holes (E-07); §9 what is on Freenet |
+| [Plans/FREENET_OPERATOR_FLOW.md](./FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands; §8 the seven known holes (E-07; Hole 5 advanced 2026-09-14); §9 what is on Freenet |
 | [Plans/APK_FREENET_HOST.md](./APK_FREENET_HOST.md) | E-08 — Freenet network pack inside the APK |
 | [Plans/PLUGIN_AUTHORING.md](./PLUGIN_AUTHORING.md) | How to add a crop pack (file list; chill portions template) |
 | [Plans/CROP_PACK_PLUGIN.md](./CROP_PACK_PLUGIN.md) | Crop-pack contract, Settings → Plugins, zip drop folder |

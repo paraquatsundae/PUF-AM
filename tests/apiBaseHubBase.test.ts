@@ -28,6 +28,8 @@ import {
   normalizeHubBase,
   setRuntimeApiBaseUrl,
 } from '../src/lib/apiBase.ts';
+import { tileUrl, tileUrlTemplate } from '../src/lib/basemapPack.ts';
+import { forgetHubCredential, saveHubCredential } from '../src/lib/hubIdentity.ts';
 import { getSelectedSyncPeerBase, setSelectedSyncPeerBase } from '../src/lib/mdnsPeers.ts';
 
 const LAST_HUB_KEY = 'pufom_last_sync_hub';
@@ -40,6 +42,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setRuntimeApiBaseUrl(null);
+  forgetHubCredential('http://192.168.1.20:3000');
 });
 
 describe('the remembered hub', () => {
@@ -118,5 +121,51 @@ describe('packaged tablet with no hub', () => {
     expect(apiUrl('/api/auth/pins')).toBe('https://am.pufworks.farm/api/auth/pins');
     // LAN-only families stay relative — there is nowhere honest to send them.
     expect(apiUrl('/api/sync/self')).toBe('/api/sync/self');
+  });
+});
+
+describe('packaged tablet satellite tiles', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: new URL('https://localhost/'),
+    });
+  });
+
+  it('uses the hosted unauthenticated tile proxy when no hub is paired', () => {
+    expect(getApiBaseUrl()).toBe('');
+    expect(apiUrl('/api/tiles/12/3366/2431')).toBe(
+      'https://am.pufworks.farm/api/tiles/12/3366/2431',
+    );
+    expect(tileUrl(12, 3366, 2431)).toBe('https://am.pufworks.farm/api/tiles/12/3366/2431');
+    expect(tileUrlTemplate()).toBe('https://am.pufworks.farm/api/tiles/{z}/{x}/{y}');
+    expect(tileUrlTemplate().startsWith('https://am.pufworks.farm/')).toBe(true);
+    expect(tileUrlTemplate()).not.toMatch(/^(\/|file:|https:\/\/localhost)/);
+  });
+
+  it('keeps tiles on the hosted proxy when a remembered LAN hub is present', () => {
+    localStorage.setItem(LAST_HUB_KEY, 'http://192.168.1.20:3000');
+    expect(getApiBaseUrl()).toBe('http://192.168.1.20:3000');
+    expect(tileUrl(14, 1, 2)).toBe('https://am.pufworks.farm/api/tiles/14/1/2');
+  });
+
+  it('keeps tiles on the hosted proxy even when the session hub claims to serve them', () => {
+    setRuntimeApiBaseUrl('http://192.168.1.20:3000');
+    saveHubCredential('http://192.168.1.20:3000', {
+      info: {
+        product: 'PUF-AM',
+        kind: 'desktop-lan',
+        name: 'shed',
+        pairingRequired: true,
+        paired: true,
+        cloudOnlyPrefixes: ['/api/auth/', '/api/weather/'],
+        cloudApiBase: 'https://am.pufworks.farm',
+        lanScopePrefixes: ['/api/sync/'],
+        freenet: true,
+        tiles: true,
+      },
+    });
+    expect(tileUrl(12, 3366, 2431)).toBe('https://am.pufworks.farm/api/tiles/12/3366/2431');
+    expect(apiUrl('/api/sync/self')).toBe('http://192.168.1.20:3000/api/sync/self');
   });
 });

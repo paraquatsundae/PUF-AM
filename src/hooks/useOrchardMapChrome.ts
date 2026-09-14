@@ -5,12 +5,20 @@ import type { UserGeoFix } from '../components/map/UserLocationLayer';
 import type { OrchardBlock } from '../lib/mapStore';
 import type { MapHighlightDoc } from '../lib/mapHighlights';
 import type { InfraTypeId } from '../../shared/farm/infraTypes';
+import {
+  readMapLayerPreference,
+  subscribeMapLayerPreference,
+  writeMapLayerPreference,
+  type MapLayerChoice,
+} from '../lib/mapLayerPreference';
 
 /** Chrome + selection state for OrchardMap. Not viewport / analytics / clicks. */
-export function useOrchardMapChrome() {
+export function useOrchardMapChrome(farmId?: string) {
   const [mapMode, setMapMode] = useState<MapMode>('operate');
   const [activeTab, setActiveTab] = useState<MapSubTab>('blocks');
-  const [mapLayer, setMapLayer] = useState<'vector' | 'satellite'>('satellite');
+  const [mapLayer, setMapLayerState] = useState<MapLayerChoice>(
+    () => readMapLayerPreference(farmId)?.layer ?? 'satellite',
+  );
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const [highlightSending, setHighlightSending] = useState(false);
   const [inspectedHighlight, setInspectedHighlight] = useState<MapHighlightDoc | null>(null);
@@ -42,8 +50,19 @@ export function useOrchardMapChrome() {
   infraDrawKindRef.current = infraDrawKind;
 
   useEffect(() => {
-    setMapLayer('satellite');
-  }, [activeTab]);
+    const pref = readMapLayerPreference(farmId);
+    setMapLayerState(pref?.layer ?? 'satellite');
+    return subscribeMapLayerPreference(farmId, setMapLayerState);
+  }, [farmId]);
+
+  const setMapLayer = (layer: MapLayerChoice) => {
+    setMapLayerState(layer);
+    if (farmId) writeMapLayerPreference(farmId, layer);
+  };
+
+  const toggleMapLayer = () => {
+    setMapLayer(mapLayer === 'satellite' ? 'vector' : 'satellite');
+  };
 
   return {
     mapMode,
@@ -51,6 +70,8 @@ export function useOrchardMapChrome() {
     activeTab,
     setActiveTab,
     mapLayer,
+    setMapLayer,
+    toggleMapLayer,
     mapInstance,
     setMapInstance,
     highlightSending,

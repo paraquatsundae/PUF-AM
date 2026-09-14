@@ -12,6 +12,8 @@ import { issueHasPhoto } from './issuePhotoMeta';
 import { listEventPhotoRefs, photosForFirestore } from './farmPhoto';
 import { getFarmGeometry } from './farmGeometryIdb';
 import { listLocalEntities } from './localFarmRepo';
+import { localFieldIssues } from './localFieldIssues';
+import { unionIssuesByUpdatedAt } from './issuePhotoMeta';
 import type { OrchardBlock } from './mapStore';
 import {
   buildFarmExportPhotoEntries,
@@ -201,7 +203,7 @@ export async function buildFarmExportJson(
   const includeIssues = opts?.includeIssues !== false;
   const includeIssuesArchive = opts?.includeIssuesArchive !== false;
 
-  const [geometry, diary, issues, issuesArchive] = await Promise.all([
+  const [geometry, diary, repoIssues, repoArchive] = await Promise.all([
     getFarmGeometry(farmId),
     listLocalEntities<DiaryEvent>(farmId, 'diary'),
     includeIssues ? listLocalEntities<FieldIssue>(farmId, 'issues') : Promise.resolve([]),
@@ -209,6 +211,12 @@ export async function buildFarmExportJson(
       ? listLocalEntities<FieldIssue>(farmId, 'issues_archive')
       : Promise.resolve([]),
   ]);
+  const issues = includeIssues
+    ? unionIssuesByUpdatedAt(repoIssues, localFieldIssues.getOpen(farmId))
+    : [];
+  const issuesArchive = includeIssuesArchive
+    ? unionIssuesByUpdatedAt(repoArchive, localFieldIssues.getArchived(farmId))
+    : [];
 
   const blockNames = buildBlockNameMap(geometry.blocks);
 

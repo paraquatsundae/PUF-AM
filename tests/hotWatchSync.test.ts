@@ -192,6 +192,86 @@ describe('hot watch sync', () => {
     expect(saved.highlight.linkedDiaryEventId).toBe(saved.diary?.id);
   });
 
+  it('incoming issues merge into the live field store without remounting the map', async () => {
+    const { useFieldStore } = await import('../src/lib/fieldStore');
+    const viewport = { lat: -34.24, lng: 116.14, zoom: 16 };
+    useMapStoreInternal.setState({
+      isLoaded: true,
+      isLoading: false,
+      currentFarmId: FARM_ID,
+      viewport,
+    });
+    useFieldStore.setState({
+      isLoaded: true,
+      currentFarmId: FARM_ID,
+      issues: [],
+      archivedIssues: [],
+    });
+
+    const incoming = {
+      id: 'tablet-issue-1',
+      lat: -34.24,
+      lng: 116.14,
+      category: 'pest' as const,
+      priority: 'high' as const,
+      status: 'open' as const,
+      reportedBy: 'tablet',
+      reportedAt: '2026-09-14T03:00:00.000Z',
+      updatedAt: '2026-09-14T03:00:00.000Z',
+      note: 'Check the south valve',
+    };
+    const exportBundle = assembleFarmExportEnvelope({
+      farmId: FARM_ID,
+      source: 'mist',
+      diary: [],
+      issues: [incoming],
+      issuesArchive: [],
+      blockNames: new Map(),
+    });
+    const hot = buildHotStateFromFarmExport(exportBundle, { farmId: FARM_ID });
+    await mergeHotEntitiesIntoLocal(FARM_ID, hotStateToFarmEntities(hot));
+    await refreshFarmUiAfterHotMerge(FARM_ID);
+
+    const map = useMapStoreInternal.getState();
+    expect(map.isLoaded).toBe(true);
+    expect(map.viewport).toBe(viewport);
+    expect(useFieldStore.getState().issues.some((row) => row.id === incoming.id)).toBe(true);
+  });
+
+  it('refreshFarmUiAfterRecovery does not flip map isLoaded', async () => {
+    const { refreshFarmUiAfterRecovery } = await import('../src/mist/mistDisasterRecovery');
+    const { useFieldStore } = await import('../src/lib/fieldStore');
+    const viewport = { lat: -34.24, lng: 116.14, zoom: 16 };
+    useMapStoreInternal.setState({
+      isLoaded: true,
+      isLoading: false,
+      currentFarmId: FARM_ID,
+      viewport,
+      blocks: [],
+      pins: [],
+      tracks: [],
+    });
+    useFieldStore.setState({
+      isLoaded: true,
+      currentFarmId: FARM_ID,
+      issues: [],
+      archivedIssues: [],
+    });
+    useFarmDiaryStore.setState({
+      isLoaded: true,
+      isLoading: false,
+      currentFarmId: FARM_ID,
+      events: [],
+    });
+
+    await refreshFarmUiAfterRecovery(FARM_ID);
+
+    const map = useMapStoreInternal.getState();
+    expect(map.isLoaded).toBe(true);
+    expect(map.isLoading).toBe(false);
+    expect(map.viewport).toBe(viewport);
+  });
+
   it('Bones merge applies paddocks without flipping isLoaded or viewport', async () => {
     const { mergeFarmGeometryFromBones } = await import('../src/mist/bonesGeometry');
     const { refreshFarmUiAfterBonesMerge } = await import('../src/mist/hotWatchSync');

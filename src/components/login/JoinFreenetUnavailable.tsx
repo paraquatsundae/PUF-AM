@@ -16,7 +16,7 @@ export function JoinFreenetUnavailable({ onBack }: { onBack: () => void }) {
             same code there.
           </li>
           <li>
-            On a tablet: install the PUF-AM app. It runs Freenet itself — you do not pair a
+            Install the PUF-AM app on this device. It runs Freenet itself — you do not pair a
             laptop hub.
           </li>
         </ul>

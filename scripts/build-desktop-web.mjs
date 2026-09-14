@@ -8,11 +8,13 @@
  * node but cannot reach a bundle that was already compiled with the gate off, so
  * the desktop build bakes the flag in here.
  *
- * Set `VITE_MIST_EXPERIMENTAL=false` to package a Firebase-only desktop build.
+ * Freenet Sync is experimental, not workshop. Dist bakes
+ * `VITE_MIST_EXPERIMENTAL=true` the same way the APK does — a stray
+ * `VITE_MIST_EXPERIMENTAL=false` in the shell must not drop the gate
+ * (`Plans/NAMING.md` §3). Pass `--no-mist` for a Firebase-only desktop build.
  *
  * `VITE_WORKSHOP_MODE` is forced off so a local `.env` cannot fold the
  * workshop banner / fake admin into an AppImage (same hole as the APK bake).
- * See `Plans/NAMING.md` §3.
  *
  * Plan: `Plans/reference/DESKTOP_FREENET_PLUGIN.md` §8.3.
  */
@@ -21,7 +23,9 @@ import { build } from 'vite';
 
 process.env.VITE_WORKSHOP_MODE = 'false';
 
-if (process.env.VITE_MIST_EXPERIMENTAL === undefined) {
+if (process.argv.includes('--no-mist')) {
+  process.env.VITE_MIST_EXPERIMENTAL = 'false';
+} else {
   process.env.VITE_MIST_EXPERIMENTAL = 'true';
 }
 

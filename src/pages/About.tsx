@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Map, Activity, BookOpen, Tractor, Warehouse, ExternalLink, Droplets } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getAppUrl, hasPublishedAppUrl } from '../lib/appUrl';
-import { APP_BLURB, APP_FULL_NAME, APP_LOGO_SRC, APP_NAME, APP_WORKSHOP } from '../brand';
+import { APP_BLURB, APP_FULL_NAME, APP_LOGO_SRC, APP_NAME, APP_VERSION, APP_WORKSHOP } from '../brand';
 import { useCropPackActivation } from '../hooks/useCropPackActivation';
 import { WALNUT_BLIGHT_PACK_ID } from '../../shared/farm/walnutBlightPackage';
 
@@ -169,7 +169,7 @@ export function About() {
           </p>
         )}
         <p className="text-xs text-slate-400">
-          {APP_NAME} · {APP_WORKSHOP} workshop · farm software, not a published scientific product
+          {APP_NAME} · v{APP_VERSION} · {APP_WORKSHOP} workshop · farm software, not a published scientific product
         </p>
       </div>
     </div>

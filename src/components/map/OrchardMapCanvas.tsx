@@ -50,6 +50,7 @@ export function OrchardMapCanvas({
   canEdit,
   viewport,
   mapLayer,
+  onToggleMapLayer,
   basemapPack,
   showBasemapSetup,
   isOnline,
@@ -242,6 +243,8 @@ export function OrchardMapCanvas({
         mapTitle={mapTitle}
         onGoHome={onGoHome}
         onLocateMe={onLocateMe}
+        mapLayer={mapLayer}
+        onToggleMapLayer={onToggleMapLayer}
         userFix={userFix}
         followUser={followUser}
         mapMode={mapMode}

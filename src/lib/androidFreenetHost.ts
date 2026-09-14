@@ -13,7 +13,11 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 import { DEFAULT_LOCAL_FREENET_WS_URL } from '../../units/mist-freenet/src/freenet02-browser-get-url.ts';
-import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
+import type {
+  FreenetHostStatus,
+  FreenetKillSwitchResult,
+  FreenetLeftoverKind,
+} from '../../units/puf-freenet-host/src/types.ts';
 
 export const ANDROID_FREENET_HOST_ID = 'puf-freenet-host-android';
 export const ANDROID_FREENET_WS_HOST = '127.0.0.1';
@@ -24,8 +28,10 @@ export const ANDROID_FREENET_NO_BINARY = 'no android-arm64 binary';
 export type FreenetHostNative = {
   start(): Promise<FreenetHostStatus>;
   stop(): Promise<FreenetHostStatus>;
+  stopAllOurs?: () => Promise<FreenetKillSwitchResult>;
   status(options?: { probe?: boolean }): Promise<FreenetHostStatus>;
   attach(): Promise<FreenetHostStatus>;
+  openFreenetAndroidNode?: () => Promise<{ opened: boolean }>;
 };
 
 let native: FreenetHostNative | null | undefined;
@@ -73,6 +79,7 @@ export function androidAttachedStatus(): FreenetHostStatus {
   return androidFreenetHostStatus({
     mode: 'attached',
     reachable: true,
+    attachKind: 'foreign',
     binary: { path: 'loopback:7509', source: 'path' },
   });
 }
@@ -87,13 +94,48 @@ export function androidMissingBinaryStatus(): FreenetHostStatus {
 function asStatus(raw: unknown): FreenetHostStatus {
   if (!raw || typeof raw !== 'object') return androidMissingBinaryStatus();
   const o = raw as Partial<FreenetHostStatus>;
-  return androidFreenetHostStatus({
+  const status = androidFreenetHostStatus({
     ...o,
     hostId: o.hostId || ANDROID_FREENET_HOST_ID,
     wsUrl: o.wsUrl || DEFAULT_LOCAL_FREENET_WS_URL,
     wsHost: o.wsHost || ANDROID_FREENET_WS_HOST,
     wsPort: Number(o.wsPort) || ANDROID_FREENET_WS_PORT,
+    ...(o.nodeRing ? { nodeRing: o.nodeRing } : {}),
+    ...(o.contractTraffic ? { contractTraffic: o.contractTraffic } : {}),
+    ...(o.leftover ? { leftover: o.leftover } : {}),
+    ...(o.leftoverPackage ? { leftoverPackage: o.leftoverPackage } : {}),
   });
+  // Same-uid leftover of our :freenet — reuse as managed, never “already open”.
+  if (status.leftover === 'ours' && (status.reachable || status.mode === 'attached')) {
+    return { ...status, mode: 'managed', lastError: undefined };
+  }
+  return status;
+}
+
+function asLeftover(raw: unknown): FreenetLeftoverKind {
+  if (
+    raw === 'ours' ||
+    raw === 'android-node' ||
+    raw === 'login-service' ||
+    raw === 'foreign' ||
+    raw === 'none'
+  ) {
+    return raw;
+  }
+  return 'none';
+}
+
+function asKillSwitch(raw: unknown): FreenetKillSwitchResult {
+  const status = asStatus(raw);
+  const o = raw && typeof raw === 'object' ? (raw as Partial<FreenetKillSwitchResult>) : {};
+  const leftover = asLeftover(o.leftover ?? status.leftover);
+  return {
+    ...status,
+    leftover,
+    leftoverPackage: o.leftoverPackage ?? status.leftoverPackage,
+    portFree: o.portFree ?? leftover === 'none',
+    stoppedOurs: o.stoppedOurs === true,
+  };
 }
 
 export async function androidFreenetHostStart(): Promise<FreenetHostStatus> {
@@ -129,6 +171,35 @@ export async function androidFreenetHostStatusNow(
     return asStatus(await plugin.status(options));
   } catch {
     return androidFreenetHostStatus();
+  }
+}
+
+export async function androidFreenetHostStopAllOurs(): Promise<FreenetKillSwitchResult> {
+  const plugin = isFreenetHostPluginAvailable() ? freenetHostNative() : null;
+  if (!plugin?.stopAllOurs) {
+    const after = await androidFreenetHostStop();
+    return asKillSwitch({
+      ...after,
+      leftover: after.reachable ? after.leftover ?? 'foreign' : 'none',
+      portFree: !after.reachable,
+      stoppedOurs: after.mode === 'stopped',
+    });
+  }
+  try {
+    return asKillSwitch(await plugin.stopAllOurs());
+  } catch {
+    return asKillSwitch(androidFreenetHostStatus());
+  }
+}
+
+export async function androidOpenFreenetAndroidNode(): Promise<boolean> {
+  const plugin = isFreenetHostPluginAvailable() ? freenetHostNative() : null;
+  if (!plugin?.openFreenetAndroidNode) return false;
+  try {
+    const result = await plugin.openFreenetAndroidNode();
+    return result?.opened === true;
+  } catch {
+    return false;
   }
 }
 

@@ -38,7 +38,7 @@ import { mapUiCopy } from '../../shared/farm/farmTypes';
 export function OrchardMap() {
   const { userData } = useAuth();
   const farmId = userData?.farmId;
-  const chrome = useOrchardMapChrome();
+  const chrome = useOrchardMapChrome(farmId);
   const { trailPrefs, updateTrailPrefs } = useOrchardMapTrailPrefs(userData?.role);
   const {
     others: crewOthers,
@@ -434,6 +434,7 @@ export function OrchardMap() {
           canEdit={canEdit}
           viewport={viewport}
           mapLayer={chrome.mapLayer}
+          onToggleMapLayer={chrome.toggleMapLayer}
           basemapPack={basemap.basemapPack}
           showBasemapSetup={basemap.showBasemapSetup}
           isOnline={basemap.isOnline}

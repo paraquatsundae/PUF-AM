@@ -50,6 +50,8 @@ import {
   shouldUseLocalFreenetForReads,
 } from './freenetLocalNode.ts';
 import { ensureFreenetHostListening } from './ensureFreenetHostListening.ts';
+import type { FreenetContractSlotKind } from '../../units/puf-freenet-host/src/contract-traffic.ts';
+import { recordFreenetContractTraffic } from '../lib/freenetContractTraffic.ts';
 import { FreenetTransportError } from './freenetPackTransport.ts';
 import { getFreenetPackTransport } from './freenetTransportSelect.ts';
 import { loadMistDeviceSession } from './mistDeviceSession.ts';
@@ -119,6 +121,7 @@ export const FREENET_SLOT_NEEDS_LOCAL_NODE =
 export async function readJoinSlotState(
   instanceIdBase58: string,
   signal?: AbortSignal,
+  trafficKind?: FreenetContractSlotKind,
 ): Promise<Uint8Array> {
   await ensureFreenetHostListening();
   const transport = getFreenetPackTransport();
@@ -132,7 +135,15 @@ export async function readJoinSlotState(
         deadlineMs: localFreenetSearchBudgetMs(hubAvailable),
         ...(signal ? { signal } : {}),
       });
-      if (bytes?.length) return bytes;
+      if (bytes?.length) {
+        recordFreenetContractTraffic({
+          op: 'get',
+          source: 'host',
+          slotKind: trafficKind ?? 'unknown',
+          contractKey: instanceIdBase58,
+        });
+        return bytes;
+      }
       localReason = 'the Freenet node on this device has not found that ticket yet';
     } catch (error) {
       localReason =
@@ -149,7 +160,10 @@ export async function readJoinSlotState(
   }
 
   try {
-    return await transport.slotRead(instanceIdBase58, signal ? { signal } : undefined);
+    return await transport.slotRead(instanceIdBase58, {
+      ...(signal ? { signal } : {}),
+      ...(trafficKind ? { trafficKind } : {}),
+    });
   } catch (error) {
     if (!localReason) throw unavailable(error, 'the Freenet node did not answer');
     const hubReason = error instanceof Error ? error.message : 'the hub did not answer';
@@ -235,6 +249,7 @@ export async function publishJoinTicketToFreenetSlot(
       parameters: address.parameters,
       state,
       instanceIdBase58: address.instanceIdBase58,
+      trafficKind: 'invite',
     });
   } catch (error) {
     throw unavailable(error, 'the Freenet slot publish failed');
@@ -266,7 +281,7 @@ export async function resolveJoinTicketFromFreenetSlot(
   const farmSeed = await loadFarmSeed(options?.devicePin);
   const address = await deriveJoinSlotAddress(farmSeed, canonical);
 
-  const state = await readJoinSlotState(address.instanceIdBase58, options?.signal);
+  const state = await readJoinSlotState(address.instanceIdBase58, options?.signal, 'invite');
 
   let payload: Uint8Array;
   try {

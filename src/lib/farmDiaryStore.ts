@@ -5,6 +5,7 @@ import { mergeByLww } from '../../shared/sync/pufomBundle';
 import { keepEventPhotosIfMissing } from './farmPhoto';
 import type { DiaryEvent, FarmSettings } from './farmDiaryTypes';
 import { getDefaultDiaryStartDate } from './farmDiaryTypes';
+import { usesCloudSyncOutbox } from './farmPipes';
 
 interface FarmDiaryState {
   events: DiaryEvent[];
@@ -81,7 +82,7 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
 
       const { mergeFarmSettings, readLocalFarmSettings } = await import('./farmSettingsLocal');
 
-      if (isOffline) {
+      if (isOffline || !usesCloudSyncOutbox()) {
         const filtered = localEvents
           .filter((e) => e.date >= effectiveStart && (!endDate || e.date <= endDate))
           .sort((a, b) => b.date.localeCompare(a.date));

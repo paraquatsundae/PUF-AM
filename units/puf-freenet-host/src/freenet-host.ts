@@ -16,11 +16,32 @@ import net from 'node:net';
 import path from 'node:path';
 
 import {
+  createFreenetContractTrafficEvent,
+  mergeFreenetContractTraffic,
+  slotKindFromStorageKey,
+  type FreenetContractTrafficEvent,
+} from './contract-traffic.ts';
+import {
   FreenetHostStartTimeoutError,
   FreenetWireUnavailableError,
 } from './errors.ts';
-import { FREENET_BINARY, resolveFreenetBinaryOrThrow } from './resolve-binary.ts';
+import {
+  freenetPortNotFreenetMessage,
+  identifyFreenet02Listener,
+} from './identify-freenet02.ts';
+import { leftoverAfterKillSwitch, maySignalAttachedListener } from './kill-switch.ts';
+import { readFreenetLogPeerCount } from './log-peer-count.ts';
+import { freenetPutReadyError, shouldEnforceFreenetPutReady } from './put-ready.ts';
+import {
+  attachKindFromListener,
+  classifyFreenetListener,
+  decidePortTakenMode,
+  defaultHomeDir,
+  inspectLoopbackListener,
+} from './listener-owner.ts';
+import { FREENET_BINARY, resolveFreenetBinary, resolveFreenetBinaryOrThrow } from './resolve-binary.ts';
 import type {
+  FreenetAttachKind,
   FreenetBinaryInfo,
   FreenetChildProcess,
   FreenetHostEvent,
@@ -30,6 +51,10 @@ import type {
   FreenetHostPlugin,
   FreenetHostStatus,
   FreenetHostStatusOptions,
+  FreenetKillSwitchOptions,
+  FreenetKillSwitchResult,
+  FreenetLeftoverKind,
+  FreenetListenerOwner,
   FreenetPutCiphertextOptions,
   FreenetPutCiphertextResult,
   FreenetSlotPutInput,
@@ -48,6 +73,23 @@ const FREENET_UPDATE_EXIT_CODE = 42;
 const PROBE_TIMEOUT_MS = 1_500;
 const PROBE_INTERVAL_MS = 750;
 const RESTART_BACKOFF_MS = [1_000, 3_000, 8_000];
+
+function defaultKillPid(pid: number, signal: NodeJS.Signals): boolean {
+  try {
+    process.kill(pid, signal);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function defaultStopUserService(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile('systemctl', ['--user', 'stop', 'freenet.service'], { timeout: 8_000 }, (err) => {
+      resolve(!err);
+    });
+  });
+}
 
 export function freenetWsUrl(host: string, port: number): string {
   return `ws://${host}:${port}/v1/contract/command`;
@@ -89,11 +131,19 @@ function defaultSpawn(
   args: string[],
   env: Record<string, string | undefined>,
 ): FreenetChildProcess {
-  return nodeSpawn(binaryPath, args, {
+  // detached so Keep-on-quit can leave the node; --log-dir still gets the files.
+  const child = nodeSpawn(binaryPath, args, {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    detached: true,
   });
+  try {
+    child.unref();
+  } catch {
+    /* unref is best-effort */
+  }
+  return child;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -128,6 +178,8 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
   const stopGraceMs = options.stopGraceMs ?? 8_000;
   const spawnFn = options.spawn ?? defaultSpawn;
   const probe = options.probe ?? probeTcpPort;
+  const identify = options.identify ?? identifyFreenet02Listener;
+  const inspect = options.inspect ?? inspectLoopbackListener;
   const readVersion = options.readVersion ?? readFreenetVersion;
   const baseEnv = options.env ?? process.env;
 
@@ -138,6 +190,8 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
   const listeners = new Set<FreenetHostEventListener>();
   let mode: FreenetHostMode = 'stopped';
   let child: FreenetChildProcess | null = null;
+  let adoptedPid: number | undefined;
+  let attachKind: FreenetAttachKind | undefined;
   let binary: FreenetBinaryInfo | undefined;
   let reachable = false;
   let updateRequired = false;
@@ -148,6 +202,13 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
   let restartAttempts = 0;
   let exitWaiters: Array<() => void> = [];
   let startInFlight: Promise<FreenetHostStatus> | null = null;
+  let contractTraffic: FreenetContractTrafficEvent[] = [];
+  let leftover: FreenetLeftoverKind | undefined;
+  let leftoverPackage: string | undefined;
+
+  function rememberTraffic(event: FreenetContractTrafficEvent): void {
+    contractTraffic = mergeFreenetContractTraffic([event, ...contractTraffic]);
+  }
 
   function snapshot(): FreenetHostStatus {
     return {
@@ -157,7 +218,8 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
       wsUrl: freenetWsUrl(wsHost, wsPort),
       wsHost,
       wsPort,
-      pid: mode === 'managed' ? child?.pid : undefined,
+      pid: mode === 'managed' ? child?.pid ?? adoptedPid : undefined,
+      ...(mode === 'attached' && attachKind ? { attachKind } : {}),
       binary,
       configDir,
       dataDir,
@@ -166,6 +228,8 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
       startedAt,
       lastExitCode,
       lastError,
+      ...(contractTraffic.length ? { contractTraffic } : {}),
+      ...(leftover && leftover !== 'none' ? { leftover, leftoverPackage } : {}),
     };
   }
 
@@ -219,6 +283,8 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
 
   function handleExit(code: number | null, signal: NodeJS.Signals | null): void {
     child = null;
+    adoptedPid = undefined;
+    attachKind = undefined;
     reachable = false;
     lastExitCode = code;
     settleExitWaiters();
@@ -263,41 +329,123 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     emitState();
   }
 
+  async function looksLikeFreenet(): Promise<boolean> {
+    return identify(wsHost, wsPort, PROBE_TIMEOUT_MS);
+  }
+
+  function peekBundledPath(): string | undefined {
+    return resolveFreenetBinary(FREENET_BINARY, {
+      binaryPath: options.binaryPath,
+      searchPaths: options.binarySearchPaths,
+      repoRoot: options.repoRoot,
+      env: baseEnv,
+    }).binary?.path;
+  }
+
+  async function listenOwner(): Promise<FreenetListenerOwner | null> {
+    try {
+      return (await inspect(wsHost, wsPort)) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  function markManaged(nextBinary?: FreenetBinaryInfo, pid?: number): void {
+    mode = 'managed';
+    attachKind = undefined;
+    reachable = true;
+    updateRequired = false;
+    restartAttempts = 0;
+    startedAt = startedAt ?? new Date().toISOString();
+    lastError = undefined;
+    if (nextBinary) binary = nextBinary;
+    if (pid !== undefined) adoptedPid = pid;
+  }
+
+  function markAttached(kind: FreenetAttachKind, owner?: FreenetListenerOwner | null): void {
+    mode = 'attached';
+    attachKind = kind;
+    reachable = true;
+    startedAt = startedAt ?? new Date().toISOString();
+    lastError = undefined;
+    if (owner?.exe && !binary) {
+      binary = { path: owner.exe, source: 'path' };
+    }
+  }
+
   async function waitForReachable(timeoutMs: number): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      if (!child && mode === 'starting') {
+      if (!child) {
         // Process died while we were waiting — handleExit owns the state.
         return false;
       }
-      if (await probe(wsHost, wsPort, PROBE_TIMEOUT_MS)) return true;
+      // TCP is not enough: a leftover on :7509 would look like our child.
+      if ((await probe(wsHost, wsPort, PROBE_TIMEOUT_MS)) && (await looksLikeFreenet())) {
+        return true;
+      }
       await sleep(PROBE_INTERVAL_MS);
     }
     return false;
   }
 
   async function doStart(): Promise<FreenetHostStatus> {
-    if ((mode === 'managed' || mode === 'attached') && reachable) return snapshot();
+    if (mode === 'attached' && reachable) return snapshot();
+    if (mode === 'managed' && (child || reachable)) {
+      if (!reachable && child) {
+        reachable = (await probe(wsHost, wsPort, PROBE_TIMEOUT_MS)) && (await looksLikeFreenet());
+      }
+      return snapshot();
+    }
 
     stopping = false;
     mode = 'starting';
     lastError = undefined;
+    leftover = undefined;
+    leftoverPackage = undefined;
     emitState();
 
-    if (await probe(wsHost, wsPort, PROBE_TIMEOUT_MS)) {
-      if (attachIfRunning) {
-        // Another PUF unit or a workshop `freenet network` owns this node.
-        // Use it, and never kill what we did not start.
-        mode = 'attached';
-        reachable = true;
-        startedAt = new Date().toISOString();
+    const tcpUp = await probe(wsHost, wsPort, PROBE_TIMEOUT_MS);
+    let occupiedNotFreenet = false;
+    if (tcpUp) {
+      if (await looksLikeFreenet()) {
+        const owner = await listenOwner();
+        const kind = classifyFreenetListener({
+          owner,
+          bundledPath: peekBundledPath(),
+          ourChildPid: child?.pid ?? adoptedPid,
+          ourUid: typeof process.getuid === 'function' ? process.getuid() : undefined,
+          homeDir: defaultHomeDir(),
+          configDir,
+        });
+        const decision = decidePortTakenMode({
+          listenerKind: kind,
+          hasChild: Boolean(child),
+          recordedManaged: false,
+          attachIfRunning,
+        });
+        if (decision === 'managed') {
+          const bundled = peekBundledPath();
+          markManaged(
+            binary ?? (bundled ? { path: bundled, source: 'bundled' } : undefined),
+            owner?.pid,
+          );
+          emitState();
+          return snapshot();
+        }
+        if (decision === 'attached') {
+          markAttached(attachKindFromListener(kind), owner);
+          emitState();
+          return snapshot();
+        }
+        mode = 'failed';
+        lastError = `Port ${wsPort} already in use and attachIfRunning is false`;
         emitState();
-        return snapshot();
+        throw new Error(lastError);
       }
-      mode = 'failed';
-      lastError = `Port ${wsPort} already in use and attachIfRunning is false`;
-      emitState();
-      throw new Error(lastError);
+      // TCP answers but it is not Freenet 0.2. Do not attach. Still try to
+      // start our node; if the occupant keeps the port, fail clean — do not kill it.
+      occupiedNotFreenet = true;
     }
 
     ensureDirs();
@@ -349,16 +497,14 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
       stopping = false;
       child = null;
       mode = 'failed';
-      lastError = timeoutError.message;
+      lastError = occupiedNotFreenet
+        ? freenetPortNotFreenetMessage(wsHost, wsPort)
+        : timeoutError.message;
       emitState();
-      throw timeoutError;
+      throw occupiedNotFreenet ? new Error(lastError) : timeoutError;
     }
 
-    mode = 'managed';
-    reachable = true;
-    updateRequired = false;
-    restartAttempts = 0;
-    startedAt = new Date().toISOString();
+    markManaged(binary, proc.pid);
     emitState();
     return snapshot();
   }
@@ -376,8 +522,9 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     stopping = true;
 
     if (mode === 'attached') {
-      // Detach only — this node belongs to someone else.
+      // Detach only — this node belongs to someone else. Never kill it.
       mode = 'stopped';
+      attachKind = undefined;
       reachable = false;
       stopping = false;
       emitState();
@@ -412,9 +559,145 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     }
 
     child = null;
+    adoptedPid = undefined;
+    attachKind = undefined;
     mode = 'stopped';
     reachable = false;
+    leftover = undefined;
+    leftoverPackage = undefined;
     stopping = false;
+    emitState();
+    return snapshot();
+  }
+
+  function signalListenerPid(pid: number | undefined): boolean {
+    if (pid === undefined || !Number.isFinite(pid) || pid <= 0) return false;
+    if (pid === process.pid) return false;
+    try {
+      return (options.killPid ?? defaultKillPid)(pid, 'SIGTERM');
+    } catch {
+      return false;
+    }
+  }
+
+  async function classifyLiveListener() {
+    const owner = await listenOwner();
+    return {
+      owner,
+      kind: classifyFreenetListener({
+        owner,
+        bundledPath: peekBundledPath(),
+        ourChildPid: child?.pid ?? adoptedPid,
+        ourUid: typeof process.getuid === 'function' ? process.getuid() : undefined,
+        homeDir: defaultHomeDir(),
+        configDir,
+      }),
+    };
+  }
+
+  /**
+   * Settings kill switch. Quit `stop()` stays managed-only.
+   * Plans/FREENET_OPERATOR_FLOW.md Decision — 2026-09-14 (kill switch).
+   */
+  async function stopAllOurs(input: FreenetKillSwitchOptions = {}): Promise<FreenetKillSwitchResult> {
+    stopping = true;
+    let stoppedOurs = false;
+
+    if (child) {
+      const exited = new Promise<void>((resolve) => exitWaiters.push(resolve));
+      try {
+        child.kill('SIGTERM');
+        stoppedOurs = true;
+      } catch {
+        /* already gone */
+      }
+      let graceExpired = false;
+      await Promise.race([exited, sleep(Math.min(stopGraceMs, 4_000)).then(() => { graceExpired = true; })]);
+      if (graceExpired && child) {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* already gone */
+        }
+        await Promise.race([exited, sleep(1_000)]);
+      }
+      child = null;
+      adoptedPid = undefined;
+    } else if (adoptedPid) {
+      stoppedOurs = signalListenerPid(adoptedPid) || stoppedOurs;
+      adoptedPid = undefined;
+    }
+
+    const live = await classifyLiveListener();
+    if (maySignalAttachedListener(live.kind)) {
+      stoppedOurs = signalListenerPid(live.owner?.pid) || stoppedOurs;
+    }
+    if (live.kind === 'login-leftover' && input.stopUserService) {
+      try {
+        const fn = options.stopUserService ?? defaultStopUserService;
+        stoppedOurs = (await fn()) || stoppedOurs;
+      } catch {
+        /* service may already be gone */
+      }
+    }
+
+    await sleep(400);
+    const answered = await probe(wsHost, wsPort, PROBE_TIMEOUT_MS);
+    const stillFreenet = answered && (await looksLikeFreenet());
+    const after = stillFreenet ? await classifyLiveListener() : { owner: null, kind: 'unknown' as const };
+    const nextLeftover = leftoverAfterKillSwitch({
+      portStillFreenet: Boolean(stillFreenet),
+      listenerKind: stillFreenet ? after.kind : null,
+    });
+    leftover = nextLeftover;
+    leftoverPackage = undefined;
+    attachKind = undefined;
+    if (!stillFreenet) {
+      mode = 'stopped';
+      reachable = false;
+    } else if (nextLeftover === 'ours') {
+      mode = 'managed';
+      reachable = true;
+      if (after.owner?.pid) adoptedPid = after.owner.pid;
+    } else {
+      mode = 'attached';
+      attachKind = nextLeftover === 'login-service' ? 'login-leftover' : 'foreign';
+      reachable = true;
+    }
+    emitState();
+    return {
+      ...snapshot(),
+      leftover: nextLeftover,
+      portFree: !stillFreenet,
+      stoppedOurs,
+    };
+  }
+
+  /**
+   * Leave a managed child running so the next PUF-AM can attach.
+   * Never kills `attached`. Sets stopping so handleExit will not auto-restart.
+   */
+  async function release(): Promise<FreenetHostStatus> {
+    stopping = true;
+    if (mode === 'attached' || !child) {
+      child = null;
+      adoptedPid = undefined;
+      attachKind = undefined;
+      mode = 'stopped';
+      reachable = false;
+      emitState();
+      return snapshot();
+    }
+    try {
+      child.unref?.();
+    } catch {
+      /* already detached */
+    }
+    child = null;
+    adoptedPid = undefined;
+    attachKind = undefined;
+    mode = 'stopped';
+    reachable = false;
     emitState();
     return snapshot();
   }
@@ -427,21 +710,63 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     if (!live && !statusOptions?.probe) return snapshot();
 
     const answered = await probe(wsHost, wsPort, PROBE_TIMEOUT_MS);
+    const isFreenet = answered && (await looksLikeFreenet());
 
-    if (live) {
-      reachable = answered;
-    } else if (answered && attachIfRunning) {
-      // A node appeared since we last looked — an operator's `freenet network`,
-      // another PUF unit, or our own start that timed out and then came up. Use
-      // it on the same terms as `doStart`: attached, never killed by us.
-      mode = 'attached';
-      reachable = true;
-      startedAt = new Date().toISOString();
-      lastError = undefined;
+    if (mode === 'managed' || child) {
+      // Never flip managed → attached just because :7509 answers.
+      reachable = isFreenet;
+      return snapshot();
+    }
+
+    if (mode === 'attached') {
+      reachable = isFreenet;
+      return snapshot();
+    }
+
+    if (isFreenet && attachIfRunning) {
+      const owner = await listenOwner();
+      const kind = classifyFreenetListener({
+        owner,
+        bundledPath: peekBundledPath(),
+        ourChildPid: adoptedPid,
+        ourUid: typeof process.getuid === 'function' ? process.getuid() : undefined,
+        homeDir: defaultHomeDir(),
+        configDir,
+      });
+      const decision = decidePortTakenMode({
+        listenerKind: kind,
+        hasChild: Boolean(child),
+        recordedManaged: false,
+        attachIfRunning,
+      });
+      if (decision === 'managed') {
+        const bundled = peekBundledPath();
+        markManaged(
+          binary ?? (bundled ? { path: bundled, source: 'bundled' } : undefined),
+          owner?.pid,
+        );
+      } else {
+        markAttached(attachKindFromListener(kind), owner);
+      }
       emitState();
     }
 
     return snapshot();
+  }
+
+  function assertPutReady(): void {
+    if (
+      !shouldEnforceFreenetPutReady({
+        reachable,
+        mode,
+        hasChild: Boolean(child || adoptedPid),
+      })
+    ) {
+      return;
+    }
+    const peerCount = readFreenetLogPeerCount(logDir)?.peerCount ?? 0;
+    const readyError = freenetPutReadyError({ reachable, peerCount });
+    if (readyError) throw new Error(readyError);
   }
 
   async function putCiphertext(
@@ -449,30 +774,71 @@ export function createFreenetHost(options: FreenetHostOptions): FreenetHostPlugi
     putOptions?: FreenetPutCiphertextOptions,
   ): Promise<FreenetPutCiphertextResult> {
     if (!options.wire) throw new FreenetWireUnavailableError('put ciphertext');
-    return options.wire.putCiphertext(bytes, putOptions);
+    assertPutReady();
+    const result = await options.wire.putCiphertext(bytes, putOptions);
+    rememberTraffic(
+      createFreenetContractTrafficEvent({
+        op: 'put',
+        source: 'host',
+        slotKind: slotKindFromStorageKey(putOptions?.identifier),
+        contractKey: result.uri,
+      }),
+    );
+    return result;
   }
 
   async function getCiphertext(uri: string): Promise<Uint8Array | null> {
     if (!options.wire) throw new FreenetWireUnavailableError('get ciphertext');
-    return options.wire.getCiphertext(uri);
+    const bytes = await options.wire.getCiphertext(uri);
+    if (bytes?.length) {
+      rememberTraffic(
+        createFreenetContractTrafficEvent({
+          op: 'get',
+          source: 'host',
+          contractKey: uri,
+        }),
+      );
+    }
+    return bytes;
   }
 
   async function putSlotState(input: FreenetSlotPutInput): Promise<FreenetSlotPutResult> {
     const put = options.wire?.putSlotState;
     if (!put) throw new FreenetWireUnavailableError('put slot state');
-    return put.call(options.wire, input);
+    assertPutReady();
+    const result = await put.call(options.wire, input);
+    rememberTraffic(
+      createFreenetContractTrafficEvent({
+        op: 'put',
+        source: 'host',
+        contractKey: result.uri || input.instanceIdBase58,
+      }),
+    );
+    return result;
   }
 
   async function getSlotState(instanceIdBase58: string): Promise<Uint8Array | null> {
     const get = options.wire?.getSlotState;
     if (!get) throw new FreenetWireUnavailableError('get slot state');
-    return get.call(options.wire, instanceIdBase58);
+    const bytes = await get.call(options.wire, instanceIdBase58);
+    if (bytes?.length) {
+      rememberTraffic(
+        createFreenetContractTrafficEvent({
+          op: 'get',
+          source: 'host',
+          contractKey: instanceIdBase58,
+        }),
+      );
+    }
+    return bytes;
   }
 
   return {
     id: FREENET_HOST_ID,
     start,
     stop,
+    stopAllOurs,
+    release,
     status,
     putCiphertext,
     getCiphertext,

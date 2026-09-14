@@ -46,8 +46,13 @@ import {
 import { encodeFreenet02Uri } from './freenet02-uri.ts';
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 6_000;
-/** SDK default is 30s; the hang was "never settles", so we cut it ourselves. */
-export const NATIVE_PUT_DEFAULT_TIMEOUT_MS = 45_000;
+/**
+ * 0.2.135 PutResponse is the Opennet insert. A peered Linux node answered
+ * ~75s after we closed at 45s (`Client not found in response channels`).
+ * Do not fire PUT before On Opennet — this only waits once peers exist.
+ * Plans/FREENET_OPERATOR_FLOW.md Decision — 2026-09-14 (Send native PUT settle).
+ */
+export const NATIVE_PUT_DEFAULT_TIMEOUT_MS = 120_000;
 
 export class FreenetNativePutError extends Error {
   /** True when the PUT did not settle before the hard timeout. */

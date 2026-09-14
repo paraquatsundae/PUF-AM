@@ -20,6 +20,7 @@ import type {
   FreenetSlotPutInput,
   FreenetSlotPutResult,
 } from '../../units/puf-freenet-host/src/types.ts';
+import { shouldOfferStopFreenet } from '../../units/puf-freenet-host/src/quit-ask.ts';
 import {
   androidAttachedStatus,
   androidFreenetHostStart,
@@ -69,40 +70,48 @@ async function defaultSlotGet(instanceIdBase58: string): Promise<Uint8Array | nu
 }
 
 /**
- * Start the in-APK node when :7509 is down, then health-check. Attach wins if
- * something is already listening. A Freenet farm must not wait for a hub.
+ * Start the in-APK node when :7509 is down, then health-check. Attach only
+ * after native `/v1/version` (plugin `start`). A Freenet farm must not wait
+ * for a hub. Plans/FREENET_NETWORK_PACK.md Decision — 2026-09-14.
  */
 export async function ensureAndroidFreenetListening(
   deps: AndroidFreenetHostDeps = {},
 ): Promise<boolean> {
-  const probe = deps.probe ?? (() => probeLocalFreenetNode({ force: true }));
-  if (await probe()) return true;
-  const pluginAvailable = (deps.pluginAvailable ?? isFreenetHostPluginAvailable)();
-  if (!pluginAvailable) return false;
-  await androidFreenetHostBringUp(deps);
-  return probe();
+  const after = await androidFreenetHostBringUp(deps);
+  return (
+    after.mode === 'attached' ||
+    after.mode === 'managed' ||
+    after.mode === 'starting' ||
+    after.reachable === true
+  );
 }
 
 /**
- * Attach first. A live :7509 is the host, even when our process has no binary.
- * Native start only runs when nothing is listening.
+ * Plugin `start` identifies Freenet 0.2 (`GET /v1/version`) then attaches or
+ * spawns. WS-only attach is only when the plugin is absent.
  */
 export async function androidFreenetHostBringUp(deps: AndroidFreenetHostDeps = {}): Promise<FreenetHostStatus> {
   const probe = deps.probe ?? (() => probeLocalFreenetNode({ force: true }));
-  if (await probe()) return androidAttachedStatus();
-
   const pluginAvailable = (deps.pluginAvailable ?? isFreenetHostPluginAvailable)();
-  if (!pluginAvailable) return androidMissingBinaryStatus();
+  if (!pluginAvailable) {
+    if (await probe()) return androidAttachedStatus();
+    return androidMissingBinaryStatus();
+  }
 
   const started = await (deps.pluginStart ?? androidFreenetHostStart)();
+  if (started.leftover === 'ours' && started.reachable) {
+    return { ...started, mode: 'managed', lastError: undefined };
+  }
   if (started.mode === 'attached' || started.mode === 'managed') return started;
-  if (await probe()) return androidAttachedStatus();
   // `starting`, or a stale fail-clean racing a new spawn — wait for :7509.
+  // Do not flip a successful bind to foreign attach (that was the already-open copy).
   if (started.mode === 'starting' || started.mode === 'failed') {
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 750));
       if (await probe()) {
+        const now = await (deps.pluginStatus ?? androidFreenetHostStatusNow)({ probe: true });
+        if (now.mode === 'attached' || now.mode === 'managed') return now;
         return { ...started, mode: 'managed', reachable: true, lastError: undefined };
       }
       const now = await (deps.pluginStatus ?? androidFreenetHostStatusNow)({ probe: true });
@@ -118,15 +127,19 @@ export async function androidFreenetHostBringUp(deps: AndroidFreenetHostDeps = {
 export async function androidFreenetHostReadStatus(
   deps: AndroidFreenetHostDeps = {},
 ): Promise<FreenetHostStatus> {
+  const pluginAvailable = (deps.pluginAvailable ?? isFreenetHostPluginAvailable)();
+  if (pluginAvailable) {
+    const native = await (deps.pluginStatus ?? androidFreenetHostStatusNow)({ probe: true });
+    if (native.leftover === 'ours' && native.reachable) {
+      return { ...native, mode: 'managed', lastError: undefined };
+    }
+    if (native.mode === 'attached' || native.mode === 'managed' || native.reachable) return native;
+    return native;
+  }
   if ((deps.nodeFound ?? localFreenetNodeFound)()) return androidAttachedStatus();
   const probe = deps.probe ?? (() => probeLocalFreenetNode());
   if (await probe()) return androidAttachedStatus();
-
-  const pluginAvailable = (deps.pluginAvailable ?? isFreenetHostPluginAvailable)();
-  if (!pluginAvailable) return androidFreenetHostStatus();
-  const native = await (deps.pluginStatus ?? androidFreenetHostStatusNow)({ probe: true });
-  if (native.mode === 'attached' || native.mode === 'managed' || native.reachable) return native;
-  return native;
+  return androidFreenetHostStatus();
 }
 
 /**
@@ -138,7 +151,15 @@ export async function androidFreenetHostTakeDown(
 ): Promise<FreenetHostStatus> {
   const pluginAvailable = (deps.pluginAvailable ?? isFreenetHostPluginAvailable)();
   if (pluginAvailable) {
+    const now = await (deps.pluginStatus ?? androidFreenetHostStatusNow)({ probe: true });
+    if (!shouldOfferStopFreenet(now.mode)) {
+      if (now.mode === 'attached' || now.reachable || (deps.nodeFound ?? localFreenetNodeFound)()) {
+        return now.mode === 'attached' ? now : androidAttachedStatus();
+      }
+      return now;
+    }
     const after = await (deps.pluginStop ?? androidFreenetHostStop)();
+    if (after.mode === 'attached') return after;
     if ((deps.nodeFound ?? localFreenetNodeFound)() || after.reachable) {
       return androidAttachedStatus();
     }

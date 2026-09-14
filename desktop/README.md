@@ -3,8 +3,11 @@
 **Status:** Phase 4 (~2026-08-04) — the Fedora AppImage builds and launches with Freenet running from
 bundled binaries, and has completed a **two-laptop A→B farm join over Freenet 0.2 Opennet with no
 terminal on either machine** ([`Plans/reference/MIST_TWO_FEDORA_FREENET.md`](../Plans/reference/MIST_TWO_FEDORA_FREENET.md)
-§ AppImage A→B). The loopback API is now behind a per-launch token, and copyable **Windows portable +
+§ AppImage A→B). **Milestone — 2026-09-14:** three-device Bones paddock sync (tablet + phone + this
+AppImage) — [`Plans/FREENET_OPERATOR_FLOW.md`](../Plans/FREENET_OPERATOR_FLOW.md) §8. Current Linux
+bake is **`0.0.2`**. The loopback API is now behind a per-launch token, and copyable **Windows portable +
 zip** artifacts build here; only the NSIS `.exe` still wants a Windows host.
+**Next (2026-09-15) — two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — [`Plans/PLUGIN_AUTHORING.md`](../Plans/PLUGIN_AUTHORING.md) § Template pack.
 **Plan (authoritative):** [`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](../Plans/reference/DESKTOP_FREENET_PLUGIN.md)
 
 ## Running it
@@ -71,8 +74,8 @@ code hashes, a fresh web + main bundle, and the `node_modules` allowlist. Do not
 ### Running the Fedora artifact
 
 ```bash
-./release/PUF-AM-0.1.0.AppImage                    # open PUF-AM only
-MIST_FREENET=1 ./release/PUF-AM-0.1.0.AppImage     # workshop: force the bundled node this launch
+./release/PUF-AM-0.0.2.AppImage                    # open PUF-AM only
+MIST_FREENET=1 ./release/PUF-AM-0.0.2.AppImage     # workshop: force the bundled node this launch
 ```
 
 Open PUF-AM and a Freenet farm — the bundled node starts. No second Freenet desktop app, no terminal. `MIST_FREENET=1` is a workshop override. If something is already bound on `:7509`, PUF-AM attaches and does not kill it.
@@ -94,7 +97,7 @@ The `rpm` target needs two host packages Fedora 44 does not install by default:
 
 ```bash
 sudo dnf install rpm-build libxcrypt-compat   # rpmbuild, plus the libcrypt.so.1 fpm's Ruby links
-sudo dnf install ./release/puf-am-0.1.0.x86_64.rpm
+sudo dnf install ./release/puf-am-0.0.2.x86_64.rpm
 ```
 
 ### Windows
@@ -250,7 +253,7 @@ Same family as `MIST_FREENET` — for a smoke test, never for an operator:
 | `PUF_LAN_HUB_CODE=K7M2-9Q4X` | Pins the pairing code for one launch so a script can pair without reading the operator's saved code. **Not persisted** — the saved code is untouched and returns at the next launch |
 
 ```bash
-PUF_LAN_HUB=1 PUF_LAN_HUB_PORT=3001 PUF_LAN_HUB_CODE=K7M2-9Q4X ./release/PUF-AM-0.1.0.AppImage
+PUF_LAN_HUB=1 PUF_LAN_HUB_PORT=3001 PUF_LAN_HUB_CODE=K7M2-9Q4X ./release/PUF-AM-0.0.2.AppImage
 ```
 
 Then, from another machine on the same Wi-Fi:

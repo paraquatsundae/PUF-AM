@@ -1,5 +1,7 @@
 /** User-facing product brand (PUF workshop · Ag Manager). */
 export const APP_NAME = 'PUF-Ag Manager';
+/** Baked from package.json `version` at Vite build time (Plans/NAMING.md §2). */
+export const APP_VERSION = String(import.meta.env.VITE_APP_VERSION || '').trim() || '0.0.0';
 /** Short mark for compact contexts (home-screen alias, invite prefix if needed). */
 export const APP_SHORT_NAME = 'PUF-AM';
 export const APP_TAGLINE = 'Paddock-first farm tools';

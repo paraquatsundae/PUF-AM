@@ -9,6 +9,7 @@
  * wires it to the two constructors.
  */
 
+import { tapFreenetContractTraffic } from '../lib/freenetContractTraffic.ts';
 import { getDesktopBridge } from '../lib/desktopBridge.ts';
 import { getFreenetHostCapability } from '../lib/freenetHostCapability.ts';
 import { getAndroidFreenetBridge } from './freenetAndroidHost.ts';
@@ -19,7 +20,7 @@ import { createRelayTransport } from './freenetRelayTransport.ts';
 let override: FreenetPackTransport | null = null;
 
 export function getFreenetPackTransport(): FreenetPackTransport {
-  if (override) return override;
+  if (override) return tapFreenetContractTraffic(override);
   const capability = getFreenetHostCapability();
   const bridge = capability === 'android' ? getAndroidFreenetBridge() : getDesktopBridge()?.freenet;
   const hasDataPath = bridgeHasFreenetDataPath(bridge);
@@ -27,7 +28,8 @@ export function getFreenetPackTransport(): FreenetPackTransport {
     capability,
     bridgeHasDataPath: hasDataPath,
   });
-  return kind === 'host' && hasDataPath ? createHostTransport(bridge) : createRelayTransport();
+  const raw = kind === 'host' && hasDataPath ? createHostTransport(bridge) : createRelayTransport();
+  return tapFreenetContractTraffic(raw);
 }
 
 /** Tests: pin a transport, or `null` to go back to the shell's own. */

@@ -35,14 +35,19 @@ import { pullLanBundle, pushLanBundle } from './pufomSync';
 import { findJoinPreset } from '../../shared/sync/joinGrant';
 import { isMistHotMirrorAvailable } from '../mist/mistHotBridge';
 import { unlockedFarmSeed } from '../mist/mistFarmSeedCache';
-import { pollFreenetHotWatch, refreshFarmUiAfterHotMerge } from '../mist/hotWatchSync';
+import {
+  applyPulledFreenetMirror,
+  pollFreenetHotWatch,
+  refreshFarmUiAfterHotMerge,
+} from '../mist/hotWatchSync';
 import { getMistHotPublishStatus } from '../mist/mistHotPublishMeta';
 import { syncSealedFarmOverLan } from '../mist/mistLanShelf';
-import { publishFarmToFreenet } from '../mist/mistFreenetClient';
 import {
-  fetchAndRehydrateFarmFromAddresses,
-  refreshFarmUiAfterRecovery,
-} from '../mist/mistDisasterRecovery';
+  publishFarmToFreenet,
+  pullBonesFromFreenetByUri,
+  pullHotFromFreenetByUri,
+} from '../mist/mistFreenetClient';
+import { refreshFarmUiAfterRecovery } from '../mist/mistDisasterRecovery';
 import { ensureFreenetHostListening } from '../mist/ensureFreenetHostListening';
 
 /**
@@ -165,17 +170,18 @@ export async function executeFarmSyncRoute(input: {
           'under “Send or join a farm over Freenet” below, and pulling works from then on.',
       );
     }
-    const result = await fetchAndRehydrateFarmFromAddresses(farmId, {
-      hotUri: status.freenetUri,
-      bonesUri: status.bonesFreenetUri,
-      hotContentHash: status.contentHash,
-      bonesContentHash: status.bonesContentHash,
-    });
-    await refreshFarmUiAfterRecovery(farmId);
+    await pullHotFromFreenetByUri(farmId, status.freenetUri, status.contentHash);
+    await pullBonesFromFreenetByUri(
+      farmId,
+      status.bonesFreenetUri,
+      status.bonesContentHash,
+    );
+    const merged = await applyPulledFreenetMirror(farmId);
+    await refreshFarmUiAfterHotMerge(farmId);
     return countsLine({
-      diary: result.hot.after.diary,
-      blocks: result.geometry.after.blocks,
-      issues: result.hot.after.issues,
+      diary: merged.diary,
+      blocks: merged.blocks,
+      issues: merged.issues,
     });
   }
 

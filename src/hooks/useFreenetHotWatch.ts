@@ -7,8 +7,9 @@
  * @see Plans/SETTINGS_SYNC_AND_CREW.md §9 Decision 2026-09-12
  */
 import { useEffect, useRef } from 'react';
-import { isFarmCodeSession } from '../lib/farmPipes';
+import { freenetPlaneFarmId, shouldRunFreenetHotWatch } from '../lib/farmPipes';
 import { canReachFreenetNode, refreshFreenetRuntime } from '../lib/freenetRuntime';
+import { flushPendingBonesAutoPublish } from '../mist/mistBonesBridge';
 import {
   FREENET_HOT_WATCH_MIN_GAP_MS,
   FREENET_HOT_WATCH_POLL_MS,
@@ -21,7 +22,8 @@ export function useFreenetHotWatch(farmId: string | null | undefined): void {
   const running = useRef(false);
 
   useEffect(() => {
-    if (!farmId || !isFarmCodeSession()) return;
+    const watchFarmId = freenetPlaneFarmId() || farmId;
+    if (!watchFarmId || !shouldRunFreenetHotWatch()) return;
     let cancelled = false;
 
     const tick = async () => {
@@ -36,9 +38,10 @@ export function useFreenetHotWatch(farmId: string | null | undefined): void {
       running.current = true;
       lastAt.current = now;
       try {
-        const result = await pollFreenetHotWatch(farmId);
+        await flushPendingBonesAutoPublish(watchFarmId);
+        const result = await pollFreenetHotWatch(watchFarmId);
         if (result === 'applied' && !cancelled) {
-          await refreshFarmUiAfterHotMerge(farmId);
+          await refreshFarmUiAfterHotMerge(watchFarmId);
         }
       } catch {
         /* Quiet — same rule as auto-sync: a sleeping node is not news. */

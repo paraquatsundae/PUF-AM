@@ -40,7 +40,8 @@ import {
 import { encodeFreenet02Uri } from './freenet02-uri.ts';
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 6_000;
-export const NATIVE_SLOT_DEFAULT_TIMEOUT_MS = 45_000;
+/** Same Opennet-insert ceiling as pack PUT — slot publish uses the same node. */
+export const NATIVE_SLOT_DEFAULT_TIMEOUT_MS = 120_000;
 
 export class FreenetNativeSlotError extends Error {
   readonly hung: boolean;

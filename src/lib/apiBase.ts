@@ -65,17 +65,19 @@ export function setRuntimeApiBaseUrl(baseUrl: string | null): void {
 }
 
 /**
- * True on a packaged APK, where `https://localhost` serves bundled assets rather
- * than a live Vite/Express host — so a same-origin `/api/*` call reaches the
- * WebView's own asset handler and quietly comes back as `index.html`.
- * Live-reload builds load over `http://` and must stay same-origin.
+ * True on a packaged APK, where Capacitor serves bundled assets over `https://`
+ * (usually `https://localhost`) rather than a live Vite/Express host — so a
+ * same-origin `/api/*` call reaches the WebView's own asset handler and quietly
+ * comes back as `index.html`. Live-reload builds load over `http://` and must
+ * stay same-origin. Hostname is not part of the test: Capacitor can assign
+ * `localhost`, `127.0.0.1`, or a custom host; the scheme is the live-vs-packaged
+ * signal (`Plans/reference/APK_FREENET_PLUGIN.md` §6).
  */
 export function isPackagedNativeAndroid(): boolean {
   try {
     if (typeof window === 'undefined') return false;
     if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return false;
-    const { hostname, protocol } = window.location;
-    return protocol === 'https:' && (hostname === 'localhost' || hostname === '127.0.0.1');
+    return window.location.protocol === 'https:';
   } catch {
     return false;
   }
@@ -139,6 +141,14 @@ const DEFAULT_CLOUD_API_BASE = 'https://am.pufworks.farm';
  * the existing workshop path is unchanged.
  */
 function hubCloudBaseFor(path: string): string {
+  // Packaged WebView has no Express. A relative `/api/tiles` hits the asset
+  // handler (index.html / file://) and a paired LAN hub is often asleep or
+  // HTTP-only. Leaflet fetches tiles as `<img src>` and cannot send a hub
+  // token, so the tablet always uses the hosted unauthenticated proxy.
+  if (isPackagedNativeAndroid() && path.startsWith('/api/tiles/')) {
+    return DEFAULT_CLOUD_API_BASE;
+  }
+
   const hub = getApiBaseUrl();
   if (!hub) {
     // Packaged tablet with no LAN hub yet: auth + weather still live on Cloud Run.
@@ -148,8 +158,7 @@ function hubCloudBaseFor(path: string): string {
       isPackagedNativeAndroid() &&
       (path.startsWith('/api/auth/') ||
         path.startsWith('/api/weather/') ||
-        path.startsWith('/api/admin/') ||
-        path.startsWith('/api/tiles/'))
+        path.startsWith('/api/admin/'))
     ) {
       return DEFAULT_CLOUD_API_BASE;
     }

@@ -9,7 +9,10 @@ import { handleFirestoreError, OperationType } from './firestoreErrors';
 import { trackMetric } from '../services/metricsService';
 import { resolveIsAdmin, resolveIsPlatformAdmin } from './adminAuth';
 import { isWorkshopMode, WORKSHOP_USER_DATA } from './workshopMode';
-import { isMistFarmSessionActive } from '../mist/mistFarmSession.ts';
+import {
+  adoptFreenetNativeSessionIfPresent,
+  isMistFarmSessionActive,
+} from '../mist/mistFarmSession.ts';
 import { mistSessionNeedsPin } from '../mist/mistDeviceSession.ts';
 import {
   markDeviceRemembered,
@@ -54,6 +57,7 @@ export function subscribeAuthSession(s: AuthSessionSetters): () => void {
     return () => undefined;
   }
 
+  adoptFreenetNativeSessionIfPresent();
   if (isMistFarmSessionActive()) {
     let cancelled = false;
     void (async () => {

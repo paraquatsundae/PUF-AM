@@ -4,6 +4,7 @@
  */
 
 import type { FreenetHostStatus } from '../../../units/puf-freenet-host/src/types.ts';
+import { FREENET_PUT_WAIT_OPENNET } from '../../../units/puf-freenet-host/src/put-ready.ts';
 import {
   FREENET_CREW_CANNOT_SEND,
   FREENET_DESKTOP_STARTING_LABEL,
@@ -33,6 +34,8 @@ export function describeFreenetSyncReadiness(input: {
   runtime: FreenetRuntime;
   lookingForHub: boolean;
   canStartOwnNode?: boolean;
+  /** Latest `ring_connections=` / `connection_count=`. Omit when the log has no line. */
+  peerCount?: number;
 }): FreenetSyncReadiness {
   if (!canReachFreenetNode(input.runtime)) {
     if (input.canStartOwnNode) {
@@ -48,7 +51,17 @@ export function describeFreenetSyncReadiness(input: {
     return { ready: false, label: FREENET_NO_HOST_LABEL, tone: 'todo' };
   }
   if (input.peer?.freenet === 'connected') {
-    return { ready: true, label: 'Connected to Freenet — ready to send or join.', tone: 'ok' };
+    if (typeof input.peerCount === 'number' && input.peerCount < 1) {
+      return { ready: false, label: FREENET_PUT_WAIT_OPENNET, tone: 'wait' };
+    }
+    return {
+      ready: true,
+      label:
+        typeof input.peerCount === 'number' && input.peerCount > 0
+          ? 'On Opennet — ready to send or join.'
+          : 'Connected to Freenet — ready to send or join.',
+      tone: 'ok',
+    };
   }
   if (input.runtime === 'android-local-node') {
     return { ready: true, label: FREENET_LOCAL_NODE_LABEL, tone: 'ok' };

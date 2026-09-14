@@ -1,11 +1,12 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFreenetHost, freenetHostEnv } from './src/freenet-host.ts';
 import { freenetBinaryFileName, freenetOsTag } from './src/resolve-binary.ts';
 import { FreenetWireUnavailableError } from './src/errors.ts';
+import { FREENET_PUT_WAIT_OPENNET } from './src/put-ready.ts';
 import type { FreenetChildProcess, FreenetHostEvent } from './src/types.ts';
 
 type FakeChild = FreenetChildProcess & {
@@ -99,6 +100,15 @@ describe('createFreenetHost', () => {
     const host = createFreenetHost({
       ...dirs(),
       probe: async () => nodeIsUp,
+      identify: async () => nodeIsUp,
+      inspect: async () =>
+        nodeIsUp
+          ? {
+              pid: 1484,
+              exe: '/home/george/.local/bin/freenet',
+              cmdline: '/home/george/.local/bin/freenet network',
+            }
+          : null,
     });
 
     expect((await host.status({ probe: true })).mode).toBe('stopped');
@@ -107,6 +117,7 @@ describe('createFreenetHost', () => {
     const status = await host.status({ probe: true });
 
     expect(status.mode).toBe('attached');
+    expect(status.attachKind).toBe('login-leftover');
     expect(status.reachable).toBe(true);
     expect(status.pid).toBeUndefined();
   });
@@ -116,6 +127,14 @@ describe('createFreenetHost', () => {
     const host = createFreenetHost({
       ...dirs(),
       probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 1484,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: '/home/george/.local/bin/freenet',
+        cwd: '/home/george',
+        cmdline: '/home/george/.local/bin/freenet network',
+      }),
       spawn: () => {
         spawnCalls += 1;
         return createFakeChild();
@@ -124,9 +143,135 @@ describe('createFreenetHost', () => {
 
     const status = await host.start();
     expect(status.mode).toBe('attached');
+    expect(status.attachKind).toBe('login-leftover');
     expect(status.reachable).toBe(true);
     expect(status.pid).toBeUndefined();
     expect(spawnCalls).toBe(0);
+  });
+
+  it('keeps managed after start when a later status probe sees :7509', async () => {
+    const child = createFakeChild();
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: queuedProbe([false, true, true]),
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 4242,
+        exe: stubBinary,
+        cmdline: `${stubBinary} network --config-dir ${dirs().configDir}`,
+      }),
+      readVersion: async () => undefined,
+      spawn: () => child,
+    });
+
+    expect((await host.start()).mode).toBe('managed');
+    const after = await host.status({ probe: true });
+    expect(after.mode).toBe('managed');
+    expect(after.attachKind).toBeUndefined();
+    expect(after.pid).toBe(4242);
+  });
+
+  it('does not flip managed to attached when start() runs again after a probe flake', async () => {
+    const child = createFakeChild();
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      // free → child up → flake down → still our child
+      probe: queuedProbe([false, true, false, true]),
+      identify: async () => true,
+      inspect: async () => ({ pid: 4242, exe: stubBinary }),
+      readVersion: async () => undefined,
+      spawn: () => child,
+    });
+
+    expect((await host.start()).mode).toBe('managed');
+    expect((await host.status({ probe: true })).mode).toBe('managed');
+    const again = await host.start();
+    expect(again.mode).toBe('managed');
+    expect(again.attachKind).toBeUndefined();
+  });
+
+  it('treats a port holder that is our bundled binary as managed, not attached', async () => {
+    const bundled = stubBinary;
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: bundled,
+      probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 77,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: bundled,
+        cmdline: `${bundled} network --config-dir ${dirs().configDir}`,
+      }),
+      spawn: () => {
+        throw new Error('must not spawn when the listener is already our binary');
+      },
+    });
+
+    const status = await host.start();
+    expect(status.mode).toBe('managed');
+    expect(status.attachKind).toBeUndefined();
+    expect(status.pid).toBe(77);
+  });
+
+  it('attaches with other-appimage when a different PUF-AM mount holds the port', async () => {
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 9,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: '/tmp/.mount_PUF-AMoldxxxx/resources/freenet/freenet',
+        cmdline:
+          '/tmp/.mount_PUF-AMoldxxxx/resources/freenet/freenet network --config-dir /home/x/.config/PUF-AM/freenet/config',
+      }),
+      spawn: () => {
+        throw new Error('must not spawn over another AppImage');
+      },
+    });
+
+    const status = await host.start();
+    expect(status.mode).toBe('attached');
+    expect(status.attachKind).toBe('other-appimage');
+  });
+
+  it('does not attach to a TCP listener that is not Freenet 0.2', async () => {
+    let spawnCalls = 0;
+    const child = createFakeChild({ exitOnKill: false });
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      startTimeoutMs: 80,
+      probe: async () => true,
+      identify: async () => false,
+      spawn: () => {
+        spawnCalls += 1;
+        return child;
+      },
+    });
+
+    await expect(host.start()).rejects.toThrow(/not Freenet 0\.2/);
+    const status = await host.status();
+    expect(status.mode).toBe('failed');
+    expect(status.reachable).toBe(false);
+    expect(status.lastError).toMatch(/not Freenet 0\.2/);
+    expect(spawnCalls).toBe(1);
+  });
+
+  it('does not adopt a non-Freenet listener when probing while stopped', async () => {
+    const host = createFreenetHost({
+      ...dirs(),
+      probe: async () => true,
+      identify: async () => false,
+    });
+
+    const status = await host.status({ probe: true });
+    expect(status.mode).toBe('stopped');
+    expect(status.reachable).toBe(false);
   });
 
   it('detaches without killing a node it did not start', async () => {
@@ -134,6 +279,12 @@ describe('createFreenetHost', () => {
     const host = createFreenetHost({
       ...dirs(),
       probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 1484,
+        exe: '/home/george/.local/bin/freenet',
+        cmdline: '/home/george/.local/bin/freenet network',
+      }),
       spawn: () => child,
     });
 
@@ -154,6 +305,7 @@ describe('createFreenetHost', () => {
       wsPort: 7609,
       binaryPath: stubBinary,
       probe: queuedProbe([false, true]),
+      identify: async () => true,
       readVersion: async () => 'Freenet version: 0.2.118 (test)',
       spawn: (binaryPath, args) => {
         spawnedPath = binaryPath;
@@ -201,6 +353,7 @@ describe('createFreenetHost', () => {
       repoRoot: tmpRoot,
       env: { PATH: '' },
       probe: queuedProbe([false, true]),
+      identify: async () => true,
       readVersion: async () => undefined,
       spawn: () => createFakeChild(),
     });
@@ -212,12 +365,53 @@ describe('createFreenetHost', () => {
     expect(status.binary?.path).toBe(vendorBinary);
   });
 
+  it('release leaves a managed child running', async () => {
+    const child = createFakeChild();
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: queuedProbe([false, true]),
+      identify: async () => true,
+      readVersion: async () => undefined,
+      spawn: () => child,
+    });
+
+    await host.start();
+    const status = await host.release?.();
+
+    expect(child.kills).toEqual([]);
+    expect(status?.mode).toBe('stopped');
+  });
+
+  it('release does not kill an attached node', async () => {
+    const child = createFakeChild();
+    const host = createFreenetHost({
+      ...dirs(),
+      probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 1484,
+        exe: '/home/george/.local/bin/freenet',
+        cmdline: '/home/george/.local/bin/freenet network',
+      }),
+      spawn: () => child,
+    });
+
+    await host.start();
+    expect((await host.status()).mode).toBe('attached');
+    const status = await host.release?.();
+
+    expect(child.kills).toEqual([]);
+    expect(status?.mode).toBe('stopped');
+  });
+
   it('terminates a managed node on stop', async () => {
     const child = createFakeChild();
     const host = createFreenetHost({
       ...dirs(),
       binaryPath: stubBinary,
       probe: queuedProbe([false, true]),
+      identify: async () => true,
       readVersion: async () => undefined,
       spawn: () => child,
     });
@@ -238,6 +432,7 @@ describe('createFreenetHost', () => {
       ...dirs(),
       binaryPath: stubBinary,
       probe: queuedProbe([false, true]),
+      identify: async () => true,
       readVersion: async () => undefined,
       spawn: () => child,
     });
@@ -284,6 +479,201 @@ describe('createFreenetHost', () => {
     await expect(host.getCiphertext('FN02@stub')).resolves.toEqual(new Uint8Array([9]));
     expect(seen).toHaveLength(1);
   });
+
+  it('records a host PUT on status when the identifier is a Hot key', async () => {
+    const host = createFreenetHost({
+      ...dirs(),
+      wire: {
+        putCiphertext: async () => ({ uri: 'FN02@hot' }),
+        getCiphertext: async () => null,
+      },
+    });
+    await host.putCiphertext(new Uint8Array([1]), {
+      identifier: 'mist/v1/farm/f1/hot/current',
+    });
+    const status = await host.status();
+    expect(status.contractTraffic?.[0]).toMatchObject({
+      op: 'put',
+      slotKind: 'hot',
+      label: 'Sent Hot',
+      source: 'host',
+      contractKey: 'FN02@hot',
+    });
+  });
+
+  it('refuses PUT on a live node that is still joining', async () => {
+    mkdirSync(path.join(tmpRoot, 'logs'), { recursive: true });
+    writeFileSync(
+      path.join(tmpRoot, 'logs', 'freenet.2026-09-14-12.log'),
+      `${new Date().toISOString()} INFO ring_connections=0\n`,
+    );
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 77,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: stubBinary,
+        cmdline: `${stubBinary} network`,
+      }),
+      spawn: () => {
+        throw new Error('must not spawn');
+      },
+      wire: {
+        putCiphertext: async () => ({ uri: 'FN02@no' }),
+        getCiphertext: async () => null,
+      },
+    });
+    await host.start();
+    await expect(host.putCiphertext(new Uint8Array([1]))).rejects.toThrow(FREENET_PUT_WAIT_OPENNET);
+  });
+
+  it('allows PUT once the log reports a ring peer', async () => {
+    mkdirSync(path.join(tmpRoot, 'logs'), { recursive: true });
+    writeFileSync(
+      path.join(tmpRoot, 'logs', 'freenet.2026-09-14-12.log'),
+      `${new Date().toISOString()} INFO ring_connections=2\n`,
+    );
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 77,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: stubBinary,
+        cmdline: `${stubBinary} network`,
+      }),
+      spawn: () => {
+        throw new Error('must not spawn');
+      },
+      wire: {
+        putCiphertext: async () => ({ uri: 'FN02@yes' }),
+        getCiphertext: async () => null,
+      },
+    });
+    await host.start();
+    await expect(host.putCiphertext(new Uint8Array([1]))).resolves.toEqual({ uri: 'FN02@yes' });
+  });
+
+describe('stopAllOurs kill switch', () => {
+  it('stops a managed child and reports the port free', async () => {
+    const child = createFakeChild();
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: queuedProbe([false, true, false]),
+      identify: async () => true,
+      inspect: async () => null,
+      spawn: () => child,
+    });
+    expect((await host.start()).mode).toBe('managed');
+    const after = await host.stopAllOurs!();
+    expect(child.kills[0]).toBe('SIGTERM');
+    expect(after.mode).toBe('stopped');
+    expect(after.leftover).toBe('none');
+    expect(after.portFree).toBe(true);
+    expect(after.stoppedOurs).toBe(true);
+  });
+
+  it('signals a same-uid leftover we attached to', async () => {
+    const kills: Array<{ pid: number; signal: string }> = [];
+    let portUp = true;
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: async () => portUp,
+      identify: async () => portUp,
+      inspect: async () => ({
+        pid: 77,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: stubBinary,
+        cmdline: `${stubBinary} network --config-dir ${dirs().configDir}`,
+      }),
+      spawn: () => {
+        throw new Error('must not spawn');
+      },
+      killPid: (pid, signal) => {
+        kills.push({ pid, signal });
+        portUp = false;
+        return true;
+      },
+    });
+    expect((await host.start()).mode).toBe('managed');
+    const after = await host.stopAllOurs!();
+    expect(kills.some((k) => k.pid === 77 && k.signal === 'SIGTERM')).toBe(true);
+    expect(after.leftover).toBe('none');
+    expect(after.portFree).toBe(true);
+  });
+
+  it('does not signal a foreign leftover or call systemctl without confirm', async () => {
+    const kills: number[] = [];
+    const stopService = vi.fn(async () => true);
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: async () => true,
+      identify: async () => true,
+      inspect: async () => ({
+        pid: 1484,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: '/usr/local/bin/other-freenet',
+        cmdline: '/usr/local/bin/other-freenet network',
+      }),
+      spawn: () => {
+        throw new Error('must not spawn');
+      },
+      killPid: (pid) => {
+        kills.push(pid);
+        return true;
+      },
+      stopUserService: stopService,
+    });
+    expect((await host.start()).mode).toBe('attached');
+    const after = await host.stopAllOurs!();
+    expect(kills).toEqual([]);
+    expect(stopService).not.toHaveBeenCalled();
+    expect(after.leftover).toBe('foreign');
+    expect(after.portFree).toBe(false);
+    expect(after.mode).toBe('attached');
+  });
+
+  it('stops freenet.service only after confirm', async () => {
+    let portUp = true;
+    const stopService = vi.fn(async () => {
+      portUp = false;
+      return true;
+    });
+    const host = createFreenetHost({
+      ...dirs(),
+      binaryPath: stubBinary,
+      probe: async () => portUp,
+      identify: async () => portUp,
+      inspect: async () => ({
+        pid: 1484,
+        uid: typeof process.getuid === 'function' ? process.getuid() : 1000,
+        exe: '/home/george/.local/bin/freenet',
+        cmdline: '/home/george/.local/bin/freenet network',
+        cwd: '/home/george/.local/share/freenet',
+      }),
+      spawn: () => {
+        throw new Error('must not spawn');
+      },
+      stopUserService: stopService,
+    });
+    expect((await host.start()).mode).toBe('attached');
+    const first = await host.stopAllOurs!();
+    expect(stopService).not.toHaveBeenCalled();
+    expect(first.leftover).toBe('login-service');
+    const second = await host.stopAllOurs!({ stopUserService: true });
+    expect(stopService).toHaveBeenCalledTimes(1);
+    expect(second.leftover).toBe('none');
+    expect(second.portFree).toBe(true);
+  });
+});
 });
 
 describe('freenetHostEnv', () => {

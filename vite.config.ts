@@ -1,12 +1,21 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import {readFileSync} from 'node:fs';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+  .version as string;
+
 export default defineConfig(() => {
+  // Plans/NAMING.md §2 — always bake package.json, never a stale .env override.
+  process.env.VITE_APP_VERSION = pkgVersion;
   return {
     // Absolute `/` for Cloud Run / browser hosting. Capacitor builds set VITE_CAPACITOR=1.
     base: process.env.VITE_CAPACITOR === '1' ? './' : '/',
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkgVersion),
+    },
     plugins: [react(), tailwindcss()],
     optimizeDeps: {
       include: ['leaflet'],

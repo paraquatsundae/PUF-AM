@@ -9,7 +9,8 @@
  * `units/`; the mist client under `src/mist/` moves with slice B.
  *
  * Eager vs lazy: the session gate must be eager (a lazy gate flashes the app it
- * holds back) and the "How it works" button is small and sits on first-paint
+ * holds back). `farmSession` is eager too — a lazy reconciler never called
+ * start until Send. The "How it works" button is small and sits on first-paint
  * cards. Everything else loads on demand.
  */
 import type { NetworkPackUiRegistration } from '../../../src/packs/types';
@@ -17,6 +18,7 @@ import { FREENET_HOST_PACK_ID } from '../../../shared/farm/freenetHostPackage';
 import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
 import { MistJoinTicketGate } from './MistJoinTicketGate';
 import { FreenetHowItWorksButton } from './FreenetHowItWorks';
+import FreenetFarmSession from './FreenetFarmSession';
 import { MIST_NEW_FARM_PATH, MIST_RECOVER_FARM_PATH } from './paths.ts';
 
 const MistNewFarmPage = lazyWithRetry(() =>
@@ -25,7 +27,6 @@ const MistNewFarmPage = lazyWithRetry(() =>
 const MistRecoverFarmPage = lazyWithRetry(() =>
   import('./MistRecoverFarm').then((m) => ({ default: m.MistRecoverFarm }))
 );
-const FreenetFarmSession = lazyWithRetry(() => import('./FreenetFarmSession'));
 const MistFarmSyncCard = lazyWithRetry(() =>
   import('./MistFarmSyncCard').then((m) => ({ default: m.MistFarmSyncCard }))
 );

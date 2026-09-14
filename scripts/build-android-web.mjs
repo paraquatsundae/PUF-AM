@@ -27,6 +27,11 @@ import { build } from 'vite';
 
 process.env.VITE_CAPACITOR = '1';
 process.env.VITE_WORKSHOP_MODE = 'false';
+// Packaged WebView has no Express. Bake the hosted origin so `/api/tiles`
+// (and other cloud families) are absolute even if a workshop `.env` left
+// `VITE_API_BASE_URL` empty or pointed at a LAN hub. Never `VITE_DPIRD_API_KEY`.
+process.env.VITE_API_BASE_URL = 'https://am.pufworks.farm';
+process.env.VITE_APP_URL = 'https://am.pufworks.farm';
 
 if (process.argv.includes('--no-mist')) {
   process.env.VITE_MIST_EXPERIMENTAL = 'false';
@@ -35,7 +40,7 @@ if (process.argv.includes('--no-mist')) {
 }
 
 console.log(
-  `[android] web build — VITE_CAPACITOR=1 VITE_MIST_EXPERIMENTAL=${process.env.VITE_MIST_EXPERIMENTAL} VITE_WORKSHOP_MODE=${process.env.VITE_WORKSHOP_MODE}`,
+  `[android] web build — VITE_CAPACITOR=1 VITE_MIST_EXPERIMENTAL=${process.env.VITE_MIST_EXPERIMENTAL} VITE_WORKSHOP_MODE=${process.env.VITE_WORKSHOP_MODE} VITE_API_BASE_URL=${process.env.VITE_API_BASE_URL}`,
 );
 
 await build();

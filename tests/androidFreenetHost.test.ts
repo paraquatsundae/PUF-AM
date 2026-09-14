@@ -155,15 +155,75 @@ describe('androidFreenetHostReadStatus / takeDown', () => {
     expect(status.mode).toBe('attached');
   });
 
-  it('stop does not pretend we killed Freenet Android Node', async () => {
+  it('stop then start reuses our leftover as managed — not already-open', async () => {
+    const pluginStart = vi.fn(async () =>
+      androidFreenetHostStatus({
+        mode: 'attached',
+        reachable: true,
+        leftover: 'ours',
+      }),
+    );
+    const status = await androidFreenetHostBringUp({
+      probe: async () => true,
+      pluginAvailable: () => true,
+      pluginStart,
+    });
+    expect(pluginStart).toHaveBeenCalledTimes(1);
+    expect(status.mode).toBe('managed');
+    expect(status.leftover).toBe('ours');
+    expect(status.lastError).toBeUndefined();
+  });
+
+  it('prefers the plugin over a stale loopback probe so our node stays managed', async () => {
+    const status = await androidFreenetHostReadStatus({
+      nodeFound: () => true,
+      pluginAvailable: () => true,
+      pluginStatus: async () =>
+        androidFreenetHostStatus({ mode: 'managed', reachable: true, leftover: 'ours' }),
+    });
+    expect(status.mode).toBe('managed');
+  });
+
+  it('keeps a foreign leftover attached', async () => {
+    const pluginStart = vi.fn(async () =>
+      androidFreenetHostStatus({
+        mode: 'attached',
+        reachable: true,
+        leftover: 'android-node',
+        leftoverPackage: 'org.freenet.androidnode',
+      }),
+    );
+    const status = await androidFreenetHostBringUp({
+      probe: async () => true,
+      pluginAvailable: () => true,
+      pluginStart,
+    });
+    expect(status.mode).toBe('attached');
+    expect(status.leftover).toBe('android-node');
+  });
+
+  it('stop does not call plugin stop when we only attached', async () => {
     const pluginStop = vi.fn(async () => androidMissingBinaryStatus());
     const after = await androidFreenetHostTakeDown({
       pluginAvailable: () => true,
       pluginStop,
+      pluginStatus: async () => androidAttachedStatus(),
       nodeFound: () => true,
     });
-    expect(pluginStop).toHaveBeenCalled();
+    expect(pluginStop).not.toHaveBeenCalled();
     expect(after.mode).toBe('attached');
+  });
+
+  it('stop kills only a managed :freenet', async () => {
+    const pluginStop = vi.fn(async () => androidFreenetHostStatus());
+    const after = await androidFreenetHostTakeDown({
+      pluginAvailable: () => true,
+      pluginStop,
+      pluginStatus: async () => androidFreenetHostStatus({ mode: 'managed', reachable: true }),
+      nodeFound: () => false,
+    });
+    expect(pluginStop).toHaveBeenCalledTimes(1);
+    expect(after.mode).toBe('stopped');
   });
 });
 
@@ -225,11 +285,22 @@ describe('transport + Send', () => {
     expect(listening).toBe(true);
   });
 
-  it('does not require a hub when :7509 is already live', async () => {
-    const pluginStart = vi.fn(async () => androidMissingBinaryStatus());
+  it('identifies via plugin start even when a WS probe already answered', async () => {
+    const pluginStart = vi.fn(async () => androidAttachedStatus());
     const listening = await ensureAndroidFreenetListening({
       probe: async () => true,
       pluginAvailable: () => true,
+      pluginStart,
+    });
+    expect(listening).toBe(true);
+    expect(pluginStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not require a hub when :7509 is already live and there is no plugin', async () => {
+    const pluginStart = vi.fn(async () => androidMissingBinaryStatus());
+    const listening = await ensureAndroidFreenetListening({
+      probe: async () => true,
+      pluginAvailable: () => false,
       pluginStart,
     });
     expect(listening).toBe(true);

@@ -57,4 +57,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- See Freenet Android Node leftover on :7509; we cannot force-stop that uid. -->
+    <queries>
+        <package android:name="org.freenet.androidnode" />
+    </queries>
 </manifest>

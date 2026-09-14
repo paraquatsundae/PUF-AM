@@ -8,6 +8,9 @@
 # Never run electron-builder directly: `npm run desktop:dist:*` gates packaging on
 # the vendored Freenet binaries, the pack-contract code hash, and the node_modules
 # allowlist below. A stale `vendor/` would otherwise ship silently.
+#
+# Artifact version comes from package.json `version` (Plans/NAMING.md §2):
+# Linux AppImage is `PUF-AM-<version>.AppImage`.
 
 appId: farm.pufworks.am
 copyright: PUFworks

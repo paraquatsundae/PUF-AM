@@ -8,6 +8,7 @@
 
 import { getDesktopBridge } from '../lib/desktopBridge.ts';
 import { isFreenetHostPluginAvailable } from '../lib/androidFreenetHost.ts';
+import { clearFreenetHostHoldOff, isFreenetHostHoldOff } from '../lib/freenetHostHoldOff.ts';
 import type { FreenetHostStatus } from '../../units/puf-freenet-host/src/types.ts';
 import { ensureAndroidFreenetListening } from './freenetAndroidHost.ts';
 
@@ -17,6 +18,8 @@ export function hostModeIsUp(status: FreenetHostStatus | null | undefined): bool
 
 export type DesktopFreenetHostDeps = {
   getBridge?: typeof getDesktopBridge;
+  /** Kill-switch Start — ignore operator hold-off. */
+  force?: boolean;
 };
 
 /**
@@ -49,6 +52,7 @@ export async function ensureDesktopFreenetListening(
 export async function ensureFreenetHostListening(
   deps: DesktopFreenetHostDeps = {},
 ): Promise<void> {
+  if (!deps.force && isFreenetHostHoldOff()) return;
   const bridge = (deps.getBridge ?? getDesktopBridge)();
   if (bridge?.freenet) {
     await ensureDesktopFreenetListening(deps);
@@ -57,4 +61,35 @@ export async function ensureFreenetHostListening(
   if (isFreenetHostPluginAvailable()) {
     await ensureAndroidFreenetListening();
   }
+}
+
+/**
+ * Opening a Freenet farm session starts (or attaches) now — do not wait for Send.
+ * Plans/FREENET_NETWORK_PACK.md Decision — 2026-09-14 (start on farm open / Settings card).
+ */
+export async function ensureFreenetHostFromFarmSession(
+  want: boolean,
+  deps: DesktopFreenetHostDeps = {},
+): Promise<void> {
+  if (!want) return;
+  await ensureFreenetHostListening(deps);
+}
+
+/**
+ * Settings → Sync Freenet card starts (or attaches) when the section is shown.
+ */
+export async function ensureFreenetHostFromSettingsCard(
+  shown: boolean,
+  deps: DesktopFreenetHostDeps = {},
+): Promise<void> {
+  if (!shown) return;
+  await ensureFreenetHostListening(deps);
+}
+
+/** Settings Start — clears the kill-switch hold-off. */
+export async function startFreenetOnThisDevice(
+  deps: DesktopFreenetHostDeps = {},
+): Promise<void> {
+  clearFreenetHostHoldOff();
+  await ensureFreenetHostListening({ ...deps, force: true });
 }

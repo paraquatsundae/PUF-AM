@@ -77,6 +77,12 @@ export function useOrchardMapViewport({
   );
 
   useEffect(() => {
+    if (!mapInstance) return;
+    const id = window.setTimeout(() => mapInstance.invalidateSize(), 0);
+    return () => window.clearTimeout(id);
+  }, [mapInstance]);
+
+  useEffect(() => {
     if (!mapInstance || !isLoaded || !farmId) return;
 
     if (blocks.length > 0) {

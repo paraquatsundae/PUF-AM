@@ -46,6 +46,8 @@ Related plans (not duplicated here):
 | **PUF-FN** | Future product name for the **Freenet client unit** when `units/puf-freenet-host/` forks into its own repo (in-app plugin today → standalone repo later) | Current mist storage unit (`mist-freenet`) or the host unit's present package name; not a shipping product yet |
 | **Crop pack** / **pack plugin** | Optional farm capability: catalog id, modules, routes, pack settings UI ([`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md); code in `plugins/<id>/src/`, discovered by `src/packs/registry.ts`) | Freenet host plugin, Capacitor plugin, npm marketplace install |
 | **Network pack** | Operator name for Freenet under Settings → Plugins → Network & storage. Code `kind` stays `system` (`freenet_host`). Ships in the app — not a zip Install | Crop pack; `plugins/` zip drop |
+| **Freenet node** | Bundled `freenet` / APK `:freenet` / an attached Freenet 0.2 listener on `:7509` | LAN hub. Do **not** say “Freenet hub” |
+| **LAN hub** | Desktop Express on the shed Wi‑Fi for paired tablets (`.pufom` shelf, join tickets) | A Freenet node; Freenet Android Node |
 | **Walnut blight** | UI / pack label for pack id `walnut_blight` | Generic “plugin”; Freenet units |
 
 **Brand source of truth (UI strings):** `src/brand.ts` — `APP_SHORT_NAME` = `PUF-AM`, `APP_NAME` = `PUF-Ag Manager`.
@@ -84,6 +86,15 @@ Related plans (not duplicated here):
 | mDNS LAN sync | `_pufom-sync._tcp` (`PUFOM_MDNS_TYPE`) | Dual-advertise if renamed |
 | Android Java package | `com.sentinut.farm` | Keep with `appId` |
 | Site asset paths | `/assets/pufom/`, `/downloads/pufom/` | Alias `/pufam/` when APK renamed |
+| Release `version` | `package.json` `version` (`0.0.2` now) | **Source of truth.** Patch +1 per AppImage+APK pair (`npm run release:bump`). Do not bump for docs-only. Public **v 0.1** is a future `0.1.0` cut — see Decision — 2026-09-14 |
+| Android `versionName` | same as `package.json` `version` | Read by `android/app/build.gradle` — do not hardcode in Gradle |
+| Android `versionCode` | `package.json` `androidVersionCode` | Monotonic integer; +1 on the same bump as the patch |
+| AppImage filename | `PUF-AM-<version>.AppImage` | electron-builder reads `package.json` `version` |
+| In-app version | `APP_VERSION` in `src/brand.ts` | Vite bakes `VITE_APP_VERSION` from `package.json` (About, Settings, login) |
+
+**Decision — 2026-09-14:** Track workshop bakes as `0.0.#` until George cuts public **v 0.1** (`0.1.0`). `package.json` was set to `0.1.0` on 2026-07-13 as STEP-04 package-identity rename (`react-example` → `walnut-farm-manager`), not as a shipped milestone — staying on `0.1.0` for every AppImage would pretend each bake was the first public release. NAMING never froze a public `0.1.0`. This afternoon’s issue-apply + satellite-preserve bake is **`0.0.1`** (`androidVersionCode` `1`). Bump the **patch** and `androidVersionCode` together when we ship a new AppImage+APK pair (`npm run release:bump`). Do **not** bump for docs-only. When George says cut v 0.1, set `version` to `0.1.0` and increment `androidVersionCode` once more.
+
+**Bake — 2026-09-14 evening:** three-device Freenet Bones paddock-sync milestone is **`0.0.2`** (`androidVersionCode` `2`). Public v 0.1 remains a future `0.1.0`. **Next (2026-09-15) — two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack. Do not implement tonight.
 
 ---
 
@@ -93,11 +104,12 @@ Related plans (not duplicated here):
 |----------|--------|-------|
 | `APP_URL` | Server | Self-referential links, OAuth, deploy canonical URL |
 | `VITE_APP_URL` | Client (build-time) | Published app URL after Cloud Run / custom domain |
+| `VITE_APP_VERSION` | Client (build-time) | Set by `vite.config.ts` from `package.json` `version`. Do not put in `.env` |
 | `VITE_API_BASE_URL` | Client (build-time) | Physical device → LAN IP of dev hub |
 | `VITE_CAPACITOR` | Build script | Set by `build:android` — not usually in `.env` |
 | `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in**. Vite inlines it. A local `.env` with `true` fails `audit:bundle`; Cloud Run must leave it unset (the deploy script does). Packaged Android (`scripts/build-android-web.mjs` / `apk:debug`) and desktop (`scripts/build-desktop-web.mjs`) **force `false`** so a workshop `.env` cannot leak into an APK or AppImage. There is no client Maps key — imagery is `/api/tiles`. |
 | `VITE_REQUIRE_AUTH` | Client | Forces login even if workshop enabled |
-| `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Opens the mist gate. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Defaulted to `true` by `scripts/build-desktop-web.mjs` and `scripts/build-android-web.mjs`. Since 2026-09-10 the login Freenet option also needs a *host capability* (`src/lib/freenetHostCapability.ts`), so `deploy-cloudrun.mjs` no longer bakes it — the hosted web hides Freenet either way (`FREENET_NETWORK_PACK.md` decision 5) |
+| `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Opens the mist gate. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Packaged AppImage (`scripts/build-desktop-web.mjs`) and APK (`scripts/build-android-web.mjs`) **force `true`** unless `--no-mist` — a stray `false` in the shell must not drop Freenet Sync from desktop dist. Since 2026-09-10 the login Freenet option also needs a *host capability* (`src/lib/freenetHostCapability.ts`), so `deploy-cloudrun.mjs` no longer bakes it — the hosted web hides Freenet either way (`FREENET_NETWORK_PACK.md` decision 5) |
 | `VITE_MIST_FREENET_API` | Client (build-time) | Origin for `/api/mist/freenet/*` when it is not same-origin. On Capacitor this is what makes the runtime `android-hub` instead of `android-no-host` — see [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §7 |
 | `CAP_PACKAGED` | Build script | `1` drops `server.url` from the Capacitor config so the WebView loads its own assets. Set by `apk:debug`; without it the APK points at the emulator address `http://10.0.2.2:3000` |
 | `CAP_SERVER_URL` | Build script | Live-reload origin for a workshop APK (`npx cap sync`) |
@@ -174,10 +186,12 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts, FN02 URIs, minted join ticket |
 | `pufam.mist.hotWatch.v1.{farmId}` | `hotWatchSync.ts` — last applied Hot-watch generation + hash + URI. Added 2026-09-12 |
 | `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
+| `pufam.mist.bonesPending.v1.{farmId}` | `mistHotPublishMeta.ts` — local paddock/pin/track save still waiting for a Freenet Bones PUT + watch bump. Added 2026-09-14 |
 | `pufam.mist.photoIndex.v1.{farmId}` | `mistPhotoBridge.ts` — last Freenet photo-index URI + hash. Added 2026-09-14 |
 | `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag lives on its farm doc instead — `farms/{farmId}.networkPacks.freenet_host`, §8 below (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
 | `pufam.mist.joinTicketDraft.v1` | `sessionStorage`, ticket only (`PUF-XXXX-XXXX`). Written by the login Freenet join step when a ticket was typed before the FarmCode; the join-ticket gate reads then clears it. **Never the FarmCode.** Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
 | `pufam.freenetHost.farmCodePromptDismissed.v1` | `localStorage` JSON map of cloud `farmId` → ISO time. Hides the post-sign-in “enter the FarmCode” prompt on that device for that farm. Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
+| `pufam.freenet.hostHoldOff.v1` | `sessionStorage` `1` while Settings **Stop Freenet on this device** has paused the node. Reconciler must not respawn until **Start Freenet** or the next farm open. Added 2026-09-14 |
 
 ### CSS / DOM (non-storage)
 

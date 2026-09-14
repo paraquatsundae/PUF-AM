@@ -654,6 +654,16 @@ HotKey watch ping carries optional `bonesUri` / `bonesContentHash` so the other
 terminal’s 20 s poll fetches geometry when that hash changes. Apply is LWW union
 by id — not `rehydrateFarmGeometryFromBones`, not `isLoaded: false`. Viewport
 saves stay local. Cloud farms still use the Firestore geometry outbox only.
+**2026-09-14:** a save marks Bones pending and the 20 s poll retries the PUT if
+Opennet was not up; watchers fetch on a new `bonesHash` or `bonesUri`; local
+pack must not wipe the last FN02 pair.
+**Milestone — 2026-09-14:** three-device Bones paddock sync on Opennet (Clare
+Downs; SM-T545 write → SM-S911B + Linux AppImage watch, including hours-old
+paddocks). See [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §8. Bake
+**0.0.2**. **Next (2026-09-15) — two tracks:** codebase health + security
+review, then issue photos over Freenet (packet size; photos not shipped);
+**parallel:** chill portions pack + weather/DPIRD wiring stale —
+[`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack (not walnut blight).
 Nothing above is renumbered.
 
 **Decision — 2026-09-14 (issue photos on the Hot watch).** Same 20 s slot, new

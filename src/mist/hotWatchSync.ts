@@ -22,6 +22,7 @@ import {
   replaceLocalHighlights,
 } from '../lib/mapHighlights';
 import { mergeIssuesKeepingPhotos } from '../lib/issuePhotoMeta';
+import { applyIncomingMapLayer } from '../lib/mapLayerPreference';
 import { hotStateToFarmEntities, type HotFarmEntities } from './hotAdapter.ts';
 import { publishHotWatchSlot, readHotWatchSlot } from './hotWatchSlot.ts';
 import { getMistPhotoIndexStatus } from './mistPhotoBridge.ts';
@@ -29,6 +30,7 @@ import { getFarmGeometry } from '../lib/farmGeometryIdb';
 import { mergeFarmGeometryFromBones } from './bonesGeometry.ts';
 import { readMistBonesFarmGeometry } from './mistBonesBridge.ts';
 import {
+  bonesWatchPairFromStatus,
   getMistBonesPublishStatus,
   getMistHotPublishStatus,
   saveFreenetBonesUri,
@@ -194,7 +196,10 @@ function bonesWatchChanged(
   local: HotWatchCursor | null,
   ping: HotWatchPing,
 ): boolean {
-  return Boolean(ping.bonesContentHash) && ping.bonesContentHash !== (local?.bonesContentHash ?? '');
+  const hashChanged =
+    Boolean(ping.bonesContentHash) && ping.bonesContentHash !== (local?.bonesContentHash ?? '');
+  const uriChanged = Boolean(ping.bonesUri && local?.bonesUri && ping.bonesUri !== local.bonesUri);
+  return hashChanged || uriChanged;
 }
 
 function photoWatchChanged(
@@ -212,6 +217,7 @@ async function applyBonesWatchPing(farmId: string, ping: HotWatchPing): Promise<
     throw new Error('Pulled Bones but could not decrypt — unlock this farm (Hot/Bones keys).');
   }
   await mergeFarmGeometryFromBones(farmId, readBack.payload);
+  applyIncomingMapLayer(farmId, readBack.payload);
   saveFreenetBonesUri(farmId, {
     freenetUri: ping.bonesUri,
     contentHash: ping.bonesContentHash,
@@ -225,7 +231,10 @@ export async function applyHotWatchPing(
   const local = readHotWatchCursor(farmId);
   if (!hotWatchPingChanged(local, ping)) return 'unchanged';
 
-  const hotChanged = !local || ping.hotContentHash !== local.hotContentHash;
+  const hotChanged =
+    !local ||
+    ping.hotContentHash !== local.hotContentHash ||
+    Boolean(ping.hotUri && local.hotUri && ping.hotUri !== local.hotUri);
   if (hotChanged) {
     await pullHotFromFreenetByUri(farmId, ping.hotUri, ping.hotContentHash);
     const readBack = await readMistHotCurrent(farmId);
@@ -262,12 +271,7 @@ export async function applyHotWatchPing(
 }
 
 function bonesFieldsFromStatus(farmId: string): Pick<HotWatchPing, 'bonesUri' | 'bonesContentHash'> {
-  const bones = getMistBonesPublishStatus(farmId);
-  const hot = getMistHotPublishStatus(farmId);
-  const bonesUri = bones?.freenetUri || hot?.bonesFreenetUri;
-  const bonesContentHash = bones?.contentHash || hot?.bonesContentHash;
-  if (!bonesUri || !bonesContentHash) return {};
-  return { bonesUri, bonesContentHash };
+  return bonesWatchPairFromStatus(farmId) ?? {};
 }
 
 function photoFieldsFromStatus(
@@ -284,7 +288,10 @@ export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWat
   const keys = await resolveMistReadKeys();
   if (!keys) return null;
   const status = getMistHotPublishStatus(farmId);
-  if (!status?.freenetUri || !status.contentHash) return null;
+  const cursor = readHotWatchCursor(farmId);
+  const hotUri = status?.freenetUri || cursor?.hotUri;
+  const hotContentHash = status?.contentHash || cursor?.hotContentHash;
+  if (!hotUri || !hotContentHash) return null;
 
   const generation = nextHotWatchGeneration(farmId);
   const bones = bonesFieldsFromStatus(farmId);
@@ -294,8 +301,8 @@ export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWat
     kind: 'hot-watch',
     farmId,
     generation,
-    hotUri: status.freenetUri,
-    hotContentHash: status.contentHash,
+    hotUri,
+    hotContentHash,
     updatedAt: new Date().toISOString(),
     ...bones,
     ...photos,
@@ -322,6 +329,58 @@ export async function publishHotWatchAfterBonesPut(farmId: string): Promise<HotW
 /** After a photo PUT: same slot, new photo-index hash — do not republish Hot. */
 export async function publishHotWatchAfterPhotoPut(farmId: string): Promise<HotWatchPing | null> {
   return publishHotWatchAfterHotPut(farmId);
+}
+
+/**
+ * After a URI pull: merge Hot + Bones into the live stores. Does not remount
+ * the map or replace viewport / basemap unless Bones names a newer layer.
+ */
+export async function applyPulledFreenetMirror(farmId: string): Promise<{
+  diary: number;
+  issues: number;
+  blocks: number;
+}> {
+  const readBack = await readMistHotCurrent(farmId);
+  let diary = 0;
+  let issues = 0;
+  if (readBack) {
+    const merged = await mergeHotEntitiesIntoLocal(farmId, hotStateToFarmEntities(readBack.hot));
+    diary = merged.diary;
+    issues = merged.issues;
+    const hot = getMistHotPublishStatus(farmId);
+    if (hot?.freenetUri && hot.contentHash) {
+      saveFreenetHotUri(farmId, { freenetUri: hot.freenetUri, contentHash: hot.contentHash });
+    }
+  }
+
+  const bonesRead = await readMistBonesFarmGeometry(farmId);
+  let blocks = 0;
+  if (bonesRead) {
+    const geometry = await mergeFarmGeometryFromBones(farmId, bonesRead.payload);
+    applyIncomingMapLayer(farmId, bonesRead.payload);
+    blocks = geometry.after.blocks;
+    const bones = getMistBonesPublishStatus(farmId);
+    if (bones?.freenetUri && bones.contentHash) {
+      saveFreenetBonesUri(farmId, { freenetUri: bones.freenetUri, contentHash: bones.contentHash });
+    }
+  }
+
+  const status = getMistHotPublishStatus(farmId);
+  if (status?.freenetUri && status.contentHash) {
+    const prev = readHotWatchCursor(farmId);
+    writeHotWatchCursor(farmId, {
+      generation: prev?.generation ?? Date.now(),
+      hotContentHash: status.contentHash,
+      hotUri: status.freenetUri,
+      bonesContentHash: status.bonesContentHash || prev?.bonesContentHash,
+      bonesUri: status.bonesFreenetUri || prev?.bonesUri,
+      photoIndexHash: prev?.photoIndexHash,
+      photoIndexUri: prev?.photoIndexUri,
+      appliedAt: new Date().toISOString(),
+    });
+  }
+
+  return { diary, issues, blocks };
 }
 
 /** Background poll: slot GET, fetch Hot only when generation/hash changed. */

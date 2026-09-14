@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('pufamDesktop', {
     status: () => ipcRenderer.invoke('puf-freenet:status'),
     start: () => ipcRenderer.invoke('puf-freenet:start'),
     stop: () => ipcRenderer.invoke('puf-freenet:stop'),
+    stopAllOurs: (options?: { stopUserService?: boolean }) =>
+      ipcRenderer.invoke('puf-freenet:stop-all-ours', options),
     // The data path (Plans/FREENET_NETWORK_PACK.md decision 2). Ciphertext only:
     // the page seals before it calls, and main refuses anything that is not an
     // AEAD envelope. Bytes cross as Uint8Array — structured clone keeps the type.

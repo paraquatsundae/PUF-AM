@@ -19,6 +19,7 @@ import {
   isFarmCodeSession,
   isHybridFarm,
   mirroredCloudFarmId,
+  shouldRunFreenetHotWatch,
   showFreenetFarmTools,
   usesCloudSyncOutbox,
 } from '../src/lib/farmPipes';
@@ -39,9 +40,24 @@ describe('cloud — no seed on the device', () => {
     expect(hasFreenetPlane()).toBe(false);
     expect(isCloudMirror()).toBe(false);
     expect(isFarmCodeSession()).toBe(false);
+    expect(shouldRunFreenetHotWatch()).toBe(false);
     expect(freenetPlaneFarmId()).toBeNull();
     // `showFreenetFarmTools()` also answers true on a bench (workshop
     // diagnostics), which is what a vitest run is — so only the pipe is asserted here.
+  });
+});
+
+describe('leftover Freenet-native seed while backend is still firebase', () => {
+  beforeEach(() =>
+    seedSession({ farmId: 'mist-1', farmName: 'Shed', displayName: 'G', hasDevicePin: false }, 'firebase'),
+  );
+
+  it('looks like cloud until adopt flips the backend (AppImage/APK hole)', () => {
+    expect(activeFarmPipe()).toBe('cloud');
+    expect(isFarmCodeSession()).toBe(false);
+    expect(shouldRunFreenetHotWatch()).toBe(false);
+    expect(hasFreenetPlane()).toBe(false);
+    expect(freenetPlaneFarmId()).toBe('mist-1');
   });
 });
 
@@ -57,6 +73,8 @@ describe('freenet — a Freenet-native farm is the login', () => {
     expect(freenetPlaneFarmId()).toBe('mist-1');
     expect(farmPipeLabel()).toBe('Freenet');
     expect(usesCloudSyncOutbox()).toBe(false);
+    expect(shouldRunFreenetHotWatch()).toBe(true);
+    expect(showFreenetFarmTools()).toBe(true);
   });
 });
 

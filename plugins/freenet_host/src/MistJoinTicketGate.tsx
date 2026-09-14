@@ -57,10 +57,15 @@ import {
 } from '../../../src/lib/freenetRuntime.ts';
 import { ensureFreenetHostListening } from '../../../src/mist/ensureFreenetHostListening.ts';
 import { FREENET_LOCAL_NODE_LABEL } from '../../../src/mist/freenetLocalNode.ts';
+import { FreenetLeaveAskOverlay } from '../../../src/components/FreenetQuitAskDialog';
+import { useFreenetLeaveAsk } from '../../../src/hooks/useFreenetLeaveAsk';
+import { useFreenetJoinWait } from '../../../src/hooks/useFreenetJoinWait';
 import { takeJoinTicketDraft } from '../../../src/lib/joinTicketDraft.ts';
+import { FreenetJoinWaitPanel } from './FreenetJoinWaitPanel';
 
 export function MistJoinTicketGate({ children }: { children: React.ReactNode }) {
   const { userData, logout } = useAuth();
+  const freenetLeave = useFreenetLeaveAsk();
   const farmId = userData?.farmId;
 
   const [pending, setPending] = useState(() => Boolean(getMistJoinState()?.joinTicketPending));
@@ -84,6 +89,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
   const [runtimeSettled, setRuntimeSettled] = useState(false);
   const freenetReachable = canReachFreenetNode(runtime);
   const localNode = freenetReadsLocally(runtime);
+  const joinWait = useFreenetJoinWait(pending);
 
   useEffect(() => {
     if (!pending) return;
@@ -158,6 +164,10 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
           /* Reported by whichever resolver actually needed a node. */
         }
       }
+      const waited = await joinWait.waitUntilOpennet();
+      if (!waited.ok) {
+        return;
+      }
       const pin = devicePin.trim();
       const result = isInviteToken(ticket)
         ? await joinFarmWithCrewInvite({
@@ -198,6 +208,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <FreenetLeaveAskOverlay {...freenetLeave} />
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-emerald-200 p-8 space-y-6">
         <div className="text-center space-y-2">
           <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
@@ -224,7 +235,8 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
           </div>
         </div>
 
-        {error && (
+        <FreenetJoinWaitPanel wait={joinWait.view} />
+        {error && joinWait.view.tone !== 'error' && (
           <div className="text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
             {error}
           </div>
@@ -319,7 +331,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
             className="w-full py-3 rounded-xl bg-emerald-700 text-white font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownToLine className="w-4 h-4" />}
-            Join this farm
+            {busy && joinWait.view.phase === 'connecting' ? 'Waiting for peers…' : 'Join this farm'}
           </button>
         </form>
 
@@ -330,7 +342,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
               <>
                 <strong>{FREENET_LOCAL_NODE_LABEL}</strong> A ticket is looked up on the{' '}
                 <strong>farm owner&apos;s laptop</strong> if this device can see it, and otherwise on{' '}
-                <strong>Freenet</strong> through the node app on this tablet. The farm itself always
+                <strong>Freenet</strong> through the node app on this device. The farm itself always
                 travels over Freenet, encrypted.
               </>
             ) : freenetReachable ? (
@@ -376,7 +388,7 @@ export function MistJoinTicketGate({ children }: { children: React.ReactNode }) 
           </button>
           <button
             type="button"
-            onClick={() => void logout()}
+            onClick={() => void freenetLeave.beginLeave(() => logout())}
             className="w-full text-xs text-slate-400 hover:text-slate-700"
           >
             Sign out

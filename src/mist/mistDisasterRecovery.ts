@@ -252,21 +252,35 @@ export async function fetchAndRehydrateFarmFromFreenet(
   return fetchAndRehydrateFarmFromAddresses(farmId, ticket, devicePin);
 }
 
-/** Refresh in-memory zustand stores after rehydrate (best-effort). */
+/**
+ * Push rehydrated IndexedDB into the live stores without remounting Leaflet.
+ * Must not flip map `isLoaded` — that drops the satellite tile layer.
+ */
 export async function refreshFarmUiAfterRecovery(farmId: string): Promise<void> {
-  const [{ useFieldStore }, { forceReloadFarmDiary }, { useMapStoreInternal }] = await Promise.all([
+  const { refreshFarmUiAfterHotMerge } = await import('./hotWatchSync');
+  await refreshFarmUiAfterHotMerge(farmId);
+
+  const [{ useFieldStore }, { useFarmDiaryStore }, { useMapStoreInternal }] = await Promise.all([
     import('../lib/fieldStore'),
-    import('../lib/farmDiary'),
+    import('../lib/farmDiaryStore'),
     import('../lib/mapStore'),
   ]);
 
-  useFieldStore.setState({ isLoaded: false, isArchiveLoaded: false });
-  useFieldStore.getState().loadData(farmId);
-  useFieldStore.getState().loadArchive(farmId);
-  forceReloadFarmDiary(farmId);
+  const field = useFieldStore.getState();
+  if (!field.isLoaded || (field.currentFarmId && field.currentFarmId !== farmId)) {
+    field.loadData(farmId);
+    field.loadArchive(farmId);
+  }
 
-  useMapStoreInternal.setState({ isLoaded: false });
-  await useMapStoreInternal.getState().loadData(farmId);
+  const diary = useFarmDiaryStore.getState();
+  if (!diary.isLoaded || (diary.currentFarmId && diary.currentFarmId !== farmId)) {
+    void diary.loadData(farmId);
+  }
+
+  const map = useMapStoreInternal.getState();
+  if (!map.isLoaded || (map.currentFarmId && map.currentFarmId !== farmId)) {
+    await map.loadData(farmId);
+  }
 }
 
 export function formatEntityCounts(counts: LocalFarmEntityCounts): string {

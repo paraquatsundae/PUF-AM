@@ -1,4 +1,4 @@
-import { Hexagon } from 'lucide-react';
+import { Hexagon, Map as MapIcon, Satellite } from 'lucide-react';
 import { House as PhHouse, Crosshair as PhCrosshair, Flag as PhFlag } from '@phosphor-icons/react';
 import { cn } from '../../lib/utils';
 import { AddIssueIcon } from './AddIssueIcon';
@@ -8,6 +8,8 @@ export function MapSoftKeys({
   mapTitle,
   onGoHome,
   onLocateMe,
+  mapLayer,
+  onToggleMapLayer,
   userFix,
   followUser,
   mapMode,
@@ -22,6 +24,8 @@ export function MapSoftKeys({
   mapTitle: string;
   onGoHome: () => void;
   onLocateMe: () => void;
+  mapLayer: 'vector' | 'satellite';
+  onToggleMapLayer: () => void;
   userFix: UserGeoFix | null;
   followUser: boolean;
   mapMode: 'operate' | 'edit';
@@ -70,6 +74,25 @@ export function MapSoftKeys({
           color="currentColor"
           aria-hidden
         />
+      </button>
+      <button
+        type="button"
+        onClick={onToggleMapLayer}
+        title={mapLayer === 'satellite' ? 'Street map' : 'Satellite'}
+        aria-label={mapLayer === 'satellite' ? 'Show street map' : 'Show satellite'}
+        aria-pressed={mapLayer === 'satellite'}
+        className={cn(
+          'w-9 h-9 inline-flex items-center justify-center bg-white/90 backdrop-blur shadow-md rounded-lg border pointer-events-auto transition-colors active:scale-95',
+          mapLayer === 'satellite'
+            ? 'border-emerald-500 text-emerald-800 bg-emerald-50 ring-1 ring-emerald-500/30'
+            : 'border-white/20 text-slate-700 hover:text-emerald-700'
+        )}
+      >
+        {mapLayer === 'satellite' ? (
+          <Satellite size={20} className="pufom-map-icon shrink-0" aria-hidden />
+        ) : (
+          <MapIcon size={20} className="pufom-map-icon shrink-0" aria-hidden />
+        )}
       </button>
       {mapMode === 'operate' && (
         <>

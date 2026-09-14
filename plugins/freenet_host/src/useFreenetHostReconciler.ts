@@ -11,7 +11,7 @@
  * seed on this device) are what slice C added; see that file for the table.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { getDesktopBridge } from '../../../src/lib/desktopBridge.ts';
@@ -24,10 +24,17 @@ import { isFreenetHostPluginAvailable } from '../../../src/lib/androidFreenetHos
 import { getAndroidFreenetBridge } from '../../../src/mist/freenetAndroidHost.ts';
 import { probeLocalFreenetNode, subscribeLocalFreenetNode } from '../../../src/mist/freenetLocalNode.ts';
 import { getFreenetPackTransport } from '../../../src/mist/freenetTransportSelect.ts';
+import { ensureFreenetHostFromFarmSession } from '../../../src/mist/ensureFreenetHostListening.ts';
+import { hasMistDeviceSession } from '../../../src/mist/mistDeviceSession.ts';
 import { isFreenetHostEnabled, subscribeFreenetHostEnabled } from './freenetHostEnable.ts';
 import { createFreenetHostReconciler, type FreenetHostReconciler } from './freenetHostReconcile.ts';
 import { subscribeFreenetHybridDevice } from './freenetHostCloud.ts';
 import { computeFreenetHostWant } from './freenetHostWant.ts';
+import {
+  isFreenetHostHoldOff,
+  releaseFreenetHostHoldOffOnFarmChange,
+  subscribeFreenetHostHoldOff,
+} from '../../../src/lib/freenetHostHoldOff.ts';
 
 export const FREENET_HOST_RECONCILE_DEBOUNCE_MS = 1500;
 
@@ -54,6 +61,7 @@ function shellReconciler(): FreenetHostReconciler | null {
       stop: () => transport.peerStop(),
     },
     onError: (stage, error) => console.warn(`[freenet_host] ${stage}:`, error),
+    shouldStart: () => !isFreenetHostHoldOff(),
   });
 }
 
@@ -61,7 +69,14 @@ export function useFreenetHostReconciler(): { want: boolean } {
   const { userData, farmNetworkPacks } = useAuth();
   const farmId = userData?.farmId ?? null;
   const [enabledTick, setEnabledTick] = useState(0);
+  const [holdTick, setHoldTick] = useState(0);
+  const prevFarmId = useRef(farmId);
   useEffect(() => subscribeFreenetHostEnabled(() => setEnabledTick((n) => n + 1)), []);
+  useEffect(() => subscribeFreenetHostHoldOff(() => setHoldTick((n) => n + 1)), []);
+  useEffect(() => {
+    releaseFreenetHostHoldOffOnFarmChange(prevFarmId.current, farmId);
+    prevFarmId.current = farmId;
+  }, [farmId]);
   // A hybrid enable seals a seed on this device after the session started; the
   // farm-doc flag alone is not enough to want a node until that seed is here.
   useEffect(() => subscribeFreenetHybridDevice(() => setEnabledTick((n) => n + 1)), []);
@@ -86,9 +101,11 @@ export function useFreenetHostReconciler(): { want: boolean } {
         seedCloudFarmId: mirroredCloudFarmId(),
         capability,
         canStartOwnNode: isFreenetHostPluginAvailable(),
+        hasMistSession: hasMistDeviceSession(),
+        operatorHoldOff: isFreenetHostHoldOff(),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [farmId, farmNetworkPacks, capability, enabledTick],
+    [farmId, farmNetworkPacks, capability, enabledTick, holdTick],
   );
 
   const pluginPresent = isFreenetHostPluginAvailable();
@@ -100,14 +117,7 @@ export function useFreenetHostReconciler(): { want: boolean } {
 
   useEffect(() => {
     if (!want) return;
-    const mist = getDesktopBridge()?.mist;
-    if (!mist) return;
-    void mist
-      .getPreference()
-      .then((pref) => {
-        if (!pref.enabled) return mist.setPreference(true);
-      })
-      .catch(() => {});
+    void ensureFreenetHostFromFarmSession(true);
   }, [want]);
 
   useEffect(() => {

@@ -82,9 +82,27 @@ export function keepIssuePhotoIfMissing(prev: FieldIssue, next: FieldIssue): Fie
   };
 }
 
+function issueStamp(row: FieldIssue): number {
+  return Date.parse(row.updatedAt || row.reportedAt || row.archivedAt || '') || 0;
+}
+
+/** Union by id + LWW. A tablet snapshot must not drop Linux-only issues. */
+export function unionIssuesByUpdatedAt(local: FieldIssue[], incoming: FieldIssue[]): FieldIssue[] {
+  const byId = new Map<string, FieldIssue>();
+  for (const row of local) {
+    if (row?.id) byId.set(row.id, row);
+  }
+  for (const row of incoming) {
+    if (!row?.id) continue;
+    const prev = byId.get(row.id);
+    if (!prev || issueStamp(row) >= issueStamp(prev)) byId.set(row.id, row);
+  }
+  return [...byId.values()];
+}
+
 export function mergeIssuesKeepingPhotos(local: FieldIssue[], incoming: FieldIssue[]): FieldIssue[] {
   const localById = new Map(local.map((row) => [row.id, row]));
-  return incoming.map((row) => {
+  return unionIssuesByUpdatedAt(local, incoming).map((row) => {
     const prev = localById.get(row.id);
     return prev ? keepIssuePhotoIfMissing(prev, row) : row;
   });

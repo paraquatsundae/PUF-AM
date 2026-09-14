@@ -144,6 +144,14 @@ export function isFarmCodeSession(): boolean {
   return isMistFarmSessionActive();
 }
 
+/**
+ * 20 s Hot/Bones watch. Same predicate as the Freenet login — a leftover
+ * native seed on AppImage/APK is adopted first (`adoptFreenetNativeSessionIfPresent`).
+ */
+export function shouldRunFreenetHotWatch(): boolean {
+  return isFarmCodeSession();
+}
+
 /** A sealed FarmSeed sits on this device, whichever farm it belongs to. */
 export function hasSealedFarmSeed(): boolean {
   return hasMistDeviceSession();

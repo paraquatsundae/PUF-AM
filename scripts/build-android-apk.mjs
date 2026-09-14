@@ -104,7 +104,8 @@ run(process.execPath, ['scripts/build-android-web.mjs', ...(noMist ? ['--no-mist
   // Packaged devices talk to Cloud Run; do not bake a LAN hub URL.
   env: {
     VITE_WORKSHOP_MODE: 'false',
-    VITE_API_BASE_URL: '',
+    // Cloud Run, not a LAN hub IP from `.env` (Plans/NAMING.md §3).
+    VITE_API_BASE_URL: 'https://am.pufworks.farm',
     VITE_APP_URL: 'https://am.pufworks.farm',
   },
 });

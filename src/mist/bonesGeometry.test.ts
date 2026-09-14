@@ -1,5 +1,20 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+
+const memoryLs = new Map<string, string>();
+if (typeof globalThis.localStorage === 'undefined') {
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: {
+      getItem: (key: string) => memoryLs.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memoryLs.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memoryLs.delete(key);
+      },
+    },
+  });
+}
 import {
   encryptBonesBlob,
   decryptBonesBlob,
@@ -81,6 +96,11 @@ describe('bonesGeometry pack/unpack', () => {
       viewport: null,
       updatedAt: new Date().toISOString(),
     });
+    try {
+      localStorage.removeItem(`pufam.mapLayer.v1.${FARM_ID}`);
+    } catch {
+      /* ignore */
+    }
   });
 
   it('packFarmGeometryFromIdb includes blocks/pins/tracks/viewport', async () => {
@@ -166,6 +186,50 @@ describe('bonesGeometry pack/unpack', () => {
     const names = result.bundle.blocks.map((b) => b.name).sort();
     expect(names).toEqual(['North tablet', 'West dam']);
     expect(result.bundle.viewport?.zoom).toBe(13);
+  });
+
+  it('empty incoming Bones does not wipe tablet-local paddocks', async () => {
+    const { mergeFarmGeometryFromBones } = await import('./bonesGeometry');
+    await farmGeometryIdb.saveFarmGeometry({
+      farmId: FARM_ID,
+      blocks: [{ ...sampleBlock, updatedAt: '2026-09-14T08:00:00.000Z' }],
+      pins: [],
+      tracks: [],
+      viewport: { lat: -34.2, lng: 150.1, zoom: 13 },
+      updatedAt: '2026-09-14T08:00:00.000Z',
+    });
+    const result = await mergeFarmGeometryFromBones(FARM_ID, {
+      v: 1,
+      kind: 'farm-geometry',
+      farmId: FARM_ID,
+      exportedAt: '2026-09-14T09:00:00.000Z',
+      blocks: [],
+      pins: [],
+      tracks: [],
+      viewport: { lat: 0, lng: 0, zoom: 1 },
+    });
+    expect(result.after.blocks).toBe(1);
+    expect(result.bundle.blocks[0]?.id).toBe('block-1');
+    expect(result.bundle.viewport?.zoom).toBe(13);
+  });
+
+  it('merge keeps local satellite when incoming Bones omits mapLayer', async () => {
+    const { mergeFarmGeometryFromBones } = await import('./bonesGeometry');
+    const { writeMapLayerPreference, readMapLayerPreference } = await import(
+      '../lib/mapLayerPreference'
+    );
+    writeMapLayerPreference(FARM_ID, 'satellite', '2026-09-14T02:00:00.000Z');
+    await mergeFarmGeometryFromBones(FARM_ID, {
+      v: 1,
+      kind: 'farm-geometry',
+      farmId: FARM_ID,
+      exportedAt: '2026-09-14T04:00:00.000Z',
+      blocks: [sampleBlock],
+      pins: [],
+      tracks: [],
+      viewport: { lat: -33.9, lng: 115.0, zoom: 10 },
+    });
+    expect(readMapLayerPreference(FARM_ID)?.layer).toBe('satellite');
   });
 });
 

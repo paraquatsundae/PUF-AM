@@ -13,9 +13,8 @@ export function useOrchardMapBasemap(farmId: string | undefined) {
   const [showBasemapSetup, setShowBasemapSetup] = useState(false);
   const [basemapBusy, setBasemapBusy] = useState(false);
   const [basemapSkipped, setBasemapSkippedState] = useState(false);
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator === 'undefined' ? true : navigator.onLine
-  );
+  // Optimistic — Android WebView often reports navigator.onLine=false at startup.
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
     const on = () => setIsOnline(true);

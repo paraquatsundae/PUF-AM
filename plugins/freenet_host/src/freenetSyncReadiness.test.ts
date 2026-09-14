@@ -7,6 +7,7 @@ import {
   FREENET_NO_HOST_LABEL,
   FREENET_STARTING_LABEL,
 } from '../../../src/lib/freenetRuntime.ts';
+import { FREENET_PUT_WAIT_OPENNET } from '../../../units/puf-freenet-host/src/put-ready.ts';
 import {
   describeFreenetSyncReadiness,
   freenetSendBlockedTitle,
@@ -38,6 +39,29 @@ describe('describeFreenetSyncReadiness', () => {
     expect(readiness.label).not.toMatch(/laptop|hub|pair/i);
   });
 
+  it('waits for On Opennet before Send when the log says N=0', () => {
+    const readiness = describeFreenetSyncReadiness({
+      peer: {
+        running: true,
+        connected: true,
+        contribute: false,
+        backendId: 'puf-freenet-host',
+        transportId: 'ws02',
+        transportLabel: 'Freenet 0.2 WebSocket',
+        freenet: 'connected',
+        rootDir: '',
+      },
+      host: null,
+      onDesktop: true,
+      runtime: 'desktop-host',
+      lookingForHub: false,
+      peerCount: 0,
+    });
+    expect(readiness.ready).toBe(false);
+    expect(readiness.label).toBe(FREENET_PUT_WAIT_OPENNET);
+    expect(readiness.tone).toBe('wait');
+  });
+
   it('is ready when the local node answers', () => {
     const readiness = describeFreenetSyncReadiness({
       peer: null,
@@ -60,6 +84,10 @@ describe('freenetSendBlockedTitle', () => {
 
   it('does not require Freenet Android Node or a hub as the only path', () => {
     expect(FREENET_NO_HOST_LABEL).not.toMatch(/Freenet Android Node/);
+    expect(FREENET_NO_HOST_LABEL).toMatch(/this device/);
+    expect(FREENET_NO_HOST_LABEL).not.toMatch(/tablet/i);
+    expect(FREENET_STARTING_LABEL).toMatch(/this device/);
+    expect(FREENET_STARTING_LABEL).not.toMatch(/tablet/i);
     expect(FREENET_NO_HOST_DETAIL).toMatch(/not required/);
     expect(FREENET_NO_HOST_DETAIL).not.toMatch(/Scan for hubs/);
   });

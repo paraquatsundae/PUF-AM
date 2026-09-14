@@ -44,9 +44,20 @@ export type FreenetHostWantInput = {
    * spawn even before `'android'` capability (live :7509) is true.
    */
   canStartOwnNode?: boolean;
+  /**
+   * A sealed mist session is on this device. The farm-store backend flag can
+   * still say firebase (session looks like workshop/cloud) — still start.
+   */
+  hasMistSession?: boolean;
+  /**
+   * Settings kill switch: operator paused the node. Reconciler must not
+   * respawn until Start or the next farm open.
+   */
+  operatorHoldOff?: boolean;
 };
 
 export function computeFreenetHostWant(input: FreenetHostWantInput): boolean {
+  if (input.operatorHoldOff) return false;
   if (!input.farmId) return false;
   if (!freenetHostCapabilityCanRun(input.capability) && !input.canStartOwnNode) return false;
   if (input.pipe === 'freenet') return input.localEnabled;
@@ -56,5 +67,7 @@ export function computeFreenetHostWant(input: FreenetHostWantInput): boolean {
       isFarmFreenetHostEnabled(input.farmNetworkPacks) && input.seedCloudFarmId === input.farmId
     );
   }
+  // Backend still `firebase` but this device holds a Freenet-native seed.
+  if (input.hasMistSession && !input.seedCloudFarmId) return input.localEnabled;
   return false;
 }

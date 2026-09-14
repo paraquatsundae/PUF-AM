@@ -117,6 +117,14 @@ describe('createFreenetHostReconciler', () => {
     expect(d.peer.start).not.toHaveBeenCalled();
   });
 
+  it('does not start while the kill-switch hold-off is on', async () => {
+    const d = deps('stopped');
+    const r = createFreenetHostReconciler({ ...d, shouldStart: () => false });
+    await r.reconcile(true);
+    expect(d.host.start).not.toHaveBeenCalled();
+    expect(r.state.startedHere).toBe(false);
+  });
+
   it('reports failures through onError instead of throwing', async () => {
     const d = deps('stopped');
     d.host.start = vi.fn(async () => {

@@ -1,6 +1,6 @@
 # Plans index
 
-**Product:** PUF-AM — Ag Manager · **Updated:** 2026-09-10 (consolidation: 37 docs → 20 live + 4 reference + 2 logs + 13 archived)
+**Product:** PUF-AM — Ag Manager · **Updated:** 2026-09-14 (three-device Bones milestone; bake 0.0.2) · 2026-09-10 consolidation: 37 docs → 20 live + 4 reference + 2 logs + 13 archived
 
 One row per document. Status: **Live spec** (describes current behaviour; code depends on it) · **Active plan** (open work) · **Reference** (finished; cited by `§` number from source — headings frozen) · **Log** (append-only) · **Archived** (closed; kept for history under [`archive/`](archive/INDEX.md)).
 
@@ -25,7 +25,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 
 | Doc | Status | Purpose |
 |-----|--------|---------|
-| [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | Live spec | Start here to add a crop pack: files, `plugin.json`, what Install does, **template pack (chill portions)** |
+| [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | Live spec | Start here to add a crop pack: files, `plugin.json`, what Install does, **template pack (chill portions)**. **Next — 2026-09-15:** chill weather reference + DPIRD wiring is stale (standalone chill changed); update this pack, not walnut blight. Parallel to Freenet photos, not the same job |
 | [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Live spec | Contract (D1–D15), lifecycle, packaging, acceptance checks |
 | [`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md) | Live spec | Network pack contract (`kind: network`): host capability, per-farm enable with a per-device node, surfaces, *not available on this device*. Consumer: `plugins/freenet_host/` |
 | [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) | Active plan | Self-contained `plugins/<id>/src/` migration — Phases 0–1 done, Phase 2 open |
@@ -55,7 +55,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 
 | Doc | Status | Purpose |
 |-----|--------|---------|
-| [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Live spec / Active plan | Create / recover / send / join / People as the code stands; source for in-app "How this works". **§8** the seven known holes (E-07: 1, 2, 6, 7 done; 3 copy done; 4, 5 open). **§9** what is published, sealed, and never on Freenet |
+| [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) | Live spec / Active plan | Create / recover / send / join / People as the code stands; source for in-app "How this works". **§8** the seven known holes (E-07: 1, 2, 6, 7 done; 3 copy done; 4 open; 5 advanced 2026-09-14 three-device Bones, still open). **§9** what is published, sealed, and never on Freenet. **Milestone — 2026-09-14:** three-device Bones paddock sync (bake **0.0.2**). **Next (2026-09-15), two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack |
 | [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) | Active plan | The app's own Freenet client as a per-farm network pack on desktop and Android; native PUT everywhere; hybrid mirror for cloud farms; two-terminal goal. Decisions dated 2026-09-10 (E-08 umbrella). **Decision — 2026-09-12:** FarmSeed owner-only; crew invite unwraps Hot/Bones, not FarmSeed |
 | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | Active plan | Network pack inside the APK; native PUT spike GO, phases 2–5 not built (E-08) — now Phase 3 of `FREENET_NETWORK_PACK.md` |
 | [`reference/MIST_NETWORK_STORAGE.md`](reference/MIST_NETWORK_STORAGE.md) | Reference | Crypto, FarmCode, Hot/Archive contracts, frozen workshop decisions |

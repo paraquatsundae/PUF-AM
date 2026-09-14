@@ -21,10 +21,11 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 
 /**
- * Isolated {@code :freenet} process. Attach-if-port-taken first; otherwise
- * exec the bundled {@code libfreenet.so} (android-arm64). Child death is
- * fail-clean ({@code stopSelf}, no sticky restart). Never kills a
- * third-party node on {@code :7509}. Plans/FREENET_NETWORK_PACK.md Phase 3.
+ * Isolated {@code :freenet} process. Attach only when {@code :7509} is
+ * Freenet 0.2; otherwise exec the bundled {@code libfreenet.so}
+ * (android-arm64). Child death is fail-clean ({@code stopSelf}, no sticky
+ * restart). Never kills a verified Freenet node on {@code :7509}.
+ * Plans/FREENET_NETWORK_PACK.md Decision — 2026-09-14.
  */
 public class FreenetNodeService extends Service {
     static final String ACTION_START = "com.sentinut.farm.FREENET_START";
@@ -89,23 +90,44 @@ public class FreenetNodeService extends Service {
             finishQuiet();
             return START_NOT_STICKY;
         }
-        if (FreenetHostPlugin.probeLoopback()) {
+        if (FreenetNodePolicy.processAlive(child)) {
+            Log.i(FreenetHostPlugin.TAG, "child still running — not respawning");
+            File live = findBinary(this);
+            FreenetHostStatusStore.write(
+                    this, "managed", FreenetHostPlugin.probeLoopback(), null,
+                    live != null ? live.getAbsolutePath() : null);
+            return START_NOT_STICKY;
+        }
+        boolean portTaken = FreenetHostPlugin.probeLoopback();
+        boolean looksLike = portTaken && FreenetHostPlugin.looksLikeFreenet();
+        File binary = findBinary(this);
+        boolean ours = FreenetLoopbackOwner.listenerIsOurs(FreenetHostPlugin.WS_PORT);
+        if (FreenetNodePolicy.shouldWaitBeforeSpawn(portTaken, looksLike, ours)) {
+            FreenetHostPlugin.waitUntilPortFree();
+            portTaken = FreenetHostPlugin.probeLoopback();
+            looksLike = portTaken && FreenetHostPlugin.looksLikeFreenet();
+            ours = FreenetLoopbackOwner.listenerIsOurs(FreenetHostPlugin.WS_PORT);
+        }
+        FreenetNodePolicy.Action action = FreenetNodePolicy.decide(portTaken, looksLike, binary, ours);
+        if (action == FreenetNodePolicy.Action.REUSE) {
+            FreenetHostStatusStore.write(
+                    this, "managed", true, null, binary != null ? binary.getAbsolutePath() : null);
+            return START_NOT_STICKY;
+        }
+        if (action == FreenetNodePolicy.Action.ATTACH) {
             FreenetHostStatusStore.write(this, "attached", true, null, null);
             finishQuiet();
             return START_NOT_STICKY;
         }
-        File binary = findBinary(this);
-        FreenetNodePolicy.Action action = FreenetNodePolicy.decide(false, binary);
+        if (action == FreenetNodePolicy.Action.OCCUPIED) {
+            failClean(FreenetNodePolicy.PORT_NOT_FREENET, null);
+            return START_NOT_STICKY;
+        }
         if (action != FreenetNodePolicy.Action.SPAWN) {
             String looked = getApplicationInfo().nativeLibraryDir;
             String msg = FreenetHostPlugin.NO_BINARY + " (looked in " + looked + ")";
             Log.w(FreenetHostPlugin.TAG, msg);
             failClean(msg, null);
-            return START_NOT_STICKY;
-        }
-        if (FreenetNodePolicy.processAlive(child)) {
-            Log.i(FreenetHostPlugin.TAG, "child still running — not respawning");
-            FreenetHostStatusStore.write(this, "starting", false, null, binary.getAbsolutePath());
             return START_NOT_STICKY;
         }
         try {
@@ -198,14 +220,14 @@ public class FreenetNodeService extends Service {
                 getFilesDir().getAbsolutePath(),
                 cache != null ? cache.getAbsolutePath() : null);
         child = pb.start();
-        watchChild(child, binary.getAbsolutePath());
+        watchChild(child, binary.getAbsolutePath(), logs);
         Log.i(FreenetHostPlugin.TAG, "spawned " + binary.getAbsolutePath()
                 + (wrapper != null ? " via wrap" : ""));
     }
 
-    private void watchChild(Process proc, String binaryPath) {
+    private void watchChild(Process proc, String binaryPath, File logDir) {
         Thread watch = new Thread(() -> {
-            drain(proc);
+            drain(proc, logDir);
             int code = 1;
             try {
                 code = proc.waitFor();
@@ -215,13 +237,25 @@ public class FreenetNodeService extends Service {
             }
             if (stopping) return;
             boolean portTaken = FreenetHostPlugin.probeLoopback();
-            FreenetNodePolicy.AfterDeath next = FreenetNodePolicy.afterDeath(portTaken);
+            boolean looksLike = portTaken && FreenetHostPlugin.looksLikeFreenet();
+            boolean ours = FreenetLoopbackOwner.listenerIsOurs(FreenetHostPlugin.WS_PORT);
+            FreenetNodePolicy.AfterDeath next =
+                    FreenetNodePolicy.afterDeath(portTaken, looksLike, ours);
+            if (next == FreenetNodePolicy.AfterDeath.REUSE) {
+                File live = findBinary(this);
+                FreenetHostStatusStore.write(
+                        this, "managed", true, null, live != null ? live.getAbsolutePath() : null);
+                finishQuiet();
+                return;
+            }
             if (next == FreenetNodePolicy.AfterDeath.ATTACH) {
                 FreenetHostStatusStore.write(this, "attached", true, null, null);
                 finishQuiet();
                 return;
             }
-            String msg = FreenetNodePolicy.childDiedMessage(code);
+            String msg = portTaken && !looksLike
+                    ? FreenetNodePolicy.PORT_NOT_FREENET
+                    : FreenetNodePolicy.childDiedMessage(code);
             Log.w(FreenetHostPlugin.TAG, msg);
             failClean(msg, binaryPath);
         }, "freenet-watch");
@@ -229,13 +263,17 @@ public class FreenetNodeService extends Service {
         watch.start();
     }
 
-    private static void drain(Process proc) {
+    private static void drain(Process proc, File logDir) {
+        File ringLast = logDir != null ? FreenetLogPeerCount.ringLastFile(logDir) : null;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
             String line;
             int n = 0;
             while ((line = reader.readLine()) != null) {
                 if (n < 40) Log.i(FreenetHostPlugin.TAG, "node: " + line);
                 n++;
+                if (ringLast != null && FreenetLogPeerCount.lineHasPeerCount(line)) {
+                    FreenetLogPeerCount.writeLatestLine(ringLast, line);
+                }
             }
         } catch (IOException ignored) {
             /* child closed the pipe */
@@ -256,6 +294,10 @@ public class FreenetNodeService extends Service {
         stopSelf();
     }
 
+    /**
+     * SIGTERM then SIGKILL of {@code child} only — the Process we spawned.
+     * Never a third-party PID or {@code org.freenet.androidnode}.
+     */
     private void destroyChild() {
         Process proc = child;
         child = null;

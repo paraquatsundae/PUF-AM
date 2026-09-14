@@ -5,7 +5,13 @@
 import type { UserData } from '../contexts/AuthContext';
 import { allFarmModules, type FarmRole } from '../../shared/auth/farmModules';
 import type { JoinGrant } from '../../shared/sync/joinGrant.ts';
-import { getFarmStoreBackend, isMistFarmStoreActive } from './farmStoreBackend.ts';
+import { isDesktopShell } from '../lib/desktopBridge.ts';
+import { isNativePlatform } from '../lib/freenetRuntime.ts';
+import {
+  getFarmStoreBackend,
+  isMistFarmStoreActive,
+  setFarmStoreBackend,
+} from './farmStoreBackend.ts';
 import {
   getMistSessionGrant,
   hasMistDeviceSession,
@@ -17,6 +23,34 @@ import {
 
 export function isMistFarmSessionActive(): boolean {
   return isMistFarmStoreActive() && hasMistDeviceSession();
+}
+
+/**
+ * AppImage / APK: a Freenet-native seed (no hybrid cloudFarmId) is the login,
+ * even if `pufam.farmStoreBackend` was left on `firebase`. Hosted web never
+ * adopts — it has no node (`Plans/FREENET_NETWORK_PACK.md` decision 5).
+ *
+ * Without this, Settings XOR treats the session as cloud, hides Freenet Sync,
+ * and `useFreenetHotWatch` never runs (`Plans/SETTINGS_SYNC_AND_CREW.md` §1).
+ */
+export function canAdoptFreenetNativeSession(input: {
+  desktop: boolean;
+  native: boolean;
+}): boolean {
+  return input.desktop || input.native;
+}
+
+export function adoptFreenetNativeSessionIfPresent(
+  shell: { desktop: boolean; native: boolean } = {
+    desktop: isDesktopShell(),
+    native: isNativePlatform(),
+  },
+): boolean {
+  if (isMistFarmSessionActive()) return true;
+  if (!hasMistDeviceSession() || mistSessionCloudFarmId()) return false;
+  if (!canAdoptFreenetNativeSession(shell)) return false;
+  setFarmStoreBackend('mist');
+  return true;
 }
 
 /**

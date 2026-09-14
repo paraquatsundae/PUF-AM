@@ -63,4 +63,10 @@ describe('isMistExperimentalEnabled', () => {
     setFarmStoreBackend('mist');
     expect(isMistExperimentalEnabled()).toBe(true);
   });
+
+  it('stays on after AppImage adopt even when desktop-prefs mistEnabled is off', () => {
+    installBridge({ mistEnabled: false });
+    setFarmStoreBackend('mist');
+    expect(isMistExperimentalEnabled()).toBe(true);
+  });
 });

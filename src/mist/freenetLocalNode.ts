@@ -97,6 +97,12 @@ function notifyLocalFreenetNode(): void {
   for (const listener of listeners) listener();
 }
 
+/** Kill switch — do not keep a 60 s “found” cache after we stopped our node. */
+export function markLocalFreenetNodeStopped(): void {
+  state = { answered: false, at: Date.now() };
+  notifyLocalFreenetNode();
+}
+
 /** Forget everything learned about the local node (tests, and "look again" buttons). */
 export function resetLocalFreenetNode(): void {
   state = null;
@@ -246,9 +252,9 @@ export function localFreenetSearchBudgetMs(hasFallback: boolean): number {
   return hasFallback ? 30_000 : 150_000;
 }
 
-/** What the operator is told when the tablet is reading from its own node. */
+/** What the operator is told when this device is reading from its own node. */
 export const FREENET_LOCAL_NODE_LABEL =
-  'Reading Freenet from the node on this tablet — no laptop needed to join.';
+  'Reading Freenet from the node on this device — no laptop needed to join.';
 
 /** What that node can do once the page can PUT to it (Phase 3 attach). */
 export const FREENET_LOCAL_NODE_DETAIL =

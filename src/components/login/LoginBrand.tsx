@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { APP_LOGO_SRC, APP_NAME, APP_TAGLINE } from '../../brand';
+import { APP_LOGO_SRC, APP_NAME, APP_TAGLINE, APP_VERSION } from '../../brand';
 
 export function LoginBrand({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -15,6 +15,7 @@ export function LoginBrand({ title, subtitle }: { title: string; subtitle?: stri
       <h2 className="mt-5 text-center text-2xl font-extrabold text-slate-900">{title}</h2>
       <p className="mt-1 text-center text-sm font-medium text-emerald-800">{APP_TAGLINE}</p>
       {subtitle && <p className="mt-2 text-center text-sm text-slate-600">{subtitle}</p>}
+      <p className="mt-2 text-center text-xs text-slate-400 font-mono tabular-nums">v{APP_VERSION}</p>
     </div>
   );
 }

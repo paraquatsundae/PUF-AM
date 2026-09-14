@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { hostname as osHostname } from 'node:os';
 import path from 'node:path';
 
-import { BrowserWindow, app, ipcMain, session, shell } from 'electron';
+import { BrowserWindow, app, dialog, ipcMain, session, shell, type MessageBoxOptions } from 'electron';
 
 import { createMistFreenetWire } from '../server/freenetHostWire.ts';
 import { listLanIpv4, startPufomMdns, stopPufomMdns } from '../server/mdnsHub.ts';
@@ -47,9 +47,26 @@ import {
   createFreenetHost,
   freenetHostEnv,
   freenetWsUrl,
+  mergeFreenetContractTraffic,
+  readFreenetLogContractTraffic,
   type FreenetHostPlugin,
   type FreenetHostStatus,
 } from '../units/puf-freenet-host/src/index.ts';
+import { fetchFreenetNodeRing } from './freenetNodeStatus.ts';
+import {
+  FREENET_QUIT_BUTTONS,
+  FREENET_QUIT_DEFAULT_BUTTON,
+  choiceFromQuitResponse,
+} from './freenetQuitDialog.ts';
+import {
+  FREENET_ATTACHED_LEAVE_BODY,
+  FREENET_ATTACHED_LEAVE_BUTTON,
+  FREENET_ATTACHED_LEAVE_TITLE,
+  FREENET_QUIT_ASK_TITLE,
+  FREENET_QUIT_MANAGED_DETAIL,
+  freenetQuitAskKind,
+  quitStopsManagedFreenet,
+} from '../units/puf-freenet-host/src/quit-ask.ts';
 
 const FREENET_WS_HOST = '127.0.0.1';
 
@@ -65,6 +82,10 @@ let lanAddressTimer: ReturnType<typeof setInterval> | null = null;
 
 const LAN_ADDRESS_POLL_MS = 20_000;
 let desktopPrefs: DesktopPrefs = { ...DESKTOP_PREFS_DEFAULT };
+/** Set once the quit ask has started so close / before-quit do not stack dialogs. */
+let quitStarted = false;
+/** True only when shutdown finished — lets the window close without re-asking. */
+let allowWindowClose = false;
 
 /** Cloud API for routes needing server-only secrets — see plan §6.2. */
 function cloudApiBase(): string {
@@ -514,7 +535,10 @@ function createHost(): FreenetHostPlugin {
     wsPort,
     binarySearchPaths: [bundledFreenetDir()],
     repoRoot: app.getAppPath(),
-    wire: createMistFreenetWire({ wsUrl: freenetWsUrl(FREENET_WS_HOST, wsPort) }),
+    wire: createMistFreenetWire({
+      wsUrl: freenetWsUrl(FREENET_WS_HOST, wsPort),
+      requestTimeoutMs: 120_000,
+    }),
   });
 
   host.on((event) => {
@@ -590,7 +614,20 @@ async function readFreenetStatus(): Promise<FreenetHostStatus> {
   const status = await freenetHost.status({ probe: true });
   freenetReachable = status.reachable === true;
   if (status.reachable) applyFreenetEnv(status);
-  return status;
+  if (!status.reachable) return status;
+  // 0.2.135 has no JSON peer list (`GET /status` 404). N comes from this
+  // bake's `--log-dir` (`ring_connections=` / `connection_count=`).
+  const nodeRing = await fetchFreenetNodeRing(status.wsHost, status.wsPort, status.logDir);
+  const logTraffic = status.logDir ? readFreenetLogContractTraffic(status.logDir) : [];
+  const contractTraffic = mergeFreenetContractTraffic([
+    ...(status.contractTraffic ?? []),
+    ...logTraffic,
+  ]);
+  return {
+    ...status,
+    ...(nodeRing ? { nodeRing } : {}),
+    ...(contractTraffic.length ? { contractTraffic } : {}),
+  };
 }
 
 /**
@@ -648,6 +685,12 @@ function registerIpc(): void {
   ipcMain.handle('puf-freenet:status', async () => readFreenetStatus());
   ipcMain.handle('puf-freenet:start', async () => startFreenet());
   ipcMain.handle('puf-freenet:stop', async () => freenetHost?.stop() ?? null);
+  ipcMain.handle('puf-freenet:stop-all-ours', async (_event, opts: unknown) => {
+    const stopUserService =
+      opts !== null && typeof opts === 'object' && (opts as { stopUserService?: unknown }).stopUserService === true;
+    if (freenetHost?.stopAllOurs) return freenetHost.stopAllOurs({ stopUserService });
+    return freenetHost?.stop() ?? null;
+  });
   registerFreenetDataIpc();
   ipcMain.handle('puf-desktop:mist-preference', () => mistPreference());
   ipcMain.handle('puf-desktop:set-mist-preference', async (_event, enabled: unknown) =>
@@ -724,7 +767,63 @@ async function createWindow(config: DesktopConfig, appUrl: string): Promise<void
     mainWindow = null;
   });
 
+  mainWindow.on('close', (event) => {
+    if (allowWindowClose) return;
+    event.preventDefault();
+    if (!quitStarted) void beginQuit();
+  });
+
   await mainWindow.loadURL(appUrl);
+}
+
+async function askFreenetOnQuit(): Promise<boolean> {
+  if (!freenetHost) return false;
+  const status = await freenetHost.status({ probe: true }).catch(() => null);
+  const kind = freenetQuitAskKind(status?.mode);
+  if (kind === 'none') return false;
+
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  const box = (opts: MessageBoxOptions) =>
+    parent ? dialog.showMessageBox(parent, opts) : dialog.showMessageBox(opts);
+
+  if (kind === 'attached') {
+    await box({
+      type: 'info',
+      buttons: [FREENET_ATTACHED_LEAVE_BUTTON],
+      defaultId: 0,
+      cancelId: 0,
+      title: FREENET_ATTACHED_LEAVE_TITLE,
+      message: FREENET_ATTACHED_LEAVE_BODY,
+      noLink: true,
+    });
+    return false;
+  }
+
+  const { response } = await box({
+    type: 'question',
+    buttons: [...FREENET_QUIT_BUTTONS],
+    defaultId: FREENET_QUIT_DEFAULT_BUTTON,
+    cancelId: FREENET_QUIT_DEFAULT_BUTTON,
+    title: FREENET_QUIT_ASK_TITLE,
+    message: FREENET_QUIT_ASK_TITLE,
+    detail: FREENET_QUIT_MANAGED_DETAIL,
+    noLink: true,
+  });
+  return quitStopsManagedFreenet(status?.mode, choiceFromQuitResponse(response));
+}
+
+async function beginQuit(): Promise<void> {
+  if (quitStarted) return;
+  quitStarted = true;
+  let stopFreenet = false;
+  try {
+    stopFreenet = await askFreenetOnQuit();
+  } catch {
+    stopFreenet = false;
+  }
+  await shutdown({ stopFreenet });
+  allowWindowClose = true;
+  app.exit(0);
 }
 
 async function bootstrap(): Promise<void> {
@@ -765,14 +864,18 @@ async function bootstrap(): Promise<void> {
   if (isLanHubEnabled()) await startLanHub();
 }
 
-async function shutdown(): Promise<void> {
+async function shutdown(opts: { stopFreenet: boolean }): Promise<void> {
   try {
     await stopLanHub();
   } catch {
     /* best effort on quit */
   }
   try {
-    await freenetHost?.stop();
+    if (opts.stopFreenet) {
+      await freenetHost?.stop();
+    } else if (freenetHost?.release) {
+      await freenetHost.release();
+    }
   } catch {
     /* best effort on quit */
   }
@@ -804,8 +907,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('before-quit', (event) => {
+    if (quitStarted) return;
     event.preventDefault();
-    void shutdown().finally(() => app.exit(0));
+    void beginQuit();
   });
 
   // Ctrl-C in a `npm run desktop:dev` terminal would otherwise orphan a managed

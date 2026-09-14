@@ -17,6 +17,7 @@ export type OrchardMapCanvasProps = {
   canEdit: boolean;
   viewport: { lat: number; lng: number; zoom: number };
   mapLayer: 'vector' | 'satellite';
+  onToggleMapLayer: () => void;
   basemapPack: BasemapPack | null;
   showBasemapSetup: boolean;
   isOnline: boolean;

@@ -14,11 +14,13 @@ import { InvitePinManager } from '../components/InvitePinManager';
 import { FarmSyncCards } from '../components/sync/FarmSyncCards';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { SettingsLeaveFarmCard } from '../components/SettingsLeaveFarmCard';
+import { FreenetStatusCard } from '../components/FreenetStatusCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
 import { PluginsPanel } from '../components/PluginsPanel';
 import { PackSurfaces } from '../components/PackSurfaces';
 import { activeFarmPipe, activeFarmPipes } from '../lib/farmPipes';
+import { APP_VERSION } from '../brand';
 import { isWorkshopDiagnosticsEnabled } from '../lib/workshopMode';
 import {
   ensureShareCrewLocationDefault,
@@ -77,6 +79,7 @@ export function Settings() {
             Settings
           </h1>
           <p className="text-slate-500">Manage your farm configuration.</p>
+          <p className="text-xs text-slate-400 font-mono tabular-nums">v{APP_VERSION}</p>
         </div>
       </header>
 
@@ -104,6 +107,7 @@ export function Settings() {
       <div className="py-4">
         {activeTab === 'sync' ? (
           <div className="space-y-6">
+            <FreenetStatusCard />
             <TabletHubCard />
             <FarmSyncCards />
             {isWorkshopDiagnosticsEnabled() && <PackSurfaces surface="workshopDiagnostics" />}

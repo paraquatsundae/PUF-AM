@@ -7,10 +7,14 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { setFreenetHostHoldOff } from '../src/lib/freenetHostHoldOff.ts';
 import {
   ensureDesktopFreenetListening,
+  ensureFreenetHostFromFarmSession,
+  ensureFreenetHostFromSettingsCard,
   ensureFreenetHostListening,
   hostModeIsUp,
+  startFreenetOnThisDevice,
 } from '../src/mist/ensureFreenetHostListening.ts';
 import type { FreenetHostStatus } from '../units/puf-freenet-host/src/types.ts';
 import type { DesktopBridge } from '../src/lib/desktopBridge.ts';
@@ -75,6 +79,7 @@ function fakeDesktop(opts: {
 
 afterEach(() => {
   delete window.pufamDesktop;
+  sessionStorage.clear();
 });
 
 describe('hostModeIsUp', () => {
@@ -141,5 +146,84 @@ describe('ensureFreenetHostListening', () => {
 
   it('is a no-op without a desktop bridge or Android plugin', async () => {
     await expect(ensureFreenetHostListening({ getBridge: () => null })).resolves.toBeUndefined();
+  });
+});
+
+describe('ensureFreenetHostFromFarmSession', () => {
+  it('starts when a Freenet farm session opens', async () => {
+    const setPreference = vi.fn(async () => ({
+      enabled: true,
+      forcedByEnv: false,
+      host: managed(),
+    }));
+    const bridge = fakeDesktop({ prefOn: false, setPreference });
+    await ensureFreenetHostFromFarmSession(true, { getBridge: () => bridge });
+    expect(setPreference).toHaveBeenCalledWith(true);
+  });
+
+  it('does not start when the open farm does not want a node', async () => {
+    const setPreference = vi.fn(async () => ({
+      enabled: true,
+      forcedByEnv: false,
+      host: managed(),
+    }));
+    const start = vi.fn(async () => managed());
+    const bridge = fakeDesktop({ prefOn: false, setPreference, start });
+    await ensureFreenetHostFromFarmSession(false, { getBridge: () => bridge });
+    expect(setPreference).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+});
+
+describe('ensureFreenetHostFromSettingsCard', () => {
+  it('triggers ensure when the Settings Freenet card is shown', async () => {
+    const setPreference = vi.fn(async () => ({
+      enabled: true,
+      forcedByEnv: false,
+      host: managed(),
+    }));
+    const bridge = fakeDesktop({ prefOn: false, setPreference });
+    await ensureFreenetHostFromSettingsCard(true, { getBridge: () => bridge });
+    expect(setPreference).toHaveBeenCalledWith(true);
+  });
+
+  it('does not start while the kill-switch hold-off is on', async () => {
+    setFreenetHostHoldOff(true);
+    const setPreference = vi.fn(async () => ({
+      enabled: true,
+      forcedByEnv: false,
+      host: managed(),
+    }));
+    const start = vi.fn(async () => managed());
+    const bridge = fakeDesktop({ prefOn: false, setPreference, start });
+    await ensureFreenetHostFromSettingsCard(true, { getBridge: () => bridge });
+    await ensureFreenetHostFromFarmSession(true, { getBridge: () => bridge });
+    expect(setPreference).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('Start Freenet clears hold-off and starts one node', async () => {
+    setFreenetHostHoldOff(true);
+    const setPreference = vi.fn(async () => ({
+      enabled: true,
+      forcedByEnv: false,
+      host: managed(),
+    }));
+    const bridge = fakeDesktop({ prefOn: false, setPreference });
+    await startFreenetOnThisDevice({ getBridge: () => bridge });
+    expect(setPreference).toHaveBeenCalledWith(true);
+  });
+
+  it('does not start when the Settings Freenet card is hidden', async () => {
+    const setPreference = vi.fn(async () => ({
+      enabled: true,
+      forcedByEnv: false,
+      host: managed(),
+    }));
+    const start = vi.fn(async () => managed());
+    const bridge = fakeDesktop({ prefOn: false, setPreference, start });
+    await ensureFreenetHostFromSettingsCard(false, { getBridge: () => bridge });
+    expect(setPreference).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
   });
 });

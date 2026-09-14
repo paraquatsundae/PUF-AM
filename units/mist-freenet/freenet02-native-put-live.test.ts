@@ -60,10 +60,10 @@ describe.skipIf(!LIVE)('BrowserFreenetPutClient (live node)', () => {
     }
 
     expect(result.uri.startsWith('FN02@')).toBe(true);
-    expect(result.elapsedMs).toBeLessThan(45_000);
+    expect(result.elapsedMs).toBeLessThan(120_000);
 
     const fetched = await get.getBlob(result.uri, { deadlineMs: 60_000 });
     expect(fetched).not.toBeNull();
     expect(fetched).toEqual(data);
-  }, 120_000);
+  }, 180_000);
 });

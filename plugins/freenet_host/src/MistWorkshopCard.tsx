@@ -786,7 +786,7 @@ export function MistWorkshopCard() {
                 !hasFreenetNode
                   ? 'No Freenet node is reachable from this device'
                   : freenetReadOnly
-                    ? 'The node on this tablet is already running — this button starts a hub peer, and there is no hub'
+                    ? 'The node on this device is already running — this button starts a hub peer, and there is no hub'
                     : undefined
               }
               onClick={() => void connectFreenet()}

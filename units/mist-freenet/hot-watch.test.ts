@@ -65,11 +65,42 @@ describe('hot watch ping', () => {
     ).toBe(false);
   });
 
+  it('treats a new Hot URI as a change even when the hash matches', () => {
+    const hash = 'ab'.repeat(32);
+    expect(
+      hotWatchPingChanged(
+        { generation: 100, hotContentHash: hash, hotUri: 'FN02@hot-old' },
+        samplePing({ generation: 101, hotContentHash: hash, hotUri: 'FN02@hot-new' }),
+      ),
+    ).toBe(true);
+  });
+
   it('treats a new hash as a change even if generation did not move', () => {
     expect(
       hotWatchPingChanged(
         { generation: 100, hotContentHash: 'cd'.repeat(32) },
         samplePing({ generation: 100 }),
+      ),
+    ).toBe(true);
+  });
+
+  it('treats a new Bones URI as a change even when the Bones hash matches', () => {
+    const hot = 'ab'.repeat(32);
+    const bones = '11'.repeat(32);
+    expect(
+      hotWatchPingChanged(
+        {
+          generation: 100,
+          hotContentHash: hot,
+          bonesUri: 'FN02@bones-old',
+          bonesContentHash: bones,
+        },
+        samplePing({
+          generation: 101,
+          hotContentHash: hot,
+          bonesUri: 'FN02@bones-new',
+          bonesContentHash: bones,
+        }),
       ),
     ).toBe(true);
   });

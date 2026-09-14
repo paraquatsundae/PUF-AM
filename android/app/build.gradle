@@ -1,5 +1,14 @@
 apply plugin: 'com.android.application'
 
+// Plans/NAMING.md §2 — versionName + versionCode come from repo-root package.json.
+def pufamPkg = new groovy.json.JsonSlurper().parse(file("${rootDir}/../package.json"))
+if (!(pufamPkg.androidVersionCode instanceof Number) || (pufamPkg.androidVersionCode as int) < 1) {
+    throw new GradleException('package.json androidVersionCode must be a positive integer (Plans/NAMING.md §2)')
+}
+if (!(pufamPkg.version instanceof String) || !(pufamPkg.version as String).trim()) {
+    throw new GradleException('package.json version must be a non-empty string (Plans/NAMING.md §2)')
+}
+
 android {
     namespace = "com.sentinut.farm"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +16,8 @@ android {
         applicationId "com.sentinut.farm"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode pufamPkg.androidVersionCode as int
+        versionName pufamPkg.version as String
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

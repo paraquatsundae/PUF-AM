@@ -11,6 +11,11 @@ import {
   saveFarmGeometry,
   withFarmGeometryWrite,
 } from '../lib/farmGeometryIdb';
+import {
+  applyIncomingMapLayer,
+  readMapLayerPreference,
+  type MapLayerChoice,
+} from '../lib/mapLayerPreference';
 
 export const BONES_FARM_GEOMETRY_ASSET_ID = 'farm-geometry';
 
@@ -24,6 +29,9 @@ export type BonesFarmGeometryPayload = {
   pins: FarmGeometryBundle['pins'];
   tracks: FarmGeometryBundle['tracks'];
   viewport: FarmGeometryBundle['viewport'];
+  /** Optional — satellite vs street. Merge keeps local unless this is newer. */
+  mapLayer?: MapLayerChoice;
+  mapLayerUpdatedAt?: string;
 };
 
 export type PackBonesGeometryResult = {
@@ -56,6 +64,7 @@ export function countGeometry(bundle: Pick<FarmGeometryBundle, 'blocks' | 'pins'
 /** Build versioned bones JSON from local geometry IDB. */
 export async function packFarmGeometryFromIdb(farmId: string): Promise<PackBonesGeometryResult> {
   const bundle = await getFarmGeometry(farmId);
+  const mapLayer = readMapLayerPreference(farmId);
   const payload: BonesFarmGeometryPayload = {
     v: 1,
     kind: 'farm-geometry',
@@ -65,6 +74,9 @@ export async function packFarmGeometryFromIdb(farmId: string): Promise<PackBones
     pins: bundle.pins,
     tracks: bundle.tracks,
     viewport: bundle.viewport,
+    ...(mapLayer
+      ? { mapLayer: mapLayer.layer, mapLayerUpdatedAt: mapLayer.updatedAt }
+      : {}),
   };
   const plainBytes = new TextEncoder().encode(JSON.stringify(payload));
   return { payload, plainBytes };
@@ -99,11 +111,12 @@ export async function rehydrateFarmGeometryFromBones(
     blocks: payload.blocks,
     pins: payload.pins,
     tracks: payload.tracks,
-    viewport: payload.viewport ?? null,
+    viewport: beforeBundle.viewport ?? payload.viewport ?? null,
     updatedAt: new Date().toISOString(),
   };
 
   await saveFarmGeometry(bundle);
+  applyIncomingMapLayer(farmId, payload);
   const after = countGeometry(bundle);
 
   return { before, after, bundle };
@@ -134,6 +147,7 @@ export async function mergeFarmGeometryFromBones(
     viewport: local.viewport ?? payload.viewport ?? null,
     updatedAt: new Date().toISOString(),
   }));
+  applyIncomingMapLayer(farmId, payload);
 
   return { before, after: countGeometry(bundle), bundle };
 }

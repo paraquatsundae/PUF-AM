@@ -6,6 +6,8 @@ Exact operator path as the code stands. Login still picks the backend a farm is 
 
 **Known holes:** §8 below (merged from `archive/FREENET_HOLES.md`, 2026-09-10)  
 **What is on Freenet, sealed, or never on Freenet:** §9 below (merged from `archive/FREENET_CONTRIBUTE_AND_STORAGE.md`, 2026-09-10)  
+**Milestone — 2026-09-14:** three-device Bones paddock sync — §8 below. Bake that records it: **0.0.2**.  
+**Next (2026-09-15) — two parallel tracks (do not mix):** (1) `npm run audit:codebase` + security review, then issue photos over Freenet (packet size is the hurdle). Photos are **not** shipped. (2) Chill portions crop pack + weather reference is stale — standalone chill and DPIRD connections changed. Update from [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack (`plugins/chill_portions/`, not walnut blight). DPIRD: server-only `DPIRD_API_KEY`, never `VITE_DPIRD_API_KEY`; BYO key never in Firestore / client / George's Secret Manager; BYO with no weather endpoint fails closed. Do not implement tonight.  
 **In-app copy:** [`plugins/freenet_host/src/FreenetHowItWorks.tsx`](../plugins/freenet_host/src/FreenetHowItWorks.tsx) (login + Settings → Sync + Farm setup → People + join gate). All Freenet UI lives in the `freenet_host` network pack since 2026-09-10 ([`NETWORK_PACK_PLUGIN.md`](NETWORK_PACK_PLUGIN.md))
 
 The rest of the Freenet instruction set (do not duplicate here):
@@ -46,8 +48,8 @@ Join box → FarmCode step → ticket gate. Create is a secondary path (WelcomeC
 |--------|---------------|---------------|
 | Join a farm | `/login` · `join` | One box. PIN, paper FarmCode, or `PUF-` ticket. |
 | Your name | `join` · cloud-name | Invite PIN path. Name + Join farm. |
-| Freenet farm | `join` · `loginJoin` | FarmCode accepted (id only). Name. Continue to join ticket. |
-| Web refusal | `join` · freenet-unavailable | Hosted web: install desktop / pair a tablet. No mist path. |
+| Freenet farm | `join` · `loginJoin` | Crew invite: name + Join (waits up to 120 s for On Opennet — Listening, not a red error). FarmCode: owner recover (local). |
+| Web refusal | `join` · freenet-unavailable | Hosted web: install desktop or the PUF-AM app. No mist path. |
 | How this works | `/login` · `freenet-explain` | **Create** only. Start → `/login/mist-new-farm`. |
 | Then ticket | gate | `PUF-XXXX-XXXX`. Prefills a ticket held from the join box. |
 
@@ -58,6 +60,26 @@ Desktop with mist off no longer dead-ends Join — typing a FarmCode is the opt-
 ## 2. Start a new farm (owner)
 
 `finishMistFarmSetup(role: owner)` → `/farm-setup`. Desktop may flip `desktop-prefs.json` so Freenet auto-starts next launch.
+
+**Decision — 2026-09-14 (start on farm open / Settings card).** The bundled node starts (or attaches to a verified Freenet 0.2 listener on `:7509`) when a Freenet farm session opens **or** when Settings → Sync shows the Freenet status card. Send still publishes farm bytes; it is not the start trigger. A leftover AppImage on `:7509` is attached, not killed — quit that AppImage first if this bake should exec its own binary.
+
+**Decision — 2026-09-14 (managed stays managed; honest attach copy).** If this bake spawned the node (same uid and our `resources/freenet/freenet`, or `mode=managed` with our child), status stays **managed** — a later `start()` / Settings poll must not flip to attached just because `:7509` answers. **Attached** only when the listener is Freenet 0.2 and we did not start it (different binary, or the port was taken before our start). Copy: another PUF-AM mount → “older PUF-AM AppImage…”. A login leftover (`freenet.service`, `~/.local/bin/freenet`, `~/.local/share/freenet`) or unknown third-party → “Freenet was already running on this computer (not this AppImage).” Never kill a third-party node.
+
+**Decision — 2026-09-14 (ask before cutting Freenet).** Closing PUF-AM asks whether to cut the Freenet connection — it does not always stop. **Keep running** (default): leave this bake’s managed node on `:7509` so the next PUF-AM attaches. **Stop Freenet**: stop only a node we spawned; `:7509` is then free for a fresh start. An **attached** node (third-party / Freenet Android Node / leftover we did not start) is never killed from *quit* — copy: “This is another Freenet. Leave it running.” Android swipe-away cannot show that dialog; the same ask is on Sign out / Leave farm. The Settings kill switch below is a different button. Quit the AppImage via the window chrome so the prompt appears — do not `kill -9` the AppImage if you want the question.
+
+**Decision — 2026-09-14 (kill switch).** Settings → Sync **Stop Freenet on this device** stops PUF-AM’s node on this device and keeps it off until the next farm open or **Start Freenet** — it is not the quit Keep/Stop ask. It SIGTERMs / `stopSelf`s our managed child and a `:7509` listener that is ours (same uid, our `libfreenet.so` / AppImage `resources/freenet/freenet`). A leftover `freenet.service` / `~/.local/bin/freenet` is stopped with `systemctl --user stop freenet.service` only after a second confirm. Freenet Android Node (`org.freenet.androidnode`) cannot be force-stopped from this uid — copy says so and offers **Open that app**. Do not say “Freenet hub” for a node or an attach; the LAN hub is a different thing. A second `start()` must not ATTACH+`stopSelf` our own leftover (that stacked start attempts on the device).
+
+**Decision — 2026-09-14 (Stop then Start leftover; device not tablet).** After Stop, wait briefly (≤4 s, 250 ms polls) for `:7509` to go free before Start execs one node. Same-uid leftover of our `libfreenet.so` (including when hidepid hides `/proc/.../exe`) is **reused as managed** — no “already open” / already-listening error. Freenet Android Node / other uid stays an honest leftover (“we cannot force-stop that app”), not a PUF-AM failure. Operator Freenet/join/Settings copy says **device**, not tablet (phone and tablet both run the APK).
+
+**Decision — 2026-09-14 (0.2.135 peer count from our logs, not JSON).** Freenet 0.2.135 has no JSON peer API (`GET /status` 404; `GET /v1/version` is version only). Do **not** scrape the HTML dashboard. Settings → Sync reads the latest `ring_connections=` / `connection_count=` from this bake’s `--log-dir` (`~/.config/PUF-AM/freenet/logs/` on desktop; app-files `freenet/logs/` plus a one-line `pufam-ring.last` on Android). N≥1 → **On Opennet** and N count-only ring dots (no invented locations). N=0 or no line yet → **Listening** + “joining / no ring peers in the log yet.” Do not re-enable `freenet.service`.
+
+**Decision — 2026-09-14 (Send waits for On Opennet; native PUT settle).** Linux Send hung at 45s because 0.2.135’s native `PutResponse` is the Opennet insert, not a local ack. This node’s log later wrote `Client not found in response channels` after we closed the WS. Send is blocked until Settings → Sync says **On Opennet** (N≥1). Once peered, one PUT/slot waits up to **120 s** and native PUTs are serialized. A second Send while one is running is refused. Hang copy tells the operator to wait for On Opennet and not stack Send; Settings **Stop Freenet on this device** is the kill switch. Do not re-enable `freenet.service`. Rebuild the AppImage to pick this up.
+
+**Decision — 2026-09-14 (Join waits for On Opennet).** Login Join (crew InviteToken) and the join-ticket gate must not flash a red “connect to Freenet” at tap. They keep starting the host (`ensureFreenetHostListening`) and show **Listening** / waiting for peers until N≥1 (**On Opennet**), then unwrap. Wait is **120 s** (same window as a peered PUT). Timeout is honest — still Listening, leftover node, or Settings → Sync → Stop Freenet then Start; Freenet Android Node cannot be force-stopped. Hold-off or offline is named, not a spinner. Owner FarmCode recover stays local (paper FarmSeed) and does not block on Opennet; the same Listening line is on that screen. Experimental; shipping path remains Firebase Auth + PIN. Rebuild the APK/AppImage to pick this up.
+
+**Decision — 2026-09-14 (Settings Freenet traffic).** Quiet ring until this node sends or fetches a contract. Pulse **this node ↔ network** (not peer-to-peer hops). **Send a highlight** → brief “Sent Hot” (then “Sent watch” when the 20 s ping is published). **20 s watch** → “Fetched watch”; if the ping changed, “Fetched Hot” / “Fetched Bones” / “Fetched photo” as those GETs run. Log backup is `process_client_request` in the same `--log-dir` (generic “Fetched contract” when the slot kind is unknown). Relay and neighbor-hosting lines are ignored.
+
+**Decision — 2026-09-14 (AppImage Freenet Sync visible).** Settings → Sync Freenet Send/Join follows the farm pipe (`SETTINGS_SYNC_AND_CREW.md` §1), not a second `VITE_MIST_EXPERIMENTAL` sniff on the card. A leftover Freenet-native seed on the AppImage or APK (backend still `firebase`, no hybrid `cloudFarmId`) is adopted as the login so the card and the 20 s Hot/Bones watch run — same as the phone. Hosted web never adopts. Desktop dist forces the mist bake unless `--no-mist` (experimental, not workshop). Rebuild the AppImage to pick this up. Experimental; shipping path remains Firebase Auth + PIN.
 
 | Step | Screen | Operator does | App writes |
 |------|--------|---------------|------------|
@@ -77,7 +99,7 @@ Settings → Sync → **Send this farm**. Default once this device has already p
 
 On the owner laptop:
 
-1. Connect Freenet if the node is down.
+1. Wait until Settings → Sync says **On Opennet** (not only Listening). Connect Freenet if the node is down.
 2. Who is this for? — local label only (`Dave — spray ute`). Not sent.
 3. What this ticket grants — preset dropdown.
 4. Device PIN if this tab sealed the farm.
@@ -104,10 +126,10 @@ Farm setup → People lists tickets minted on **this hub only**. Revoke stops ne
 |------|--------|-------------|
 | 1 | Freenet explain | Join a farm I already have. |
 | 2 | `/login/mist-recover` | Type FarmCode + your name. Validate. Optional device PIN. Continue to join ticket. |
-| 3 | Enter join ticket (full-screen gate) | Type `PUF-XXXX-XXXX`. Same Wi‑Fi as owner preferred. Join this farm. |
+| 3 | Enter join ticket (full-screen gate) | Type the 26-symbol `PUF-` crew invite. Join this farm. The app waits up to **120 s** for **On Opennet** (Listening + peers) before unwrap — not a red error at tap. |
 | 4 | App | Nav follows the ticket grant. Confirmation: joined as {preset} — N diary, M blocks. |
 
-**Look around first.** The gate can be deferred. The farm stays empty; Settings → Sync stays in Join mode. Offline maps can still download. This is how a tablet can exist before the owner reads out a ticket.
+**Look around first.** The gate can be deferred. The farm stays empty; Settings → Sync stays in Join mode. Offline maps can still download. This is how a device can exist before the owner reads out a ticket.
 
 **Joining a cloud farm's mirror (hybrid, 2026-09-11).** Same four steps. The manifest carries the cloud farm id, so the gate says *joined the mirror of a cloud farm — read-only* and offers **Open the mirror**; the app lands as a `viewer` with a banner: *This is a mirror of a cloud farm. To edit, join with an invite PIN.* No Firebase member is created — a PIN from the owner is the way in, and it is unrelated to the ticket. Settings → Sync on that device shows the Freenet card in fetch-only mode plus **Import into a new farm — save as farm pack** (the mirror as a `.pufom`, for a rebuild). `plugins/freenet_host/src/joinOutcome.ts`, `src/components/CloudMirrorBanner.tsx`, `FreenetHybridNote.tsx`.
 
@@ -165,7 +187,7 @@ Wire roles: `owner` \| `admin` \| `farmer` \| `viewer`. Presets ride in manifest
 | Send / publish | Yes | No — needs a paired laptop hub |
 | Join / fetch | Yes | Yes via hub or farm gateway |
 | People ledger | This hub’s shelf | Paired hub only — empty if tickets live elsewhere |
-| Two devices, no laptop | Two desktops can Send/Join | Two tablets cannot sync |
+| Two devices, no laptop | Two desktops can Send/Join | **Advanced 2026-09-14:** tablet + phone Bones on Opennet (PUF-AM APK); laptop not required for that path. Hole 5 still open until two Android devices exchange with **no** Freenet Android Node. Hosted web cannot |
 
 ---
 
@@ -194,7 +216,7 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 | 1 | Send is after farm-setup, not at create | UX | **Soon** | **Done** 2026-08-14 — FarmCode/PIN screens + dismissible Farm setup nudge (`plugins/freenet_host/src/FreenetSendNudge.tsx`). No auto-publish |
 | 3 | People list is per hub | Product | **Soon** | **Copy done** 2026-08-14 — empty-state names the hub first. Shared bones ledger still later |
 | 4 | Revoke is not kick | Crypto / product | **Later** | Open — do not fake |
-| 5 | Two tablets, no laptop | Product / APK | **Later** | **In progress 2026-09-12** — isolated `:freenet` service now **spawns** a bundled android-arm64 node when `libfreenet.so` is in the APK; attach-if-port-taken if `:7509` is already up. Official asset still missing; `scripts/build-freenet-android.mjs` is the build chain. Hole stays open until two tablets exchange with **no** Freenet Android Node. |
+| 5 | Two tablets, no laptop | Product / APK | **Later** | **Advanced 2026-09-14** — three-device Bones paddock sync live on Opennet (tablet SM-T545 write → phone SM-S911B + Linux AppImage watch), including hours-old paddocks once Linux was on the Freenet farm session. In-APK `:freenet` + AppImage bundled 0.2.135. Run was **0.0.1**; bake that records it is **0.0.2**. Official asset still missing; `scripts/build-freenet-android.mjs` is the build chain. Hole stays open until two Android devices exchange with **no** Freenet Android Node. |
 
 **Decisions — 2026-09-10** ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) §2; recorded here because they change how holes 4 and 5 are read):
 
@@ -227,9 +249,25 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 
 ### Hole 5 — Two tablets, no laptop (open)
 
-**Today (2026-09-13):** Desktop hosts Freenet inside the AppImage when a Freenet farm is open — join/Send/Sync start the bundled linux-x64 0.2.135 node (`resources/freenet/freenet`); `MIST_FREENET=1` is a workshop override only. The debug APK packs a workshop-built 0.2.135 `libfreenet.so` and the isolated `:freenet` service spawns it when `:7509` is free. Attach-if-port-taken still wins if anything else already owns the port. Hole stays open until two devices exchange with **no** second Freenet app.
+**Today (2026-09-14):** Desktop hosts Freenet inside the AppImage when a Freenet farm is open — join/Send/Sync start the bundled linux-x64 0.2.135 node (`resources/freenet/freenet`); `MIST_FREENET=1` is a workshop override only. The debug APK packs a workshop-built 0.2.135 `libfreenet.so` and the isolated `:freenet` service spawns it when `:7509` is free. Attach only if the listener is Freenet 0.2 (`GET /v1/version` or WS hello) — TCP-only is not enough, and a leftover dashboard is not attached. Do not kill a verified Freenet Android Node. USB/adb does not take 7509. Hole stays open until two Android devices exchange with **no** second Freenet app.
 
 **Do:** start the in-app node (AppImage `resources/freenet/freenet` / APK `libfreenet.so`). A laptop hub is an optional LAN fast path. **Do not:** tell a Freenet farm it must pair a hub, or require Freenet Android Node. **When:** [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 3, detailed in [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md). Decided 2026-09-10 (decision 3 above): the answer is a whole node in an isolated process.
+
+### Milestone — 2026-09-14 — three-device Bones paddock sync
+
+**Field-validated on Clare Downs** (do not delete this farm; FarmSeed stays paper-only — do not print it). The live run was **0.0.1** (tablet/phone APK; Linux AppImage 21:35 with leftover Freenet-native seed adopted so Settings → Sync was visible). The bake that records this milestone is **0.0.2**. Experimental mist; public **v 0.1** remains a future `0.1.0`.
+
+| Device | Role | Result |
+|--------|------|--------|
+| Tablet SM-T545 | Wrote a new paddock (Bones PUT after the first Send/join) | Published on Freenet 0.2 Opennet |
+| Phone SM-S911B | 20 s Hot/Bones watch | New paddock appeared almost instantly |
+| Linux AppImage 0.0.1 (21:35) | Adopted the Freenet farm session + watch | Caught up **all** paddocks, including ones made many hours earlier |
+
+This advances Hole 5 past a two-Android live pair: three PUF-AM shells (two APK + AppImage) exchanged Bones on Opennet. It does **not** close Hole 5 — two Android devices still need to exchange with **no** Freenet Android Node (official `libfreenet.so` still missing from GitHub; FAN cannot be force-stopped from this uid).
+
+**Honest residual:** first Opennet can take minutes; Freenet Android Node cannot be force-stopped; hosted web still cannot run a node; FarmSeed paper-only; version still experimental `0.0.#` mist.
+
+**Next (2026-09-15) — two parallel tracks (do not mix):** (1) `npm run audit:codebase` + a security review before sharing issue pictures over Freenet. Packet size is the hurdle. Do **not** claim photos are shipped. (2) Chill portions crop pack + weather reference is stale — [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack (`plugins/chill_portions/`, not walnut blight). DPIRD: server-only `DPIRD_API_KEY`, never `VITE_DPIRD_API_KEY`; BYO key never in Firestore / client / George's Secret Manager; BYO with no weather endpoint fails closed. Do not implement tonight.
 
 ---
 
@@ -261,12 +299,16 @@ Four payload kinds reach Freenet. All are **AEAD-sealed before insert** (§9.3).
 |---------|---------------|----------|----------------|
 | **Hot** | `mist/v1/farm/{farmId}/hot/current` | Rolling window of diary events, field issues, archived issues, and **timed map highlights** (`map_highlight` — `pufom_farm_local` kind `map_highlights`) — farm-export-shaped diary/issues plus highlights, mirrored by [`src/mist/mistHotBridge.ts`](../src/mist/mistHotBridge.ts). Highlights are crew-readable (HotKey), not FarmSeed-only. | Highlight / diary save PUTs Hot and bumps the watch slot; **Send this farm** still publishes Hot + bones + a ticket |
 | **Hot watch** | slot from `HKDF(HotKey, "freenet-hot-watch-slot")` | `{ v:1, kind:"hot-watch", farmId, generation, hotUri, hotContentHash }` — sealed with HotKey. Cheap yes/no for other terminals. | Same moment as a Hot PUT |
-| **Bones** | `mist/v1/farm/{farmId}/bones/{assetId}` | Farm structure: block boundaries, pins, tracks, saved viewport — [`src/mist/bonesGeometry.ts`](../src/mist/bonesGeometry.ts) | Same publish action |
+| **Bones** | `mist/v1/farm/{farmId}/bones/{assetId}` | Farm structure: block boundaries, pins, tracks, saved viewport — [`src/mist/bonesGeometry.ts`](../src/mist/bonesGeometry.ts) | Paddock / pin / track save (after the first Send/join) PUTs Bones and bumps the watch; **Send this farm** still publishes Hot + bones + a ticket |
 | **Join manifest** | not a mist key — a LAN shelf entry, or the Freenet join slot | `{ v: 2, farmId, hotUri, bonesUri, role, permissions?, expires?, ticket }` — resolves a short `PUF-XXXX-XXXX` ticket to the two FN02 URIs | When a short join ticket is minted |
 
 **Decision — 2026-09-12 (map highlights).** “Check this” areas did not Freenet-sync because they lived only in Firestore / LAN (`/api/highlights`) and were never packed into Hot. They now persist locally and ride the same Hot snapshot as diary. `directedAtName` / `directedAtUid` name who the area is for. No kick/revoke.
 
 **Decision — 2026-09-12 (auto watch).** Manual Send/Pull was the wrong product and did not work: a highlight save only wrote local IndexedDB; each Freenet Hot PUT minted a **new** FN02 URI; the tablet kept the join-ticket URI and hash and never learned the new one; Send is owner-only (FarmSeed); Freenet rungs were `auto: false`; a 30s default expired in transit. Fix: publishing device PUTs Hot on save and updates the HotKey watch slot; other terminals poll that slot every **20 s** (no subscribe API on the 0.2.135 host plugin) and fetch Hot only on a hash/generation change. Crew decrypt with Hot/Bones. Default Freenet highlight duration is **300 s**. Both apps must be open with a node up. Hole 4 unchanged.
+
+**Decision — 2026-09-14 (Bones auto-publish + watch URI).** A paddock / pin / track save on a Freenet farm marks Bones **pending** and PUTs Bones (BonesKey) without a second **Send this farm**. The 20 s watch poll retries if the PUT failed (Listening / not On Opennet / Send in flight). Local pack must not wipe the last Hot/Bones FN02 URI or advertise a new hash with an old URI. Watchers fetch when `bonesHash` **or** `bonesUri` changes. Apply merges (union by id); empty Bones does not wipe tablet-local paddocks; map `isLoaded` stays put. Rebuild the APK/AppImage to pick this up. Experimental; shipping path remains Firebase Auth + PIN.
+
+**Milestone — 2026-09-14 (Bones field-validated).** Three-device paddock sync on Opennet — see §8. Hours-old paddocks arrived on Linux once it was on the Freenet farm session. Next: health + security review, then issue photos (packet size). Photos are not shipped.
 
 **Decision — 2026-09-12 (highlight diary + no remount).** Incremental Hot apply must **merge** into live diary/issues/highlights and must **not** call `refreshFarmUiAfterRecovery` (that flips map `isLoaded` and remounts Leaflet). A note or directed-at name on “Check this” writes a diary `work` plan in the same save (sender, assignee, instructions, `linkedHighlightId` / `linkedDiaryEventId`) so one ping delivers both. The map inspect card stays until dismiss and opens `/diary?event=`.
 
@@ -345,5 +387,9 @@ The relay keeps its outbox and `freenet-index.json` for tablets whose hub node i
 | Hub shelf | `server/joinManifestStore.ts`, `server/joinTicketRoutes.ts` |
 | Freenet slot | `units/mist-freenet/contracts/slot-contract`, `src/mist/joinSlotFreenet.ts`, `plugins/freenet_host/src/mistJoinWithTicket.ts` |
 | Transport (host vs relay) | `src/mist/freenetPackTransport.ts`, `freenetHostTransport.ts`, `freenetRelayTransport.ts`, `freenetTransportSelect.ts`; `server/freenetHostWire.ts`, `server/freenetSlotOps.ts` |
+| Freenet status + ring (Settings → Sync) | `src/components/FreenetStatusCard.tsx`, `src/components/FreenetPeerRing.tsx`, `src/hooks/useFreenetRingStatus.ts`, `units/puf-freenet-host/src/log-peer-count.ts` — **Decision — 2026-09-14** (peer count from logs) |
+| Join waits for On Opennet | `src/lib/freenetJoinWait.ts`, `src/hooks/useFreenetJoinWait.ts`, `plugins/freenet_host/src/FreenetJoinWaitPanel.tsx` — **Decision — 2026-09-14** (Join waits for On Opennet) |
+| Ask before cutting Freenet | `units/puf-freenet-host/src/quit-ask.ts`, `desktop/freenetQuitDialog.ts`, `desktop/main.ts` (`before-quit` / last window), Sign out / Leave farm (`useFreenetLeaveAsk.ts`) |
+| Kill switch (Stop Freenet on this device) | `units/puf-freenet-host/src/kill-switch.ts`, `src/lib/stopFreenetOnDevice.ts`, `src/lib/freenetHostHoldOff.ts` — **Decision — 2026-09-14** (kill switch) |
 
 Workshop exception: `showFreenetFarmTools()` still shows the Freenet card on a fake cloud bench session so Send/Join can be tested without a real mist login.

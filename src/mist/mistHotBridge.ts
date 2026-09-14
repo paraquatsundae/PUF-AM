@@ -40,7 +40,7 @@ import {
 } from './mistReadKeys.ts';
 import {
   getMistHotPublishStatus,
-  saveMistHotPublishStatus,
+  mergeLocalHotPackStatus,
   type MistHotPublishStatus,
 } from './mistHotPublishMeta.ts';
 import { hexToBytes } from '../../units/mist-freenet/src/farm-seed.ts';
@@ -257,10 +257,7 @@ export async function publishLocalFarmToMistHot(
     sealedBytes: storedBytes.byteLength,
   };
 
-  saveMistHotPublishStatus({
-    farmId,
-    ...result,
-  });
+  mergeLocalHotPackStatus(farmId, result);
 
   return result;
 }

@@ -3,9 +3,14 @@ import { db } from '../firebase';
 import { collection, query, doc, setDoc, deleteDoc, updateDoc, getDoc, writeBatch, where, getDocs, getDocsFromCache } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './firestoreErrors';
 import { isLocalOnlyFarmSession } from './workshopMode';
+import { usesCloudSyncOutbox } from './farmPipes';
 import { localFieldIssues } from './localFieldIssues';
 import type { FarmPhotoRef } from './farmPhoto';
-import { keepIssuePhotoIfMissing, omitIssuePhotoLocalFields } from './issuePhotoMeta';
+import {
+  keepIssuePhotoIfMissing,
+  mergeIssuesKeepingPhotos,
+  omitIssuePhotoLocalFields,
+} from './issuePhotoMeta';
 
 function isPermissionOrOfflineError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
@@ -157,11 +162,14 @@ export const useFieldStore = create<FieldState>((set, get) => ({
       set({ currentFarmId: farmId });
     }
 
-    if (isLocalOnlyFarmSession()) {
-      set({
-        issues: localFieldIssues.getOpen(farmId),
-        isLoaded: true,
-      });
+    if (isLocalOnlyFarmSession() || !usesCloudSyncOutbox()) {
+      void (async () => {
+        const { listLocalEntities } = await import('./localFarmRepo');
+        const repo = await listLocalEntities<FieldIssue>(farmId, 'issues');
+        const issues = mergeIssuesKeepingPhotos(localFieldIssues.getOpen(farmId), repo);
+        localFieldIssues.saveOpen(farmId, issues);
+        set({ issues, isLoaded: true, currentFarmId: farmId });
+      })();
       return;
     }
 
@@ -193,7 +201,9 @@ export const useFieldStore = create<FieldState>((set, get) => ({
         }
 
         // Merge any locally-held issues that cloud doesn't have yet (offline / permission fallback)
-        const local = localFieldIssues.getOpen(farmId);
+        const { listLocalEntities } = await import('./localFarmRepo');
+        const repo = await listLocalEntities<FieldIssue>(farmId, 'issues');
+        const local = mergeIssuesKeepingPhotos(localFieldIssues.getOpen(farmId), repo);
         const byId = new Map(issues.map((i) => [i.id, i]));
         for (const li of local) {
           if (!byId.has(li.id)) byId.set(li.id, li);
@@ -223,11 +233,17 @@ export const useFieldStore = create<FieldState>((set, get) => ({
 
     set({ isArchiveLoaded: false });
 
-    if (isLocalOnlyFarmSession()) {
-      set({
-        archivedIssues: localFieldIssues.getArchived(farmId),
-        isArchiveLoaded: true,
-      });
+    if (isLocalOnlyFarmSession() || !usesCloudSyncOutbox()) {
+      void (async () => {
+        const { listLocalEntities } = await import('./localFarmRepo');
+        const repo = await listLocalEntities<FieldIssue>(farmId, 'issues_archive');
+        const archivedIssues = mergeIssuesKeepingPhotos(
+          localFieldIssues.getArchived(farmId),
+          repo,
+        );
+        localFieldIssues.saveArchived(farmId, archivedIssues);
+        set({ archivedIssues, isArchiveLoaded: true });
+      })();
       return;
     }
 
@@ -271,12 +287,12 @@ export const useFieldStore = create<FieldState>((set, get) => ({
 
     const { upsertLocalEntity } = await import('./localFarmRepo');
     const kind = stamped.status === 'archived' ? 'issues_archive' : 'issues';
-    await upsertLocalEntity(farmId, kind, stamped, { queueCloud: true });
+    await upsertLocalEntity(farmId, kind, stamped, { queueCloud: usesCloudSyncOutbox() });
 
     const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
     scheduleMistHotAutoPublish(farmId);
 
-    if (isLocalOnlyFarmSession()) return;
+    if (isLocalOnlyFarmSession() || !usesCloudSyncOutbox()) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
     const collectionName = stamped.status === 'archived' ? 'archived_issues' : 'issues';
@@ -293,7 +309,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   },
 
   updateIssue: async (farmId, id, updates, opts) => {
-    const queueCloud = opts?.queueCloud !== false;
+    const queueCloud = opts?.queueCloud !== false && usesCloudSyncOutbox();
     const publishHot = opts?.publishHot !== false;
     const withStamp = {
       ...updates,
@@ -335,7 +351,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   },
 
   archiveIssue: async (farmId, id, archivedBy) => {
-    if (isLocalOnlyFarmSession()) {
+    if (isLocalOnlyFarmSession() || !usesCloudSyncOutbox()) {
       const { open, archived } = localFieldIssues.archive(farmId, id, archivedBy);
       set({ issues: open, archivedIssues: archived });
       return;
@@ -372,7 +388,7 @@ export const useFieldStore = create<FieldState>((set, get) => ({
   },
 
   deleteIssue: async (farmId, id) => {
-    if (isLocalOnlyFarmSession()) {
+    if (isLocalOnlyFarmSession() || !usesCloudSyncOutbox()) {
       const { open, archived } = localFieldIssues.delete(farmId, id);
       set({ issues: open, archivedIssues: archived });
       return;

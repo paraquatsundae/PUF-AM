@@ -24,6 +24,8 @@ import { useFarmDiary } from '../lib/farmDiary';
 import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
 import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
+import { FreenetLeaveAskOverlay } from './FreenetQuitAskDialog';
+import { useFreenetLeaveAsk } from '../hooks/useFreenetLeaveAsk';
 import { isFarmCodeSession } from '../lib/farmPipes';
 import { sessionDisplayName } from '../lib/sessionIdentity';
 
@@ -32,6 +34,7 @@ const NAV_DRAWER_MQ = '(max-width: 1279px)';
 
 export function Layout() {
   const { user, userData, isAdmin, isPlatformAdmin, hasModule, logout } = useAuth();
+  const freenetLeave = useFreenetLeaveAsk();
   const offeredModules = useOfferedFarmModules();
   const { settings } = useFarmDiary();
   const mapTitle = mapUiCopy(settings.farmProfile).mapTitle;
@@ -72,6 +75,7 @@ export function Layout() {
 
   return (
     <div className="h-dvh max-h-dvh overflow-hidden bg-slate-50 flex flex-col xl:flex-row">
+      <FreenetLeaveAskOverlay {...freenetLeave} />
       <BottomNav />
       {sidebarOpen && (
         <div
@@ -242,7 +246,7 @@ export function Layout() {
             </div>
             <button
               type="button"
-              onClick={() => void logout()}
+              onClick={() => void freenetLeave.beginLeave(() => logout())}
               className="flex items-center w-full px-2 py-2 text-sm font-medium text-slate-300 rounded-md hover:bg-slate-800 hover:text-white transition-colors"
             >
               <IconLogout className="mr-3 h-5 w-5" stroke={1.75} />

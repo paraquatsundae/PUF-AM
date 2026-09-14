@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import L from '../../lib/leaflet-setup';
 import {
@@ -25,9 +25,10 @@ type PufomTileImg = HTMLImageElement & { _pufomObjectUrl?: string };
  */
 export function CachedTileLayer({ farmId, offlineOnly }: Props) {
   const map = useMap();
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator === 'undefined' ? true : navigator.onLine
-  );
+  // Optimistic: Android WebView often reports navigator.onLine=false at
+  // startup while Wi‑Fi still works. Only flip false after a real offline signal.
+  const [isOnline, setIsOnline] = useState(true);
+  const layerRef = useRef<L.GridLayer | null>(null);
 
   useEffect(() => {
     const on = () => setIsOnline(true);
@@ -56,6 +57,8 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
   }, []);
 
   const blockNetwork = offlineOnly ?? !isOnline;
+  const blockNetworkRef = useRef(blockNetwork);
+  blockNetworkRef.current = blockNetwork;
 
   useEffect(() => {
     if (!farmId) return;
@@ -86,7 +89,7 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
           };
           tile.onerror = () => {
             // Blob decode glitch → try network once (unless offline-only).
-            if (fromBlob && !blockNetwork) {
+            if (fromBlob && !blockNetworkRef.current) {
               revoke();
               finish(tileUrl(z, x, y), false);
               return;
@@ -110,7 +113,7 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
 
             // Prefer network when allowed. Do not trust navigator.onLine alone —
             // Android WebView often reports offline while Wi‑Fi still works.
-            if (!blockNetwork) {
+            if (!blockNetworkRef.current) {
               finish(tileUrl(z, x, y), false);
               return;
             }
@@ -118,6 +121,10 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
             tile.style.background = '#1e293b';
             done(undefined, tile);
           } catch (err) {
+            if (!blockNetworkRef.current) {
+              finish(tileUrl(z, x, y), false);
+              return;
+            }
             done(err as Error, tile);
           }
         })();
@@ -144,11 +151,19 @@ export function CachedTileLayer({ farmId, offlineOnly }: Props) {
       minZoom: 0,
     });
 
+    layerRef.current = layer;
     layer.addTo(map);
     return () => {
+      layerRef.current = null;
       map.removeLayer(layer);
     };
-  }, [map, farmId, blockNetwork]);
+  }, [map, farmId]);
+
+  useEffect(() => {
+    if (!blockNetwork) {
+      layerRef.current?.redraw();
+    }
+  }, [blockNetwork]);
 
   return null;
 }

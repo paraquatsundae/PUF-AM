@@ -14,7 +14,9 @@ import { getLastDisplayName } from '../../../src/lib/deviceSession';
 import { finishMistFarmSetup } from '../../../src/mist/finishMistFarmSetup.ts';
 import { joinFarmWithCrewInvite } from '../../../src/mist/crewInvite.ts';
 import { BackLink, LoginBrand, LoginPanel } from '../../../src/components/login/LoginBrand';
+import { useFreenetJoinWait } from '../../../src/hooks/useFreenetJoinWait.ts';
 import { DevicePinFields } from './DevicePinFields';
+import { FreenetJoinWaitPanel } from './FreenetJoinWaitPanel';
 import { prewarmFreenetHost } from './freenetLoginPrewarm.ts';
 
 const DEFAULT_FARM_NAME = 'Recovered farm';
@@ -39,6 +41,7 @@ export default function FreenetLoginJoin({
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const invite = kind === 'join-ticket' ? normalizeInviteToken(code) : null;
+  const joinWait = useFreenetJoinWait(true);
 
   useEffect(() => {
     void prewarmFreenetHost();
@@ -105,6 +108,11 @@ export default function FreenetLoginJoin({
     setBusy(true);
     setError(null);
     try {
+      const waited = await joinWait.waitUntilOpennet();
+      if (!waited.ok) {
+        setBusy(false);
+        return;
+      }
       await joinFarmWithCrewInvite({
         invite,
         farmName: farmName.trim() || 'Joined farm',
@@ -153,7 +161,9 @@ export default function FreenetLoginJoin({
         </p>
       ) : null}
 
-      {error ? (
+      <FreenetJoinWaitPanel wait={joinWait.view} />
+
+      {error && joinWait.view.tone !== 'error' ? (
         <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
           {error}
         </div>
@@ -211,7 +221,11 @@ export default function FreenetLoginJoin({
           className="w-full py-3 rounded-xl bg-slate-900 text-white font-semibold disabled:opacity-50 inline-flex justify-center items-center gap-2"
         >
           {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-          {invite ? 'Join this farm' : 'Open this farm'}
+          {invite && busy && joinWait.view.phase === 'connecting'
+            ? 'Waiting for peers…'
+            : invite
+              ? 'Join this farm'
+              : 'Open this farm'}
         </button>
       </form>
 

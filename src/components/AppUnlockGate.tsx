@@ -16,11 +16,14 @@ import {
   verifyUnlockPin,
 } from '../lib/unlockPin';
 import { APP_NAME } from '../brand';
+import { FreenetLeaveAskOverlay } from './FreenetQuitAskDialog';
+import { useFreenetLeaveAsk } from '../hooks/useFreenetLeaveAsk';
 import { isFarmCodeSession } from '../lib/farmPipes';
 import { Link } from 'react-router-dom';
 
 export function AppUnlockGate({ children }: { children: React.ReactNode }) {
   const { user, userData, logout } = useAuth();
+  const freenetLeave = useFreenetLeaveAsk();
   const uid = user?.uid || '';
   // FarmCode / device-PIN sign-in: a Freenet farm or a mirror of a cloud farm.
   // A hybrid *member* device is a cloud login that also holds a seed, so it
@@ -71,6 +74,7 @@ export function AppUnlockGate({ children }: { children: React.ReactNode }) {
     const name = userData?.displayName || user?.displayName || 'there';
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <FreenetLeaveAskOverlay {...freenetLeave} />
         <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-8 space-y-6">
           <div className="text-center space-y-2">
             <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
@@ -143,7 +147,7 @@ export function AppUnlockGate({ children }: { children: React.ReactNode }) {
 
           <button
             type="button"
-            onClick={() => void logout()}
+            onClick={() => void freenetLeave.beginLeave(() => logout())}
             className="w-full text-xs text-slate-500 hover:text-slate-800"
           >
             {freenet

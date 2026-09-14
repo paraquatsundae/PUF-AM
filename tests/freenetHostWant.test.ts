@@ -74,6 +74,19 @@ describe('computeFreenetHostWant — the other shapes', () => {
     expect(computeFreenetHostWant(input({ pipe: 'cloud' }))).toBe(false);
   });
 
+  it('a sealed Freenet session still wants a node when the pipe looks like cloud', () => {
+    expect(
+      computeFreenetHostWant(
+        input({ pipe: 'cloud', farmNetworkPacks: {}, seedCloudFarmId: null, hasMistSession: true }),
+      ),
+    ).toBe(true);
+    expect(
+      computeFreenetHostWant(
+        input({ pipe: 'cloud', farmNetworkPacks: {}, seedCloudFarmId: null, hasMistSession: false }),
+      ),
+    ).toBe(false);
+  });
+
   it('no capability, no node — whatever the farm says', () => {
     expect(computeFreenetHostWant(input({ capability: null }))).toBe(false);
   });
@@ -97,5 +110,10 @@ describe('computeFreenetHostWant — the other shapes', () => {
 
   it('no farm open, no node', () => {
     expect(computeFreenetHostWant(input({ farmId: null }))).toBe(false);
+  });
+
+  it('kill-switch hold-off clears want so the reconciler does not respawn', () => {
+    expect(computeFreenetHostWant(input({ operatorHoldOff: true }))).toBe(false);
+    expect(computeFreenetHostWant(input({ pipe: 'freenet', operatorHoldOff: true }))).toBe(false);
   });
 });

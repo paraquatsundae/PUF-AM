@@ -58,6 +58,7 @@ export async function publishCrewInviteToFreenetSlot(
       parameters: address.parameters,
       state,
       instanceIdBase58: address.instanceIdBase58,
+      trafficKind: 'invite',
     });
   } catch (error) {
     throw unavailable(error, 'the Freenet crew-invite slot publish failed');
@@ -81,7 +82,7 @@ export async function resolveCrewInviteFromFreenetSlot(
   }
 
   const address = await deriveCrewJoinSlotAddress(token);
-  const state = await readJoinSlotState(address.instanceIdBase58, options?.signal);
+  const state = await readJoinSlotState(address.instanceIdBase58, options?.signal, 'invite');
 
   let payload: Uint8Array;
   try {

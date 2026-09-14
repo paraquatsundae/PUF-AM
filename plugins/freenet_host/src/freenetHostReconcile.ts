@@ -27,6 +27,8 @@ export type FreenetHostDeps = {
   };
   /** Sink for best-effort failures; the reconciler itself never throws. */
   onError?(stage: 'status' | 'start' | 'stop', error: unknown): void;
+  /** Kill switch hold-off — do not start even when `want` is still racing. */
+  shouldStart?(): boolean;
 };
 
 export type FreenetHostReconcilerState = {
@@ -43,6 +45,7 @@ export function createFreenetHostReconciler(deps: FreenetHostDeps) {
   let chain: Promise<void> = Promise.resolve();
 
   async function bringUp(): Promise<void> {
+    if (deps.shouldStart && !deps.shouldStart()) return;
     let status: FreenetHostStatus | null = null;
     try {
       status = await deps.host.status();

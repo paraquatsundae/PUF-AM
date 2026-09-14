@@ -9,11 +9,14 @@
 
 import React, { useState } from 'react';
 import { LogOut, Loader2 } from 'lucide-react';
+import { FreenetLeaveAskOverlay } from './FreenetQuitAskDialog';
 import { useAuth } from '../contexts/AuthContext';
+import { useFreenetLeaveAsk } from '../hooks/useFreenetLeaveAsk';
 import { isFarmCodeSession } from '../lib/farmPipes';
 
 export function SettingsLeaveFarmCard() {
   const { logout, userData } = useAuth();
+  const freenetLeave = useFreenetLeaveAsk();
   const farmCode = isFarmCodeSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +25,7 @@ export function SettingsLeaveFarmCard() {
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <FreenetLeaveAskOverlay {...freenetLeave} />
       <h2 className="text-lg font-bold text-slate-900">Account</h2>
       <p className="text-sm text-slate-600 leading-relaxed">
         {farmCode ? (
@@ -54,7 +58,7 @@ export function SettingsLeaveFarmCard() {
         onClick={() => {
           setBusy(true);
           setError(null);
-          void logout().catch((err: unknown) => {
+          void freenetLeave.beginLeave(() => logout()).catch((err: unknown) => {
             setBusy(false);
             setError(err instanceof Error ? err.message : 'Could not sign out. Try again.');
           });

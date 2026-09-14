@@ -11,9 +11,19 @@
 
 import { encodeNativeAuthenticate, encodeNativeClose, toNativeFreenetWsUrl } from './freenet02-native-bincode.ts';
 import { DEFAULT_LOCAL_FREENET_WS_URL } from './freenet02-browser-get-url.ts';
+import { enqueueNativeWsRequest } from './freenet02-native-ws-queue.ts';
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 6_000;
+/** Historical spike cut-off. Opennet insert on 0.2.135 often finishes after this. */
 export const NATIVE_WS_DEFAULT_TIMEOUT_MS = 45_000;
+
+export function nativeRequestHungMessage(timeoutMs: number): string {
+  return (
+    `Freenet did not finish publishing in ${timeoutMs}ms. ` +
+    `Wait until Settings → Sync says On Opennet, then Send once. ` +
+    `If this keeps happening, quit PUF-AM via the window and choose Stop Freenet, then open the farm again.`
+  );
+}
 
 /** The subset of the WHATWG `WebSocket` constructor the native request needs. */
 export type NativeWebSocketConstructor = new (url: string) => WebSocket;
@@ -47,6 +57,7 @@ export type SendNativeRequestOptions = {
 async function messageBytes(data: unknown): Promise<Uint8Array> {
   if (data instanceof ArrayBuffer) return new Uint8Array(data);
   if (data instanceof Uint8Array) return data;
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)) return new Uint8Array(data);
   if (typeof Blob !== 'undefined' && data instanceof Blob) {
     return new Uint8Array(await data.arrayBuffer());
   }
@@ -57,19 +68,19 @@ export async function sendNativeRequest(options: SendNativeRequestOptions): Prom
   const wsUrl = toNativeFreenetWsUrl(options.wsUrl ?? DEFAULT_LOCAL_FREENET_WS_URL);
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   const requestTimeoutMs = options.requestTimeoutMs ?? NATIVE_WS_DEFAULT_TIMEOUT_MS;
-  const socket = await openSocket(
-    wsUrl,
-    connectTimeoutMs,
-    options.webSocket ?? defaultNativeWebSocket(),
-  );
+  return enqueueNativeWsRequest(async () => {
+    const socket = await openSocket(
+      wsUrl,
+      connectTimeoutMs,
+      options.webSocket ?? defaultNativeWebSocket(),
+    );
 
-  try {
-    if (options.authToken) socket.send(encodeNativeAuthenticate(options.authToken));
-    socket.send(options.frame);
-    return await readBinary(socket, wsUrl, requestTimeoutMs);
-  } finally {
-    closeSocket(socket);
-  }
+    try {
+      return await exchange(socket, options.frame, options.authToken, wsUrl, requestTimeoutMs);
+    } finally {
+      closeSocket(socket);
+    }
+  });
 }
 
 function openSocket(
@@ -127,7 +138,13 @@ function openSocket(
   });
 }
 
-function readBinary(socket: WebSocket, wsUrl: string, timeoutMs: number): Promise<Uint8Array> {
+function exchange(
+  socket: WebSocket,
+  frame: Uint8Array,
+  authToken: string | undefined,
+  wsUrl: string,
+  timeoutMs: number,
+): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     let settled = false;
 
@@ -142,14 +159,7 @@ function readBinary(socket: WebSocket, wsUrl: string, timeoutMs: number): Promis
     };
 
     const timer = setTimeout(() => {
-      finish(() =>
-        reject(
-          new FreenetNativeWsError(
-            `native request did not settle in ${timeoutMs}ms — this is the 0.2.x hang the spike is measuring`,
-            true,
-          ),
-        ),
-      );
+      finish(() => reject(new FreenetNativeWsError(nativeRequestHungMessage(timeoutMs), true)));
     }, timeoutMs);
 
     const onMessage = (event: MessageEvent) => {
@@ -174,6 +184,15 @@ function readBinary(socket: WebSocket, wsUrl: string, timeoutMs: number): Promis
     socket.addEventListener('message', onMessage);
     socket.addEventListener('error', onError);
     socket.addEventListener('close', onClose);
+
+    try {
+      if (authToken) socket.send(encodeNativeAuthenticate(authToken));
+      socket.send(frame);
+    } catch (error) {
+      finish(() =>
+        reject(new FreenetNativeWsError(error instanceof Error ? error.message : String(error))),
+      );
+    }
   });
 }
 

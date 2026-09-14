@@ -77,6 +77,65 @@ export function saveMistHotPublishStatus(status: MistHotPublishStatus): void {
   storage()?.setItem(metaKey(status.farmId), JSON.stringify(status));
 }
 
+/**
+ * Local Hot pack must not wipe the last Freenet URI/hash pair.
+ * Watch pings require that pair; a new local hash with the old URI makes
+ * other terminals GET stale bytes and fail the hash check
+ * (`Plans/SETTINGS_SYNC_AND_CREW.md` §9 Decision 2026-09-13).
+ */
+export function mergeLocalHotPackStatus(
+  farmId: string,
+  pack: Pick<
+    MistHotPublishStatus,
+    | 'publishedAt'
+    | 'contentHash'
+    | 'recordCount'
+    | 'diaryCount'
+    | 'issueCount'
+    | 'issueArchiveCount'
+    | 'encrypted'
+    | 'storageKey'
+  >,
+): void {
+  const existing = getMistHotPublishStatus(farmId);
+  const keepPublished = Boolean(existing?.freenetUri);
+  saveMistHotPublishStatus({
+    farmId,
+    publishedAt: pack.publishedAt,
+    contentHash: keepPublished && existing?.contentHash ? existing.contentHash : pack.contentHash,
+    recordCount: pack.recordCount,
+    diaryCount: pack.diaryCount,
+    issueCount: pack.issueCount,
+    issueArchiveCount: pack.issueArchiveCount,
+    encrypted: pack.encrypted,
+    storageKey: pack.storageKey,
+    ...(existing?.freenetUri
+      ? {
+          freenetUri: existing.freenetUri,
+          freenetPublishedAt: existing.freenetPublishedAt,
+          freenetPending: existing.freenetPending,
+        }
+      : {}),
+    ...(existing?.bonesFreenetUri
+      ? {
+          bonesFreenetUri: existing.bonesFreenetUri,
+          bonesFreenetPublishedAt: existing.bonesFreenetPublishedAt,
+          bonesFreenetPending: existing.bonesFreenetPending,
+          bonesContentHash: existing.bonesContentHash,
+        }
+      : {}),
+    ...(existing?.joinTicket
+      ? {
+          joinTicket: existing.joinTicket,
+          joinTicketRole: existing.joinTicketRole,
+          joinTicketPreset: existing.joinTicketPreset,
+          joinTicketExpires: existing.joinTicketExpires,
+          joinTicketMintedAt: existing.joinTicketMintedAt,
+        }
+      : {}),
+  });
+}
+
 export function clearMistHotPublishStatus(farmId: string): void {
   storage()?.removeItem(metaKey(farmId));
 }
@@ -142,18 +201,71 @@ export function getMistBonesPublishStatus(farmId: string): MistBonesPublishStatu
 }
 
 export function saveMistBonesPublishStatus(status: MistBonesPublishStatus): void {
-  storage()?.setItem(bonesMetaKey(status.farmId), JSON.stringify(status));
+  const existing = getMistBonesPublishStatus(status.farmId);
+  const publishedPair =
+    status.freenetUri && status.contentHash
+      ? { freenetUri: status.freenetUri, contentHash: status.contentHash }
+      : existing?.freenetUri && existing.contentHash
+        ? { freenetUri: existing.freenetUri, contentHash: existing.contentHash }
+        : {
+            ...(status.freenetUri ?? existing?.freenetUri
+              ? { freenetUri: status.freenetUri ?? existing?.freenetUri }
+              : {}),
+            contentHash: status.contentHash,
+          };
+  const merged: MistBonesPublishStatus = {
+    ...existing,
+    ...status,
+    ...publishedPair,
+    freenetPublishedAt: status.freenetPublishedAt ?? existing?.freenetPublishedAt,
+    freenetPending: status.freenetPending ?? existing?.freenetPending,
+  };
+  storage()?.setItem(bonesMetaKey(status.farmId), JSON.stringify(merged));
 
-  const hot = getMistHotPublishStatus(status.farmId);
-  if (hot) {
+  const hot = getMistHotPublishStatus(merged.farmId);
+  if (hot && merged.freenetUri && merged.contentHash) {
     saveMistHotPublishStatus({
       ...hot,
-      bonesFreenetUri: status.freenetUri ?? hot.bonesFreenetUri,
-      bonesFreenetPublishedAt: status.freenetPublishedAt ?? hot.bonesFreenetPublishedAt,
-      bonesFreenetPending: status.freenetPending ?? hot.bonesFreenetPending,
-      bonesContentHash: status.contentHash,
+      bonesFreenetUri: merged.freenetUri,
+      bonesFreenetPublishedAt: merged.freenetPublishedAt ?? hot.bonesFreenetPublishedAt,
+      bonesFreenetPending: merged.freenetPending ?? hot.bonesFreenetPending,
+      bonesContentHash: merged.contentHash,
     });
   }
+}
+
+/** Last Freenet Bones URI+hash that may ride a watch ping — never mix a new local hash with an old URI. */
+export function bonesWatchPairFromStatus(
+  farmId: string,
+): { bonesUri: string; bonesContentHash: string } | null {
+  const bones = getMistBonesPublishStatus(farmId);
+  if (bones?.freenetUri && bones.contentHash) {
+    return { bonesUri: bones.freenetUri, bonesContentHash: bones.contentHash };
+  }
+  const hot = getMistHotPublishStatus(farmId);
+  if (hot?.bonesFreenetUri && hot.bonesContentHash) {
+    return { bonesUri: hot.bonesFreenetUri, bonesContentHash: hot.bonesContentHash };
+  }
+  return null;
+}
+
+const BONES_PENDING_PREFIX = 'pufam.mist.bonesPending.v1';
+
+function pendingKey(farmId: string): string {
+  return `${BONES_PENDING_PREFIX}.${farmId}`;
+}
+
+/** Local paddock/pin/track save that still needs a Freenet Bones PUT + watch bump. */
+export function markBonesPublishPending(farmId: string): void {
+  storage()?.setItem(pendingKey(farmId), new Date().toISOString());
+}
+
+export function clearBonesPublishPending(farmId: string): void {
+  storage()?.removeItem(pendingKey(farmId));
+}
+
+export function isBonesPublishPending(farmId: string): boolean {
+  return Boolean(storage()?.getItem(pendingKey(farmId)));
 }
 
 export function saveFreenetBonesUri(

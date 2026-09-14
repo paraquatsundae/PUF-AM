@@ -57,7 +57,6 @@ import {
 import { MODULE_LABELS, type FarmModuleId } from '../../../shared/auth/farmModules.ts';
 import { packModulesToExclude } from '../../../shared/farm/cropPacks.ts';
 import { useCropPackActivation } from '../../../src/hooks/useCropPackActivation';
-import { isMistExperimentalEnabled } from '../../../src/mist/farmStoreBackend.ts';
 import { isFreenetHostPluginAvailable } from '../../../src/lib/androidFreenetHost.ts';
 import {
   FREENET_CREW_CANNOT_SEND,
@@ -336,8 +335,8 @@ export function MistFarmSyncCard() {
     setMode(getMistHotPublishStatus(farmId)?.freenetUri ? 'send' : 'join');
   }, [farmId, modePinned]);
 
-  if (!isMistExperimentalEnabled()) return null;
-
+  // Visibility is Settings XOR / workshop (`showFreenetFarmTools`) — do not
+  // sniff `VITE_MIST_EXPERIMENTAL` here (`Plans/SETTINGS_SYNC_AND_CREW.md` §1).
   const canSend = mistSessionCanSendFarm(getMistSessionMeta());
   const readiness = describeFreenetSyncReadiness({
     peer: peerStatus,
@@ -346,6 +345,7 @@ export function MistFarmSyncCard() {
     runtime,
     lookingForHub,
     canStartOwnNode,
+    ...(hostStatus?.nodeRing ? { peerCount: hostStatus.nodeRing.peerCount } : {}),
   });
   const blockedTitle = freenetSendBlockedTitle({ canSend, hasNode, readOnly });
   const parsedPaste = parseJoinTicketInput(paste);
@@ -387,7 +387,7 @@ export function MistFarmSyncCard() {
         }
       }
       if (android && !canReachFreenetNode(detectFreenetRuntime())) {
-        throw new Error('Freenet on this tablet is still starting — wait a moment and try again.');
+        throw new Error('Freenet on this device is still starting — wait a moment and try again.');
       }
       const status = await startFreenetPeer({ contribute: false });
       setPeerStatus(status);

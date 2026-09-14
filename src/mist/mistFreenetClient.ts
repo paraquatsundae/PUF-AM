@@ -36,6 +36,7 @@ import {
   type JoinPresetId,
 } from '../../shared/sync/joinGrant.ts';
 import { apiHubMissing } from '../lib/apiBase.ts';
+import { withFreenetFarmPublishLock } from './freenetPublishLock.ts';
 import { BONES_FARM_GEOMETRY_ASSET_ID } from './bonesGeometry.ts';
 import {
   localFreenetSearchBudgetMs,
@@ -321,7 +322,11 @@ export async function publishBonesToFreenet(
   rememberUri('bones', farmId, result);
   try {
     const { publishHotWatchAfterBonesPut } = await import('./hotWatchSync.ts');
-    await publishHotWatchAfterBonesPut(farmId);
+    const ping = await publishHotWatchAfterBonesPut(farmId);
+    if (ping) {
+      const { clearBonesPublishPending } = await import('./mistHotPublishMeta.ts');
+      clearBonesPublishPending(farmId);
+    }
   } catch (error) {
     console.warn('[mistFreenetClient] Hot watch slot update after Bones failed:', error);
   }
@@ -414,6 +419,7 @@ export async function publishFarmToFreenet(
     hybrid?: HybridPublishSource;
   },
 ): Promise<PublishFarmToFreenetResult> {
+  return withFreenetFarmPublishLock(async () => {
   const hybrid = options?.hybrid;
   const hot = await publishHotToFreenet(farmId, options?.devicePin, hybrid);
   const bones = await publishBonesToFreenet(farmId, options?.devicePin, hybrid);
@@ -522,6 +528,7 @@ export async function publishFarmToFreenet(
     ...(shortTicketOnFreenet ? { shortTicketOnFreenet } : {}),
     ...(shortTicketError ? { shortTicketError } : {}),
   };
+  });
 }
 
 /**

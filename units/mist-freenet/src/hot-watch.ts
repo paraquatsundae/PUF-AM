@@ -198,22 +198,33 @@ export function parseHotWatchPing(value: unknown): HotWatchPing | null {
 export type HotWatchChangeCursor = {
   generation: number;
   hotContentHash: string;
+  /** Last applied Hot CHK — Send mints a new URI even when the hash is slow to move. */
+  hotUri?: string;
   bonesContentHash?: string;
+  /** Last applied Bones CHK — pack PUT mints a new URI each time. */
+  bonesUri?: string;
   photoIndexHash?: string;
 };
 
 export function hotWatchPingChanged(
   local: HotWatchChangeCursor | null,
   remote: Pick<HotWatchPing, 'generation' | 'hotContentHash'> & {
+    hotUri?: string;
+    bonesUri?: string;
     bonesContentHash?: string;
     photoIndexHash?: string;
   },
 ): boolean {
   if (!local) return true;
-  const hotChanged = remote.hotContentHash !== local.hotContentHash;
-  const bonesChanged =
+  const hashChanged = remote.hotContentHash !== local.hotContentHash;
+  const uriChanged = Boolean(remote.hotUri && local.hotUri && remote.hotUri !== local.hotUri);
+  const hotChanged = hashChanged || uriChanged;
+  const bonesHashChanged =
     Boolean(remote.bonesContentHash) &&
     remote.bonesContentHash !== (local.bonesContentHash ?? '');
+  const bonesUriChanged =
+    Boolean(remote.bonesUri && local.bonesUri && remote.bonesUri !== local.bonesUri);
+  const bonesChanged = bonesHashChanged || bonesUriChanged;
   const photoChanged =
     Boolean(remote.photoIndexHash) &&
     remote.photoIndexHash !== (local.photoIndexHash ?? '');

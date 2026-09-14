@@ -21,8 +21,11 @@ import {
 } from './bonesGeometry.ts';
 import { ensureBrowserMistStore } from './createFarmStore.ts';
 import { hasMistDeviceSession, mistSessionCloudFarmId } from './mistDeviceSession.ts';
+import { isFreenetHostHoldOff } from '../lib/freenetHostHoldOff.ts';
+import { freenetFarmPublishInFlight } from './freenetPublishLock.ts';
 import {
-  getMistHotPublishStatus,
+  isBonesPublishPending,
+  markBonesPublishPending,
   saveMistBonesPublishStatus,
   type MistBonesPublishStatus,
 } from './mistHotPublishMeta.ts';
@@ -196,15 +199,16 @@ export async function getMistStoreForBonesBridge(): Promise<MistStore | null> {
 /**
  * Debounced auto-publish after local paddock / pin / track writes.
  *
- * Writes local bones, PUTs to Freenet, bumps the Hot-watch slot with a bones
- * hash so the other terminal's 20s poll sees geometry change
+ * Marks pending immediately so a successful local save cannot skip the
+ * Freenet PUT. Retries from the 20 s watch poll until PUT + watch succeed
  * (`Plans/SETTINGS_SYNC_AND_CREW.md` §9 Decision 2026-09-13).
  *
  * Skipped on a hybrid device: same Send-only rule as Hot.
  */
 export function scheduleMistBonesAutoPublish(farmId: string): void {
-  if (!isMistHotMirrorAvailable()) return;
   if (mistSessionCloudFarmId()) return;
+  markBonesPublishPending(farmId);
+  if (!isMistHotMirrorAvailable()) return;
 
   const existing = autoPublishTimers.get(farmId);
   if (existing) clearTimeout(existing);
@@ -213,16 +217,31 @@ export function scheduleMistBonesAutoPublish(farmId: string): void {
     farmId,
     setTimeout(() => {
       autoPublishTimers.delete(farmId);
-      void publishLocalGeometryToMistBones(farmId, undefined, { auto: true })
-        .then((result) => {
-          if (!result) return;
-          return import('./mistFreenetClient.ts').then(({ publishBonesToFreenet }) =>
-            publishBonesToFreenet(farmId),
-          );
-        })
-        .catch((err) => {
-          console.warn('[mistBonesBridge] auto-publish failed:', err);
-        });
+      void flushPendingBonesAutoPublish(farmId);
     }, AUTO_PUBLISH_DEBOUNCE_MS),
   );
+}
+
+/**
+ * PUT Bones + bump watch when a paddock save is still pending.
+ * Keeps the pending flag if keys are locked, Opennet is down, or Send is in flight.
+ */
+export async function flushPendingBonesAutoPublish(farmId: string): Promise<boolean> {
+  if (!farmId || mistSessionCloudFarmId()) return false;
+  if (!isBonesPublishPending(farmId)) return false;
+  if (!isMistHotMirrorAvailable()) return false;
+  if (isFreenetHostHoldOff()) return false;
+  if (freenetFarmPublishInFlight()) return false;
+
+  try {
+    const packed = await publishLocalGeometryToMistBones(farmId, undefined, { auto: true });
+    if (!packed) return false;
+    const { publishBonesToFreenet } = await import('./mistFreenetClient.ts');
+    await publishBonesToFreenet(farmId);
+    if (!isBonesPublishPending(farmId)) return true;
+    return false;
+  } catch (err) {
+    console.warn('[mistBonesBridge] auto-publish failed:', err);
+    return false;
+  }
 }

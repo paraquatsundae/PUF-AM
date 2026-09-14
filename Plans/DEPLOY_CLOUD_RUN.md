@@ -314,7 +314,7 @@ Workflow: [`.github/workflows/release-apk.yml`](../.github/workflows/release-apk
 | Trigger | Result |
 |---------|--------|
 | **Actions → Release Android APK → Run workflow** | Builds debug APK (default) or release if signing secrets present; uploads a GitHub Release |
-| Push tag `v*` (e.g. `v0.1.0`) | Same |
+| Push tag `v*` (e.g. `v0.0.2` workshop; public **v 0.1** is a future `v0.1.0`) | Same |
 
 Default artefact name on the release: **`PUFAM.apk`**.
 
@@ -338,9 +338,9 @@ gh secret set FIREBASE_APPLET_CONFIG --repo paraquatsundae/PUF-AM < firebase-app
 
 ```bash
 gh workflow run release-apk.yml --repo paraquatsundae/PUF-AM
-# or tag:
-git tag v0.1.0
-git push origin v0.1.0
+# or tag (workshop bake; public v 0.1 is a future v0.1.0 — Plans/NAMING.md §2):
+git tag v0.0.2
+git push origin v0.0.2
 ```
 
 ### Signed release APK (optional later)

@@ -50,6 +50,7 @@ export async function publishHotWatchSlot(
       parameters: address.parameters,
       state,
       instanceIdBase58: address.instanceIdBase58,
+      trafficKind: 'watch',
     });
   } catch (error) {
     throw unavailable(error, 'the Freenet Hot watch slot publish failed');
@@ -62,7 +63,7 @@ export async function readHotWatchSlot(
   options?: { signal?: AbortSignal },
 ): Promise<HotWatchPing> {
   const address = await deriveHotWatchSlotAddress(hotKey);
-  const state = await readJoinSlotState(address.instanceIdBase58, options?.signal);
+  const state = await readJoinSlotState(address.instanceIdBase58, options?.signal, 'watch');
 
   let payload: Uint8Array;
   try {

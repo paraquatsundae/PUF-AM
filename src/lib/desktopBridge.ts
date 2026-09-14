@@ -9,6 +9,8 @@
 
 import type {
   FreenetHostStatus,
+  FreenetKillSwitchOptions,
+  FreenetKillSwitchResult,
   FreenetPutCiphertextResult,
   FreenetSlotPutInput,
   FreenetSlotPutResult,
@@ -24,6 +26,7 @@ export type DesktopFreenetBridge = {
   status(): Promise<FreenetHostStatus | null>;
   start(): Promise<FreenetHostStatus | null>;
   stop(): Promise<FreenetHostStatus | null>;
+  stopAllOurs?(options?: FreenetKillSwitchOptions): Promise<FreenetKillSwitchResult>;
   /** Subscribe to host state changes. Returns an unsubscribe function. */
   onState(listener: (status: FreenetHostStatus) => void): () => void;
   /** Ciphertext only — main refuses anything that is not an AEAD envelope. `key` is the mist storage key, used as the guard's kind hint. */

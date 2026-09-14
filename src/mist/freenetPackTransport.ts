@@ -19,6 +19,7 @@
  */
 
 import type { FreenetPeerStatus } from '../../units/mist-freenet/src/freenet-peer.ts';
+import type { FreenetContractSlotKind } from '../../units/puf-freenet-host/src/contract-traffic.ts';
 import type { FreenetHostCapability } from '../lib/freenetHostCapability.ts';
 
 export type FreenetTransportKind = 'host' | 'relay';
@@ -75,6 +76,8 @@ export type FreenetSlotPublishInput = {
   /** Signed and sealed `PUFSLOT1` state, whole. */
   state: Uint8Array;
   instanceIdBase58: string;
+  /** Settings ring label — not sent on the wire. */
+  trafficKind?: FreenetContractSlotKind;
 };
 
 export type FreenetSlotPublishOutcome = {
@@ -122,7 +125,10 @@ export interface FreenetPackTransport {
 
   slotPublish(input: FreenetSlotPublishInput): Promise<FreenetSlotPublishOutcome>;
   /** Signed slot state, unverified — the caller checks the signature. Throws `not-found`. */
-  slotRead(instanceIdBase58: string, options?: { signal?: AbortSignal }): Promise<Uint8Array>;
+  slotRead(
+    instanceIdBase58: string,
+    options?: { signal?: AbortSignal; trafficKind?: FreenetContractSlotKind },
+  ): Promise<Uint8Array>;
 }
 
 /**

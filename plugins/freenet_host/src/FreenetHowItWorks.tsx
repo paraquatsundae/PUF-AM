@@ -135,7 +135,7 @@ export function FreenetHowItWorksBody() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-slate-900">Add a person</h3>
         <ol className="list-decimal pl-5 space-y-1">
-          <li>On the owner&apos;s PUF-AM (tablet or laptop), Settings → Sync → Send this farm.</li>
+          <li>On the owner&apos;s PUF-AM (phone, tablet, or laptop), Settings → Sync → Send this farm.</li>
           <li>Pick who it is for (a label on this computer) and what they may see.</li>
           <li>
             Read out the new <span className="font-mono">PUF-</span> crew invite. They type only
@@ -161,7 +161,7 @@ export function FreenetHowItWorksBody() {
           <li>Crew never need the FarmCode. Revoking an invite stops new joins, not a copy already fetched.</li>
         </ol>
         <p>
-          A tablet or laptop that created or recovered the farm can Send through its own Freenet
+          A device that created or recovered the farm can Send through its own Freenet
           node. Crew devices Pull and watch — they do not need a laptop hub. Two owner devices
           can hand a farm to each other with no second Freenet app.
         </p>
