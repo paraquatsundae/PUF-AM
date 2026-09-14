@@ -38,7 +38,8 @@ Browser, Capacitor WebView, and Electron renderer all use the same set — Elect
 | `sentinut_farm_geometry` | `geometry`, `pending` | Blocks, pins, tracks, saved viewport — one row per farm; `pending` is the geometry outbox | **Authoritative** on mist / local-first; mirrored to Firestore on Firebase | [`farmGeometryIdb.ts`](../src/lib/farmGeometryIdb.ts), [`farmGeometrySync.ts`](../src/lib/farmGeometrySync.ts) |
 | `sentinut_basemap` | `basemap_packs`, `basemap_tiles` | Offline Esri tile packs: one pack row per farm, tiles keyed by `z/x/y` | **Cache** — re-downloadable, but expensive on shed Wi-Fi | [`basemapPack.ts`](../src/lib/basemapPack.ts) |
 | `pufom_weather_cache` | `stations` | DPIRD station observations mirrored for offline blight/chill | **Cache** — derived, re-fetchable | [`weatherCacheIdb.ts`](../src/lib/weatherCacheIdb.ts) |
-| `pufom_photo_outbox` | `photos` | Issue photo blobs queued for Firebase Storage | **Queue** — the only copy until upload succeeds | [`photoOutbox.ts`](../src/lib/photoOutbox.ts) |
+| `pufom_photo_outbox` | `photos` | Issue **and diary/event** photo blobs queued for Firebase Storage | **Queue** — the only copy until upload succeeds | [`photoOutbox.ts`](../src/lib/photoOutbox.ts) |
+| `pufam_issue_photos` | `photos` | Compressed issue **and event** JPEGs (Freenet display + pre-upload). Decision — 2026-09-14 | **Authoritative** for Freenet photo bytes on this device until the peer GET | [`issuePhotoCache.ts`](../src/lib/issuePhotoCache.ts) |
 | `pufam-mist-v1` | `entries`, `state` | `IndexedDbMistStore`: sealed mist entries keyed `mist/v1/farm/{farmId}/…`, plus persisted `contribute` flag | **Cache** of sealed payloads | [`units/mist-freenet/src/indexeddb-mist-store.ts`](../units/mist-freenet/src/indexeddb-mist-store.ts) |
 | Firebase-managed | SDK internal | Auth token persistence, Firestore offline cache | SDK-owned — do not touch | `firebase` SDK |
 
@@ -87,6 +88,7 @@ Legacy keys are still read so an operator upgrading from an old APK does not los
 | `pufam.mist.hotPublish.v1.{farmId}` | Last Hot publish: content hash, record counts, **FN02 Hot URI**, bones URI + hash, minted join ticket, role, expiry | **Authoritative** for "where this farm is on Freenet" — see below |
 | `pufam.mist.hotWatch.v1.{farmId}` | Last applied Hot-watch generation + hash + URI (2026-09-12). Cheap ping cursor — not FarmSeed | Cache of “what this device last fetched” |
 | `pufam.mist.bonesPublish.v1.{farmId}` | Same for the geometry bones publish | As above |
+| `pufam.mist.photoIndex.v1.{farmId}` | Last Freenet photo-index URI + hash (2026-09-14) | Cache of “which photos this device last published / applied” |
 
 **`pufam.mist.hotPublish.v1.*` is more load-bearing than it looks.** It holds the FN02 URIs this device published. Freenet has them, but nothing on the network will tell you the address — losing this row means a joiner needs a join ticket from the owner's hub, and the owner needs to publish again. It is not a cache.
 
@@ -120,7 +122,9 @@ Authoritative for a **Firebase farm**. Reproduced from [`NAMING.md`](NAMING.md) 
 | `access_pins/{hash}` | Invite PIN hashes — **admin SDK only** |
 | `chill_cache/{station-season}`, `weather_cache/…` | Shared aggregates, DPIRD cache |
 
-Firebase Storage holds issue photos, uploaded from `pufom_photo_outbox`.
+Firebase Storage holds issue photos at `farms/{farmId}/issues/{issueId}/{photoId}.jpg` (`photo.jpg` is first/legacy) and diary photos at `farms/{farmId}/events/{eventId}/{photoId}.jpg`, uploaded from `pufom_photo_outbox`. Max 5 per issue and per event. Who / where / when live on the record, not in the file name.
+
+**Decision — 2026-09-14 (photos: keep path, ≤5 per issue, diary/events, record metadata + stable file id, flat export + Freenet-miss warning).** Do not rename `photo.jpg`. Diary wire is `events`. Freenet event slots are HotKey-only under `hot/photo/event/{eventId}/…`. Export zip is flat (`photos/{id}_{photoId}.jpg`); warn when the index / `hasPhoto` says a photo exists but this device has no JPEG in `pufam_issue_photos`. See [`NAMING.md`](NAMING.md) §8 and [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md).
 
 **Local kind → Firestore collection mapping** lives in [`flushFarmOutbox.ts`](../src/lib/flushFarmOutbox.ts) (`diary` → `events`).
 

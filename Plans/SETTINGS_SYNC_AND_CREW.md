@@ -70,6 +70,7 @@ Derived helpers — use these, do not re-derive:
 |--------|-----|
 | `activeFarmPipe()` | Branch copy (`farmPipe === 'freenet' ? … : …`). |
 | `isFreenetFarm()` / `isCloudFarm()` | Guard a single call site. |
+| `usesCloudSyncOutbox()` | This farm has a Firestore outbox (hosted/BYO, hybrid member). False on Freenet-native and a hybrid mirror. Workshop still reports cloud; writers also check `isLocalOnlyFarmSession()`. |
 | `activeFarmPipes()` | `{ lan: true, cloud, freenet, files: true }` for render lists. |
 | `showFreenetFarmTools()` | The XOR rule plus its one bench exception (below). |
 | `farmPipeLabel()` | Operator words for this farm's second pipe. |
@@ -635,6 +636,38 @@ The 0.2.135 host plugin has no usable subscribe; this is an honest poll, not a p
 Hybrid mirrors stay fetch-on-press (Phase 1). Highlight save on a publishing
 device PUTs Hot and bumps the slot — no Settings → Sync → Pull. Default Freenet
 highlight duration is **300 s** so the area outlives Opennet.
+
+**Decision — 2026-09-13 (map pending is cloud-only).** Map geometry may queue a
+Firestore outbox (`farmGeometrySync` / the map-top *pending sync* chip) only when
+`usesCloudSyncOutbox()` is true — hosted and BYO Firebase farms, and a hybrid
+member. A Freenet-native session (and a hybrid mirror) must not enqueue "needs
+cloud write": there is no Firebase farm, so Retry used to sit on *waiting to
+sync map to the farm cloud* forever. Settings → Sync on those farms runs the
+Freenet path (`ensureFreenetHostListening`, then the §9 ladder: LAN sealed /
+Hot+bones / watch). Nothing above is renumbered. Hybrid UI stays unset until a
+farm turns it on.
+
+**Decision — 2026-09-13 (Bones on the Hot watch).** Freenet map geometry
+(paddocks, pins, tracks) was saving IndexedDB-only after the cloud outbox was
+turned off. A save now **PUTs Bones** (BonesKey; crew or owner) and the existing
+HotKey watch ping carries optional `bonesUri` / `bonesContentHash` so the other
+terminal’s 20 s poll fetches geometry when that hash changes. Apply is LWW union
+by id — not `rehydrateFarmGeometryFromBones`, not `isLoaded: false`. Viewport
+saves stay local. Cloud farms still use the Firestore geometry outbox only.
+Nothing above is renumbered.
+
+**Decision — 2026-09-14 (issue photos on the Hot watch).** Same 20 s slot, new
+optional `photoIndexUri` / `photoIndexHash`. A photo is one compressed JPEG
+(1600 px long edge, quality 0.72, **600 KB** hard cap — reject if still over),
+sealed with **HotKey**, never FarmSeed. The sending terminal does **not** PUT
+the whole Hot farm for a photo; the other terminal fetches the index when that
+hash changes, then only photo blobs whose hash is new. Hosted farms use the
+same compressor and upload only the compressed file to the existing Storage
+path. Firestore outbox stays off on Freenet-native farms. Map chrome must not
+say “sync to cloud” for a Freenet photo. **Same day:** keep `photo.jpg` as
+first/legacy; ≤5 photos per issue; diary photos wire as `events` (`hot/photo/event/{eventId}/…`,
+HotKey only); who/where/when on the record; export zip stays flat and **warns**
+when Freenet-cached JPEGs are missing. Nothing above is renumbered.
 
 ### The Wi‑Fi rung for a Freenet farm
 

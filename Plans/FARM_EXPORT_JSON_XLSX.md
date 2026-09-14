@@ -157,8 +157,8 @@ farm-export.zip
     └── ...
 ```
 
-- **Filenames:** `{issueId}.jpg` (or `.webp`) keyed by issue `id`; skip rows with no local thumbnail/blob.
-- **Compression:** resize to a **soft max dimension** (e.g. 1280 px long edge) and quality (e.g. JPEG 80) — records-only, not hi-res.
+- **Filenames (Decision — 2026-09-14):** flat `photos/{issueId}_{photoId}.jpg` and `photos/{eventId}_{photoId}.jpg`. Do not put paddock or person names in the file. If `hasPhoto` / the Freenet index says a JPEG exists but `pufam_issue_photos` has no bytes, write `photos/MISSING.txt` and warn in Settings — do not silently omit.
+- **Compression:** same farm compressor as upload (1600 px / JPEG 0.72 / 600 KB cap) when the bytes are already on-device.
 - **Standalone layout:** same `photos/` folder may ship next to a loose `farm-export.json` without wrapping zip when the share target prefers separate files.
 - **Not included:** original camera resolution, base64 in JSON, or images embedded in xlsx cells.
 - **Out of scope here:** hi-res on-device retention and **Reticulum** peer transfer — separate from farm-export.

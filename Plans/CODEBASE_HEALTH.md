@@ -210,6 +210,12 @@ After a review: triage take / dismiss / later; prepend a short note to the check
 
 Newest first. Short table here; full command output in [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md).
 
+### 2026-09-14
+
+Issue-photo slice: new lib files `photoCompress.ts`, `issuePhotoMeta.ts`, `issuePhotoCache.ts`, `attachIssuePhoto.ts` (one job each, under the 400 soft cap). Mist photo seal/PUT stays in `src/mist/` (out of the size scan). No new React in `lib/`.
+
+Same day (≤5 + diary/events): `farmPhoto.ts` (ids/paths/max), `attachEventPhoto.ts`, `farmExportPhotos.ts`. `IssuePhotoField` grew into a multi-photo picker. Still no React in `lib/`.
+
 ### 2026-09-09
 
 Procedure A green on 8 Sep (1116 tests). `KNOWN_OVERSIZE` is still Freenet only. In-scope nearest the 600 cap: `mapStore.ts` 599, `mapDrawHelpers.ts` 591.

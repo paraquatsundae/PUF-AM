@@ -227,9 +227,9 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 
 ### Hole 5 — Two tablets, no laptop (open)
 
-**Today (2026-09-12):** Desktop hosts Freenet inside the AppImage when a Freenet farm is open. The debug APK now packs a workshop-built 0.2.135 `libfreenet.so` and the isolated `:freenet` service will spawn it when `:7509` is free. Attach-if-port-taken still wins if Freenet Android Node (or anything else) already owns the port. Hole stays open until two devices exchange with **no** second Freenet app.
+**Today (2026-09-13):** Desktop hosts Freenet inside the AppImage when a Freenet farm is open — join/Send/Sync start the bundled linux-x64 0.2.135 node (`resources/freenet/freenet`); `MIST_FREENET=1` is a workshop override only. The debug APK packs a workshop-built 0.2.135 `libfreenet.so` and the isolated `:freenet` service spawns it when `:7509` is free. Attach-if-port-taken still wins if anything else already owns the port. Hole stays open until two devices exchange with **no** second Freenet app.
 
-**Do:** keep pointing at a laptop hub. How this works already says this. **Do not:** fake a tablet Send, or ship a half-node in the APK. **When:** [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 3, detailed in [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) — not this workstream. Decided 2026-09-10 (decision 3 above): the answer is a whole node in an isolated process, after desktop has moved to native PUT (Phase 2).
+**Do:** start the in-app node (AppImage `resources/freenet/freenet` / APK `libfreenet.so`). A laptop hub is an optional LAN fast path. **Do not:** tell a Freenet farm it must pair a hub, or require Freenet Android Node. **When:** [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 3, detailed in [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md). Decided 2026-09-10 (decision 3 above): the answer is a whole node in an isolated process.
 
 ---
 
@@ -294,7 +294,7 @@ The guard is the load-bearing part: as a throw inside `put()` it is a rule that 
 |---------------|-----|------------------------|
 | **Everything in a Firebase farm** — unless the farm turned its mirror on | Different backend entirely. A hybrid farm (§ 4a, 2026-09-11) publishes its sealed export envelope on Send, and only then; roles, PINs, membership, presence stay in Firestore | Firestore |
 | **The FarmSeed of a hybrid farm** | Only the public mist FarmId and the enabled flag go on the farm doc | Paper; `pufam.mist.session.v1` per device |
-| **Issue photos** | Blobs, not KiB-class; no splitfile path in v1 | `pufom_photo_outbox` IDB → Firebase Storage |
+| **Issue photos (splitfile)** | Multi-block Freenet splitfile is deferred | Compressed JPEG ≤ 600 KB (2026-09-14): HotKey-sealed at `hot/photo/{issueId}/{photoId}` (legacy first photo `hot/photo/{issueId}`) + one photo index; diary/events at `hot/photo/event/{eventId}/{photoId}`; hosted `pufom_photo_outbox` → `photo.jpg` kept as first + `{photoId}.jpg` (max 5). Same index hash still drives the 20 s watch |
 | **Basemap / Esri tile packs** | Tens of MB; bones design names them as a later splitfile case | `sentinut_basemap` IDB, device transfer |
 | **Weather cache** | Derived from DPIRD; re-fetchable, farm-independent | `pufom_weather_cache` IDB |
 | **Crew presence / live GPS** | Ephemeral by design — never Freenet (coarse “last seen” over Freenet is a frozen later design, `SETTINGS_SYNC_AND_CREW.md` §5) | Firestore `presence/`, LAN presence routes |

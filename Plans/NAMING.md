@@ -126,7 +126,8 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `sentinut_farm_geometry` | `farmGeometryIdb.ts` | Sentinut | Blocks, pins, tracks, viewport — **keep** |
 | `sentinut_basemap` | `basemapPack.ts` | Sentinut | Esri tile packs — **keep** |
 | `pufom_weather_cache` | `weatherCacheIdb.ts` | PUFOM | Device weather mirror — **keep** |
-| `pufom_photo_outbox` | `photoOutbox.ts` | PUFOM | Issue photo upload queue — **keep** |
+| `pufom_photo_outbox` | `photoOutbox.ts` | PUFOM | Issue + diary/event photo upload queue (Firebase Storage) — **keep** |
+| `pufam_issue_photos` | `issuePhotoCache.ts` | **Preferred** | Compressed issue **and diary/event** JPEGs for display / Freenet — added 2026-09-14; events added same day (Decision — 2026-09-14 photos) |
 | `pufam-mist-v1` | `units/mist-freenet` | **Preferred** mist | MistStore persistence — new mist-only |
 | Firebase Auth / Firestore | SDK-managed | — | Not renamed |
 
@@ -173,6 +174,7 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.mist.hotPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — last Hot publish hash/ts, FN02 URIs, minted join ticket |
 | `pufam.mist.hotWatch.v1.{farmId}` | `hotWatchSync.ts` — last applied Hot-watch generation + hash + URI. Added 2026-09-12 |
 | `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
+| `pufam.mist.photoIndex.v1.{farmId}` | `mistPhotoBridge.ts` — last Freenet photo-index URI + hash. Added 2026-09-14 |
 | `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag lives on its farm doc instead — `farms/{farmId}.networkPacks.freenet_host`, §8 below (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
 | `pufam.mist.joinTicketDraft.v1` | `sessionStorage`, ticket only (`PUF-XXXX-XXXX`). Written by the login Freenet join step when a ticket was typed before the FarmCode; the join-ticket gate reads then clears it. **Never the FarmCode.** Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
 | `pufam.freenetHost.farmCodePromptDismissed.v1` | `localStorage` JSON map of cloud `farmId` → ISO time. Hides the post-sign-in “enter the FarmCode” prompt on that device for that farm. Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
@@ -245,8 +247,8 @@ Top-level collections (production):
 |------|---------|
 | `farms/{farmId}` | Farm doc (`enabledModules`, `farmProfile`, `cropPacks`, `networkPacks`, …) |
 | `farms/{farmId}.networkPacks.freenet_host` | Network-pack state for a **hybrid** farm: `{ enabled: boolean, mistFarmId: string, changedAt: ISO string, changedBy: uid }`. `mistFarmId` is the Freenet address family (derived from the FarmCode, not a secret) and survives `enabled: false` so re-enabling keeps the same mirror. **No FarmSeed, ever.** Owner/admin write, members read — same authority as `cropPacks`. Resolver `shared/farm/networkPacks.ts`; read through the existing farm-doc listener in `AuthContext`. Added 2026-09-11 (`FREENET_NETWORK_PACK.md` §3) |
-| `farms/{farmId}/events/{id}` | Diary events (maps from local `diary` kind) |
-| `farms/{farmId}/issues/{id}` | Active field issues |
+| `farms/{farmId}/events/{id}` | Diary events (maps from local `diary` kind). Optional `photos[]` metadata — JPEG bytes live in Storage / Freenet, not in the doc |
+| `farms/{farmId}/issues/{id}` | Active field issues. Optional `photos[]` (≤5); first/legacy `photoUrl` still points at `photo.jpg` |
 | `farms/{farmId}/archived_issues/{id}` | Archived issues |
 | `farms/{farmId}/blocks|pins|tracks|viewport/…` | Map geometry (cloud mirror) |
 | `farms/{farmId}/settings/{doc}` | e.g. `safety`, `model_params` |
@@ -264,6 +266,16 @@ Top-level collections (production):
 | `weather_cache/…` | DPIRD station cache (functions) |
 
 **Naming rule:** Subcollection ids are **domain nouns** (`events`, not `diary`), while local IndexedDB uses kind `diary` — mapping lives in `flushFarmOutbox.ts`. Timed map overlays: local kind `map_highlights` → `farms/{farmId}/mapHighlights/{id}`.
+
+**Firebase Storage (photos — Decision — 2026-09-14):**
+
+| Path | Use |
+|------|-----|
+| `farms/{farmId}/issues/{issueId}/photo.jpg` | First / legacy issue photo — **do not rename** |
+| `farms/{farmId}/issues/{issueId}/{photoId}.jpg` | Extra issue photos (same folder; `photoId` is opaque, never a paddock or person name) |
+| `farms/{farmId}/events/{eventId}/{photoId}.jpg` | Diary photos (wire `events`; UI still says diary) |
+
+Export zip is flat: `photos/{issueId}_{photoId}.jpg` and `photos/{eventId}_{photoId}.jpg`. Who / where / when live on the record (`createdAt`, `createdBy`, optional `blockId`, `directedAt*` only when the diary/highlight already has an assignee). Max **5** photos per issue and per event. Freenet: `mist/v1/farm/{id}/hot/photo/{issueId}/{photoId}` (legacy first photo stays `hot/photo/{issueId}`) and `mist/v1/farm/{id}/hot/photo/event/{eventId}/{photoId}` — HotKey only, never FarmSeed.
 
 ---
 

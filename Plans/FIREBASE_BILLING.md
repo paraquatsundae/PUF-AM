@@ -96,8 +96,8 @@ having the service switched on.**
 | `farms/{id}/presence/{uid}` | **Writes + fan-out reads + egress** | `PRESENCE_UPSERT_MS = 500` — two writes per second per device, each carrying a ~2 minute bread trail (`TRAIL_WINDOW_MS`, capped 250 points). Every write fans out to every `subscribeFarmPresence` listener as a billable read. |
 | `farms/{id}/issues` | **Reads + egress** | `fieldStore` polls the whole collection every **30 s** per device (`getDocs`, not a delta). Each poll bills one read per issue *and re-downloads the document*, including `photoData`. |
 | `farms/{id}/archived_issues` | Reads + egress | Same shape, 60 s poll. |
-| `photoData` on an issue doc | **Egress multiplier** | `MAX_PHOTO_DATA_BYTES = 800_000` — a base64 JPEG preview living *inside* the Firestore document, re-sent on every poll. |
-| Firebase Storage `farms/{id}/issues/**` | Storage + egress | Full-size photo, ≤ 8 MB by `storage.rules`. Nutrition reports ≤ 20 MB. |
+| `photoData` on an issue doc | **Egress multiplier** | `MAX_PHOTO_DATA_BYTES = 800_000` — a base64 JPEG preview living *inside* the Firestore document, re-sent on every poll. **New photos (2026-09-14) do not write `photoData`** — preview stays on-device; the issue doc keeps `photoUrl` after Storage upload. |
+| Firebase Storage `farms/{id}/issues/**` and `farms/{id}/events/**` | Storage + egress | Client compresses first (1600 px, JPEG 0.72, **600 KB hard cap**) and uploads **only** that file. Issue first/legacy stays `photo.jpg`; extra issue and diary/event files are `{photoId}.jpg` (max 5). Rules still allow 8 MB. Nutrition reports ≤ 20 MB. |
 | `farms/{id}/tasks`, `harvests`, `machinery`, `employees`, `budgets`, `rd_*`, `marketing_*`, `processing_logs`, `packing_logs`, `energy_logs` | Reads | Live `onSnapshot` per manager component. Cheap while small, and they only bill when the page is open. |
 | `farms/{id}/settings/model_params` | Reads | Two listeners (Settings, BlightRisk). Negligible. |
 | `users/{uid}`, `farms/{id}` | Reads | One listener each in `AuthContext`. Negligible. |
