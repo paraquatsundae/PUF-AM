@@ -23,6 +23,86 @@ npm run build && npm run audit:bundle
 
 ---
 
+## 2026-09-16 — Day-run item 1 (`npm run audit:codebase`)
+
+**Host:** Linux (Fedora), repo `PUF-AM`, tree at `4f4d1a6` plus the catalog split / leftover-check allow-list (this pass).  
+**Why:** Day run 2026-09-16 items 1–2 (George asked to run this list; no `DAY_RUN_2026_09_26.md`). Gate only — not full Procedure A. Focused tests: `cropPacks` / `farmFeedPackage` / `codebaseHealth` (41 passed). `VITE_API_BASE_URL`, `VITE_APP_URL`, `VITE_WORKSHOP_MODE` unset.
+
+```
+== File size ==
+   1095  plugins/freenet_host/src/MistWorkshopCard.tsx
+   1003  plugins/freenet_host/src/MistFarmSyncCard.tsx
+WARN  plugins/freenet_host/src/MistWorkshopCard.tsx is 1095 lines (over 800; known, do not grow).
+WARN  plugins/freenet_host/src/MistFarmSyncCard.tsx is 1003 lines (over 800; known, do not grow).
+
+== leftover harvest_drying ==
+OK    harvest_drying only in migrate / tests / docs
+
+== Pack folders ==
+OK    8 first-party pack folders have UI
+
+== Layering ==
+OK    farmModules ↛ cropPacks; AuthContext ↛ hooks / plugins; src ↛ plugins/*/src except registry
+
+== SoC greps ==
+OK    src/lib ↛ src/components; pages ↛ Leaflet / turf / Firestore
+
+== Import cycles ==
+OK    no circular imports in src/ + shared/ + server/ + plugins/
+
+audit:codebase passed.
+```
+
+### Verdict
+
+| Gate | Result |
+|------|--------|
+| `npm run audit:codebase` | **Pass** after split + allow-list — Freenet WARN only; no hard-fail oversize, no leftover `harvest_drying`, no layering/SoC/cycle fail |
+
+First fail: `shared/farm/cropPackCatalog.ts` 611 (hard 600); leftover-check string in uncommitted `DAY_RUN_*` / `Plans/README.md` / `FREENET_OPERATOR_FLOW.md`. Move-only: plan helpers → `cropPackPlan.ts` (catalog 497, plan 128). Allow-list those docs (they name the leftover check). `farm_feed` stays in the pack; largest file 193. In-scope nearest the 600 cap: `src/lib/mapStore.ts` 599. Next: `src/lib/mapDrawHelpers.ts` 592.
+
+---
+
+## 2026-09-15 — Day-run item 1 (`npm run audit:codebase`)
+
+**Host:** Linux (Fedora), repo `PUF-AM`, tree at `e280abc` plus uncommitted plan docs (no `src/` / `server/` / `shared/` / `plugins/` edits this pass).  
+**Why:** Day run 2026-09-15 item 1. Gate only — not full Procedure A (`npm test` / lint / `plugins:verify` not chained). `VITE_API_BASE_URL`, `VITE_APP_URL`, `VITE_WORKSHOP_MODE` unset.
+
+```
+== File size ==
+   1095  plugins/freenet_host/src/MistWorkshopCard.tsx
+   1003  plugins/freenet_host/src/MistFarmSyncCard.tsx
+WARN  plugins/freenet_host/src/MistWorkshopCard.tsx is 1095 lines (over 800; known, do not grow).
+WARN  plugins/freenet_host/src/MistFarmSyncCard.tsx is 1003 lines (over 800; known, do not grow).
+
+== leftover harvest_drying ==
+OK    harvest_drying only in migrate / tests / docs
+
+== Pack folders ==
+OK    7 first-party pack folders have UI
+
+== Layering ==
+OK    farmModules ↛ cropPacks; AuthContext ↛ hooks / plugins; src ↛ plugins/*/src except registry
+
+== SoC greps ==
+OK    src/lib ↛ src/components; pages ↛ Leaflet / turf / Firestore
+
+== Import cycles ==
+OK    no circular imports in src/ + shared/ + server/ + plugins/
+
+audit:codebase passed.
+```
+
+### Verdict
+
+| Gate | Result |
+|------|--------|
+| `npm run audit:codebase` | **Pass** — Freenet WARN only; no hard-fail oversize, no leftover `harvest_drying`, no layering/SoC/cycle fail |
+
+No split. `KNOWN_OVERSIZE` still the two Freenet cards. In-scope at the 600 hard cap: `src/lib/mapStore.ts` 600. Next: `src/lib/mapDrawHelpers.ts` 593.
+
+---
+
 ## 2026-09-09 — npm audit leftovers
 
 **Host:** Linux (Fedora), repo `PUF-AM`.

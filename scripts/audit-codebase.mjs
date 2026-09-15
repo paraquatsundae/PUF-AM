@@ -10,6 +10,8 @@
  * Thin SoC greps: src/lib ↛ src/components; pages ↛ Leaflet / turf / Firestore.
  *
  * harvest_drying is only allowed in cropPackMigrate.ts (and tests / health docs).
+ * Day-run / index / operator-flow docs may name that leftover check — prefix
+ * `Plans/DAY_RUN_` covers those files without deleting history.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -42,6 +44,9 @@ const HARVEST_DRYING_ALLOW = [
   'Plans/CODEBASE_HEALTH.md',
   'Plans/logs/CODEBASE_HEALTH_CHECK.md',
   'Plans/CROP_PACK_PLUGIN.md',
+  'Plans/DAY_RUN_',
+  'Plans/README.md',
+  'Plans/FREENET_OPERATOR_FLOW.md',
   'scripts/audit-codebase.mjs',
 ];
 

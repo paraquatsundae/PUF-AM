@@ -1,5 +1,6 @@
 /**
- * One-time crop-pack migrations. Catalog / plan helpers stay in cropPackCatalog.ts.
+ * One-time crop-pack migrations. Catalog helpers stay in cropPackCatalog.ts.
+ * Plan helpers live in cropPackPlan.ts.
  * `harvest_drying` is only allowed in this file (legacy key).
  */
 import { resolveFarmEnabledModules, type FarmModuleId } from '../auth/farmModules';
@@ -11,7 +12,6 @@ import {
   WALNUT_BLIGHT_PACK_ID,
   getCropPack,
   isPackActive,
-  planInstallPack,
   resolveFarmCropPacks,
   syncModulesWithCropPacks,
   withPackModules,
@@ -19,6 +19,7 @@ import {
   type FarmCropPackEntry,
   type FarmCropPacksMap,
 } from './cropPackCatalog';
+import { planInstallPack } from './cropPackPlan';
 
 export type LegacyWalnutMigration = {
   /** True when cropPacks had no walnut_blight entry and we derived one. */
