@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_ADJUVANTS, DEFAULT_BIOLOGICALS, DEFAULT_CARRIERS, DEFAULT_CHEMICALS } from '../constants';
 import type { ApplicationMethod, DiaryEvent, FarmSettings, SprayType, WorkPriority } from '../lib/farmDiary';
 import type { FieldIssue } from '../lib/fieldStore';
@@ -6,7 +6,7 @@ import { type LogTab, todayInputDate } from '../lib/farmDiaryView';
 
 type ComposerDeps = {
   settings: FarmSettings;
-  addEvent: (event: Omit<DiaryEvent, 'id'>) => void;
+  addEvent: (event: Omit<DiaryEvent, 'id'>) => Promise<void>;
   updateSettings: (patch: Partial<FarmSettings>) => void;
   focusBlockId: string | null;
   markIssueInProgress: (issueId: string) => void;
@@ -24,6 +24,9 @@ export function useFarmDiaryComposer({
   const [activeTab, setActiveTab] = useState<LogTab>('plan');
   const [composerOpen, setComposerOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const saving = useRef(false);
   const [linkedIssueId, setLinkedIssueId] = useState<string | null>(null);
   const [date, setDate] = useState(() => todayInputDate(new Date()));
   const [sprayType, setSprayType] = useState<SprayType>('chem');
@@ -89,91 +92,101 @@ export function useFarmDiaryComposer({
     setWorkPriority(issue.priority);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!date) return;
+    if (!date || saving.current) return;
+    saving.current = true;
+    setIsSaving(true);
+    setSaveError(null);
 
-    if (activeTab === 'spray') {
-      const finalAgent = showCustomAgent ? customAgent : agentName;
-      const finalCarrier = showCustomCarrier ? customCarrier : carrier;
-      const finalAdjuvant = showCustomAdjuvant ? customAdjuvant : adjuvant;
+    try {
+      if (activeTab === 'spray') {
+        const finalAgent = showCustomAgent ? customAgent : agentName;
+        const finalCarrier = showCustomCarrier ? customCarrier : carrier;
+        const finalAdjuvant = showCustomAdjuvant ? customAdjuvant : adjuvant;
 
-      if (showCustomAgent && customAgent) {
-        if (sprayType === 'chem' && !allChemicals.includes(customAgent)) {
-          updateSettings({ customChemicals: [...(settings.customChemicals || []), customAgent] });
-        } else if (sprayType === 'bio' && !allBiologicals.includes(customAgent)) {
-          updateSettings({ customBiologicals: [...(settings.customBiologicals || []), customAgent] });
+        if (showCustomAgent && customAgent) {
+          if (sprayType === 'chem' && !allChemicals.includes(customAgent)) {
+            updateSettings({ customChemicals: [...(settings.customChemicals || []), customAgent] });
+          } else if (sprayType === 'bio' && !allBiologicals.includes(customAgent)) {
+            updateSettings({ customBiologicals: [...(settings.customBiologicals || []), customAgent] });
+          }
         }
-      }
-      if (showCustomCarrier && customCarrier && !allCarriers.includes(customCarrier)) {
-        updateSettings({ customCarriers: [...(settings.customCarriers || []), customCarrier] });
-      }
-      if (showCustomAdjuvant && customAdjuvant && !allAdjuvants.includes(customAdjuvant)) {
-        updateSettings({ customAdjuvants: [...(settings.customAdjuvants || []), customAdjuvant] });
+        if (showCustomCarrier && customCarrier && !allCarriers.includes(customCarrier)) {
+          updateSettings({ customCarriers: [...(settings.customCarriers || []), customCarrier] });
+        }
+        if (showCustomAdjuvant && customAdjuvant && !allAdjuvants.includes(customAdjuvant)) {
+          updateSettings({ customAdjuvants: [...(settings.customAdjuvants || []), customAdjuvant] });
+        }
+
+        await addEvent({
+          date,
+          type: 'spray',
+          status: 'done',
+          blockId: selectedBlockId || undefined,
+          sprayType,
+          applicationMethod,
+          agentName: finalAgent || undefined,
+          carrier: finalCarrier || undefined,
+          adjuvant: finalAdjuvant || undefined,
+          notes: notes || undefined,
+        });
+      } else if (activeTab === 'irrigation') {
+        const numAmount = parseFloat(amount);
+        const numDuration = parseFloat(duration);
+        if (isNaN(numAmount)) return;
+        await addEvent({
+          date,
+          type: 'irrigation',
+          status: 'done',
+          blockId: selectedBlockId || undefined,
+          irrigationAmount: numAmount,
+          durationMinutes: isNaN(numDuration) ? undefined : numDuration,
+          notes: notes || undefined,
+        });
+      } else {
+        if (!workTitle.trim()) return;
+        const issueId = linkedIssueId || undefined;
+        await addEvent({
+          date,
+          type: 'work',
+          status: 'planned',
+          title: workTitle.trim(),
+          blockId: selectedBlockId || undefined,
+          assignedToName: assigneeName.trim() || undefined,
+          priority: workPriority,
+          notes: notes || undefined,
+          linkedIssueId: issueId,
+        });
+        if (issueId) markIssueInProgress(issueId);
       }
 
-      addEvent({
-        date,
-        type: 'spray',
-        status: 'done',
-        blockId: selectedBlockId || undefined,
-        sprayType,
-        applicationMethod,
-        agentName: finalAgent || undefined,
-        carrier: finalCarrier || undefined,
-        adjuvant: finalAdjuvant || undefined,
-        notes: notes || undefined,
-      });
-    } else if (activeTab === 'irrigation') {
-      const numAmount = parseFloat(amount);
-      const numDuration = parseFloat(duration);
-      if (isNaN(numAmount)) return;
-      addEvent({
-        date,
-        type: 'irrigation',
-        status: 'done',
-        blockId: selectedBlockId || undefined,
-        irrigationAmount: numAmount,
-        durationMinutes: isNaN(numDuration) ? undefined : numDuration,
-        notes: notes || undefined,
-      });
-    } else {
-      if (!workTitle.trim()) return;
-      const issueId = linkedIssueId || undefined;
-      addEvent({
-        date,
-        type: 'work',
-        status: 'planned',
-        title: workTitle.trim(),
-        blockId: selectedBlockId || undefined,
-        assignedToName: assigneeName.trim() || undefined,
-        priority: workPriority,
-        notes: notes || undefined,
-        linkedIssueId: issueId,
-      });
-      if (issueId) markIssueInProgress(issueId);
+      setAmount('');
+      setAgentName('');
+      setCustomAgent('');
+      setShowCustomAgent(false);
+      setCustomCarrier('');
+      setShowCustomCarrier(false);
+      setCustomAdjuvant('');
+      setShowCustomAdjuvant(false);
+      setSelectedBlockId('');
+      setDuration('');
+      setNotes('');
+      setWorkTitle('');
+      setAssigneeName('');
+      setWorkPriority('medium');
+      setLinkedIssueId(null);
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setComposerOpen(false);
+      }, 1200);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save the diary entry.');
+    } finally {
+      saving.current = false;
+      setIsSaving(false);
     }
-
-    setAmount('');
-    setAgentName('');
-    setCustomAgent('');
-    setShowCustomAgent(false);
-    setCustomCarrier('');
-    setShowCustomCarrier(false);
-    setCustomAdjuvant('');
-    setShowCustomAdjuvant(false);
-    setSelectedBlockId('');
-    setDuration('');
-    setNotes('');
-    setWorkTitle('');
-    setAssigneeName('');
-    setWorkPriority('medium');
-    setLinkedIssueId(null);
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      setComposerOpen(false);
-    }, 1200);
   };
 
   return {
@@ -182,6 +195,8 @@ export function useFarmDiaryComposer({
     composerOpen,
     setComposerOpen,
     showSuccess,
+    isSaving,
+    saveError,
     setShowSuccess,
     linkedIssueId,
     setLinkedIssueId,

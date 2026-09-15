@@ -30,6 +30,17 @@ Two rules follow from that table and are worth stating before the detail:
 
 ## 1. IndexedDB
 
+**Decision — 2026-09-15 (reliable diary saves).** Local entity upserts/deletes and
+their outbox operation commit in one IndexedDB transaction. Diary screens await
+that commit before reporting "Saved on this device"; cloud delivery is separate.
+Diary mutations use the outbox as their only Firestore writer, with full-document
+replacement semantics. Flushes serialize (across tabs when Web Locks are available),
+and transaction-assigned sequence numbers order new operations even within one
+millisecond. Rejected operations remain queued, and later edits to that entity do
+not overtake them. Related issue transitions follow a successful diary save but
+are not a cross-entity transaction. This does not implement multi-device conflict
+resolution or fix cloud-cache reconciliation of pending deletions.
+
 Browser, Capacitor WebView, and Electron renderer all use the same set — Electron's live under its own `userData` (§5), the APK's under the app sandbox (§4).
 
 | DB | Object stores | Contents | Authority | Written by |

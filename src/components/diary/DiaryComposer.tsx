@@ -22,6 +22,8 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
     composerOpen,
     setComposerOpen,
     showSuccess,
+    isSaving,
+    saveError,
     setShowSuccess,
     linkedIssueId,
     setLinkedIssueId,
@@ -142,6 +144,8 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
+                {saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
+                <fieldset disabled={isSaving} className="min-w-0">
                 <AnimatePresence mode="wait">
                   {showSuccess ? (
                     <motion.div
@@ -155,8 +159,8 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
                         <CheckCircle2 className="w-8 h-8" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-lg">Saved</h4>
-                        <p className="text-sm opacity-80">Added to the diary.</p>
+                        <h4 className="font-bold text-lg">Saved on this device</h4>
+                        <p className="text-sm opacity-80">Added to the diary. Cloud sync runs separately when enabled.</p>
                       </div>
                     </motion.div>
                   ) : (
@@ -263,12 +267,13 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
                         type="submit"
                         className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2"
                       >
-                        {activeTab === 'plan' ? 'Save plan' : 'Save log'}
+                        {isSaving ? 'Saving…' : activeTab === 'plan' ? 'Save plan' : 'Save log'}
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     </motion.div>
                   )}
                 </AnimatePresence>
+                </fieldset>
               </form>
             </div>
           </motion.div>

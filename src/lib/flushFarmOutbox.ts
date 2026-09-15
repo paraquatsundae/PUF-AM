@@ -9,17 +9,14 @@ import { flushPhotoOutbox } from './flushPhotoOutbox';
 import { stripUndefinedDeep } from './stripUndefined';
 
 /**
- * A permanently-failing op is dropped after this many attempts rather than
- * retried forever. Only the *sync op* is dropped — the entry itself stays in
- * the local store and on this device.
+ * Cap the recorded failure count/log noise, never discard an unacknowledged save.
  */
 export const OUTBOX_MAX_ATTEMPTS = 5;
 
-function isPermissionOrOfflineError(error: unknown): boolean {
+function isOfflineError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
   const code = (error as { code?: string })?.code || '';
   return (
-    code === 'permission-denied' ||
     code === 'unavailable' ||
     msg.includes('offline') ||
     msg.includes('Failed to get document because the client is offline')
@@ -33,7 +30,9 @@ async function applyOp(op: OutboxOp): Promise<void> {
       await deleteDoc(ref);
       return;
     }
-    if (op.payload) await setDoc(ref, stripUndefinedDeep(op.payload), { merge: true });
+    if (!op.payload) throw new Error('Missing diary payload');
+    // Diary payloads are complete documents, including intentional field removals.
+    await setDoc(ref, stripUndefinedDeep(op.payload));
     return;
   }
 
@@ -58,7 +57,7 @@ async function applyOp(op: OutboxOp): Promise<void> {
   }
 }
 
-export async function flushFarmOutbox(farmId?: string): Promise<{ flushed: number; failed: number }> {
+async function drainFarmOutbox(farmId?: string): Promise<{ flushed: number; failed: number }> {
   if (isLocalOnlyFarmSession()) return { flushed: 0, failed: 0 };
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return { flushed: 0, failed: 0 };
@@ -66,35 +65,52 @@ export async function flushFarmOutbox(farmId?: string): Promise<{ flushed: numbe
 
   const ops = await listOutbox(farmId);
   // Oldest first
-  ops.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  ops.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0) || a.createdAt.localeCompare(b.createdAt));
 
   let flushed = 0;
   let failed = 0;
+  const blockedEntities = new Set<string>();
+  const blockedFarms = new Set<string>();
   for (const op of ops) {
+    const entityKey = JSON.stringify([op.farmId, op.kind, op.entityId]);
+    if (blockedFarms.has(op.farmId) || blockedEntities.has(entityKey)) continue;
     try {
       await applyOp(op);
       await removeOutboxOp(op.id);
       flushed += 1;
     } catch (error) {
-      if (isPermissionOrOfflineError(error)) {
+      if (isOfflineError(error)) {
         failed += 1;
         break; // stop — likely offline again; transient failures don't count against the op
       }
       failed += 1;
-      const attempts = (op.attempts ?? 0) + 1;
-      if (attempts >= OUTBOX_MAX_ATTEMPTS) {
-        // Poison pill: this op will never succeed and was blocking nothing —
-        // ops are independent docs — but retried forever and spammed the log.
-        // The entry is still in the local store; only the doomed write goes.
-        console.warn('[flushFarmOutbox] dropping op after repeated failures', op.id, error);
-        await removeOutboxOp(op.id).catch(() => undefined);
-      } else {
+      blockedEntities.add(entityKey);
+      if ((error as { code?: string })?.code === 'permission-denied') blockedFarms.add(op.farmId);
+      const attempts = Math.min((op.attempts ?? 0) + 1, OUTBOX_MAX_ATTEMPTS);
+      if ((op.attempts ?? 0) < OUTBOX_MAX_ATTEMPTS) {
         console.warn(`[flushFarmOutbox] op failed (attempt ${attempts})`, op.id, error);
-        await putOutboxOp({ ...op, attempts }).catch(() => undefined);
       }
+      await putOutboxOp({ ...op, attempts });
     }
   }
   return { flushed, failed };
+}
+
+// One writer per origin where Web Locks are supported; always serialize this tab.
+// Every wakeup gets a fresh snapshot, including saves made during an earlier drain.
+let flushTail: Promise<unknown> = Promise.resolve();
+export function flushFarmOutbox(farmId?: string): Promise<{ flushed: number; failed: number }> {
+  const run = () => typeof navigator !== 'undefined' && navigator.locks
+    ? navigator.locks.request('pufom_farm_local:flush', () => drainFarmOutbox(farmId))
+    : drainFarmOutbox(farmId);
+  const result = flushTail.then(run, run);
+  flushTail = result.catch(() => undefined);
+  return result;
+}
+
+/** Local save has already committed; cloud failure must not reject that save. */
+export function requestFarmOutboxFlush(farmId: string): void {
+  void flushFarmOutbox(farmId).catch((error) => console.warn('[flushFarmOutbox]', error));
 }
 
 let listening = false;

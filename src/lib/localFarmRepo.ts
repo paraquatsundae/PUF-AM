@@ -19,6 +19,8 @@ export type OutboxOp = {
   payload?: LocalFarmEntity;
   updatedAt: string;
   createdAt: string;
+  /** Transaction-assigned ordering; legacy operations use createdAt. */
+  sequence?: number;
   /** Failed flush attempts with a *permanent* error. Absent on ops from older builds. */
   attempts?: number;
 };
@@ -44,7 +46,10 @@ function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error ?? new Error('IndexedDB open failed'));
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      req.result.onversionchange = () => req.result.close();
+      resolve(req.result);
+    };
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(ENTITY_STORE)) {
@@ -62,6 +67,8 @@ async function getRow(farmId: string, kind: LocalEntityKind): Promise<EntityRow>
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(ENTITY_STORE, 'readonly');
+    tx.oncomplete = () => db.close();
+    tx.onabort = () => { db.close(); reject(tx.error); };
     const req = tx.objectStore(ENTITY_STORE).get(entityKey(farmId, kind));
     req.onsuccess = () => {
       resolve(
@@ -83,8 +90,8 @@ async function putRow(row: EntityRow): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(ENTITY_STORE, 'readwrite');
     tx.objectStore(ENTITY_STORE).put({ ...row, updatedAt: new Date().toISOString() });
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
   });
 }
 
@@ -93,9 +100,53 @@ async function enqueue(op: OutboxOp): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(OUTBOX_STORE, 'readwrite');
     tx.objectStore(OUTBOX_STORE).put(op);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
   });
+}
+
+/** Record and delivery intent commit together. No async work inside the transaction. */
+async function mutateEntityRow(
+  farmId: string,
+  kind: LocalEntityKind,
+  mutate: (items: LocalFarmEntity[]) => LocalFarmEntity[],
+  operation?: OutboxOp
+): Promise<void> {
+  const db = await openDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([ENTITY_STORE, OUTBOX_STORE], 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error('Local save aborted'));
+      const store = tx.objectStore(ENTITY_STORE);
+      const request = store.get(entityKey(farmId, kind));
+      request.onsuccess = () => {
+        try {
+          const row: EntityRow = request.result ?? {
+            key: entityKey(farmId, kind), farmId, kind, items: [], updatedAt: '',
+          };
+          store.put({ ...row, items: mutate(row.items), updatedAt: new Date().toISOString() });
+          if (operation) {
+            const outbox = tx.objectStore(OUTBOX_STORE);
+            const pending = outbox.getAll();
+            pending.onsuccess = () => {
+              try {
+                const sequence = (pending.result as OutboxOp[])
+                  .reduce((max, op) => Math.max(max, op.sequence ?? 0), 0) + 1;
+                outbox.add({ ...operation, sequence });
+              } catch {
+                tx.abort();
+              }
+            };
+          }
+        } catch {
+          tx.abort();
+        }
+      };
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export async function listLocalEntities<T extends LocalFarmEntity>(
@@ -112,21 +163,13 @@ export async function upsertLocalEntity(
   entity: LocalFarmEntity,
   opts?: { queueCloud?: boolean }
 ): Promise<void> {
-  const row = await getRow(farmId, kind);
   const id = entity.id;
-  const items = [...row.items];
-  const idx = items.findIndex((i) => i.id === id);
   const stamped = {
     ...entity,
     updatedAt: (entity as { updatedAt?: string }).updatedAt || new Date().toISOString(),
   } as LocalFarmEntity;
-  if (idx >= 0) items[idx] = stamped;
-  else items.push(stamped);
-  await putRow({ ...row, items });
-
-  if (opts?.queueCloud !== false) {
-    await enqueue({
-      id: `${kind}:${id}:${Date.now()}`,
+  const operation: OutboxOp | undefined = opts?.queueCloud === false ? undefined : {
+      id: crypto.randomUUID(),
       farmId,
       kind,
       op: 'upsert',
@@ -134,8 +177,14 @@ export async function upsertLocalEntity(
       payload: stamped,
       updatedAt: (stamped as { updatedAt?: string }).updatedAt || new Date().toISOString(),
       createdAt: new Date().toISOString(),
-    });
-  }
+    };
+  await mutateEntityRow(farmId, kind, (existing) => {
+    const items = [...existing];
+    const idx = items.findIndex((item) => item.id === id);
+    if (idx >= 0) items[idx] = stamped;
+    else items.push(stamped);
+    return items;
+  }, operation);
 }
 
 export async function deleteLocalEntity(
@@ -144,19 +193,16 @@ export async function deleteLocalEntity(
   entityId: string,
   opts?: { queueCloud?: boolean }
 ): Promise<void> {
-  const row = await getRow(farmId, kind);
-  await putRow({ ...row, items: row.items.filter((i) => i.id !== entityId) });
-  if (opts?.queueCloud !== false) {
-    await enqueue({
-      id: `${kind}:del:${entityId}:${Date.now()}`,
+  const operation: OutboxOp | undefined = opts?.queueCloud === false ? undefined : {
+      id: crypto.randomUUID(),
       farmId,
       kind,
       op: 'delete',
       entityId,
       updatedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
-    });
-  }
+    };
+  await mutateEntityRow(farmId, kind, (items) => items.filter((i) => i.id !== entityId), operation);
 }
 
 export async function replaceLocalEntities(
@@ -177,6 +223,8 @@ export async function listOutbox(farmId?: string): Promise<OutboxOp[]> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(OUTBOX_STORE, 'readonly');
+    tx.oncomplete = () => db.close();
+    tx.onabort = () => { db.close(); reject(tx.error); };
     const store = tx.objectStore(OUTBOX_STORE);
     const req = farmId ? store.index('byFarm').getAll(farmId) : store.getAll();
     req.onsuccess = () => resolve((req.result as OutboxOp[]) || []);
@@ -194,8 +242,8 @@ export async function removeOutboxOp(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(OUTBOX_STORE, 'readwrite');
     tx.objectStore(OUTBOX_STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
   });
 }
 
