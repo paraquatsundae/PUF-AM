@@ -47,6 +47,11 @@ export type PackSurface = ComponentType<any> | LazyExoticComponent<ComponentType
  */
 export type PackSurfaceComponents = {
   productionSettings?: PackSurface;
+  /**
+   * Farm-admin card on Settings → General (Invite PIN cluster).
+   * Pack gates itself — crew must not see it. Plans/FARM_MESSAGING.md
+   */
+  farmAdminSettings?: PackSurface;
   researchSettings?: PackSurface;
   science?: PackSurface;
   engineSettings?: PackSurface;

@@ -182,10 +182,16 @@ function rememberUri(kind: FreenetBlobKind, farmId: string, result: FreenetPubli
     storageKey: result.storageKey,
   };
   if (kind === 'hot') {
-    const chat = farmChatHotBridge()?.list(farmId) ?? [];
+    const bridge = farmChatHotBridge();
+    const payload = bridge?.payload?.(farmId);
+    const chat = payload?.messages ?? bridge?.list(farmId) ?? [];
     saveFreenetHotUri(farmId, {
       ...patch,
-      ...(chat.length ? { farmChatHash: farmChatLinesHash(chat) } : {}),
+      ...(chat.length || payload?.archives?.length
+        ? {
+            farmChatHash: farmChatLinesHash(chat, payload),
+          }
+        : {}),
     });
   } else {
     saveFreenetBonesUri(farmId, patch);

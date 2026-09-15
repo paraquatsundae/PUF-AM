@@ -16,7 +16,7 @@ import {
   MAP_HIGHLIGHT_HOT_TYPE,
   type MapHighlightDoc,
 } from '../lib/mapHighlights';
-import type { FarmChatHotLine } from './hotFarmChatBridge.ts';
+import type { FarmChatHotLine, FarmChatHotPayload } from './hotFarmChatBridge.ts';
 
 export const FARM_CHAT_HOT_TYPE = 'farm_chat';
 
@@ -59,41 +59,97 @@ export function issueToHotRecord(issue: FarmExportIssue, archived: boolean): Hot
   };
 }
 
-export function farmChatLinesToHotRecord(messages: FarmChatHotLine[]): HotRecord {
+export function farmChatLinesToHotRecord(
+  messages: FarmChatHotLine[],
+  extra?: Omit<FarmChatHotPayload, 'messages'>,
+): HotRecord {
   const last = messages[messages.length - 1];
   return {
     id: FARM_CHAT_HOT_TYPE,
     type: FARM_CHAT_HOT_TYPE,
     ts: last?.at ?? new Date(0).toISOString(),
     author: last?.authorName ?? 'Crew',
-    payload: { messages },
+    payload: {
+      messages,
+      ...(extra?.dayDate ? { dayDate: extra.dayDate } : {}),
+      ...(extra?.dayMessages?.length ? { dayMessages: extra.dayMessages } : {}),
+      ...(extra?.archives?.length ? { archives: extra.archives } : {}),
+    },
   };
 }
 
-/** SHA-256 of the sealed farm_chat lines — watch ping field, HotKey path only. */
-export function farmChatLinesHash(messages: readonly FarmChatHotLine[]): string {
-  return sha256Hex(new TextEncoder().encode(JSON.stringify(messages)));
+/** SHA-256 of the farm_chat payload (live + day + archive index) — watch ping. */
+export function farmChatLinesHash(
+  messages: readonly FarmChatHotLine[],
+  extra?: Omit<FarmChatHotPayload, 'messages'>,
+): string {
+  return sha256Hex(
+    new TextEncoder().encode(
+      JSON.stringify({
+        messages,
+        dayDate: extra?.dayDate ?? '',
+        dayMessages: extra?.dayMessages ?? [],
+        archives: extra?.archives ?? [],
+      }),
+    ),
+  );
+}
+
+function asChatLine(row: unknown): FarmChatHotLine | null {
+  if (!row || typeof row !== 'object') return null;
+  const r = row as Record<string, unknown>;
+  if (typeof r.id !== 'string' || typeof r.at !== 'string') return null;
+  if (typeof r.text !== 'string' || typeof r.authorName !== 'string') return null;
+  return {
+    id: r.id,
+    at: r.at,
+    authorName: r.authorName,
+    text: r.text,
+    ...(typeof r.authorUid === 'string' ? { authorUid: r.authorUid } : {}),
+  };
 }
 
 export function farmChatLinesFromHotRecord(record: HotRecord): FarmChatHotLine[] {
-  if (record.type !== FARM_CHAT_HOT_TYPE) return [];
-  const payload = record.payload as { messages?: unknown } | null;
-  if (!Array.isArray(payload?.messages)) return [];
-  const out: FarmChatHotLine[] = [];
-  for (const row of payload.messages) {
-    if (!row || typeof row !== 'object') continue;
-    const r = row as Record<string, unknown>;
-    if (typeof r.id !== 'string' || typeof r.at !== 'string') continue;
-    if (typeof r.text !== 'string' || typeof r.authorName !== 'string') continue;
-    out.push({
-      id: r.id,
-      at: r.at,
-      authorName: r.authorName,
-      text: r.text,
-      ...(typeof r.authorUid === 'string' ? { authorUid: r.authorUid } : {}),
-    });
+  return farmChatPayloadFromHotRecord(record).messages;
+}
+
+export function farmChatPayloadFromHotRecord(record: HotRecord): FarmChatHotPayload {
+  if (record.type !== FARM_CHAT_HOT_TYPE) return { messages: [] };
+  const payload = record.payload as Record<string, unknown> | null;
+  const messages: FarmChatHotLine[] = [];
+  if (Array.isArray(payload?.messages)) {
+    for (const row of payload.messages) {
+      const line = asChatLine(row);
+      if (line) messages.push(line);
+    }
   }
-  return out;
+  const dayMessages: FarmChatHotLine[] = [];
+  if (Array.isArray(payload?.dayMessages)) {
+    for (const row of payload.dayMessages) {
+      const line = asChatLine(row);
+      if (line) dayMessages.push(line);
+    }
+  }
+  const archives = Array.isArray(payload?.archives)
+    ? payload.archives.flatMap((row) => {
+        if (!row || typeof row !== 'object') return [];
+        const r = row as Record<string, unknown>;
+        if (typeof r.date !== 'string') return [];
+        return [
+          {
+            date: r.date,
+            contentHash: typeof r.contentHash === 'string' ? r.contentHash : '',
+            ...(typeof r.uri === 'string' && r.uri.trim() ? { uri: r.uri.trim() } : {}),
+          },
+        ];
+      })
+    : [];
+  return {
+    messages,
+    ...(typeof payload?.dayDate === 'string' ? { dayDate: payload.dayDate } : {}),
+    ...(dayMessages.length ? { dayMessages } : {}),
+    ...(archives.length ? { archives } : {}),
+  };
 }
 
 export function highlightToHotRecord(highlight: MapHighlightDoc): HotRecord {
@@ -131,6 +187,7 @@ export type BuildHotStateOpts = {
    * Firestore-authoritative (`Plans/FARM_MESSAGING.md`).
    */
   farmChat?: FarmChatHotLine[];
+  farmChatExtra?: Omit<FarmChatHotPayload, 'messages'>;
 };
 
 /** Build HotState from a farm-export envelope (full local snapshot replace in v1). */
@@ -144,7 +201,10 @@ export function buildHotStateFromFarmExport(
     ...exportBundle.issues.map((i) => issueToHotRecord(i, false)),
     ...exportBundle.issuesArchive.map((i) => issueToHotRecord(i, true)),
     ...(opts?.mapHighlights ?? []).map((h) => highlightToHotRecord(h)),
-    ...(opts?.farmChat && opts.farmChat.length ? [farmChatLinesToHotRecord(opts.farmChat)] : []),
+    ...(opts?.farmChat &&
+    (opts.farmChat.length || opts.farmChatExtra?.archives?.length || opts.farmChatExtra?.dayMessages?.length)
+      ? [farmChatLinesToHotRecord(opts.farmChat, opts.farmChatExtra)]
+      : []),
   ];
   records.sort((a, b) => b.ts.localeCompare(a.ts));
 
@@ -183,6 +243,7 @@ export type HotFarmEntities = {
   issuesArchive: FieldIssue[];
   highlights: MapHighlightDoc[];
   chat?: FarmChatHotLine[];
+  chatPayload?: FarmChatHotPayload;
 };
 
 function asMapHighlight(payload: unknown): MapHighlightDoc | null {
@@ -199,6 +260,7 @@ export function hotStateToFarmEntities(hot: HotState): HotFarmEntities {
   const issuesArchive: FieldIssue[] = [];
   const highlights: MapHighlightDoc[] = [];
   let chat: FarmChatHotLine[] | undefined;
+  let chatPayload: FarmChatHotPayload | undefined;
 
   for (const record of hot.records) {
     if (DIARY_HOT_RECORD_TYPES.has(record.type as DiaryEvent['type'])) {
@@ -219,11 +281,20 @@ export function hotStateToFarmEntities(hot: HotState): HotFarmEntities {
       continue;
     }
     if (record.type === FARM_CHAT_HOT_TYPE) {
-      chat = farmChatLinesFromHotRecord(record);
+      const payload = farmChatPayloadFromHotRecord(record);
+      chat = payload.messages;
+      chatPayload = payload;
     }
   }
 
-  return { diary, issues, issuesArchive, highlights, ...(chat ? { chat } : {}) };
+  return {
+    diary,
+    issues,
+    issuesArchive,
+    highlights,
+    ...(chat ? { chat } : {}),
+    ...(chatPayload ? { chatPayload } : {}),
+  };
 }
 
 export function countHotFarmEntities(hot: HotState): {

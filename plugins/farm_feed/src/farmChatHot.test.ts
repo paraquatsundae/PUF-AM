@@ -36,10 +36,14 @@ describe('farm chat Hot record', () => {
     expect(JSON.stringify(record)).not.toMatch(/FarmSeed|photoData|image\/jpeg/i);
   });
 
-  it('fits the 64 KiB pack with a full cap of text-only lines', () => {
+  it('fits the 64 KiB pack with live 5 plus a full day of text-only lines', () => {
     const messages = Array.from({ length: FARM_CHAT_CAP }, (_, i) => line(i));
+    const dayMessages = Array.from({ length: 80 }, (_, i) => line(i));
     expect(farmChatFitsPackBudget(messages)).toBe(true);
-    expect(farmChatPlainBytes(messages)).toBeLessThan(FREENET02_MAX_BLOB_BYTES);
+    expect(farmChatFitsPackBudget({ messages, dayDate: '2026-09-15', dayMessages })).toBe(true);
+    expect(farmChatPlainBytes({ messages, dayDate: '2026-09-15', dayMessages })).toBeLessThan(
+      FREENET02_MAX_BLOB_BYTES
+    );
   });
 
   it('watch pair must move hash and URI together', () => {

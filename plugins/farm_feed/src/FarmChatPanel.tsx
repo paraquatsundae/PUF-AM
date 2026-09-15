@@ -28,8 +28,8 @@ export function FarmChatPanel() {
       <header className="px-4 pt-3 pb-2 border-b border-slate-100">
         <h2 className="text-sm font-bold text-slate-900">Farm chat</h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          Whole farm — not a private message. Directed at / Everyone still applies to issue pings
-          below.
+          Whole farm — last 5 messages. Older lines archive at midnight (Australia/Perth). Not a
+          private message.
         </p>
         <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{latency}</p>
       </header>

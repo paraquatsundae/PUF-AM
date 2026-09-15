@@ -13,9 +13,24 @@ export type FarmChatHotLine = {
   authorUid?: string;
 };
 
+export type FarmChatHotArchiveRef = {
+  date: string;
+  contentHash: string;
+  uri?: string;
+};
+
+/** Live 5 + today's buffer + archive index. Rides the farm_chat Hot record. */
+export type FarmChatHotPayload = {
+  messages: FarmChatHotLine[];
+  dayDate?: string;
+  dayMessages?: FarmChatHotLine[];
+  archives?: FarmChatHotArchiveRef[];
+};
+
 export type FarmChatHotBridge = {
   list(farmId: string): FarmChatHotLine[];
-  merge(farmId: string, incoming: FarmChatHotLine[]): void;
+  payload?(farmId: string): FarmChatHotPayload;
+  merge(farmId: string, incoming: FarmChatHotLine[] | FarmChatHotPayload): void;
   notify(farmId: string): void;
 };
 

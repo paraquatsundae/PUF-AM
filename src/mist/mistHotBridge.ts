@@ -224,13 +224,25 @@ export async function publishLocalFarmToMistHot(
     await listLocalHighlights(cloudFarmId || farmId),
   );
   // Hybrid: Firestore is authority — do not dual-write chat onto the mirror.
-  const farmChat = !cloudFarmId ? (farmChatHotBridge()?.list(farmId) ?? []) : [];
+  const chatBridge = !cloudFarmId ? farmChatHotBridge() : null;
+  const farmChatPayload = chatBridge?.payload?.(farmId);
+  const farmChat = farmChatPayload?.messages ?? chatBridge?.list(farmId) ?? [];
+  const farmChatExtra = farmChatPayload
+    ? {
+        ...(farmChatPayload.dayDate ? { dayDate: farmChatPayload.dayDate } : {}),
+        ...(farmChatPayload.dayMessages?.length
+          ? { dayMessages: farmChatPayload.dayMessages }
+          : {}),
+        ...(farmChatPayload.archives?.length ? { archives: farmChatPayload.archives } : {}),
+      }
+    : undefined;
   const hotState = buildHotStateFromFarmExport(exportBundle, {
     previous,
     defaultAuthor: exportBundle.farmName,
     farmId,
     mapHighlights,
     farmChat,
+    ...(farmChatExtra && Object.keys(farmChatExtra).length ? { farmChatExtra } : {}),
     ...(cloudFarmId ? { cloudFarmId } : {}),
   });
 

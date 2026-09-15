@@ -45,6 +45,7 @@ describe('pack UI registry (CP-04)', () => {
     expect(ui.routes.map((r) => r.path)).toContain('farm-feed');
     expect(ui.routes[0]?.moduleId).toBe('farm_feed');
     expect(ui.surfaces.dashboardCard).toBeTruthy();
+    expect(ui.surfaces.farmAdminSettings).toBeTruthy();
     expect(allPackNavItems().some((i) => i.href === '/farm-feed' && i.groupId === 'field')).toBe(
       true
     );

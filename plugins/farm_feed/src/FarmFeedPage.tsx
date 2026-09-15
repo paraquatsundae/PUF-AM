@@ -43,7 +43,7 @@ export function FarmFeedPage() {
         <p className="text-xs text-slate-400 mt-2 leading-relaxed">
           {feed.freenetPipe
             ? 'Chat and pings update when this device’s node is On Opennet and the 20s watch runs — not an instant message. Hosted web has no Freenet node.'
-            : 'Chat is a capped farm log (last 80). Issue pings reuse records this farm already syncs. Freenet chat is AppImage / APK only.'}
+            : 'Chat shows the last 5 lines. Issue pings reuse records this farm already syncs. Freenet chat is AppImage / APK only.'}
         </p>
       </header>
 

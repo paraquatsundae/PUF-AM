@@ -1,6 +1,6 @@
 # Farm messaging (farm feed + directed ping)
 
-**Status:** Active plan — **Phase 0 + Phase 1 farm chat shipped 2026-09-15** (`plugins/farm_feed/`). Phase 2 DMs / pair keys still deferred. Hosted `farm_chat/log` + issue `directedAt*` writes need `npm run deploy:rules` (not done in this pass).  
+**Status:** Active plan — **Phase 0 + Phase 1 farm chat shipped 2026-09-15**; **live 5 + daily archive + admin download 2026-09-15** (`plugins/farm_feed/`). Phase 2 DMs / pair keys still deferred. Hosted `farm_chat/log` + archives + issue `directedAt*` writes need `npm run deploy:rules` (not done in this pass).  
 **Date:** 2026-09-15  
 **Product:** PUF-AM  
 **Scope:** A **whole-farm feed** plus a **For you** ping when Directed at names this device’s person. **Farm pack** `farm_feed` (not core, not a crop pack, not `freenet_host`). George stages Cloud Run / rules deploy after review. **DM threads / pair-key private chat are deferred** (Phase 2).  
@@ -24,7 +24,7 @@ George: **just a whole farm feed** this sprint. Issues **ping the tagged user di
 | **Pair keys are not required** | See below. Phase 2 (DMs / pair keys) is **deferred**. |
 | **Freenet latency** | Still the **20 s** Hot watch, not instant. Both apps + a node (or hub) must be up. |
 | **Hosted Phase 0** | Badge / For you on **existing** issues / highlights / diary. |
-| **Hosted Phase 1 chat** | One rolling doc `farms/{farmId}/farm_chat/log` (last 80). Single-doc snapshot while Farm feed is open. No `messages` collection. No FCM. |
+| **Hosted Phase 1 chat** | One rolling doc `farms/{farmId}/farm_chat/log` (last **5** live + sealed today). Archives: `farm_chat/archive_index` + `farm_chat_archives/{yyyy-mm-dd}` get-on-click. No `messages` collection. No FCM. |
 | **In-app only this sprint** | Phase 0–1. OS banners are Phase 3 (app up). FCM is Q4, still open. |
 
 **Why pair keys are not needed.** Pair keys would seal a blob so only two devices can decrypt it. That is a **private DM**. A directed ping is the opposite: the issue (and Directed at) is already **farm-visible** — Hot on Freenet (HotKey is farm-wide), Firestore on hosted (`mapHighlights` / issues / diary; highlight `audience` is `'all'` today). The receiving device already gets the same record the rest of the crew get. “Ping the tagged user” is a **local UI filter** on that shared record (`directedAtUid` / name match), not a second ciphertext. If Directed at is empty, every device treats it as **Everyone**. His fallback (“if a direct ping needs pair keys, every new issue is a system-wide ping”) is therefore unused for Phase 0–1: the directed case never needed pair keys, and the empty case already *is* the system-wide ping.
@@ -141,7 +141,7 @@ A field issue that should ping someone **uses this same directed-at**. Copy `dir
 | Option | How | Cost ([`FIREBASE_BILLING.md`](FIREBASE_BILLING.md) §1) | Verdict |
 |--------|-----|------------------------------------------------------|---------|
 | **A — Derive feed / For you from records we already sync** | Badge + For you + Everyone from `mapHighlights` + diary `assignedTo` + existing issues (`directedAt*` if present or copied). No new collection | **No new reads** if we reuse listeners/polls already running | **Phase 0. Do this first.** |
-| **B — Capped `farms/{farmId}/farm_chat/log`** | Text-only, last **80**, ≤400 chars, no photos. **One** rolling document. `onSnapshot` of that doc while Farm feed is open; transactional read+write on Send | 1 read on attach + 1 read per listener per Send + 1 write per Send. Not a growing collection | **Phase 1 shipped.** Same cap on BYO. Rules deploy still required for Clare Downs |
+| **B — Capped `farms/{farmId}/farm_chat/log`** | Text-only, last **5** live, ≤400 chars, no photos. **One** rolling document plus sealed `dayBlob`. `onSnapshot` of that doc while Farm feed is open; transactional read+write on Send | 1 read on attach + 1 read per listener per Send + 1 write per Send. Archives are getDoc on click, never a collection snapshot | **Phase 1 + daily archive shipped.** Same cap on BYO. Rules deploy still required for Clare Downs |
 | **C — Cloud Functions fan-out / FCM** | Function writes per-uid inbox docs or pushes FCM | Invocations + writes + (FCM) a new Google surface on George’s project | **No** on `pufworks-am`. Repeat of the cost-tracker anti-pattern (§1.1). FCM remains Q4 |
 | **D — SMS / email** | Carrier or SMTP | Not in the product; email is already “Coming Soon” | **No** |
 
@@ -202,7 +202,7 @@ George said **build Phase 0** on 2026-09-15. The pack is **`plugins/farm_feed/`*
 | Phase | What George is approving | Pipes |
 |-------|--------------------------|-------|
 | **0 — For you + farm feed (in-app)** | **Shipped 2026-09-15.** `plugins/farm_feed/` (chill portions shape; `kind: farm`, `category: generic`). Derive For you / Everyone from **existing** issues / highlights / diary directed-at (empty = Everyone). Dashboard card badge + Farm feed screen in the pack. **For you** on highlight inspect. Same Directed at picker (stays in core; also on issue compose). No new mention fields. No new Firestore collection. No Messages nav. No OS push | Hosted: existing issue/diary loads + local highlight IDB. Freenet: 20 s watch, copy honest |
-| **1 — Farm chat log** | **Shipped 2026-09-15.** Composer + scrolling log on Farm feed. Whole-farm only. Hosted: `farms/{farmId}/farm_chat/log` last 80. Freenet: same lines in Hot (HotKey). Hybrid: Firestore only | Freenet still 20 s Hot watch. Hosted nearer-real-time via the single-doc snapshot |
+| **1 — Farm chat log** | **Shipped 2026-09-15; live 5 + archive same day.** Composer + last-5 log on Farm feed. Whole-farm only. Hosted: `farm_chat/log` last 5 + sealed today; archives get-on-click. Freenet: live+day in Hot (HotKey); days at `hot/chat-archive/{date}`. Hybrid: Firestore only | Freenet still 20 s Hot watch. Hosted nearer-real-time via the single-doc snapshot |
 | **2 — DM threads / pair keys** | **Deferred.** Do not start | — |
 | **3 — OS notifications** | Android / Electron local banners for Phase 0–1 events **while the shell is alive**. Never SMS. FCM only if George opens Q4 | Freenet: node must be up |
 
@@ -230,7 +230,7 @@ Do not start Phase 2. Do not start Phase 3 before Phase 0 is field-usable on Cla
 
 ## Open questions for George
 
-1. **~~May `pufworks-am` store a feed / chat collection at all?~~ Answered 2026-09-15.** Yes — **one** rolling `farms/{farmId}/farm_chat/log` (last 80). Not a growing `messages` collection. Freenet-native stays on Hot. BYO uses the same cap on the owner’s project.
+1. **~~May `pufworks-am` store a feed / chat collection at all?~~ Answered 2026-09-15.** Yes — **one** rolling `farms/{farmId}/farm_chat/log` (last **5** live + sealed today). Dated archives are one doc per day plus a capped index — **not** a growing `messages` collection and **not** an unbounded snapshot. Freenet-native stays on Hot. BYO uses the same cap on the owner’s project.
 2. **~~Freenet DM crew-readable vs wait for pair keys?~~ Answered 2026-09-15.** This sprint is the **farm feed + Directed at**, not DMs. Directed ping is farm-visible by design; pair keys are not required. Empty Directed at = Everyone. Phase 2 (DMs / pair keys) deferred.
 3. **~~For you home: Dashboard vs Messages nav?~~ Answered 2026-09-15.** Phase 0: **For you on Dashboard / the existing issues list** via pack **`farm_feed` surfaces**, not a Messages nav, not `src/pages/`. Phase 1: if the stream needs a home, one screen **in the pack** — **Farm feed** (all-farm stream + For you filter) — not a second inbox.
 4. **Phase 3:** local banners only, or is FCM on the table later (whose Firebase)? **Still open.**
@@ -268,3 +268,5 @@ Do not start Phase 2. Do not start Phase 3 before Phase 0 is field-usable on Cla
 **2026-09-15 (crew default-on).** Existing farms (Clare Downs crew) stayed off because Phase 0 only wrote `cropPacks.farm_feed` on **new** farm create, and Settings → Plugins → Install is admin-only. Crew cannot write the farm-doc map. Kind `farm` is now offered unless the admin tombstones it inactive. Every member gets `farm_feed` via `FARM_KIND_MEMBER_MODULES` when the catalog still offers it — old PINs do not need a grant edit. Not `ALWAYS_ON_MODULES`. Not `migrateLegacy`.
 
 **2026-09-15 (farm chat watch recheck).** First Freenet chat hop worked (tablet on another Wi‑Fi, both On Opennet); later lines stayed local. Same class as Bones: watchers that only look at `bonesHash` / `photoIndexHash` miss a chat-only Hot update if the Hot URI is reused, and a failed second PUT had no pending retry. Watch now treats a new `farmChatHash` **or** Hot URI as a ping; a new chat hash is never advertised with a stale Hot URI; the 20 s tick retries a pending chat PUT. Local pack still must not wipe the last Hot URI pair. Linux Freenet-native session stays mist (adopt leftover seed — no hybrid Firestore skip).
+
+**2026-09-15 (live 5 + daily archive).** UI shows the **5 most recent** lines. Today's full day sits in an encrypted day buffer (`dayBlob` on the hosted log doc; `dayMessages` on Freenet Hot). Calendar day is **Australia/Perth** (no farm TZ field). At day roll the buffer is gzipped and AEAD-wrapped: Freenet uses **HotKey** at `hot/chat-archive/{date}` (64 KiB pack); hosted uses the same envelope with a farm-visible SHA-256(farmId) wrap because hosted farms have no HotKey — **not FarmSeed, not BonesKey**; admin-only rules are the access control. Hosted list/download is `getDoc` of `farm_chat/archive_index` + `farm_chat_archives/{yyyy-mm-dd}` — never an archive `onSnapshot`. Settings → General (admin cluster) composes pack `farmAdminSettings` (**Download chat logs**); crew do not see the button. Watch `farmChatHash` covers live + day + archive index (same hash+URI lesson).

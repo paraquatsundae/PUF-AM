@@ -720,7 +720,7 @@ service cloud.firestore {
              );
     }
 
-    // Whole-farm chat — one rolling doc, last 80 text lines. No photos.
+    // Whole-farm chat — live last 5 + sealed today. Archives are separate docs.
     // Plans/FARM_MESSAGING.md · Plans/FIREBASE_BILLING.md (2026-09-15)
     function isValidFarmChatMessage(m) {
       return m.keys().hasOnly(['id', 'at', 'authorName', 'text', 'authorUid']) &&
@@ -739,11 +739,29 @@ service cloud.firestore {
     }
 
     function isValidFarmChatLog(data) {
-      return hasOnlyAllowedFields(['messages', 'updatedAt', 'updatedBy']) &&
-             data.messages is list && data.messages.size() <= 80 &&
+      return hasOnlyAllowedFields(['messages', 'updatedAt', 'updatedBy', 'dayDate', 'dayBlob']) &&
+             data.messages is list && data.messages.size() <= 5 &&
              data.updatedAt is string && data.updatedAt.size() > 0 && data.updatedAt.size() < 40 &&
              data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() < 80 &&
-             farmChatMessagesLookSafe(data.messages);
+             farmChatMessagesLookSafe(data.messages) &&
+             (!('dayDate' in data) || (data.dayDate is string && data.dayDate.size() == 10)) &&
+             (!('dayBlob' in data) || (data.dayBlob is string && data.dayBlob.size() < 200000));
+    }
+
+    function isValidFarmChatArchiveIndex(data) {
+      return hasOnlyAllowedFields(['dates', 'updatedAt', 'updatedBy']) &&
+             data.dates is list && data.dates.size() <= 400 &&
+             data.updatedAt is string && data.updatedAt.size() > 0 && data.updatedAt.size() < 40 &&
+             data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() < 80;
+    }
+
+    function isValidFarmChatArchive(data) {
+      return hasOnlyAllowedFields(['date', 'blob', 'messageCount', 'updatedAt', 'updatedBy']) &&
+             data.date is string && data.date.size() == 10 &&
+             data.blob is string && data.blob.size() > 0 && data.blob.size() < 200000 &&
+             data.messageCount is number && data.messageCount >= 0 && data.messageCount <= 200 &&
+             data.updatedAt is string && data.updatedAt.size() > 0 && data.updatedAt.size() < 40 &&
+             data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() < 80;
     }
 
     function isValidUsageMetrics(data) {
@@ -1167,6 +1185,19 @@ service cloud.firestore {
       match /farm_chat/log {
         allow read: if isFarmMember(farmId);
         allow create, update: if canMutateFarm(farmId) && isValidFarmChatLog(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
+      }
+
+      match /farm_chat/archive_index {
+        allow read: if isFarmAdmin(farmId);
+        allow create, update: if canMutateFarm(farmId) && isValidFarmChatArchiveIndex(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
+      }
+
+      match /farm_chat_archives/{dayId} {
+        allow read: if isFarmAdmin(farmId);
+        allow create, update: if canMutateFarm(farmId) && isValidFarmChatArchive(request.resource.data)
+          && request.resource.data.date == dayId;
         allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 

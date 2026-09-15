@@ -21,6 +21,8 @@ Related: [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §1 (the XOR) 
 
 **Decision — 2026-09-15 (Farm feed Phase 1 chat):** one rolling document `farms/{farmId}/farm_chat/log` — last **80** text lines (≤400 chars each), overwrite/trim on Send. **Read model:** `onSnapshot` of **that one doc** while Farm feed is open (1 read on attach; 1 read per listener when the doc changes) plus a transactional read+write per Send. Not a `messages` collection. Not an unbounded snapshot. No Cloud Function / FCM. No chat photos in Storage. BYO uses the same cap on the owner’s project; weather still fails closed. Needs `firestore.rules` deploy for Clare Downs (not done in this pass). Freenet-native chat is local + Hot, not Firestore.
 
+**Decision — 2026-09-15 (Farm chat daily archive):** live cap is now **5** on `farm_chat/log` (same single-doc snapshot). Today's full day is a sealed `dayBlob` on that doc (still one listen). Yesterday is written to **`farms/{farmId}/farm_chat_archives/{yyyy-mm-dd}`** (one doc per day) and listed by **`farms/{farmId}/farm_chat/archive_index`** (capped ≤400 dates). **Admin download is `getDoc` on click** — no `onSnapshot` of archives, no `getDocs` of the archive collection, no Cloud Function. Farmer devices may write an archive on day-roll (they Send); only farm admin may read the index/blobs. BYO uses the same paths on the owner’s project. Needs `firestore.rules` deploy (not done in this pass).
+
 ---
 
 ## §0 The locked decision this sits on

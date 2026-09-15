@@ -14,11 +14,13 @@ import {
 } from '../../../shared/farm/farmFeedPackage';
 import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
 import { registerFarmChatHotBridge } from '../../../src/mist/hotFarmChatBridge';
-import { listFarmChat, mergeFarmChatFromRemote, notifyFarmChatChanged } from './farmChatLog';
+import { farmChatHotPayloadForFarm, mergeFarmChatHotIncoming } from './farmChatHotSync';
+import { listFarmChat, notifyFarmChatChanged } from './farmChatLog';
 
 registerFarmChatHotBridge({
   list: listFarmChat,
-  merge: mergeFarmChatFromRemote,
+  payload: farmChatHotPayloadForFarm,
+  merge: mergeFarmChatHotIncoming,
   notify: notifyFarmChatChanged,
 });
 
@@ -27,6 +29,9 @@ const FarmFeedPage = lazyWithRetry(() =>
 );
 const FarmFeedDashboardCard = lazyWithRetry(() =>
   import('./FarmFeedDashboardCard').then((m) => ({ default: m.FarmFeedDashboardCard }))
+);
+const FarmChatLogsCard = lazyWithRetry(() =>
+  import('./FarmChatLogsCard').then((m) => ({ default: m.FarmChatLogsCard }))
 );
 
 const feedPath = FARM_FEED_PRIMARY_PATH.replace(/^\//, '');
@@ -51,6 +56,7 @@ export const packUi: FarmPackUiRegistration = {
   ],
   surfaces: {
     dashboardCard: FarmFeedDashboardCard,
+    farmAdminSettings: FarmChatLogsCard,
   },
 };
 

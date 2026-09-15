@@ -149,7 +149,9 @@ export async function mergeHotEntitiesIntoLocal(
     ),
   ]);
   notifyMapHighlightsChanged(farmId);
-  if (entities.chat) {
+  if (entities.chatPayload) {
+    farmChatHotBridge()?.merge(farmId, entities.chatPayload);
+  } else if (entities.chat) {
     farmChatHotBridge()?.merge(farmId, entities.chat);
   }
   return {

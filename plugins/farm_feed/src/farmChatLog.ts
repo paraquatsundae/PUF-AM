@@ -4,7 +4,12 @@
  * Plans/FARM_MESSAGING.md · Plans/FIREBASE_BILLING.md
  */
 
-export const FARM_CHAT_CAP = 80;
+/** Live rolling log + UI — last 5 only. Plans/FARM_MESSAGING.md */
+export const FARM_CHAT_LIVE_CAP = 5;
+/** @deprecated Use FARM_CHAT_LIVE_CAP — kept so older tests/imports keep compiling. */
+export const FARM_CHAT_CAP = FARM_CHAT_LIVE_CAP;
+/** Today's full day in the encrypted buffer (must not lose same-day lines). */
+export const FARM_CHAT_DAY_CAP = 200;
 export const FARM_CHAT_TEXT_MAX = 400;
 export const FARM_CHAT_AUTHOR_MAX = 80;
 export const FARM_CHAT_LOCAL_KEY_PREFIX = 'pufam.farmChat.log.v1.';
@@ -45,7 +50,10 @@ export function farmChatAuthorName(name: string): string {
   return trimmed;
 }
 
-export function parseFarmChatMessages(raw: unknown): FarmChatMessage[] {
+export function parseFarmChatMessages(
+  raw: unknown,
+  cap = FARM_CHAT_LIVE_CAP
+): FarmChatMessage[] {
   if (!Array.isArray(raw)) return [];
   const out: FarmChatMessage[] = [];
   for (const row of raw) {
@@ -68,12 +76,12 @@ export function parseFarmChatMessages(raw: unknown): FarmChatMessage[] {
       ...(authorUid ? { authorUid } : {}),
     });
   }
-  return trimFarmChat(out);
+  return trimFarmChat(out, cap);
 }
 
 export function trimFarmChat(
   messages: readonly FarmChatMessage[],
-  cap = FARM_CHAT_CAP
+  cap = FARM_CHAT_LIVE_CAP
 ): FarmChatMessage[] {
   const sorted = [...messages].sort((a, b) => a.at.localeCompare(b.at));
   return sorted.length <= cap ? sorted : sorted.slice(-cap);
@@ -82,7 +90,7 @@ export function trimFarmChat(
 export function appendFarmChat(
   messages: readonly FarmChatMessage[],
   next: FarmChatMessage,
-  cap = FARM_CHAT_CAP
+  cap = FARM_CHAT_LIVE_CAP
 ): FarmChatMessage[] {
   if (messages.some((row) => row.id === next.id)) return trimFarmChat(messages, cap);
   return trimFarmChat([...messages, next], cap);
@@ -91,7 +99,7 @@ export function appendFarmChat(
 export function mergeFarmChatLogs(
   local: readonly FarmChatMessage[],
   incoming: readonly FarmChatMessage[],
-  cap = FARM_CHAT_CAP
+  cap = FARM_CHAT_LIVE_CAP
 ): FarmChatMessage[] {
   const byId = new Map<string, FarmChatMessage>();
   for (const row of local) byId.set(row.id, row);
@@ -129,7 +137,7 @@ export function listFarmChat(farmId: string | null | undefined): FarmChatMessage
   const raw = storage()?.getItem(farmChatLocalKey(farmId));
   if (!raw) return [];
   try {
-    return parseFarmChatMessages(JSON.parse(raw));
+    return parseFarmChatMessages(JSON.parse(raw), FARM_CHAT_LIVE_CAP);
   } catch {
     return [];
   }

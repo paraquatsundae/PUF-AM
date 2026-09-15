@@ -148,6 +148,7 @@ export function Settings() {
               here would be a button with nothing behind it.
             */}
             {isAdmin && pipes.cloud && <InvitePinManager />}
+            {isAdmin && <PackSurfaces surface="farmAdminSettings" />}
 
             {pipes.cloudMirror && (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">

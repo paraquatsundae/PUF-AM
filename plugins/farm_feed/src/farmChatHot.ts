@@ -1,11 +1,18 @@
 /**
- * Farm chat on Freenet Hot — one record, HotKey-sealed with hot/current.
- * No new slot. No JPEGs. Must stay inside the 64 KiB pack budget by itself.
+ * Farm chat on Freenet Hot — live 5 + today's buffer in hot/current (HotKey).
+ * Sealed days live at hot/chat-archive/{date}. No new slot. No JPEGs.
  * Plans/FARM_MESSAGING.md · Plans/FREENET_OPERATOR_FLOW.md §9.2
  */
 import { FREENET02_MAX_BLOB_BYTES } from '../../../units/mist-freenet/src/freenet02-pack-id.ts';
 import type { HotRecord } from '../../../units/mist-freenet/src/seal-hot.ts';
 import {
+  parseFarmChatArchiveIndex,
+  type FarmChatArchiveRef,
+  type FarmChatDayBuffer,
+} from './farmChatDay';
+import {
+  FARM_CHAT_DAY_CAP,
+  FARM_CHAT_LIVE_CAP,
   farmChatHotWatchPairOk,
   parseFarmChatMessages,
   trimFarmChat,
@@ -15,31 +22,68 @@ import {
 export const FARM_CHAT_HOT_TYPE = 'farm_chat';
 export const FARM_CHAT_HOT_RECORD_ID = 'farm_chat';
 
-export function farmChatToHotRecord(messages: readonly FarmChatMessage[]): HotRecord {
-  const trimmed = trimFarmChat(messages);
-  const last = trimmed[trimmed.length - 1];
+export type FarmChatHotPayload = {
+  messages: FarmChatMessage[];
+  dayDate?: string;
+  dayMessages?: FarmChatMessage[];
+  archives?: FarmChatArchiveRef[];
+};
+
+export function farmChatToHotRecord(payload: FarmChatHotPayload | readonly FarmChatMessage[]): HotRecord {
+  const full: FarmChatHotPayload = Array.isArray(payload)
+    ? { messages: trimFarmChat(payload, FARM_CHAT_LIVE_CAP) }
+    : (() => {
+        const extra = payload as FarmChatHotPayload;
+        return {
+          messages: trimFarmChat(extra.messages, FARM_CHAT_LIVE_CAP),
+          ...(extra.dayDate ? { dayDate: extra.dayDate } : {}),
+          ...(extra.dayMessages?.length
+            ? { dayMessages: trimFarmChat(extra.dayMessages, FARM_CHAT_DAY_CAP) }
+            : {}),
+          ...(extra.archives?.length ? { archives: parseFarmChatArchiveIndex(extra.archives) } : {}),
+        };
+      })();
+  const last = full.messages[full.messages.length - 1];
   return {
     id: FARM_CHAT_HOT_RECORD_ID,
     type: FARM_CHAT_HOT_TYPE,
     ts: last?.at ?? new Date(0).toISOString(),
     author: last?.authorName ?? 'Crew',
-    payload: { messages: trimmed },
+    payload: full,
   };
 }
 
 export function farmChatFromHotRecord(record: HotRecord): FarmChatMessage[] {
-  if (record.type !== FARM_CHAT_HOT_TYPE && record.id !== FARM_CHAT_HOT_RECORD_ID) return [];
-  const payload = record.payload as { messages?: unknown } | null;
-  return parseFarmChatMessages(payload?.messages);
+  return farmChatPayloadFromHotRecord(record).messages;
 }
 
-export function farmChatPlainBytes(messages: readonly FarmChatMessage[]): number {
-  return new TextEncoder().encode(JSON.stringify(farmChatToHotRecord(messages))).byteLength;
+export function farmChatPayloadFromHotRecord(record: HotRecord): FarmChatHotPayload {
+  if (record.type !== FARM_CHAT_HOT_TYPE && record.id !== FARM_CHAT_HOT_RECORD_ID) {
+    return { messages: [] };
+  }
+  const payload = record.payload as FarmChatHotPayload | null;
+  return {
+    messages: parseFarmChatMessages(payload?.messages, FARM_CHAT_LIVE_CAP),
+    ...(typeof payload?.dayDate === 'string' ? { dayDate: payload.dayDate } : {}),
+    ...(payload?.dayMessages
+      ? { dayMessages: parseFarmChatMessages(payload.dayMessages, FARM_CHAT_DAY_CAP) }
+      : {}),
+    ...(payload?.archives ? { archives: parseFarmChatArchiveIndex(payload.archives) } : {}),
+  };
 }
 
-/** Chat alone must fit one Freenet 0.2 pack. Whole-Hot size is a separate budget. */
-export function farmChatFitsPackBudget(messages: readonly FarmChatMessage[]): boolean {
-  return farmChatPlainBytes(messages) <= FREENET02_MAX_BLOB_BYTES;
+export function farmChatDayFromPayload(payload: FarmChatHotPayload): FarmChatDayBuffer | null {
+  if (!payload.dayDate) return null;
+  return { date: payload.dayDate, messages: payload.dayMessages ?? [] };
+}
+
+export function farmChatPlainBytes(payload: FarmChatHotPayload | readonly FarmChatMessage[]): number {
+  return new TextEncoder().encode(JSON.stringify(farmChatToHotRecord(payload))).byteLength;
+}
+
+/** Live 5 + one day must fit one Freenet 0.2 pack. Archives are separate packs. */
+export function farmChatFitsPackBudget(payload: FarmChatHotPayload | readonly FarmChatMessage[]): boolean {
+  return farmChatPlainBytes(payload) <= FREENET02_MAX_BLOB_BYTES;
 }
 
 export { farmChatHotWatchPairOk };

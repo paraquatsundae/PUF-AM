@@ -12,8 +12,12 @@ import {
 const SRC = join(__dirname);
 
 describe('Farm feed hosted cost contract', () => {
-  it('names only the capped farm_chat/log doc', () => {
-    expect(FARM_FEED_FIRESTORE_PATHS).toEqual(['farms/{farmId}/farm_chat/log']);
+  it('names the live log plus capped archive paths', () => {
+    expect(FARM_FEED_FIRESTORE_PATHS).toEqual([
+      'farms/{farmId}/farm_chat/log',
+      'farms/{farmId}/farm_chat/archive_index',
+      'farms/{farmId}/farm_chat_archives/{yyyy-mm-dd}',
+    ]);
     expect(farmChatDocPath('farm-a')).toBe('farms/farm-a/farm_chat/log');
     expect(FARM_CHAT_COLLECTION).toBe('farm_chat');
     expect(FARM_CHAT_DOC_ID).toBe('log');
@@ -49,5 +53,20 @@ describe('Farm feed hosted cost contract', () => {
     expect(source).toMatch(/FARM_CHAT_DOC_ID/);
     expect(source).not.toMatch(/onSnapshot\s*\(\s*collection/);
     expect(source).not.toMatch(/getDocs\s*\(/);
+  });
+
+  it('Settings composes the download card only in the admin cluster', () => {
+    const settings = readFileSync(join(__dirname, '../../../src/pages/Settings.tsx'), 'utf8');
+    expect(settings).toMatch(/isAdmin && <PackSurfaces surface="farmAdminSettings"/);
+  });
+
+  it('archive helpers get-on-click and never snapshot archives', () => {
+    const hosted = readFileSync(join(SRC, 'farmChatArchiveHosted.ts'), 'utf8');
+    const logs = readFileSync(join(SRC, 'useFarmChatLogs.ts'), 'utf8');
+    expect(hosted).toMatch(/getDoc/);
+    expect(hosted).not.toMatch(/onSnapshot/);
+    expect(hosted).not.toMatch(/getDocs\s*\(/);
+    expect(logs).not.toMatch(/onSnapshot/);
+    expect(logs).not.toMatch(/getDocs\s*\(/);
   });
 });

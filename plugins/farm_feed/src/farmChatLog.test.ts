@@ -12,6 +12,7 @@ import {
   farmChatHotWatchPairOk,
   farmChatLooksSecret,
   FARM_CHAT_CAP,
+  FARM_CHAT_LIVE_CAP,
   listFarmChat,
   mergeFarmChatLogs,
   parseFarmChatMessages,
@@ -90,7 +91,8 @@ describe('farm chat send + cap', () => {
       })
     ).filter((row): row is NonNullable<typeof row> => Boolean(row));
     const trimmed = trimFarmChat(rows);
-    expect(trimmed).toHaveLength(FARM_CHAT_CAP);
+    expect(FARM_CHAT_LIVE_CAP).toBe(5);
+    expect(trimmed).toHaveLength(FARM_CHAT_LIVE_CAP);
     expect(trimmed[0]?.text).toBe(`line ${12}`);
     expect(trimmed[trimmed.length - 1]?.text).toBe(`line ${FARM_CHAT_CAP + 11}`);
   });

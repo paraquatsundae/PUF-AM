@@ -90,7 +90,9 @@ Legacy keys are still read so an operator upgrading from an old APK does not los
 | `pufam.mist.bonesPublish.v1.{farmId}` | Same for the geometry bones publish | As above |
 | `pufam.mist.photoIndex.v1.{farmId}` | Last Freenet photo-index URI + hash (2026-09-14) | Cache of “which photos this device last published / applied” |
 | `pufam.farmFeed.lastSeen.v1.{farmId}` | Farm feed For you badge watermark (ISO). Added 2026-09-15 | Local UI only — not a farm record |
-| `pufam.farmChat.log.v1.{farmId}` | Capped whole-farm chat cache (last 80). Added 2026-09-15 | Cache of hosted `farm_chat/log` / Freenet Hot chat |
+| `pufam.farmChat.log.v1.{farmId}` | Capped whole-farm chat cache (last 5). Added 2026-09-15 | Cache of hosted `farm_chat/log` / Freenet Hot chat |
+| `pufam.farmChat.day.v1.{farmId}` | Today's full chat buffer. Added 2026-09-15 | Local day buffer until midnight flush |
+| `pufam.farmChat.archiveIndex.v1.{farmId}` | Cached archive dates. Added 2026-09-15 | Index only — blobs stay in Firestore / Hot |
 
 **`pufam.mist.hotPublish.v1.*` is more load-bearing than it looks.** It holds the FN02 URIs this device published. Freenet has them, but nothing on the network will tell you the address — losing this row means a joiner needs a join ticket from the owner's hub, and the owner needs to publish again. It is not a cache.
 
@@ -111,7 +113,9 @@ Authoritative for a **Firebase farm**. Reproduced from [`NAMING.md`](NAMING.md) 
 | `farms/{farmId}` | Farm doc — `enabledModules`, `farmProfile` |
 | `farms/{farmId}/events/{id}` | Diary events (local kind `diary`) |
 | `farms/{farmId}/mapHighlights/{id}` | Timed map highlights (local kind `map_highlights`; also in Hot) |
-| `farms/{farmId}/farm_chat/log` | Whole-farm chat — one rolling doc, last 80 text lines (2026-09-15) |
+| `farms/{farmId}/farm_chat/log` | Whole-farm chat — one rolling doc, last 5 live + sealed today (2026-09-15) |
+| `farms/{farmId}/farm_chat/archive_index` | Capped archived-day list — getDoc on click (2026-09-15) |
+| `farms/{farmId}/farm_chat_archives/{yyyy-mm-dd}` | One sealed chat day — getDoc on click (2026-09-15) |
 | `farms/{farmId}/issues/{id}` | Active field issues |
 | `farms/{farmId}/archived_issues/{id}` | Archived issues |
 | `farms/{farmId}/blocks\|pins\|tracks\|viewport/…` | Map geometry cloud mirror |

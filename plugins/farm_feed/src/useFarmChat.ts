@@ -10,18 +10,25 @@ import { isFreenetFarm, usesCloudSyncOutbox } from '../../../src/lib/farmPipes';
 import { sessionDisplayName } from '../../../src/lib/sessionIdentity';
 import { isWorkshopMode } from '../../../src/lib/workshopMode';
 import { scheduleMistHotAutoPublish } from '../../../src/mist/mistHotBridge';
+import { appendFarmChatHosted, subscribeFarmChatHosted } from './farmChatHosted';
 import {
-  appendFarmChatHosted,
-  subscribeFarmChatHosted,
-} from './farmChatHosted';
+  adoptLegacyFarmChatCache,
+  appendFarmChatDay,
+  farmChatCalendarDate,
+  readFarmChatDay,
+  writeFarmChatDay,
+} from './farmChatDay';
+import { flushFarmChatDayIfRolled, flushPendingFarmChatArchives } from './farmChatFlush';
 import {
   appendFarmChat,
   buildFarmChatMessage,
   FARM_CHAT_CHANGED_EVENT,
+  FARM_CHAT_DAY_CAP,
   FARM_CHAT_TEXT_MAX,
   farmChatLooksSecret,
   listFarmChat,
   notifyFarmChatChanged,
+  parseFarmChatMessages,
   writeFarmChatLocal,
   type FarmChatMessage,
 } from './farmChatLog';
@@ -55,6 +62,23 @@ export function useFarmChat(): {
       setMessages([]);
       return;
     }
+    const raw = (() => {
+      try {
+        const stored = localStorage.getItem(`pufam.farmChat.log.v1.${farmId}`);
+        return stored ? parseFarmChatMessages(JSON.parse(stored), FARM_CHAT_DAY_CAP) : [];
+      } catch {
+        return listFarmChat(farmId);
+      }
+    })();
+    if (raw.length && !readFarmChatDay(farmId)) {
+      const adopted = adoptLegacyFarmChatCache(raw);
+      writeFarmChatLocal(farmId, adopted.live);
+      writeFarmChatDay(farmId, adopted.day);
+      void flushPendingFarmChatArchives(farmId, adopted.pendingArchive, userData?.uid || 'crew');
+    }
+    void flushFarmChatDayIfRolled(farmId, userData?.uid || 'crew').then(() => {
+      if (freenet) scheduleMistHotAutoPublish(farmId);
+    });
     setMessages(listFarmChat(farmId));
     const onChange = (ev: Event) => {
       const detail = (ev as CustomEvent<{ farmId?: string }>).detail;
@@ -63,22 +87,24 @@ export function useFarmChat(): {
     };
     window.addEventListener(FARM_CHAT_CHANGED_EVENT, onChange);
     return () => window.removeEventListener(FARM_CHAT_CHANGED_EVENT, onChange);
-  }, [farmId, active]);
+  }, [farmId, active, freenet, userData?.uid]);
 
   useEffect(() => {
     if (!farmId || !active || !hosted) return;
     return subscribeFarmChatHosted(
       farmId,
-      (rows) => {
-        writeFarmChatLocal(farmId, rows);
-        setMessages(rows);
+      (snap) => {
+        writeFarmChatLocal(farmId, snap.messages);
+        if (snap.day) writeFarmChatDay(farmId, snap.day);
+        setMessages(snap.messages);
         setError(null);
+        void flushFarmChatDayIfRolled(farmId, userData?.uid || 'crew');
       },
       () => {
         setError('Cloud farm chat needs updated Firestore rules on this project.');
       }
     );
-  }, [farmId, active, hosted]);
+  }, [farmId, active, hosted, userData?.uid]);
 
   const send = useCallback(
     async (raw: string): Promise<boolean> => {
@@ -104,14 +130,18 @@ export function useFarmChat(): {
       setSending(true);
       setError(null);
       try {
+        await flushFarmChatDayIfRolled(farmId, userData?.uid || 'crew', Date.parse(message.at));
+        const day = appendFarmChatDay(readFarmChatDay(farmId), message, farmChatCalendarDate(message.at));
+        writeFarmChatDay(farmId, day);
         const local = appendFarmChat(listFarmChat(farmId), message);
         writeFarmChatLocal(farmId, local);
         setMessages(local);
         notifyFarmChatChanged(farmId);
         if (hosted) {
           const rows = await appendFarmChatHosted(farmId, message, userData?.uid || 'crew');
-          writeFarmChatLocal(farmId, rows);
-          setMessages(rows);
+          writeFarmChatLocal(farmId, rows.messages);
+          writeFarmChatDay(farmId, rows.day);
+          setMessages(rows.messages);
         } else if (freenet) {
           scheduleMistHotAutoPublish(farmId);
         }

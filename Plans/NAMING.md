@@ -200,7 +200,9 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.freenetHost.farmCodePromptDismissed.v1` | `localStorage` JSON map of cloud `farmId` → ISO time. Hides the post-sign-in “enter the FarmCode” prompt on that device for that farm. Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
 | `pufam.freenet.hostHoldOff.v1` | `sessionStorage` `1` while Settings **Stop Freenet on this device** has paused the node. Reconciler must not respawn until **Start Freenet** or the next farm open. Added 2026-09-14 |
 | `pufam.farmFeed.lastSeen.v1.{farmId}` | Farm feed For you badge watermark (ISO time). Local only — not a settings doc, not Firestore. Added 2026-09-15 (`FARM_MESSAGING.md`) |
-| `pufam.farmChat.log.v1.{farmId}` | Capped whole-farm chat cache (last 80 text lines). Hosted authority is `farms/{farmId}/farm_chat/log`; Freenet authority is Hot. Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `pufam.farmChat.log.v1.{farmId}` | Capped whole-farm chat cache (last **5** text lines). Hosted authority is `farms/{farmId}/farm_chat/log`; Freenet authority is Hot. Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `pufam.farmChat.day.v1.{farmId}` | Today's full chat buffer (`{ date, messages }`) before midnight flush. Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `pufam.farmChat.archiveIndex.v1.{farmId}` | Local cache of sealed chat-archive dates (not a live listen). Added 2026-09-15 (`FARM_MESSAGING.md`) |
 
 ### CSS / DOM (non-storage)
 
@@ -279,7 +281,9 @@ Top-level collections (production):
 | `farms/{farmId}/tasks/{id}` | Tasks |
 | `farms/{farmId}/presence/{uid}` | Crew GPS |
 | `farms/{farmId}/mapHighlights/{id}` | Map overlay highlights |
-| `farms/{farmId}/farm_chat/log` | Whole-farm chat — **one** rolling document, last 80 text lines. Not a `messages` collection. Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `farms/{farmId}/farm_chat/log` | Whole-farm chat — **one** rolling document, last **5** live lines + sealed `dayBlob`. Not a `messages` collection. Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `farms/{farmId}/farm_chat/archive_index` | Capped list of archived chat dates (≤400). Admin read; getDoc on click. Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `farms/{farmId}/farm_chat_archives/{yyyy-mm-dd}` | One sealed (gzip + AEAD) chat day. Admin read; getDoc on click. Documented as `farm_chat/archives/{date}` — Firestore needs even path segments so the collection is `farm_chat_archives`. Added 2026-09-15 (`FARM_MESSAGING.md`) |
 | `farms/{farmId}/environmental_cache/{key}` | Per-farm env cache |
 | `farms/{farmId}/nutrition_data/{id}` | Nutrition uploads |
 | `farms_public/{farmId}` | Legacy nearby-discovery index (name + coarse location). **Withdrawn 2026-09-13** — Express no longer writes or lists it; rules stay deny-all |
