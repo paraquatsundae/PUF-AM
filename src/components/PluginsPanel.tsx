@@ -8,6 +8,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, Package, Plug, Trash2 } from 'lucide-react';
 import {
+  isFarmKindPackActive,
+  isFarmPackId,
   isPackActive,
   isPackInstalled,
   type CropPackLifecycleCtx,
@@ -304,9 +306,20 @@ function CropPackPluginRow({
   onRun: (packId: InstallablePackId, action: () => Promise<unknown>, okText: string) => Promise<void>;
 }) {
   const installed = isPackInstalled(farmCropPacks, entry.id);
-  const active = isPackActive(farmCropPacks, entry.id);
+  const farmKind = isFarmPackId(entry.id);
+  const active = isFarmPackId(entry.id)
+    ? isFarmKindPackActive(farmCropPacks, entry.id)
+    : isPackActive(farmCropPacks, entry.id);
   const check = ctx ? entry.canInstall?.(ctx) : undefined;
-  const statusLabel = !installed ? 'Not installed' : active ? 'Active' : 'Inactive';
+  const statusLabel = farmKind
+    ? active
+      ? 'Active'
+      : 'Inactive'
+    : !installed
+      ? 'Not installed'
+      : active
+        ? 'Active'
+        : 'Inactive';
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-2 shadow-sm">
@@ -329,32 +342,37 @@ function CropPackPluginRow({
         <span
           className={clsx(
             'shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
-            !installed && 'bg-slate-100 text-slate-600',
-            installed && active && 'bg-emerald-100 text-emerald-800',
-            installed && !active && 'bg-amber-100 text-amber-900'
+            !farmKind && !installed && 'bg-slate-100 text-slate-600',
+            active && 'bg-emerald-100 text-emerald-800',
+            (farmKind || installed) && !active && 'bg-amber-100 text-amber-900'
           )}
         >
           {statusLabel}
         </span>
       </div>
 
-      {check?.hint && !installed && (
+      {check?.hint && !installed && !farmKind && (
         <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
           {check.hint}
         </p>
       )}
 
-      {installed && active && (
+      {farmKind && active && (
+        <p className="text-[10px] text-slate-500">
+          Every farm member sees this. A farm admin can hide it for the whole farm.
+        </p>
+      )}
+
+      {!farmKind && installed && active && (
         <p className="text-[10px] text-slate-500">
           Farm admins see this in the menu now. Farmer PINs minted before Install need the
           module granted under Farm management — they are not updated automatically.
         </p>
       )}
 
-      {installed &&
-        active &&
+      {active &&
         entry.primaryPath &&
-        entry.modules.some((m) => farmEnabledModules.includes(m)) && (
+        (farmKind || entry.modules.some((m) => farmEnabledModules.includes(m))) && (
         <p className="text-[10px] text-slate-500">
           Open{' '}
           <Link
@@ -369,7 +387,7 @@ function CropPackPluginRow({
 
       {isAdmin && ctx && (
         <div className="flex flex-wrap gap-2">
-          {!installed && (
+          {!farmKind && !installed && (
             <button
               type="button"
               disabled={busy || Boolean(check?.hard && !check.ok)}
@@ -386,7 +404,7 @@ function CropPackPluginRow({
               Install
             </button>
           )}
-          {installed && !active && (
+          {!active && (installed || farmKind) && (
             <button
               type="button"
               disabled={busy}
@@ -403,7 +421,7 @@ function CropPackPluginRow({
               Activate
             </button>
           )}
-          {installed && active && (
+          {active && (installed || farmKind) && (
             <button
               type="button"
               disabled={busy}
@@ -420,7 +438,7 @@ function CropPackPluginRow({
               Deactivate
             </button>
           )}
-          {installed && (
+          {(installed || farmKind) && (
             <button
               type="button"
               disabled={busy}

@@ -12,6 +12,8 @@
 
 **Decision — 2026-09-15 (farm pack):** farm feed + For you is **not** a crop pack. Id `farm_feed`, `kind: farm` in `plugin.manifest.v1.schema.json` and `PLUGIN_PACKAGE_KINDS`, Settings `category: generic`. Catalog row is `FARM_PACKS` / `shared/farm/farmPacks.ts`, not `CROP_PACKS`. Same discovery (`plugins/<id>/` + `plugin.json` + `src/index.ts`). Do not stuff it into `freenet_host`. **Phase 0 + Phase 1 farm chat shipped** — [`FARM_MESSAGING.md`](FARM_MESSAGING.md). Chat is **not** a settings doc (`settingsDocId` stays `null`); hosted path is `farms/{farmId}/farm_chat/log`.
 
+**Decision — 2026-09-15 (farm-kind default-on):** kind `farm` is on unless the farm-doc row is explicitly `inactive`. Crew / non-admin must see Farm feed without Settings → Plugins → Install (admin-only, and they cannot write `cropPacks`). `FARM_KIND_MEMBER_MODULES` grants `farm_feed` when offered — not `ALWAYS_ON_MODULES`, not a silent `migrateLegacy` of crops. Admin Deactivate / Delete writes an inactive tombstone so hide still works.
+
 Start here when adding a pack. The contract file is the why and the acceptance bar. This file is the file list.
 
 ---
@@ -103,7 +105,7 @@ In `shared/auth/farmModules.ts`:
 
 Do **not** add a new `FOO_PACK_MODULES` array. Ownership is `CropPackDef.modules`. `defaultModulesWithoutCropPacks()` and PIN exclude (`packModulesToExclude`) read that list.
 
-Never put a pack module in `ALWAYS_ON_MODULES`.
+Never put a pack module in `ALWAYS_ON_MODULES`. Kind `farm` (`farm_feed`) uses `FARM_KIND_MEMBER_MODULES` instead — every member sees it when the catalog offers it, and admin Deactivate / Delete can still hide it. Do not put crop packs on that list.
 
 ### 4. Catalog
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   allFarmModules,
   ALWAYS_ON_MODULES,
+  FARM_KIND_MEMBER_MODULES,
   clampModulesToFarm,
   effectiveModules,
   sanitizeModules,
@@ -24,8 +25,10 @@ describe('farmModules', () => {
     );
   });
 
-  it('defaults empty non-admin modules to dashboard when farm allows it', () => {
-    expect(effectiveModules('farmer', [])).toEqual(['dashboard']);
+  it('defaults empty non-admin modules to dashboard plus offered farm-kind modules', () => {
+    expect(effectiveModules('farmer', [])).toEqual(['dashboard', 'farm_feed']);
+    expect(FARM_KIND_MEMBER_MODULES).toEqual(['farm_feed']);
+    expect(ALWAYS_ON_MODULES).not.toContain('farm_feed');
   });
 
   it('intersects user grants with farm catalog', () => {
@@ -33,6 +36,16 @@ describe('farmModules', () => {
     expect(effectiveModules('farmer', ['map', 'blight', 'diary'], farm)).toEqual(['map', 'diary']);
     expect(hasModuleAccess('farmer', ['map', 'blight'], 'blight', farm)).toBe(false);
     expect(hasModuleAccess('farmer', ['map', 'blight'], 'map', farm)).toBe(true);
+  });
+
+  it('gives crew farm_feed when the farm catalog offers it even if the PIN omitted it', () => {
+    const farm = resolveFarmEnabledModules(['map', 'diary', 'farm_feed']);
+    expect(effectiveModules('farmer', ['map', 'diary'], farm)).toEqual(['map', 'diary', 'farm_feed']);
+    expect(hasModuleAccess('farmer', ['map', 'diary'], 'farm_feed', farm)).toBe(true);
+    const hidden = resolveFarmEnabledModules(['map', 'diary']);
+    expect(hasModuleAccess('farmer', ['map', 'diary', 'farm_feed'], 'farm_feed', hidden)).toBe(
+      false
+    );
   });
 
   it('resolves missing farm modules as full catalog and forces always-on', () => {

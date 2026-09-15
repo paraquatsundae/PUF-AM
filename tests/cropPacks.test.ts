@@ -104,8 +104,14 @@ describe('cropPacks catalog', () => {
 
   it('excludes pack modules from PIN/join presets when the pack is not offered', () => {
     expect(packModulesToExclude({})).toEqual(
-      expect.arrayContaining(['blight', 'chill', 'water', 'nutrition', 'harvest', 'drying', 'farm_feed'])
+      expect.arrayContaining(['blight', 'chill', 'water', 'nutrition', 'harvest', 'drying'])
     );
+    expect(packModulesToExclude({})).not.toContain('farm_feed');
+    expect(
+      packModulesToExclude({
+        farm_feed: { status: 'inactive', installedAt: '2026-01-01T00:00:00.000Z' },
+      })
+    ).toContain('farm_feed');
     expect(
       packModulesToExclude(
         {
@@ -211,6 +217,12 @@ describe('Farm Modules pack labeling helpers (CP-03)', () => {
     expect(isPackModuleOffered('blight', inactive)).toBe(false);
     expect(isPackModuleOffered('blight', active)).toBe(true);
     expect(isPackModuleOffered('diary', inactive)).toBe(true);
+    expect(isPackModuleOffered('farm_feed', {})).toBe(true);
+    expect(
+      isPackModuleOffered('farm_feed', {
+        farm_feed: { status: 'inactive', installedAt: now },
+      })
+    ).toBe(false);
   });
 
   it('lists installed pack module rows with from-pack metadata', () => {

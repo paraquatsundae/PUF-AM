@@ -60,8 +60,8 @@ import {
   FARM_FEED_PACK_ID,
   FARM_PACK_IDS,
   FARM_PACKS,
-  farmFeedDefaultsOnWithoutMap,
   getFarmPack,
+  isFarmKindPackActive,
   isFarmPackId,
   type FarmPackDef,
   type FarmPackId,
@@ -343,19 +343,38 @@ export function packModulesToExclude(
   for (const pack of [...CROP_PACKS, ...FARM_PACKS]) {
     const offered =
       (isCropPackId(pack.id) ? offeredLegacy?.[pack.id] : undefined) ??
-      (isPackActive(packs, pack.id) ||
-        (!isPackInstalled(packs, pack.id) &&
-          farm != null &&
-          pack.modules.some((m) => farm.has(m))));
+      (isFarmPackId(pack.id)
+        ? isFarmKindPackActive(packs, pack.id)
+        : isPackActive(packs, pack.id) ||
+          (!isPackInstalled(packs, pack.id) &&
+            farm != null &&
+            pack.modules.some((m) => farm.has(m))));
     if (!offered) out.push(...pack.modules);
   }
   return out;
 }
 
+/** Crop packs that are installed+active. Does not default-on farm packs (avoids a silent enabledModules write). */
 export function modulesForActivePacks(packs: FarmCropPacksMap): FarmModuleId[] {
   const set = new Set<FarmModuleId>();
-  for (const pack of [...CROP_PACKS, ...FARM_PACKS]) {
+  for (const pack of CROP_PACKS) {
     if (isPackActive(packs, pack.id)) {
+      for (const m of pack.modules) set.add(m);
+    }
+  }
+  for (const pack of FARM_PACKS) {
+    if (isPackActive(packs, pack.id)) {
+      for (const m of pack.modules) set.add(m);
+    }
+  }
+  return [...set];
+}
+
+/** Kind `farm` modules offered unless admin wrote inactive. No farm-doc write. */
+export function modulesForDefaultOnFarmPacks(packs: FarmCropPacksMap): FarmModuleId[] {
+  const set = new Set<FarmModuleId>();
+  for (const pack of FARM_PACKS) {
+    if (isFarmKindPackActive(packs, pack.id)) {
       for (const m of pack.modules) set.add(m);
     }
   }
@@ -375,6 +394,7 @@ export function offeredFarmModules(
   const set = new Set<FarmModuleId>([
     ...resolveFarmEnabledModules(farmEnabled),
     ...modulesForActivePacks(packs),
+    ...modulesForDefaultOnFarmPacks(packs),
     ...extra,
   ]);
   return FARM_MODULE_IDS.filter((id) => set.has(id));
@@ -404,6 +424,7 @@ export function isPackModuleOffered(
 ): boolean {
   const pack = packOwningModule(moduleId);
   if (!pack) return true;
+  if (isFarmPackId(pack.id)) return isFarmKindPackActive(packs, pack.id);
   return isPackActive(packs, pack.id);
 }
 
@@ -516,10 +537,20 @@ export function planActivatePack(
 export function planDeactivatePack(
   packs: FarmCropPacksMap,
   modules: FarmModuleId[],
-  packId: InstallablePackId
+  packId: InstallablePackId,
+  nowIso = new Date(0).toISOString()
 ): { cropPacks: FarmCropPacksMap; modules: FarmModuleId[] } {
   const prev = packs[packId];
   if (!prev) {
+    if (isFarmPackId(packId)) {
+      return {
+        cropPacks: {
+          ...packs,
+          [packId]: { status: 'inactive', installedAt: nowIso },
+        },
+        modules: withoutPackModules(modules, packId),
+      };
+    }
     return { cropPacks: packs, modules: resolveFarmEnabledModules(modules) };
   }
   const cropPacks: FarmCropPacksMap = {
@@ -534,6 +565,19 @@ export function planDeletePack(
   modules: FarmModuleId[],
   packId: InstallablePackId
 ): { cropPacks: FarmCropPacksMap; modules: FarmModuleId[] } {
+  if (isFarmPackId(packId)) {
+    const prev = packs[packId];
+    return {
+      cropPacks: {
+        ...packs,
+        [packId]: {
+          status: 'inactive',
+          installedAt: prev?.installedAt ?? new Date(0).toISOString(),
+        },
+      },
+      modules: withoutPackModules(modules, packId),
+    };
+  }
   const cropPacks = { ...packs };
   delete cropPacks[packId];
   return { cropPacks, modules: withoutPackModules(modules, packId) };
@@ -548,15 +592,11 @@ export function planDefaultFarmFeedOnCreate(
 }
 
 /**
- * Hosted: Install map wins. Freenet / workshop have no farm-doc map — default on.
- * Existing hosted farms without an entry stay off until Settings → Plugins → Install.
+ * Kind `farm` default-on: missing map row is on. Explicit inactive (admin
+ * Deactivate / Delete tombstone) is off. No silent migrateLegacy write.
  */
-export function isFarmFeedActive(
-  packs: FarmCropPacksMap,
-  opts: { mistSession: boolean; workshop: boolean }
-): boolean {
-  if (isPackInstalled(packs, FARM_FEED_PACK_ID)) return isPackActive(packs, FARM_FEED_PACK_ID);
-  return farmFeedDefaultsOnWithoutMap(opts);
+export function isFarmFeedActive(packs: FarmCropPacksMap): boolean {
+  return isFarmKindPackActive(packs, FARM_FEED_PACK_ID);
 }
 
 /** @deprecated Prefer syncModulesWithCropPacks — kept for walnut-specific call sites. */

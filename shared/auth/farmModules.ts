@@ -54,6 +54,13 @@ export const ALWAYS_ON_MODULES: FarmModuleId[] = [
   'settings',
 ];
 
+/**
+ * Kind `farm` modules every member gets when the farm catalog still offers them.
+ * Not ALWAYS_ON — admin Deactivate / Delete hides them. Crew does not need the
+ * id on their PIN grant. Plans/FARM_MESSAGING.md · Plans/PLUGIN_AUTHORING.md
+ */
+export const FARM_KIND_MEMBER_MODULES: FarmModuleId[] = ['farm_feed'];
+
 /** Crop / ops modules the owner can turn on or off for the whole farm. */
 export const OPTIONAL_MODULES: FarmModuleId[] = FARM_MODULE_IDS.filter(
   (id) => !ALWAYS_ON_MODULES.includes(id)
@@ -165,7 +172,11 @@ export function effectiveModules(
   if (role === 'admin') return farm;
   const cleaned = sanitizeModules(modules);
   const base = cleaned.length > 0 ? cleaned : (['dashboard'] as FarmModuleId[]);
-  return base.filter((m) => farm.includes(m));
+  const granted = new Set<FarmModuleId>(base.filter((m) => farm.includes(m)));
+  for (const id of FARM_KIND_MEMBER_MODULES) {
+    if (farm.includes(id)) granted.add(id);
+  }
+  return FARM_MODULE_IDS.filter((id) => granted.has(id));
 }
 
 export function hasModuleAccess(

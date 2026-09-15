@@ -2,7 +2,8 @@
  * Farm-pack catalog (not CROP_PACKS).
  *
  * Settings → Plugins → General. Same farm-doc `cropPacks` map as crop packs
- * (already on the Auth listener — no new Firestore path).
+ * (already on the Auth listener — no new Firestore path). Kind `farm` is on
+ * unless that row is explicitly inactive — crew must not wait for Install.
  * Plans/FARM_MESSAGING.md · Plans/NAMING.md §1
  */
 import type { FarmModuleId } from '../auth/farmModules';
@@ -63,10 +64,13 @@ export function listFarmPacks(): readonly FarmPackDef[] {
   return FARM_PACKS;
 }
 
-/** Freenet / workshop have no farm-doc `cropPacks` map — default Farm feed on. */
-export function farmFeedDefaultsOnWithoutMap(opts: {
-  mistSession: boolean;
-  workshop: boolean;
-}): boolean {
-  return opts.mistSession || opts.workshop;
+/**
+ * Kind `farm` is on unless the farm-doc row is explicitly inactive.
+ * Missing entry = on (crew must not wait for admin Install).
+ */
+export function isFarmKindPackActive(
+  packs: { [id: string]: { status?: string } | undefined },
+  id: FarmPackId
+): boolean {
+  return packs[id]?.status !== 'inactive';
 }

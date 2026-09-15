@@ -146,7 +146,12 @@ export async function deactivateCropPack(
 ): Promise<CropPackLifecycleResult> {
   if (!isInstallablePackId(packId)) throw new Error(`Unknown pack: ${packId}`);
   const state = await readFarmPackState(ctx.farmId);
-  const planned = planDeactivatePack(state.cropPacks, state.modules, packId);
+  const planned = planDeactivatePack(
+    state.cropPacks,
+    state.modules,
+    packId,
+    new Date().toISOString()
+  );
   await writeCropPacks(ctx.farmId, planned.cropPacks);
   const modules = await updateFarmModules(planned.modules);
   return { cropPacks: planned.cropPacks, modules };
