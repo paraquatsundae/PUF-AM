@@ -24,6 +24,7 @@ import {
 import { mergeIssuesKeepingPhotos } from '../lib/issuePhotoMeta';
 import { applyIncomingMapLayer } from '../lib/mapLayerPreference';
 import { hotStateToFarmEntities, type HotFarmEntities } from './hotAdapter.ts';
+import { farmChatHotBridge } from './hotFarmChatBridge.ts';
 import { publishHotWatchSlot, readHotWatchSlot } from './hotWatchSlot.ts';
 import { getMistPhotoIndexStatus } from './mistPhotoBridge.ts';
 import { getFarmGeometry } from '../lib/farmGeometryIdb';
@@ -145,6 +146,9 @@ export async function mergeHotEntitiesIntoLocal(
     ),
   ]);
   notifyMapHighlightsChanged(farmId);
+  if (entities.chat) {
+    farmChatHotBridge()?.merge(farmId, entities.chat);
+  }
   return {
     highlights: entities.highlights.length,
     diary: entities.diary.length,
@@ -171,6 +175,7 @@ export async function refreshFarmUiAfterHotMerge(farmId: string): Promise<void> 
   useFarmDiaryStore.getState().mergeIncoming(farmId, diary);
   useFieldStore.getState().mergeIncoming(farmId, issues, archive);
   notifyMapHighlightsChanged(farmId);
+  farmChatHotBridge()?.notify(farmId);
   await refreshFarmUiAfterBonesMerge(farmId);
 }
 

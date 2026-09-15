@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, BookOpen, MapPin } from 'lucide-react';
 import { cn } from '../../../src/lib/utils';
+import { FarmChatPanel } from './FarmChatPanel';
 import type { FarmFeedItem } from './farmFeedDerive';
 import { useFarmFeed } from './useFarmFeed';
 import { useFarmFeedPack } from './useFarmFeedPack';
@@ -36,15 +37,17 @@ export function FarmFeedPage() {
       <header>
         <h1 className="text-2xl font-bold text-slate-900">Farm feed</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Issues, check-this highlights, and diary already on this farm. Empty Directed at is
+          Whole-farm chat plus issues, check-this highlights, and diary. Empty Directed at is
           Everyone.
         </p>
         <p className="text-xs text-slate-400 mt-2 leading-relaxed">
           {feed.freenetPipe
-            ? 'Updates when this device’s node is On Opennet and the 20s watch runs — not an instant message. Hosted web has no Freenet node.'
-            : 'Uses issues, highlights, and diary this farm already syncs. No extra chat store. Freenet feed is AppImage / APK only.'}
+            ? 'Chat and pings update when this device’s node is On Opennet and the 20s watch runs — not an instant message. Hosted web has no Freenet node.'
+            : 'Chat is a capped farm log (last 80). Issue pings reuse records this farm already syncs. Freenet chat is AppImage / APK only.'}
         </p>
       </header>
+
+      <FarmChatPanel />
 
       <div className="flex gap-2">
         <button

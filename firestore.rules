@@ -51,6 +51,10 @@ service cloud.firestore {
     // Collection: farms/{farmId}/archived_issues
     // Document ID: issueId
     // Fields: same as issues
+    //
+    // Collection: farms/{farmId}/farm_chat
+    // Document ID: log (single rolling doc)
+    // Fields: messages[] (≤80; id, at, authorName, text, optional authorUid), updatedAt, updatedBy
     // ===============================================================
 
     // ===============================================================
@@ -716,6 +720,32 @@ service cloud.firestore {
              );
     }
 
+    // Whole-farm chat — one rolling doc, last 80 text lines. No photos.
+    // Plans/FARM_MESSAGING.md · Plans/FIREBASE_BILLING.md (2026-09-15)
+    function isValidFarmChatMessage(m) {
+      return m.keys().hasOnly(['id', 'at', 'authorName', 'text', 'authorUid']) &&
+             m.id is string && m.id.size() > 0 && m.id.size() < 80 &&
+             m.at is string && m.at.size() > 0 && m.at.size() < 40 &&
+             m.authorName is string && m.authorName.size() > 0 && m.authorName.size() < 80 &&
+             m.text is string && m.text.size() > 0 && m.text.size() <= 400 &&
+             (!('authorUid' in m) || m.authorUid == null || (m.authorUid is string && m.authorUid.size() < 80));
+    }
+
+    function farmChatMessagesLookSafe(messages) {
+      return messages.size() == 0 || (
+        isValidFarmChatMessage(messages[0]) &&
+        isValidFarmChatMessage(messages[messages.size() - 1])
+      );
+    }
+
+    function isValidFarmChatLog(data) {
+      return hasOnlyAllowedFields(['messages', 'updatedAt', 'updatedBy']) &&
+             data.messages is list && data.messages.size() <= 80 &&
+             data.updatedAt is string && data.updatedAt.size() > 0 && data.updatedAt.size() < 40 &&
+             data.updatedBy is string && data.updatedBy.size() > 0 && data.updatedBy.size() < 80 &&
+             farmChatMessagesLookSafe(data.messages);
+    }
+
     function isValidUsageMetrics(data) {
       return (!('totalAiCalls' in data) || data.totalAiCalls is number) &&
              (!('totalWeatherCalls' in data) || data.totalWeatherCalls is number) &&
@@ -1132,6 +1162,12 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow create, update: if isFarmMember(farmId) && isOwner(userId) && isValidCrewPresence(request.resource.data);
         allow delete: if isFarmMember(farmId) && isOwner(userId);
+      }
+
+      match /farm_chat/log {
+        allow read: if isFarmMember(farmId);
+        allow create, update: if canMutateFarm(farmId) && isValidFarmChatLog(request.resource.data);
+        allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
       }
 
       match /mapHighlights/{highlightId} {

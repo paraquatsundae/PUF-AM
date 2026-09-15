@@ -19,6 +19,8 @@ Related: [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §1 (the XOR) 
 
 **Decision — 2026-09-15 (Farm feed Phase 0):** pack `farm_feed` adds **zero new Firestore paths** on `pufworks-am`. It derives the feed from issues / diary / local highlights this farm already syncs. No `messages` collection, no farm-wide chat `onSnapshot`, no Cloud Function / FCM fan-out. Last-seen is `pufam.farmFeed.lastSeen.v1.{farmId}` (localStorage). Hosted issue photos on feed cards reuse existing issue `photoUrl` / `photos[]` — no new Storage upload. BYO farms stay on their own project; weather still fails closed. [`FARM_MESSAGING.md`](FARM_MESSAGING.md).
 
+**Decision — 2026-09-15 (Farm feed Phase 1 chat):** one rolling document `farms/{farmId}/farm_chat/log` — last **80** text lines (≤400 chars each), overwrite/trim on Send. **Read model:** `onSnapshot` of **that one doc** while Farm feed is open (1 read on attach; 1 read per listener when the doc changes) plus a transactional read+write per Send. Not a `messages` collection. Not an unbounded snapshot. No Cloud Function / FCM. No chat photos in Storage. BYO uses the same cap on the owner’s project; weather still fails closed. Needs `firestore.rules` deploy for Clare Downs (not done in this pass). Freenet-native chat is local + Hot, not Firestore.
+
 ---
 
 ## §0 The locked decision this sits on

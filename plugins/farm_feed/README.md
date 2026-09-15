@@ -1,17 +1,20 @@
 # Farm feed (farm pack)
 
-Whole-farm stream of issues, highlights, and diary plus a **For you** filter when Directed at names this device’s person. Empty Directed at is Everyone.
+Whole-farm **chat log** plus issues, highlights, and diary, and a **For you** filter when Directed at names this device’s person. Empty Directed at is Everyone.
 
 **Not a crop pack. Not Freenet. Not a `.pufom` farm pack.** Settings tile says **Farm feed**.
 
 | File | Owns |
 |------|------|
 | `plugin.json` | Catalog row (`kind: farm`, `category: generic`, `/farm-feed`) |
-| `src/` | Feed page, dashboard card, derive / For you match, local last-seen |
+| `src/farmChatLog.ts` | Cap 80, trim, local cache `pufam.farmChat.log.v1.{farmId}` |
+| `src/farmChatHosted.ts` | One rolling Firestore doc `farms/{farmId}/farm_chat/log` |
+| `src/farmChatHot.ts` | Chat rides `hot/current` (HotKey only; no new slot) |
+| `src/` | Feed page, dashboard card, derive / For you match, last-seen |
 
 **Stays in core:** Directed at picker on issue / highlight compose (`directedAt*` / diary `assignedTo*`).
 
-**Pipes:** Hosted reuses existing issue / diary / highlight stores (zero new Firestore collection). Freenet reuses Hot + the 20s watch after local merge. Web hosted has no node.
+**Pipes:** Hosted / BYO — capped `farm_chat/log` (single-doc snapshot while Farm feed is open). Freenet-native — local log + Hot + 20s watch (AppImage / APK). Hybrid — Firestore only (no dual-write onto the mirror). Web hosted has no node.
 
 `plugins/.gitignore` allow-lists this folder (`!farm_feed/` + `!farm_feed/**`). Third-party unpacked packs stay ignored.
 

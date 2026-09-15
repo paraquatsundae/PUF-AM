@@ -2,7 +2,8 @@
  * Farm feed pack — UI registration.
  *
  * Derives For you / Everyone from issues, highlights, and diary this farm
- * already syncs. No new Freenet contract. No new Firestore collection.
+ * already syncs. Whole-farm chat is a capped log (hosted: one doc; Freenet:
+ * HotKey on hot/current). No DMs. No new Freenet slot.
  * Plans/FARM_MESSAGING.md
  */
 import { IconBell } from '@tabler/icons-react';
@@ -12,6 +13,14 @@ import {
   FARM_FEED_PRIMARY_PATH,
 } from '../../../shared/farm/farmFeedPackage';
 import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
+import { registerFarmChatHotBridge } from '../../../src/mist/hotFarmChatBridge';
+import { listFarmChat, mergeFarmChatFromRemote, notifyFarmChatChanged } from './farmChatLog';
+
+registerFarmChatHotBridge({
+  list: listFarmChat,
+  merge: mergeFarmChatFromRemote,
+  notify: notifyFarmChatChanged,
+});
 
 const FarmFeedPage = lazyWithRetry(() =>
   import('./FarmFeedPage').then((m) => ({ default: m.FarmFeedPage }))

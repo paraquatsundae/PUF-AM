@@ -1,6 +1,6 @@
 # Farm messaging (farm feed + directed ping)
 
-**Status:** Active plan — **Phase 0 shipped 2026-09-15** (`plugins/farm_feed/`). Phase 2 DMs / pair keys still deferred. Hosted issue `directedAt*` writes need `npm run deploy:rules` (not done in this pass).  
+**Status:** Active plan — **Phase 0 + Phase 1 farm chat shipped 2026-09-15** (`plugins/farm_feed/`). Phase 2 DMs / pair keys still deferred. Hosted `farm_chat/log` + issue `directedAt*` writes need `npm run deploy:rules` (not done in this pass).  
 **Date:** 2026-09-15  
 **Product:** PUF-AM  
 **Scope:** A **whole-farm feed** plus a **For you** ping when Directed at names this device’s person. **Farm pack** `farm_feed` (not core, not a crop pack, not `freenet_host`). George stages Cloud Run / rules deploy after review. **DM threads / pair-key private chat are deferred** (Phase 2).  
@@ -23,7 +23,8 @@ George: **just a whole farm feed** this sprint. Issues **ping the tagged user di
 | **Reuse the picker** | Same **Directed at** / `directedAtName` / `directedAtUid` (and diary `assignedTo` / `assignedToName`). Do not invent @mentions or a second assignee list. |
 | **Pair keys are not required** | See below. Phase 2 (DMs / pair keys) is **deferred**. |
 | **Freenet latency** | Still the **20 s** Hot watch, not instant. Both apps + a node (or hub) must be up. |
-| **Hosted Phase 0** | Badge / For you on **existing** issues / highlights / diary. **No new Firestore collection.** Do not assume a `pufworks-am` chat store (billing Q1 still open). Hosted can be nearer-real-time later **if** a feed store is approved. |
+| **Hosted Phase 0** | Badge / For you on **existing** issues / highlights / diary. |
+| **Hosted Phase 1 chat** | One rolling doc `farms/{farmId}/farm_chat/log` (last 80). Single-doc snapshot while Farm feed is open. No `messages` collection. No FCM. |
 | **In-app only this sprint** | Phase 0–1. OS banners are Phase 3 (app up). FCM is Q4, still open. |
 
 **Why pair keys are not needed.** Pair keys would seal a blob so only two devices can decrypt it. That is a **private DM**. A directed ping is the opposite: the issue (and Directed at) is already **farm-visible** — Hot on Freenet (HotKey is farm-wide), Firestore on hosted (`mapHighlights` / issues / diary; highlight `audience` is `'all'` today). The receiving device already gets the same record the rest of the crew get. “Ping the tagged user” is a **local UI filter** on that shared record (`directedAtUid` / name match), not a second ciphertext. If Directed at is empty, every device treats it as **Everyone**. His fallback (“if a direct ping needs pair keys, every new issue is a system-wide ping”) is therefore unused for Phase 0–1: the directed case never needed pair keys, and the empty case already *is* the system-wide ping.
@@ -44,7 +45,7 @@ George: **Can we make this (farm feed + For you / Directed at pings) a plugin so
 | **Id** | **`farm_feed`**. Snake_case; [`NAMING.md`](NAMING.md) §1; manifest pattern `^[a-z][a-z0-9_]*$`. Not a crop name. Not `freenet_*`. Prefer this over `farm_messaging` (that name sounds like DMs; Phase 2 is deferred). No collision with `walnut_blight`, `chill_portions`, `water`, `nutrition`, `harvest`, `drying`, `freenet_host`. Folder when built: `plugins/farm_feed/`. |
 | **Shape** | Copy [`plugins/chill_portions/`](../plugins/chill_portions/) — [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) § Template pack — `plugin.json` + `src/index.ts` exporting `packUi`. **Not** walnut blight. Adapter + module id + catalog row in `shared/` still hand-added. Discovery is the existing glob; do not list the pack in `src/` by name. |
 | **Enablement** | Settings → Plugins toggle (Install / Activate / Deactivate / Delete), same lifecycle idea as other packs. **Default on** for **new** farms (farm-create marks `farm_feed` active). Why: Phase 0 adds **no new Firestore collection** and reuses listeners already on the wire — billing is not a reason to hide it. Mixed-crew farms already write Directed at; For you is the missing surface. Opt-in-only would hide pings behind a toggle nobody finds. **Existing farms:** no silent `migrateLegacy`. Install from Settings → Plugins → General. Owner can Deactivate. Never `ALWAYS_ON_MODULES`. |
-| **Pipes** | Same pack on **hosted and Freenet**. No FarmSeed. No FarmCode on the wire. **No new Firestore collection in Phase 0.** |
+| **Pipes** | Same pack on **hosted and Freenet**. No FarmSeed. No FarmCode on the wire. Phase 1 hosted store is **one** `farm_chat/log` doc (not a collection of messages). |
 | **Staging** | Phase 0 is in tree. George still stages Cloud Run / rules. Do not dump pages in `src/pages/`. |
 
 ### Core vs pack
@@ -105,10 +106,11 @@ A field issue that should ping someone **uses this same directed-at**. Copy `dir
 | Farm-wide rows in the same list | Empty Directed at = **Everyone** — same feed, not a private channel | **0** |
 | Existing inspect / diary | Keep **For {name}** / **Assigned:** — emphasise **For you** when it matches this session | **0** |
 | **Farm feed** (one screen) | First-class all-farm stream with a **For you** filter. Not a second inbox. Field nav **Farm feed**, not Messages | **0** (shipped with Phase 0 — George asked for the pack page) |
+| **Farm chat** (composer + log) | Whole-farm text log on the Farm feed screen. Not a DM. Not per-user Directed at | **1** (shipped 2026-09-15) |
 | **Thread** (DM) / pair keys | Two people; ciphertext the rest of the farm cannot read | **2 — deferred** |
 | OS banner | Android / Electron while the app is up (not focused). **Not** SMS. **Not** email ([`ROADMAP.md`](ROADMAP.md) “Coming Soon”) | **3 — later** |
 
-**Farm pack `farm_feed`** (see Pack above) — not a crop pack, not core pages. Phase 0 shipped the **Farm feed** screen (pack route `/farm-feed`, Field nav — not a Messages item) plus a Dashboard card badge. Do not dump a page in `src/pages/` ([`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md): do not grow `AuthContext` with pack hooks). Not a chat inbox.
+**Farm pack `farm_feed`** (see Pack above) — not a crop pack, not core pages. Phase 0 shipped the **Farm feed** screen (pack route `/farm-feed`, Field nav — not a Messages item) plus a Dashboard card badge. Phase 1 added the whole-farm chat composer + log on that screen. Do not dump a page in `src/pages/` ([`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md): do not grow `AuthContext` with pack hooks). Not a DM inbox.
 
 ---
 
@@ -139,7 +141,7 @@ A field issue that should ping someone **uses this same directed-at**. Copy `dir
 | Option | How | Cost ([`FIREBASE_BILLING.md`](FIREBASE_BILLING.md) §1) | Verdict |
 |--------|-----|------------------------------------------------------|---------|
 | **A — Derive feed / For you from records we already sync** | Badge + For you + Everyone from `mapHighlights` + diary `assignedTo` + existing issues (`directedAt*` if present or copied). No new collection | **No new reads** if we reuse listeners/polls already running | **Phase 0. Do this first.** |
-| **B — Capped `farms/{farmId}/messages/{id}` (or a feed store)** | Text-only, last-N, ≤1 KB, no photos. Query when Farm feed is open; **not** a farm-wide `onSnapshot` while the map is up | Each extra always-on listener is a presence-shaped bill. Presence + issue polling already dominate George’s card | **Not assumed.** Only if billing Q1 is yes. Do **not** put a chat store on `pufworks-am` in Phase 0 |
+| **B — Capped `farms/{farmId}/farm_chat/log`** | Text-only, last **80**, ≤400 chars, no photos. **One** rolling document. `onSnapshot` of that doc while Farm feed is open; transactional read+write on Send | 1 read on attach + 1 read per listener per Send + 1 write per Send. Not a growing collection | **Phase 1 shipped.** Same cap on BYO. Rules deploy still required for Clare Downs |
 | **C — Cloud Functions fan-out / FCM** | Function writes per-uid inbox docs or pushes FCM | Invocations + writes + (FCM) a new Google surface on George’s project | **No** on `pufworks-am`. Repeat of the cost-tracker anti-pattern (§1.1). FCM remains Q4 |
 | **D — SMS / email** | Carrier or SMTP | Not in the product; email is already “Coming Soon” | **No** |
 
@@ -165,7 +167,7 @@ Firestore stays the **authority** ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR
 ## Recommendation (transport + UI)
 
 1. **Phase 0 on every pipe:** no new store. **For you** + farm-wide **Everyone** rows are a **local derivation** of issues / highlights / diary we already sync, rendered by pack **`farm_feed`**. Hosted reuses listeners already on the wire. Freenet reuses Hot + the **20 s** watch — **not instant**; copy must say so. Home: **Dashboard / existing issues list** via pack surfaces, not a Messages nav, not `src/pages/`.
-2. **Phase 1:** one **Farm feed** screen **in the pack** — the all-farm stream with a **For you** filter. Still no pair keys. Still no new Firestore collection unless billing Q1 is yes. Hosted nearer-real-time only if that store is approved.
+2. **Phase 1 (shipped):** Farm feed screen **in the pack** plus a **whole-farm chat** composer and log. Hosted: capped `farm_chat/log`. Freenet: HotKey on `hot/current` + 20 s watch. Still no pair keys.
 3. **Phase 2 — deferred:** DM threads / pair keys. Do not start. Do not tell the operator a Hot note is a private DM.
 4. **Phase 3 — later:** OS banners while the app is up. FCM only if George answers Q4.
 5. **Hybrid / web:** hosted members see the same Firestore records (Phase 0) or an approved feed store later. Hosted web has **no** Freenet node.
@@ -200,7 +202,7 @@ George said **build Phase 0** on 2026-09-15. The pack is **`plugins/farm_feed/`*
 | Phase | What George is approving | Pipes |
 |-------|--------------------------|-------|
 | **0 — For you + farm feed (in-app)** | **Shipped 2026-09-15.** `plugins/farm_feed/` (chill portions shape; `kind: farm`, `category: generic`). Derive For you / Everyone from **existing** issues / highlights / diary directed-at (empty = Everyone). Dashboard card badge + Farm feed screen in the pack. **For you** on highlight inspect. Same Directed at picker (stays in core; also on issue compose). No new mention fields. No new Firestore collection. No Messages nav. No OS push | Hosted: existing issue/diary loads + local highlight IDB. Freenet: 20 s watch, copy honest |
-| **1 — Farm feed as first-class UI** | One **Farm feed** screen **in the pack**: all-farm stream + For you filter. Not a second inbox. Not a chat product. Optional capped feed store **only** if billing Q1 is yes | Freenet still Hot. Hybrid: Firestore only |
+| **1 — Farm chat log** | **Shipped 2026-09-15.** Composer + scrolling log on Farm feed. Whole-farm only. Hosted: `farms/{farmId}/farm_chat/log` last 80. Freenet: same lines in Hot (HotKey). Hybrid: Firestore only | Freenet still 20 s Hot watch. Hosted nearer-real-time via the single-doc snapshot |
 | **2 — DM threads / pair keys** | **Deferred.** Do not start | — |
 | **3 — OS notifications** | Android / Electron local banners for Phase 0–1 events **while the shell is alive**. Never SMS. FCM only if George opens Q4 | Freenet: node must be up |
 
@@ -221,14 +223,14 @@ Do not start Phase 2. Do not start Phase 3 before Phase 0 is field-usable on Cla
 - Kick-that-works (hole 4); shared bones People ledger (hole 3) — cite them, do not fake them
 - Remounting the map on inbound ping (`refreshFarmUiAfterRecovery` / `isLoaded: false`)
 - Renumbering [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or any `Plans/reference/*` `§`
-- Assuming a `pufworks-am` chat / feed collection (billing Q1 unanswered)
+- Adding a growing `messages` collection or an unbounded chat `onSnapshot`
 - Calling this a **crop pack**, stuffing it into `plugins/freenet_host/`, or starting Phase 0 as pages in `src/pages/`
 
 ---
 
 ## Open questions for George
 
-1. **May `pufworks-am` store a feed / chat collection at all**, or is any new hosted store BYO-only (and Freenet-native farms keep using Hot)? **Still open.** Phase 0 does not need this answer.
+1. **~~May `pufworks-am` store a feed / chat collection at all?~~ Answered 2026-09-15.** Yes — **one** rolling `farms/{farmId}/farm_chat/log` (last 80). Not a growing `messages` collection. Freenet-native stays on Hot. BYO uses the same cap on the owner’s project.
 2. **~~Freenet DM crew-readable vs wait for pair keys?~~ Answered 2026-09-15.** This sprint is the **farm feed + Directed at**, not DMs. Directed ping is farm-visible by design; pair keys are not required. Empty Directed at = Everyone. Phase 2 (DMs / pair keys) deferred.
 3. **~~For you home: Dashboard vs Messages nav?~~ Answered 2026-09-15.** Phase 0: **For you on Dashboard / the existing issues list** via pack **`farm_feed` surfaces**, not a Messages nav, not `src/pages/`. Phase 1: if the stream needs a home, one screen **in the pack** — **Farm feed** (all-farm stream + For you filter) — not a second inbox.
 4. **Phase 3:** local banners only, or is FCM on the table later (whose Firebase)? **Still open.**
@@ -260,3 +262,5 @@ Do not start Phase 2. Do not start Phase 3 before Phase 0 is field-usable on Cla
 **2026-09-15 (pack).** Yes — farm feed + For you is plugin kind **farm**, id **`farm_feed`**, not core, not a crop pack, not `freenet_host`. Settings copy is **Farm feed** (not “farm pack” — that is the `.pufom`). Core keeps Directed at fields; the pack reads them and owns feed / For you / badge / later OS banners. Default **on** for new farms (no Phase 0 billing hit). Both pipes; no FarmSeed; no new collection in Phase 0.
 
 **2026-09-15 (Phase 0 shipped).** `plugins/farm_feed/` + `kind: farm` catalog. Feed derives from issues / highlights / diary already on device. Dashboard card + `/farm-feed` (not Messages). Zero new Firestore paths. Hosted issue Directed at fields are in `firestore.rules` — George still deploys rules. Freenet photos, FCM, DMs, chat-photo upload not in.
+
+**2026-09-15 (Phase 1 farm chat).** Whole-farm composer + scrolling log on Farm feed. Hosted: `farms/{farmId}/farm_chat/log` last 80, single-doc snapshot while the page is open. Freenet: same lines in `hot/current` (HotKey; watch hash+URI together). No DMs, no chat photos, no FCM. George still deploys rules for Clare Downs.

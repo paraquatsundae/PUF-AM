@@ -1,22 +1,30 @@
 /**
- * Hosted cost contract for Farm feed Phase 0.
+ * Hosted cost contract for Farm feed.
  *
- * Derive from issues / highlights / diary this farm already syncs.
- * No `messages` collection. No unbounded onSnapshot. No Cloud Function / FCM.
+ * Phase 0: derive from issues / highlights / diary this farm already syncs.
+ * Phase 1: one rolling chat doc `farms/{farmId}/farm_chat/log` (last 80 lines).
+ * No `messages` collection. No unbounded collection onSnapshot. No Cloud Function / FCM.
  * Plans/FARM_MESSAGING.md · Plans/FIREBASE_BILLING.md
  */
 
-/** Phase 0 adds zero new Firestore paths on pufworks-am. */
-export const FARM_FEED_FIRESTORE_PATHS: readonly string[] = [];
+export const FARM_CHAT_COLLECTION = 'farm_chat';
+export const FARM_CHAT_DOC_ID = 'log';
+export const FARM_FEED_FIRESTORE_PATHS = ['farms/{farmId}/farm_chat/log'] as const;
+
+export function farmChatDocPath(farmId: string): string {
+  return `farms/${farmId}/${FARM_CHAT_COLLECTION}/${FARM_CHAT_DOC_ID}`;
+}
 
 const FORBIDDEN = [
-  'onSnapshot',
   "collection(db, 'messages')",
   'collection(db, "messages")',
   '/messages/',
 ] as const;
 
-/** Pure guard used by tests — pack source must not contain these. */
+/** True when source looks like an unbounded growing-collection listen. */
 export function farmFeedSourceLooksUnbounded(source: string): boolean {
-  return FORBIDDEN.some((needle) => source.includes(needle));
+  if (FORBIDDEN.some((needle) => source.includes(needle))) return true;
+  if (/onSnapshot\s*\(\s*collection\s*\(/.test(source)) return true;
+  if (/onSnapshot\s*\(\s*query\s*\(/.test(source)) return true;
+  return false;
 }

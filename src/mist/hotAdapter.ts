@@ -15,6 +15,9 @@ import {
   MAP_HIGHLIGHT_HOT_TYPE,
   type MapHighlightDoc,
 } from '../lib/mapHighlights';
+import type { FarmChatHotLine } from './hotFarmChatBridge.ts';
+
+export const FARM_CHAT_HOT_TYPE = 'farm_chat';
 
 export const HOT_WINDOW_DAYS = 90;
 
@@ -55,6 +58,38 @@ export function issueToHotRecord(issue: FarmExportIssue, archived: boolean): Hot
   };
 }
 
+export function farmChatLinesToHotRecord(messages: FarmChatHotLine[]): HotRecord {
+  const last = messages[messages.length - 1];
+  return {
+    id: FARM_CHAT_HOT_TYPE,
+    type: FARM_CHAT_HOT_TYPE,
+    ts: last?.at ?? new Date(0).toISOString(),
+    author: last?.authorName ?? 'Crew',
+    payload: { messages },
+  };
+}
+
+export function farmChatLinesFromHotRecord(record: HotRecord): FarmChatHotLine[] {
+  if (record.type !== FARM_CHAT_HOT_TYPE) return [];
+  const payload = record.payload as { messages?: unknown } | null;
+  if (!Array.isArray(payload?.messages)) return [];
+  const out: FarmChatHotLine[] = [];
+  for (const row of payload.messages) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    if (typeof r.id !== 'string' || typeof r.at !== 'string') continue;
+    if (typeof r.text !== 'string' || typeof r.authorName !== 'string') continue;
+    out.push({
+      id: r.id,
+      at: r.at,
+      authorName: r.authorName,
+      text: r.text,
+      ...(typeof r.authorUid === 'string' ? { authorUid: r.authorUid } : {}),
+    });
+  }
+  return out;
+}
+
 export function highlightToHotRecord(highlight: MapHighlightDoc): HotRecord {
   const ts = highlight.updatedAt || highlight.createdAt;
   return {
@@ -85,6 +120,11 @@ export type BuildHotStateOpts = {
    * (`Plans/FREENET_OPERATOR_FLOW.md` §9.2).
    */
   mapHighlights?: MapHighlightDoc[];
+  /**
+   * Whole-farm chat (last N). Freenet-native only — hybrid mirrors stay
+   * Firestore-authoritative (`Plans/FARM_MESSAGING.md`).
+   */
+  farmChat?: FarmChatHotLine[];
 };
 
 /** Build HotState from a farm-export envelope (full local snapshot replace in v1). */
@@ -98,6 +138,7 @@ export function buildHotStateFromFarmExport(
     ...exportBundle.issues.map((i) => issueToHotRecord(i, false)),
     ...exportBundle.issuesArchive.map((i) => issueToHotRecord(i, true)),
     ...(opts?.mapHighlights ?? []).map((h) => highlightToHotRecord(h)),
+    ...(opts?.farmChat && opts.farmChat.length ? [farmChatLinesToHotRecord(opts.farmChat)] : []),
   ];
   records.sort((a, b) => b.ts.localeCompare(a.ts));
 
@@ -135,6 +176,7 @@ export type HotFarmEntities = {
   issues: FieldIssue[];
   issuesArchive: FieldIssue[];
   highlights: MapHighlightDoc[];
+  chat?: FarmChatHotLine[];
 };
 
 function asMapHighlight(payload: unknown): MapHighlightDoc | null {
@@ -150,6 +192,7 @@ export function hotStateToFarmEntities(hot: HotState): HotFarmEntities {
   const issues: FieldIssue[] = [];
   const issuesArchive: FieldIssue[] = [];
   const highlights: MapHighlightDoc[] = [];
+  let chat: FarmChatHotLine[] | undefined;
 
   for (const record of hot.records) {
     if (DIARY_HOT_RECORD_TYPES.has(record.type as DiaryEvent['type'])) {
@@ -167,10 +210,14 @@ export function hotStateToFarmEntities(hot: HotState): HotFarmEntities {
     if (record.type === MAP_HIGHLIGHT_HOT_TYPE) {
       const highlight = asMapHighlight(record.payload);
       if (highlight) highlights.push(highlight);
+      continue;
+    }
+    if (record.type === FARM_CHAT_HOT_TYPE) {
+      chat = farmChatLinesFromHotRecord(record);
     }
   }
 
-  return { diary, issues, issuesArchive, highlights };
+  return { diary, issues, issuesArchive, highlights, ...(chat ? { chat } : {}) };
 }
 
 export function countHotFarmEntities(hot: HotState): {
@@ -178,6 +225,7 @@ export function countHotFarmEntities(hot: HotState): {
   issues: number;
   issuesArchive: number;
   highlights: number;
+  chat: number;
   records: number;
 } {
   const entities = hotStateToFarmEntities(hot);
@@ -186,6 +234,7 @@ export function countHotFarmEntities(hot: HotState): {
     issues: entities.issues.length,
     issuesArchive: entities.issuesArchive.length,
     highlights: entities.highlights.length,
+    chat: entities.chat?.length ?? 0,
     records: hot.records.length,
   };
 }

@@ -16,7 +16,7 @@ Related plans (not duplicated here):
 | [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) | Android/Capacitor: two-app reader, hub, gateway (history). Host-in-APK is [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) |
 | [`APK_FREENET_HOST.md`](APK_FREENET_HOST.md) | Freenet **network pack** inside the APK — isolated process, Join + Send; native PUT spike |
 | [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) | How to add a crop pack (file list). Start here; contract is `CROP_PACK_PLUGIN.md` |
-| [`FARM_MESSAGING.md`](FARM_MESSAGING.md) | Farm pack `farm_feed` (not a crop). Phase 0 shipped 2026-09-15 |
+| [`FARM_MESSAGING.md`](FARM_MESSAGING.md) | Farm pack `farm_feed` (not a crop). Phase 0 + Phase 1 farm chat shipped 2026-09-15 |
 | [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md) | Crop-pack UI/settings seam (not Freenet) — gates, modules, pack surfaces |
 | [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) | Walnut blight pack settings home (reference crop pack) |
 | [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) §9 | Contribute vs communicate, what is published, what is sealed, what is not on Freenet (merged 2026-09-10; original archived) |
@@ -47,7 +47,7 @@ Related plans (not duplicated here):
 | **PUF-FN** | Future product name for the **Freenet client unit** when `units/puf-freenet-host/` forks into its own repo (in-app plugin today → standalone repo later) | Current mist storage unit (`mist-freenet`) or the host unit's present package name; not a shipping product yet |
 | **Crop pack** / **pack plugin** | Optional farm capability: catalog id, modules, routes, pack settings UI ([`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md); code in `plugins/<id>/src/`, discovered by `src/packs/registry.ts`) | Freenet host plugin, Capacitor plugin, npm marketplace install; farm feed (not a crop) |
 | **Farm pack** (`.pufom`) | Files & backup **export/import** — one compressed `.pufom` shelf. Existing UI: “Export farm pack” / “Import farm pack” | A Settings → Plugins row; farm feed |
-| **Farm pack** (plugin kind) | Docs/schema name for a **whole-farm** (not crop) capability. Id **`farm_feed`**: farm feed + For you ([`FARM_MESSAGING.md`](FARM_MESSAGING.md)). Same discovery as crop packs. Settings `category` is `generic`. Manifest `kind: farm`. **UI label is “Farm feed”** — never “Install farm pack” (that phrase is the `.pufom`). Phase 0 shipped 2026-09-15. | Crop pack; Freenet **network pack**; `.pufom` export; do not put this UI in `freenet_host` |
+| **Farm pack** (plugin kind) | Docs/schema name for a **whole-farm** (not crop) capability. Id **`farm_feed`**: farm feed + For you ([`FARM_MESSAGING.md`](FARM_MESSAGING.md)). Same discovery as crop packs. Settings `category` is `generic`. Manifest `kind: farm`. **UI label is “Farm feed”** — never “Install farm pack” (that phrase is the `.pufom`). Phase 0 + Phase 1 farm chat shipped 2026-09-15. | Crop pack; Freenet **network pack**; `.pufom` export; do not put this UI in `freenet_host` |
 | **Network pack** | Operator name for Freenet under Settings → Plugins → Network & storage. Code `kind` stays `system` (`freenet_host`). Ships in the app — not a zip Install | Crop pack; farm pack (`farm_feed`); `plugins/` zip drop |
 | **Freenet node** | Bundled `freenet` / APK `:freenet` / an attached Freenet 0.2 listener on `:7509` | LAN hub. Do **not** say “Freenet hub” |
 | **LAN hub** | Desktop Express on the shed Wi‑Fi for paired tablets (`.pufom` shelf, join tickets) | A Freenet node; Freenet Android Node |
@@ -66,7 +66,7 @@ Related plans (not duplicated here):
 
 **Former names (context only):** PUFOM = Orchard Manager; Sentinut = early Android publisher id.
 
-**Decision — 2026-09-15:** Farm feed + For you is plugin kind **farm**, id **`farm_feed`**, not a crop pack and not inside `freenet_host`. Settings copy is **Farm feed**. Do not say “farm pack” in that UI — Files & backup already uses it for `.pufom`. [`FARM_MESSAGING.md`](FARM_MESSAGING.md). **Phase 0 shipped.**
+**Decision — 2026-09-15:** Farm feed + For you is plugin kind **farm**, id **`farm_feed`**, not a crop pack and not inside `freenet_host`. Settings copy is **Farm feed**. Do not say “farm pack” in that UI — Files & backup already uses it for `.pufom`. [`FARM_MESSAGING.md`](FARM_MESSAGING.md). **Phase 0 + Phase 1 farm chat shipped.**
 
 ---
 
@@ -199,6 +199,7 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.freenetHost.farmCodePromptDismissed.v1` | `localStorage` JSON map of cloud `farmId` → ISO time. Hides the post-sign-in “enter the FarmCode” prompt on that device for that farm. Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
 | `pufam.freenet.hostHoldOff.v1` | `sessionStorage` `1` while Settings **Stop Freenet on this device** has paused the node. Reconciler must not respawn until **Start Freenet** or the next farm open. Added 2026-09-14 |
 | `pufam.farmFeed.lastSeen.v1.{farmId}` | Farm feed For you badge watermark (ISO time). Local only — not a settings doc, not Firestore. Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `pufam.farmChat.log.v1.{farmId}` | Capped whole-farm chat cache (last 80 text lines). Hosted authority is `farms/{farmId}/farm_chat/log`; Freenet authority is Hot. Added 2026-09-15 (`FARM_MESSAGING.md`) |
 
 ### CSS / DOM (non-storage)
 
@@ -277,6 +278,7 @@ Top-level collections (production):
 | `farms/{farmId}/tasks/{id}` | Tasks |
 | `farms/{farmId}/presence/{uid}` | Crew GPS |
 | `farms/{farmId}/mapHighlights/{id}` | Map overlay highlights |
+| `farms/{farmId}/farm_chat/log` | Whole-farm chat — **one** rolling document, last 80 text lines. Not a `messages` collection. Added 2026-09-15 (`FARM_MESSAGING.md`) |
 | `farms/{farmId}/environmental_cache/{key}` | Per-farm env cache |
 | `farms/{farmId}/nutrition_data/{id}` | Nutrition uploads |
 | `farms_public/{farmId}` | Legacy nearby-discovery index (name + coarse location). **Withdrawn 2026-09-13** — Express no longer writes or lists it; rules stay deny-all |

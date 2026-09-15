@@ -53,7 +53,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 | Doc | Status | Purpose |
 |-----|--------|---------|
 | [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) | Live spec / Active plan | Settings → Sync, join tickets, auto-sync ladder, farm gateway, crew presence over Freenet (§5). Most-cited plan in source by `§n` — do not renumber |
-| [`FARM_MESSAGING.md`](FARM_MESSAGING.md) | Active plan | Whole-farm feed + directed-at **For you** ping. **Farm pack** id **`farm_feed`**. **Phase 0 shipped 2026-09-15** (`plugins/farm_feed/`, zero new Firestore paths). Core **keeps** Directed at; pack **reads** them. Default on for new farms; existing hosted Install from Settings → Plugins → General. Phase 2 DMs / pair keys **deferred**. Freenet is a **20 s** watch, not instant. Hosted chat store not approved (billing Q1). Photos stay parked. |
+| [`FARM_MESSAGING.md`](FARM_MESSAGING.md) | Active plan | Whole-farm feed + directed-at **For you** ping + **farm chat** (broadcast). **Farm pack** id **`farm_feed`**. **Phase 0 + Phase 1 chat shipped 2026-09-15**. Hosted: one rolling `farms/{farmId}/farm_chat/log` (last 80). Freenet: HotKey on `hot/current` + 20 s watch. Phase 2 DMs / pair keys **deferred**. Photos stay parked. |
 | [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md) | Live spec | Every on-device store across browser, APK, Electron, LAN hub; authoritative vs cache |
 | [`FARM_EXPORT_JSON_XLSX.md`](FARM_EXPORT_JSON_XLSX.md) | Live spec | `farm-export.json` and xlsx sheet shapes (v1 shipped) |
 | [`DPIRD_CACHE_FRESHNESS.md`](DPIRD_CACHE_FRESHNESS.md) | Active plan | `ensure-cache` gate, dryer hourly proxy, chill season freeze — design only |

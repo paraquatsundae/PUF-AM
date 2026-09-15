@@ -69,7 +69,7 @@ export const MODULE_BLURBS: Record<FarmModuleId, string> = {
   nutrition: 'Fertiliser diary (nutrition pack)',
   harvest: 'Yield by block (harvest pack)',
   drying: 'Dryer list and moisture sessions (drying pack)',
-  farm_feed: 'Farm-wide issues, highlights, and diary directed at you',
+  farm_feed: 'Whole-farm chat plus issues, highlights, and diary directed at you',
   financials: 'Costs & records',
   farm_management: 'Team, PINs, discovery',
   farm_setup: 'Farm type, people, map highlights',

@@ -20,6 +20,7 @@ import { hasSubtleCrypto } from '../../units/mist-freenet/src/subtle-crypto.ts';
 import { buildFarmExportJson } from '../lib/farmExport';
 import { activeMapHighlights, listLocalHighlights } from '../lib/mapHighlights';
 import { buildHotStateFromFarmExport } from './hotAdapter.ts';
+import { farmChatHotBridge } from './hotFarmChatBridge.ts';
 import { ensureBrowserMistStore } from './createFarmStore.ts';
 import {
   hasMistDeviceSession,
@@ -218,11 +219,14 @@ export async function publishLocalFarmToMistHot(
   const mapHighlights = activeMapHighlights(
     await listLocalHighlights(cloudFarmId || farmId),
   );
+  // Hybrid: Firestore is authority — do not dual-write chat onto the mirror.
+  const farmChat = !cloudFarmId ? (farmChatHotBridge()?.list(farmId) ?? []) : [];
   const hotState = buildHotStateFromFarmExport(exportBundle, {
     previous,
     defaultAuthor: exportBundle.farmName,
     farmId,
     mapHighlights,
+    farmChat,
     ...(cloudFarmId ? { cloudFarmId } : {}),
   });
 
