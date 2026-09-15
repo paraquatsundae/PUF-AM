@@ -1,6 +1,7 @@
 /**
  * Background Freenet Hot watch while a farm is open and a node can answer.
- * Polls the watch slot (20s). No Settings → Sync → Pull.
+ * Polls the watch slot (20s) even when the window is unfocused — Linux ↔ APK
+ * chat died when AppImage lost focus and skipped the poll. No Settings → Sync → Pull.
  *
  * Freenet 0.2.135 host plugin has no subscribe API we can use; this is a poll.
  *
@@ -29,7 +30,6 @@ export function useFreenetHotWatch(farmId: string | null | undefined): void {
 
     const tick = async () => {
       if (cancelled || running.current) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       const now = Date.now();
       if (now - lastAt.current < FREENET_HOT_WATCH_MIN_GAP_MS) return;
 

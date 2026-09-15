@@ -3,7 +3,7 @@
 **Product:** PUF-AM — Ag Manager  
 **Status:** Active — v1 contract; first and only consumer `plugins/freenet_host/` ([`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) Phase 1, slice A done 2026-09-10, slice B done 2026-09-11)  
 **Date:** 2026-09-10  
-**Scope:** What a *network pack* is, what it ships, how it is enabled, and what it may not do. Sibling of [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md); same discovery, different lifecycle.  
+**Scope:** What a *network pack* is, what it ships, how it is enabled, and what it may not do. Sibling of [`CROP_PACK_PLUGIN.md`](CROP_PACK_PLUGIN.md); same discovery, different lifecycle. **Not this:** farm feed / For you is a **farm pack** (`farm_feed`), not a second network pack and not inside `freenet_host` — [`FARM_MESSAGING.md`](FARM_MESSAGING.md) Pack (Decision — 2026-09-15). Do not renumber this file’s `§` headings.  
 **Experimental — not production.** Firebase Auth + invite PIN remains the shipping path. A network pack is how the experimental Freenet path is packaged, not a change to what ships.
 
 Cite from code as `Plans/NETWORK_PACK_PLUGIN.md § <section>`.

@@ -5,7 +5,9 @@ import {
   appendFarmChatDay,
   farmChatCalendarDate,
   farmChatDayRolled,
+  farmChatHasLocalOnly,
   FARM_CHAT_TZ,
+  mergeFarmChatDayIncoming,
   visibleFarmChat,
 } from './farmChatDay';
 import { buildFarmChatMessage, FARM_CHAT_LIVE_CAP } from './farmChatLog';
@@ -63,6 +65,40 @@ describe('live 5 vs day buffer', () => {
     expect(adopted.day.messages.map((row) => row.id)).toEqual(['t1']);
     expect(adopted.pendingArchive.get('2026-09-14')?.map((row) => row.id)).toEqual(['y1']);
     expect(adopted.live).toHaveLength(2);
+  });
+});
+
+describe('Freenet incoming merge (Linux ↔ APK)', () => {
+  const tablet = buildFarmChatMessage({
+    text: 'from tablet',
+    authorName: 'Tablet',
+    id: 'tab-1',
+    at: '2026-09-15T08:00:00.000Z',
+  })!;
+  const linux = buildFarmChatMessage({
+    text: 'from linux',
+    authorName: 'Linux',
+    id: 'lin-1',
+    at: '2026-09-15T08:01:00.000Z',
+  })!;
+
+  it('does not wipe local day lines when a stale Hot last-writer arrives', () => {
+    const local = { date: '2026-09-15', messages: [tablet, linux] };
+    const merged = mergeFarmChatDayIncoming(local, '2026-09-15', [tablet]);
+    expect(merged?.messages.map((row) => row.id).sort()).toEqual(['lin-1', 'tab-1']);
+  });
+
+  it('ignores an older incoming calendar day', () => {
+    const local = { date: '2026-09-16', messages: [linux] };
+    const merged = mergeFarmChatDayIncoming(local, '2026-09-15', [tablet]);
+    expect(merged?.date).toBe('2026-09-16');
+    expect(merged?.messages.map((row) => row.id)).toEqual(['lin-1']);
+  });
+
+  it('flags republish when this device still has a line Hot omitted', () => {
+    expect(farmChatHasLocalOnly([tablet, linux], null, [tablet], [tablet])).toBe(true);
+    expect(farmChatHasLocalOnly([tablet], null, [tablet, linux], [tablet, linux])).toBe(false);
+    expect(farmChatHasLocalOnly([tablet], null, [], undefined)).toBe(false);
   });
 });
 

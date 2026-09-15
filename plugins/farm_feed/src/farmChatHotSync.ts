@@ -1,15 +1,18 @@
 /**
  * Pack side of the Freenet farm-chat bridge — live 5, day buffer, archive index.
  */
+import { scheduleMistHotAutoPublish } from '../../../src/mist/mistHotBridge';
 import {
+  farmChatHasLocalOnly,
   mergeFarmChatArchiveIndex,
+  mergeFarmChatDayIncoming,
   readFarmChatArchiveIndex,
   readFarmChatDay,
+  visibleFarmChat,
   writeFarmChatArchiveIndex,
   writeFarmChatDay,
 } from './farmChatDay';
 import {
-  FARM_CHAT_LIVE_CAP,
   listFarmChat,
   mergeFarmChatLogs,
   notifyFarmChatChanged,
@@ -38,11 +41,23 @@ export function mergeFarmChatHotIncoming(
   incoming: FarmChatMessage[] | FarmChatIncomingPayload
 ): FarmChatMessage[] {
   const payload = Array.isArray(incoming) ? { messages: incoming } : incoming;
-  const merged = mergeFarmChatLogs(listFarmChat(farmId), payload.messages, FARM_CHAT_LIVE_CAP);
-  writeFarmChatLocal(farmId, merged);
-  if (payload.dayDate) {
-    writeFarmChatDay(farmId, { date: payload.dayDate, messages: payload.dayMessages ?? [] });
-  }
+  const hasChat =
+    Boolean(payload.messages.length) ||
+    Boolean(payload.dayDate) ||
+    Boolean(payload.dayMessages?.length) ||
+    Boolean(payload.archives?.length);
+  if (!hasChat) return listFarmChat(farmId);
+
+  const localLive = listFarmChat(farmId);
+  const localDay = readFarmChatDay(farmId);
+  const day = mergeFarmChatDayIncoming(localDay, payload.dayDate, payload.dayMessages ?? payload.messages);
+  const live = visibleFarmChat(
+    day ? mergeFarmChatLogs(day.messages, payload.messages) : mergeFarmChatLogs(localLive, payload.messages)
+  );
+  const republish = farmChatHasLocalOnly(localLive, localDay, payload.messages, payload.dayMessages);
+
+  writeFarmChatLocal(farmId, live);
+  if (day) writeFarmChatDay(farmId, day);
   if (payload.archives?.length) {
     writeFarmChatArchiveIndex(
       farmId,
@@ -50,5 +65,6 @@ export function mergeFarmChatHotIncoming(
     );
   }
   notifyFarmChatChanged(farmId);
-  return merged;
+  if (republish) scheduleMistHotAutoPublish(farmId);
+  return live;
 }

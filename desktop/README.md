@@ -7,7 +7,7 @@ terminal on either machine** ([`Plans/reference/MIST_TWO_FEDORA_FREENET.md`](../
 AppImage) — [`Plans/FREENET_OPERATOR_FLOW.md`](../Plans/FREENET_OPERATOR_FLOW.md) §8. Current Linux
 bake is **`0.0.2`**. The loopback API is now behind a per-launch token, and copyable **Windows portable +
 zip** artifacts build here; only the NSIS `.exe` still wants a Windows host.
-**Next (2026-09-15) — two tracks:** codebase health + security review, then issue photos over Freenet (packet size; photos not shipped); **parallel:** chill portions pack + weather/DPIRD wiring stale — [`Plans/PLUGIN_AUTHORING.md`](../Plans/PLUGIN_AUTHORING.md) § Template pack.
+**Next (2026-09-15):** [`Plans/DAY_RUN_2026_09_15.md`](../Plans/DAY_RUN_2026_09_15.md).
 **Plan (authoritative):** [`Plans/reference/DESKTOP_FREENET_PLUGIN.md`](../Plans/reference/DESKTOP_FREENET_PLUGIN.md)
 
 ## Running it

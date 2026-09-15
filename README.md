@@ -137,6 +137,7 @@ Full index (every plan, its status, and where archived docs went): [`Plans/READM
 | [`Plans/LOCAL_DATA_STORAGE.md`](Plans/LOCAL_DATA_STORAGE.md) | Every local store — IndexedDB, localStorage, Firestore paths, Android sandbox, Electron `userData`, LAN shelves — and which are authoritative rather than cache. |
 | [`Plans/DEPLOY_CLOUD_RUN.md`](Plans/DEPLOY_CLOUD_RUN.md) § Android dev builds | Emulator / LAN / packaged APK workflows (offline-basemap history archived) |
 | [`Plans/DPIRD_CACHE_FRESHNESS.md`](Plans/DPIRD_CACHE_FRESHNESS.md) | DPIRD overcall leftovers: `ensure-cache` 2-hour skip, dryer hourly proxy, chill completed-season freeze. |
+| [`Plans/DAY_RUN_2026_09_15.md`](Plans/DAY_RUN_2026_09_15.md) | **Today (2026-09-15):** leftover 0.0.2 GitHub drafts, codebase health, focused security, chill portions, then Freenet photos (packet size) |
 | [`Plans/FREENET_OPERATOR_FLOW.md`](Plans/FREENET_OPERATOR_FLOW.md) | Freenet start / send / join / People as the code stands today (experimental). Known holes §8; what is on Freenet §9 |
 | [`Plans/FREENET_NETWORK_PACK.md`](Plans/FREENET_NETWORK_PACK.md) | The app's own Freenet client as a per-farm **network pack** on desktop and Android; native PUT everywhere; hybrid mirror for cloud farms. |
 | [`Plans/APK_FREENET_HOST.md`](Plans/APK_FREENET_HOST.md) | Android host detail for the above (isolated process, Join + Send). Native PUT spike GO. |

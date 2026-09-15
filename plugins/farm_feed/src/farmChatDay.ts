@@ -147,6 +147,56 @@ export function writeFarmChatArchiveIndex(farmId: string, refs: readonly FarmCha
   }
 }
 
+/**
+ * Union today's buffer. Do not replace local with a stale Hot last-writer.
+ * Same date → merge by id. Newer incoming date → take it (local yesterday
+ * stays in the archive path). Older incoming date → ignore.
+ */
+export function mergeFarmChatDayIncoming(
+  local: FarmChatDayBuffer | null,
+  incomingDate: string | undefined,
+  incomingMessages: readonly FarmChatMessage[] | undefined
+): FarmChatDayBuffer | null {
+  if (!incomingDate) {
+    if (!incomingMessages?.length) return local;
+    const folded = incomingMessages.reduce(
+      (day, row) => appendFarmChatDay(day, row, farmChatCalendarDate(row.at)),
+      local
+    );
+    return folded;
+  }
+  if (!local) {
+    return { date: incomingDate, messages: trimFarmChat(incomingMessages ?? [], FARM_CHAT_DAY_CAP) };
+  }
+  if (incomingDate > local.date) {
+    return {
+      date: incomingDate,
+      messages: trimFarmChat(incomingMessages ?? [], FARM_CHAT_DAY_CAP),
+    };
+  }
+  if (incomingDate < local.date) return local;
+  return {
+    date: local.date,
+    messages: mergeFarmChatLogs(local.messages, incomingMessages ?? [], FARM_CHAT_DAY_CAP),
+  };
+}
+
+export function farmChatIds(rows: readonly FarmChatMessage[]): Set<string> {
+  return new Set(rows.map((row) => row.id));
+}
+
+/** True when this device still has lines the incoming Hot blob omitted. */
+export function farmChatHasLocalOnly(
+  localLive: readonly FarmChatMessage[],
+  localDay: FarmChatDayBuffer | null,
+  incomingLive: readonly FarmChatMessage[],
+  incomingDay: readonly FarmChatMessage[] | undefined
+): boolean {
+  const incoming = farmChatIds([...incomingLive, ...(incomingDay ?? [])]);
+  if (incoming.size === 0) return false;
+  return [...localLive, ...(localDay?.messages ?? [])].some((row) => !incoming.has(row.id));
+}
+
 export function mergeFarmChatArchiveIndex(
   local: readonly FarmChatArchiveRef[],
   incoming: readonly FarmChatArchiveRef[]

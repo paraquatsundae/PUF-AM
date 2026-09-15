@@ -187,7 +187,7 @@ function rememberUri(kind: FreenetBlobKind, farmId: string, result: FreenetPubli
     const chat = payload?.messages ?? bridge?.list(farmId) ?? [];
     saveFreenetHotUri(farmId, {
       ...patch,
-      ...(chat.length || payload?.archives?.length
+      ...(chat.length || payload?.dayMessages?.length || payload?.archives?.length
         ? {
             farmChatHash: farmChatLinesHash(chat, payload),
           }
