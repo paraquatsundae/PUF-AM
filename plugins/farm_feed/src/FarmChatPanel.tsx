@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type Ref } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { cn } from '../../../src/lib/utils';
 import type { FarmChatMessage } from './farmChatLog';
 import { FARM_CHAT_TEXT_MAX } from './farmChatLog';
@@ -7,10 +7,12 @@ import { useFarmChat } from './useFarmChat';
 export function FarmChatPanel() {
   const chat = useFarmChat();
   const [draft, setDraft] = useState('');
-  const endRef = useRef<HTMLLIElement | null>(null);
+  const logRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
+    const log = logRef.current;
+    if (!log) return;
+    log.scrollTop = log.scrollHeight;
   }, [chat.messages.length]);
 
   const onSubmit = async (ev: FormEvent) => {
@@ -24,7 +26,7 @@ export function FarmChatPanel() {
     : 'Whole-farm log. Updates when someone sends, or when this screen is open.';
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col max-h-[28rem]">
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col">
       <header className="px-4 pt-3 pb-2 border-b border-slate-100">
         <h2 className="text-sm font-bold text-slate-900">Farm chat</h2>
         <p className="text-xs text-slate-500 mt-0.5">
@@ -34,21 +36,22 @@ export function FarmChatPanel() {
         <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{latency}</p>
       </header>
 
-      <ul className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-[9rem]">
-        {chat.messages.length === 0 ? (
-          <li className="text-sm text-slate-500 text-center py-6">
-            No farm messages yet. This is the shed chat — everyone on the farm can read it.
-          </li>
-        ) : (
-          chat.messages.map((row, index) => (
-            <FarmChatLine
-              key={row.id}
-              row={row}
-              lineRef={index === chat.messages.length - 1 ? endRef : undefined}
-            />
-          ))
-        )}
-      </ul>
+      <div
+        ref={logRef}
+        data-testid="farm-chat-log"
+        className="min-h-[9rem] max-h-[14rem] overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-3"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <ul className="space-y-2">
+          {chat.messages.length === 0 ? (
+            <li className="text-sm text-slate-500 text-center py-6">
+              No farm messages yet. This is the shed chat — everyone on the farm can read it.
+            </li>
+          ) : (
+            chat.messages.map((row) => <FarmChatLine key={row.id} row={row} />)
+          )}
+        </ul>
+      </div>
 
       <form onSubmit={onSubmit} className="border-t border-slate-100 px-3 py-2 flex gap-2">
         <input
@@ -89,15 +92,9 @@ export function FarmChatPanel() {
   );
 }
 
-function FarmChatLine({
-  row,
-  lineRef,
-}: {
-  row: FarmChatMessage;
-  lineRef?: Ref<HTMLLIElement>;
-}) {
+function FarmChatLine({ row }: { row: FarmChatMessage }) {
   return (
-    <li ref={lineRef} className="text-sm">
+    <li className="text-sm">
       <div className="flex items-baseline gap-2 min-w-0">
         <span className="font-semibold text-slate-800 truncate">{row.authorName}</span>
         <span className="text-[10px] text-slate-400 shrink-0">{formatChatWhen(row.at)}</span>
