@@ -39,8 +39,12 @@ import {
   unlockedReadKeys,
   type MistReadKeys,
 } from './mistReadKeys.ts';
+import { isFreenetHostHoldOff } from '../lib/freenetHostHoldOff.ts';
+import { freenetFarmPublishInFlight } from './freenetPublishLock.ts';
 import {
   getMistHotPublishStatus,
+  isHotPublishPending,
+  markHotPublishPending,
   mergeLocalHotPackStatus,
   type MistHotPublishStatus,
 } from './mistHotPublishMeta.ts';
@@ -330,8 +334,9 @@ export async function readMistHotCurrent(
  * hybrid mirror to explicit **Send** in Phase 1.
  */
 export function scheduleMistHotAutoPublish(farmId: string, farmName?: string): void {
-  if (!isMistHotMirrorAvailable()) return;
   if (mistSessionCloudFarmId()) return;
+  markHotPublishPending(farmId);
+  if (!isMistHotMirrorAvailable()) return;
 
   const existing = autoPublishTimers.get(farmId);
   if (existing) clearTimeout(existing);
@@ -340,18 +345,36 @@ export function scheduleMistHotAutoPublish(farmId: string, farmName?: string): v
     farmId,
     setTimeout(() => {
       autoPublishTimers.delete(farmId);
-      void publishLocalFarmToMistHot(farmId, { farmName, auto: true })
-        .then((result) => {
-          if (!result) return;
-          return import('./mistFreenetClient.ts').then(({ publishHotToFreenet }) =>
-            publishHotToFreenet(farmId),
-          );
-        })
-        .catch((err) => {
-          console.warn('[mistHotBridge] auto-publish failed:', err);
-        });
+      void flushPendingHotAutoPublish(farmId, farmName);
     }, AUTO_PUBLISH_DEBOUNCE_MS),
   );
+}
+
+/**
+ * PUT Hot + bump watch when a diary / highlight / farm-chat save is still pending.
+ * Keeps the pending flag if keys are locked, Opennet is down, or Send is in flight.
+ */
+export async function flushPendingHotAutoPublish(
+  farmId: string,
+  farmName?: string,
+): Promise<boolean> {
+  if (!farmId || mistSessionCloudFarmId()) return false;
+  if (!isHotPublishPending(farmId)) return false;
+  if (!isMistHotMirrorAvailable()) return false;
+  if (isFreenetHostHoldOff()) return false;
+  if (freenetFarmPublishInFlight()) return false;
+
+  try {
+    const packed = await publishLocalFarmToMistHot(farmId, { farmName, auto: true });
+    if (!packed) return false;
+    const { publishHotToFreenet } = await import('./mistFreenetClient.ts');
+    await publishHotToFreenet(farmId);
+    if (!isHotPublishPending(farmId)) return true;
+    return false;
+  } catch (err) {
+    console.warn('[mistHotBridge] auto-publish failed:', err);
+    return false;
+  }
 }
 
 export { getMistHotPublishStatus, type MistHotPublishStatus };

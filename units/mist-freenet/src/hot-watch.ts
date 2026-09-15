@@ -48,6 +48,12 @@ export type HotWatchPing = {
   /** Optional — photo index CHK; fetch photos only when this hash changes. */
   photoIndexUri?: string;
   photoIndexHash?: string;
+  /**
+   * Hash of the nested `farm_chat` lines in the Hot this ping names.
+   * Watchers that only look at bones/photo hashes miss a chat-only Hot
+   * update if the Hot URI is reused incorrectly.
+   */
+  farmChatHash?: string;
 };
 
 export class HotWatchError extends Error {
@@ -182,6 +188,9 @@ export function parseHotWatchPing(value: unknown): HotWatchPing | null {
   if (photoIndexHash && photoIndexHash.length !== 64) return null;
   if ((photoIndexUri && !photoIndexHash) || (photoIndexHash && !photoIndexUri)) return null;
 
+  const farmChatHash = typeof o.farmChatHash === 'string' ? o.farmChatHash.trim() : '';
+  if (farmChatHash && farmChatHash.length !== 64) return null;
+
   return {
     v: 1,
     kind: 'hot-watch',
@@ -192,6 +201,7 @@ export function parseHotWatchPing(value: unknown): HotWatchPing | null {
     updatedAt,
     ...(bonesUri && bonesContentHash ? { bonesUri, bonesContentHash } : {}),
     ...(photoIndexUri && photoIndexHash ? { photoIndexUri, photoIndexHash } : {}),
+    ...(farmChatHash ? { farmChatHash } : {}),
   };
 }
 
@@ -204,6 +214,7 @@ export type HotWatchChangeCursor = {
   /** Last applied Bones CHK — pack PUT mints a new URI each time. */
   bonesUri?: string;
   photoIndexHash?: string;
+  farmChatHash?: string;
 };
 
 export function hotWatchPingChanged(
@@ -213,6 +224,7 @@ export function hotWatchPingChanged(
     bonesUri?: string;
     bonesContentHash?: string;
     photoIndexHash?: string;
+    farmChatHash?: string;
   },
 ): boolean {
   if (!local) return true;
@@ -228,7 +240,9 @@ export function hotWatchPingChanged(
   const photoChanged =
     Boolean(remote.photoIndexHash) &&
     remote.photoIndexHash !== (local.photoIndexHash ?? '');
-  if (!hotChanged && !bonesChanged && !photoChanged) return false;
+  const farmChatChanged =
+    Boolean(remote.farmChatHash) && remote.farmChatHash !== (local.farmChatHash ?? '');
+  if (!hotChanged && !bonesChanged && !photoChanged && !farmChatChanged) return false;
   return true;
 }
 

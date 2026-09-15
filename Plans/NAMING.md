@@ -193,6 +193,7 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.mist.hotWatch.v1.{farmId}` | `hotWatchSync.ts` — last applied Hot-watch generation + hash + URI. Added 2026-09-12 |
 | `pufam.mist.bonesPublish.v1.{farmId}` | `mistHotPublishMeta.ts` — same for the geometry bones publish |
 | `pufam.mist.bonesPending.v1.{farmId}` | `mistHotPublishMeta.ts` — local paddock/pin/track save still waiting for a Freenet Bones PUT + watch bump. Added 2026-09-14 |
+| `pufam.mist.hotPending.v1.{farmId}` | `mistHotPublishMeta.ts` — local Hot / farm-chat save still waiting for a Freenet Hot PUT + watch bump. Added 2026-09-15 |
 | `pufam.mist.photoIndex.v1.{farmId}` | `mistPhotoBridge.ts` — last Freenet photo-index URI + hash. Added 2026-09-14 |
 | `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag lives on its farm doc instead — `farms/{farmId}.networkPacks.freenet_host`, §8 below (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
 | `pufam.mist.joinTicketDraft.v1` | `sessionStorage`, ticket only (`PUF-XXXX-XXXX`). Written by the login Freenet join step when a ticket was typed before the FarmCode; the join-ticket gate reads then clears it. **Never the FarmCode.** Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |

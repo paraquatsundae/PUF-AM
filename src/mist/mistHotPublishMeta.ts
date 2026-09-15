@@ -24,6 +24,12 @@ export type MistHotPublishStatus = {
   bonesFreenetPublishedAt?: string;
   bonesFreenetPending?: boolean;
   bonesContentHash?: string;
+  /**
+   * SHA-256 of the `farm_chat` lines sealed in the last successful Hot PUT.
+   * Only stored with a complete Freenet URI+hash pair — never a new chat
+   * hash on a stale URI (`Plans/FARM_MESSAGING.md`).
+   */
+  farmChatHash?: string;
   /** Last short join ticket minted for this farm (`PUF-XXXX-XXXX`). */
   joinTicket?: string;
   joinTicketRole?: JoinRole;
@@ -133,6 +139,7 @@ export function mergeLocalHotPackStatus(
           joinTicketMintedAt: existing.joinTicketMintedAt,
         }
       : {}),
+    ...(existing?.farmChatHash ? { farmChatHash: existing.farmChatHash } : {}),
   });
 }
 
@@ -148,6 +155,7 @@ export function saveFreenetHotUri(
     contentHash: string;
     freenetPending?: boolean;
     storageKey?: string;
+    farmChatHash?: string;
   },
 ): void {
   const existing = getMistHotPublishStatus(farmId);
@@ -165,8 +173,31 @@ export function saveFreenetHotUri(
     freenetUri: patch.freenetUri,
     freenetPublishedAt: new Date().toISOString(),
     freenetPending: patch.freenetPending,
+    ...(patch.farmChatHash
+      ? { farmChatHash: patch.farmChatHash }
+      : existing?.farmChatHash
+        ? { farmChatHash: existing.farmChatHash }
+        : {}),
   };
   saveMistHotPublishStatus(next);
+}
+
+/**
+ * Last Freenet Hot URI+hash that may ride a watch ping — never mix a new
+ * local hash (or farmChatHash) with an old URI.
+ */
+export function hotWatchPairFromStatus(farmId: string): {
+  hotUri: string;
+  hotContentHash: string;
+  farmChatHash?: string;
+} | null {
+  const hot = getMistHotPublishStatus(farmId);
+  if (!hot?.freenetUri || !hot.contentHash) return null;
+  return {
+    hotUri: hot.freenetUri,
+    hotContentHash: hot.contentHash,
+    ...(hot.farmChatHash ? { farmChatHash: hot.farmChatHash } : {}),
+  };
 }
 
 /** Remember the short ticket so the send card can show it again after a reload. */
@@ -266,6 +297,25 @@ export function clearBonesPublishPending(farmId: string): void {
 
 export function isBonesPublishPending(farmId: string): boolean {
   return Boolean(storage()?.getItem(pendingKey(farmId)));
+}
+
+const HOT_PENDING_PREFIX = 'pufam.mist.hotPending.v1';
+
+function hotPendingKey(farmId: string): string {
+  return `${HOT_PENDING_PREFIX}.${farmId}`;
+}
+
+/** Local Hot (diary / highlight / farm chat) save that still needs a Freenet PUT + watch bump. */
+export function markHotPublishPending(farmId: string): void {
+  storage()?.setItem(hotPendingKey(farmId), new Date().toISOString());
+}
+
+export function clearHotPublishPending(farmId: string): void {
+  storage()?.removeItem(hotPendingKey(farmId));
+}
+
+export function isHotPublishPending(farmId: string): boolean {
+  return Boolean(storage()?.getItem(hotPendingKey(farmId)));
 }
 
 export function saveFreenetBonesUri(

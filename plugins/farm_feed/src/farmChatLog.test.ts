@@ -157,6 +157,7 @@ describe('Freenet hash/URI pair', () => {
     expect(farmChatHotWatchPairOk({ hotContentHash: 'abc', hotUri: 'fn02@x' })).toBe(true);
     expect(farmChatHotWatchPairOk({ hotContentHash: 'abc', hotUri: '' })).toBe(false);
     expect(farmChatHotWatchPairOk({ hotContentHash: '', hotUri: 'fn02@x' })).toBe(false);
+    expect(farmChatHotWatchPairOk({ farmChatHash: 'c-new', hotUri: '' })).toBe(false);
     expect(farmChatHotWatchPairOk({})).toBe(true);
   });
 });

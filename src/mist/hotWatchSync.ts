@@ -34,6 +34,7 @@ import {
   bonesWatchPairFromStatus,
   getMistBonesPublishStatus,
   getMistHotPublishStatus,
+  hotWatchPairFromStatus,
   saveFreenetBonesUri,
   saveFreenetHotUri,
 } from './mistHotPublishMeta.ts';
@@ -57,6 +58,7 @@ export type HotWatchCursor = {
   bonesUri?: string;
   photoIndexHash?: string;
   photoIndexUri?: string;
+  farmChatHash?: string;
   appliedAt?: string;
 };
 
@@ -82,6 +84,7 @@ export function readHotWatchCursor(farmId: string): HotWatchCursor | null {
     if (typeof row.generation !== 'number' || typeof row.hotContentHash !== 'string') return null;
     if (row.bonesContentHash && typeof row.bonesContentHash !== 'string') return null;
     if (row.photoIndexHash && typeof row.photoIndexHash !== 'string') return null;
+    if (row.farmChatHash && typeof row.farmChatHash !== 'string') return null;
     return row;
   } catch {
     return null;
@@ -214,6 +217,13 @@ function photoWatchChanged(
   return Boolean(ping.photoIndexHash) && ping.photoIndexHash !== (local?.photoIndexHash ?? '');
 }
 
+function farmChatWatchChanged(
+  local: HotWatchCursor | null,
+  ping: HotWatchPing,
+): boolean {
+  return Boolean(ping.farmChatHash) && ping.farmChatHash !== (local?.farmChatHash ?? '');
+}
+
 async function applyBonesWatchPing(farmId: string, ping: HotWatchPing): Promise<void> {
   if (!ping.bonesUri || !ping.bonesContentHash) return;
   await pullBonesFromFreenetByUri(farmId, ping.bonesUri, ping.bonesContentHash);
@@ -239,7 +249,8 @@ export async function applyHotWatchPing(
   const hotChanged =
     !local ||
     ping.hotContentHash !== local.hotContentHash ||
-    Boolean(ping.hotUri && local.hotUri && ping.hotUri !== local.hotUri);
+    Boolean(ping.hotUri && local.hotUri && ping.hotUri !== local.hotUri) ||
+    farmChatWatchChanged(local, ping);
   if (hotChanged) {
     await pullHotFromFreenetByUri(farmId, ping.hotUri, ping.hotContentHash);
     const readBack = await readMistHotCurrent(farmId);
@@ -270,6 +281,7 @@ export async function applyHotWatchPing(
     bonesUri: ping.bonesUri,
     photoIndexHash: ping.photoIndexHash,
     photoIndexUri: ping.photoIndexUri,
+    farmChatHash: ping.farmChatHash,
     appliedAt: new Date().toISOString(),
   });
   return 'applied';
@@ -287,20 +299,31 @@ function photoFieldsFromStatus(
   return { photoIndexUri: photos.freenetUri, photoIndexHash: photos.contentHash };
 }
 
+function farmChatFieldsFromStatus(
+  farmId: string,
+  hotUri: string,
+): Pick<HotWatchPing, 'farmChatHash'> {
+  const pair = hotWatchPairFromStatus(farmId);
+  // Never advertise a newer local chat hash with a stale Hot URI.
+  if (!pair?.farmChatHash || pair.hotUri !== hotUri) return {};
+  return { farmChatHash: pair.farmChatHash };
+}
+
 /** After a Hot or Bones PUT: bump the watch slot so other terminals see a cheap yes. */
 export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWatchPing | null> {
   if (mistSessionCloudFarmId()) return null;
   const keys = await resolveMistReadKeys();
   if (!keys) return null;
-  const status = getMistHotPublishStatus(farmId);
+  const pair = hotWatchPairFromStatus(farmId);
   const cursor = readHotWatchCursor(farmId);
-  const hotUri = status?.freenetUri || cursor?.hotUri;
-  const hotContentHash = status?.contentHash || cursor?.hotContentHash;
+  const hotUri = pair?.hotUri || cursor?.hotUri;
+  const hotContentHash = pair?.hotContentHash || cursor?.hotContentHash;
   if (!hotUri || !hotContentHash) return null;
 
   const generation = nextHotWatchGeneration(farmId);
   const bones = bonesFieldsFromStatus(farmId);
   const photos = photoFieldsFromStatus(farmId);
+  const chat = farmChatFieldsFromStatus(farmId, hotUri);
   const ping: HotWatchPing = {
     v: 1,
     kind: 'hot-watch',
@@ -311,6 +334,7 @@ export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWat
     updatedAt: new Date().toISOString(),
     ...bones,
     ...photos,
+    ...chat,
   };
   await publishHotWatchSlot(ping, keys.hotKey);
   writeHotWatchCursor(farmId, {
@@ -321,6 +345,7 @@ export async function publishHotWatchAfterHotPut(farmId: string): Promise<HotWat
     bonesUri: ping.bonesUri,
     photoIndexHash: ping.photoIndexHash,
     photoIndexUri: ping.photoIndexUri,
+    farmChatHash: ping.farmChatHash,
     appliedAt: ping.updatedAt,
   });
   return ping;
@@ -354,7 +379,11 @@ export async function applyPulledFreenetMirror(farmId: string): Promise<{
     issues = merged.issues;
     const hot = getMistHotPublishStatus(farmId);
     if (hot?.freenetUri && hot.contentHash) {
-      saveFreenetHotUri(farmId, { freenetUri: hot.freenetUri, contentHash: hot.contentHash });
+      saveFreenetHotUri(farmId, {
+        freenetUri: hot.freenetUri,
+        contentHash: hot.contentHash,
+        ...(hot.farmChatHash ? { farmChatHash: hot.farmChatHash } : {}),
+      });
     }
   }
 
@@ -381,6 +410,7 @@ export async function applyPulledFreenetMirror(farmId: string): Promise<{
       bonesUri: status.bonesFreenetUri || prev?.bonesUri,
       photoIndexHash: prev?.photoIndexHash,
       photoIndexUri: prev?.photoIndexUri,
+      farmChatHash: status.farmChatHash || prev?.farmChatHash,
       appliedAt: new Date().toISOString(),
     });
   }

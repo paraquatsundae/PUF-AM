@@ -32,7 +32,9 @@ import {
   getMistBonesPublishStatus,
   getMistHotPublishStatus,
   isBonesPublishPending,
+  isHotPublishPending,
   markBonesPublishPending,
+  markHotPublishPending,
   mergeLocalHotPackStatus,
   saveFreenetBonesUri,
   saveFreenetHotUri,
@@ -58,6 +60,12 @@ describe('Bones pending + local pack URI preserve', () => {
     expect(isBonesPublishPending(FARM_ID)).toBe(false);
     scheduleMistBonesAutoPublish(FARM_ID);
     expect(isBonesPublishPending(FARM_ID)).toBe(true);
+  });
+
+  it('marks Hot pending so a failed chat PUT can retry on the 20s tick', () => {
+    expect(isHotPublishPending(FARM_ID)).toBe(false);
+    markHotPublishPending(FARM_ID);
+    expect(isHotPublishPending(FARM_ID)).toBe(true);
   });
 
   it('clears pending after a successful mark/clear', () => {

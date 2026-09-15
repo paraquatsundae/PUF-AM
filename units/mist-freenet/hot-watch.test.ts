@@ -131,6 +131,26 @@ describe('hot watch ping', () => {
     expect(ping?.bonesContentHash).toBe('33'.repeat(32));
   });
 
+  it('treats a new farm-chat hash as a change even when Hot hash and URI match', () => {
+    const hot = 'ab'.repeat(32);
+    expect(
+      hotWatchPingChanged(
+        {
+          generation: 100,
+          hotContentHash: hot,
+          hotUri: 'FN02@hot',
+          farmChatHash: '11'.repeat(32),
+        },
+        samplePing({
+          generation: 101,
+          hotContentHash: hot,
+          hotUri: 'FN02@hot',
+          farmChatHash: '22'.repeat(32),
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('treats a new photo-index hash as a change even when Hot hash is unchanged', () => {
     const hot = 'ab'.repeat(32);
     expect(

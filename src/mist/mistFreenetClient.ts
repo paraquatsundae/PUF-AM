@@ -51,6 +51,8 @@ import type {
 } from './freenetPackTransport.ts';
 import { getFreenetPackTransport } from './freenetTransportSelect.ts';
 import { publishLocalGeometryToMistBones, readLocalBonesCiphertext } from './mistBonesBridge.ts';
+import { farmChatLinesHash } from './hotAdapter.ts';
+import { farmChatHotBridge } from './hotFarmChatBridge.ts';
 import { getMistStoreForHotBridge, publishLocalFarmToMistHot } from './mistHotBridge.ts';
 import { buildJoinTicketV1, formatJoinTicket, type MistJoinTicketV1 } from './mistJoinTicket.ts';
 import { LanJoinTicketResolver, registerJoinTicketOnLan } from './joinTicketResolver.ts';
@@ -179,8 +181,15 @@ function rememberUri(kind: FreenetBlobKind, farmId: string, result: FreenetPubli
     freenetPending: result.freenetPending,
     storageKey: result.storageKey,
   };
-  if (kind === 'hot') saveFreenetHotUri(farmId, patch);
-  else saveFreenetBonesUri(farmId, patch);
+  if (kind === 'hot') {
+    const chat = farmChatHotBridge()?.list(farmId) ?? [];
+    saveFreenetHotUri(farmId, {
+      ...patch,
+      ...(chat.length ? { farmChatHash: farmChatLinesHash(chat) } : {}),
+    });
+  } else {
+    saveFreenetBonesUri(farmId, patch);
+  }
 }
 
 /**
@@ -212,7 +221,11 @@ export async function publishHotToFreenet(
   rememberUri('hot', farmId, result);
   try {
     const { publishHotWatchAfterHotPut } = await import('./hotWatchSync.ts');
-    await publishHotWatchAfterHotPut(farmId);
+    const ping = await publishHotWatchAfterHotPut(farmId);
+    if (ping) {
+      const { clearHotPublishPending } = await import('./mistHotPublishMeta.ts');
+      clearHotPublishPending(farmId);
+    }
   } catch (error) {
     console.warn('[mistFreenetClient] Hot watch slot update failed:', error);
   }

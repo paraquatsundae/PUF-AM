@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import { freenetPlaneFarmId, shouldRunFreenetHotWatch } from '../lib/farmPipes';
 import { canReachFreenetNode, refreshFreenetRuntime } from '../lib/freenetRuntime';
 import { flushPendingBonesAutoPublish } from '../mist/mistBonesBridge';
+import { flushPendingHotAutoPublish } from '../mist/mistHotBridge';
 import {
   FREENET_HOT_WATCH_MIN_GAP_MS,
   FREENET_HOT_WATCH_POLL_MS,
@@ -39,6 +40,7 @@ export function useFreenetHotWatch(farmId: string | null | undefined): void {
       lastAt.current = now;
       try {
         await flushPendingBonesAutoPublish(watchFarmId);
+        await flushPendingHotAutoPublish(watchFarmId);
         const result = await pollFreenetHotWatch(watchFarmId);
         if (result === 'applied' && !cancelled) {
           await refreshFarmUiAfterHotMerge(watchFarmId);

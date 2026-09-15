@@ -163,9 +163,12 @@ export function notifyFarmChatChanged(farmId: string): void {
 export function farmChatHotWatchPairOk(pair: {
   hotContentHash?: string | null;
   hotUri?: string | null;
+  farmChatHash?: string | null;
 }): boolean {
   const hash = pair.hotContentHash?.trim() ?? '';
   const uri = pair.hotUri?.trim() ?? '';
+  const chat = pair.farmChatHash?.trim() ?? '';
+  if (chat && !uri) return false;
   if (!hash && !uri) return true;
   return Boolean(hash && uri);
 }

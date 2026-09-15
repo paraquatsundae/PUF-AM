@@ -7,6 +7,7 @@
  * @see Plans/reference/MIST_NETWORK_STORAGE.md § Hot
  */
 
+import { sha256Hex } from '../../units/mist-freenet/src/hash.ts';
 import type { HotRecord, HotState } from '../../units/mist-freenet/src/seal-hot.ts';
 import type { DiaryEvent } from '../lib/farmDiary';
 import type { FieldIssue } from '../lib/fieldStore';
@@ -67,6 +68,11 @@ export function farmChatLinesToHotRecord(messages: FarmChatHotLine[]): HotRecord
     author: last?.authorName ?? 'Crew',
     payload: { messages },
   };
+}
+
+/** SHA-256 of the sealed farm_chat lines — watch ping field, HotKey path only. */
+export function farmChatLinesHash(messages: readonly FarmChatHotLine[]): string {
+  return sha256Hex(new TextEncoder().encode(JSON.stringify(messages)));
 }
 
 export function farmChatLinesFromHotRecord(record: HotRecord): FarmChatHotLine[] {

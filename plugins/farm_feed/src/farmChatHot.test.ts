@@ -46,6 +46,13 @@ describe('farm chat Hot record', () => {
     expect(farmChatHotWatchPairOk({ hotContentHash: 'h1', hotUri: 'fn02@new' })).toBe(true);
     expect(farmChatHotWatchPairOk({ hotContentHash: 'h-new', hotUri: 'fn02@old' })).toBe(true);
     expect(farmChatHotWatchPairOk({ hotContentHash: 'h-new', hotUri: null })).toBe(false);
+    expect(
+      farmChatHotWatchPairOk({
+        hotContentHash: 'h-new',
+        hotUri: null,
+        farmChatHash: 'c-new',
+      }),
+    ).toBe(false);
   });
 
   it('rides hot/current — no new Freenet slot', () => {
