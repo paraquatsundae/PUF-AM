@@ -118,6 +118,12 @@ Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys
 
 ## 4. Browser storage — IndexedDB databases
 
+**Decision — 2026-09-15:** `pufom_farm_local` keeps its database name. Schema v2
+uses `entities_v2` keyed by `[farmId, kind, entityId]`, with `byFarmAndKind` and
+`byFarm` indexes. `outbox` keeps its existing keys and index; `metadata` stores
+the `outboxSequence` counter. The v1 `entities` array rows migrate transactionally
+before their old object store is removed. See `LOCAL_DATA_STORAGE.md` §1.
+
 Names and rename policy live here; **contents, authority, and how each store is cleared** are in [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md).
 
 | DB name | Module | Legacy? | Notes |

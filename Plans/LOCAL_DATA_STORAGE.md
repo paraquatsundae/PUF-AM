@@ -41,11 +41,28 @@ not overtake them. Related issue transitions follow a successful diary save but
 are not a cross-entity transaction. This does not implement multi-device conflict
 resolution or fix cloud-cache reconciliation of pending deletions.
 
+**Decision — 2026-09-15 (independent entity records).** Schema v2 keeps the database
+name `pufom_farm_local`. Each diary/issue/archive/highlight is an `entities_v2` row
+keyed by `[farmId, kind, entityId]`; indexes support farm/kind lists and farm-scoped
+clearing. Single-record upserts/deletes never read or rewrite a collection array.
+The outbox ordering counter lives in `metadata` and advances in the same transaction,
+without scanning the pending queue. Counts use IndexedDB indexes rather than loading
+every entity. Existing repository callers keep their API and entity payload shapes.
+
+The upgrade copies all v1 array entries, preserves the outbox (including ids, payloads,
+failure counts and sequence numbers), and removes the old `entities` store only in
+that same upgrade transaction. Any failure rolls everything back. Close old app
+windows/tabs if an upgrade is blocked; do not clear browser storage. V1-only builds
+cannot open a migrated database, so update all windows rather than downgrading.
+Concurrent writes to distinct entities no longer replace each other's data. Full
+upserts of the same entity still use last-committed-write semantics; explicit snapshot
+replacement is still a replacement, not conflict resolution for stale imports.
+
 Browser, Capacitor WebView, and Electron renderer all use the same set — Electron's live under its own `userData` (§5), the APK's under the app sandbox (§4).
 
 | DB | Object stores | Contents | Authority | Written by |
 |----|---------------|----------|-----------|------------|
-| `pufom_farm_local` | `entities`, `outbox` | Diary events, field issues, archived issues, timed map highlights (`map_highlights`), keyed `{farmId}:{kind}`; `outbox` is the universal pending-write queue (highlights stay local + their own cloud/LAN path — not outboxed) | **Authoritative** on mist / local-first; cache + queue on Firebase | [`localFarmRepo.ts`](../src/lib/localFarmRepo.ts), [`flushFarmOutbox.ts`](../src/lib/flushFarmOutbox.ts), [`mapHighlights.ts`](../src/lib/mapHighlights.ts) |
+| `pufom_farm_local` | `entities_v2`, `outbox`, `metadata` | One diary/issue/archive/highlight row per `[farmId, kind, entityId]`; pending writes and an atomic ordering counter (highlights keep their own cloud/LAN path) | **Authoritative** on mist / local-first; cache + queue on Firebase | [`localFarmRepo.ts`](../src/lib/localFarmRepo.ts), [`localFarmDb.ts`](../src/lib/localFarmDb.ts), [`flushFarmOutbox.ts`](../src/lib/flushFarmOutbox.ts), [`mapHighlights.ts`](../src/lib/mapHighlights.ts) |
 | `sentinut_farm_geometry` | `geometry`, `pending` | Blocks, pins, tracks, saved viewport — one row per farm; `pending` is the geometry outbox | **Authoritative** on mist / local-first; mirrored to Firestore on Firebase | [`farmGeometryIdb.ts`](../src/lib/farmGeometryIdb.ts), [`farmGeometrySync.ts`](../src/lib/farmGeometrySync.ts) |
 | `sentinut_basemap` | `basemap_packs`, `basemap_tiles` | Offline Esri tile packs: one pack row per farm, tiles keyed by `z/x/y` | **Cache** — re-downloadable, but expensive on shed Wi-Fi | [`basemapPack.ts`](../src/lib/basemapPack.ts) |
 | `pufom_weather_cache` | `stations` | DPIRD station observations mirrored for offline blight/chill | **Cache** — derived, re-fetchable | [`weatherCacheIdb.ts`](../src/lib/weatherCacheIdb.ts) |
