@@ -49,11 +49,13 @@ The outbox ordering counter lives in `metadata` and advances in the same transac
 without scanning the pending queue. Counts use IndexedDB indexes rather than loading
 every entity. Existing repository callers keep their API and entity payload shapes.
 
-The upgrade copies all v1 array entries, preserves the outbox (including ids, payloads,
-failure counts and sequence numbers), and removes the old `entities` store only in
-that same upgrade transaction. Any failure rolls everything back. Close old app
-windows/tabs if an upgrade is blocked; do not clear browser storage. V1-only builds
-cannot open a migrated database, so update all windows rather than downgrading.
+**Decision — 2026-09-18:** the v1-to-v2 migration is removed. Reinstallation must
+explicitly clear the old `pufom_farm_local` database; reinstalling alone is not
+assumed to clear browser/Electron data. Clearing loses local records and pending
+outbox writes, so export anything needed first. The app initializes the schema
+only for a fresh database and rejects an old schema with a reset-required message;
+it does not automatically copy or delete old data. Existing v2 databases reopen
+unchanged. V1-only builds cannot open a v2 database.
 Concurrent writes to distinct entities no longer replace each other's data. Full
 upserts of the same entity still use last-committed-write semantics; explicit snapshot
 replacement is still a replacement, not conflict resolution for stale imports.

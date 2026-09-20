@@ -121,8 +121,8 @@ Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys
 **Decision — 2026-09-15:** `pufom_farm_local` keeps its database name. Schema v2
 uses `entities_v2` keyed by `[farmId, kind, entityId]`, with `byFarmAndKind` and
 `byFarm` indexes. `outbox` keeps its existing keys and index; `metadata` stores
-the `outboxSequence` counter. The v1 `entities` array rows migrate transactionally
-before their old object store is removed. See `LOCAL_DATA_STORAGE.md` §1.
+the `outboxSequence` counter. **Decision — 2026-09-18:** no v1 migration is supported;
+clear the old local database as part of reinstallation. See `LOCAL_DATA_STORAGE.md` §1.
 
 Names and rename policy live here; **contents, authority, and how each store is cleared** are in [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md).
 
@@ -182,6 +182,10 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.networkPacks.v1.{farmId}` | `plugins/freenet_host/src/freenetHostEnable.ts` — per-farm network-pack enable flags (`{ freenet_host: { enabled, changedAt } }`) for Freenet-native farms, whose farm meta is local. A cloud farm's flag lives on its farm doc instead — `farms/{farmId}.networkPacks.freenet_host`, §8 below (`FREENET_NETWORK_PACK.md` §3). Added 2026-09-10 |
 | `pufam.mist.joinTicketDraft.v1` | `sessionStorage`, ticket only (`PUF-XXXX-XXXX`). Written by the login Freenet join step when a ticket was typed before the FarmCode; the join-ticket gate reads then clears it. **Never the FarmCode.** Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
 | `pufam.freenetHost.farmCodePromptDismissed.v1` | `localStorage` JSON map of cloud `farmId` → ISO time. Hides the post-sign-in “enter the FarmCode” prompt on that device for that farm. Added 2026-09-11 (`LOGIN_JOIN_SINGLE_BOX.md`) |
+
+**Decision — 2026-09-16:** the `timeseries_demo` learning pack uses
+`pufam.timeseries_demo.range` for a device-only `{ from, to }` date preference.
+It is not a farm setting or sensor record; there is no settings document to wipe.
 
 ### CSS / DOM (non-storage)
 

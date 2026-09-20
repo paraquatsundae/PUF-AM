@@ -1,5 +1,5 @@
 /** IndexedDB schema and transaction lifecycle. See Plans/LOCAL_DATA_STORAGE.md §1. */
-import type { LocalEntityKind, LocalFarmEntity, OutboxOp } from './localFarmRepo';
+import type { LocalEntityKind, LocalFarmEntity } from './localFarmRepo';
 
 export const ENTITY_STORE = 'entities_v2';
 export const OUTBOX_STORE = 'outbox';
@@ -13,13 +13,6 @@ export type EntityRow = {
   kind: LocalEntityKind;
   entityId: string;
   entity: LocalFarmEntity;
-  updatedAt: string;
-};
-
-type LegacyRow = {
-  farmId: string;
-  kind: LocalEntityKind;
-  items: LocalFarmEntity[];
   updatedAt: string;
 };
 
@@ -47,10 +40,16 @@ export function openLocalFarmDb(): Promise<IDBDatabase> {
       db.onversionchange = () => db.close();
       resolve(db);
     };
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result;
       const tx = request.transaction!;
       if (blocked) { tx.abort(); return; }
+      // Reinstallation/reset owns legacy data disposal; never silently migrate or wipe.
+      if (event.oldVersion !== 0) {
+        reject(new Error('Local database reset required. Clear PUF-AM local data before reinstalling.'));
+        tx.abort();
+        return;
+      }
       guardTransaction(tx, () => {
         const entities = db.createObjectStore(ENTITY_STORE, {
           keyPath: ['farmId', 'kind', 'entityId'],
@@ -59,40 +58,9 @@ export function openLocalFarmDb(): Promise<IDBDatabase> {
         entities.createIndex('byFarm', 'farmId');
         const metadata = db.createObjectStore(META_STORE);
 
-        if (!db.objectStoreNames.contains(OUTBOX_STORE)) {
-          const outbox = db.createObjectStore(OUTBOX_STORE, { keyPath: 'id' });
-          outbox.createIndex('byFarm', 'farmId');
-        }
-        // Preserve operation ids, payloads, failures and existing sequence order.
-        const pending = tx.objectStore(OUTBOX_STORE).getAll();
-        pending.onsuccess = () => guardTransaction(tx, () => {
-          const sequence = (pending.result as OutboxOp[])
-            .reduce((max, op) => Math.max(max, op.sequence ?? 0), 0);
-          metadata.put(sequence, OUTBOX_SEQUENCE_KEY);
-        });
-
-        if (db.objectStoreNames.contains('entities')) {
-          const cursor = tx.objectStore('entities').openCursor();
-          cursor.onsuccess = () => guardTransaction(tx, () => {
-            const current = cursor.result;
-            if (!current) {
-              // All copies and deletion share this upgrade transaction. Failure
-              // restores the old schema and data, never a half-migrated farm.
-              db.deleteObjectStore('entities');
-              return;
-            }
-            const row = current.value as LegacyRow;
-            if (!Array.isArray(row.items)) throw new Error('Invalid legacy entity row');
-            for (const entity of row.items) {
-              if (typeof entity.id !== 'string' || !entity.id) throw new Error('Missing entity id');
-              entities.put({
-                farmId: row.farmId, kind: row.kind, entityId: entity.id, entity,
-                updatedAt: entity.updatedAt || row.updatedAt,
-              } satisfies EntityRow);
-            }
-            current.continue();
-          });
-        }
+        const outbox = db.createObjectStore(OUTBOX_STORE, { keyPath: 'id' });
+        outbox.createIndex('byFarm', 'farmId');
+        metadata.put(0, OUTBOX_SEQUENCE_KEY);
       });
     };
   });
