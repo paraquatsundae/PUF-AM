@@ -6,6 +6,15 @@ import { keepEventPhotosIfMissing } from './farmPhoto';
 import type { DiaryEvent, FarmSettings } from './farmDiaryTypes';
 import { getDefaultDiaryStartDate } from './farmDiaryTypes';
 import { usesCloudSyncOutbox } from './farmPipes';
+import { requestFarmOutboxFlush } from './flushFarmOutbox';
+
+function publishSavedDiary(farmId: string): void {
+  requestFarmOutboxFlush(farmId);
+  // Publication failures do not undo a successful local save.
+  void import('../mist/mistHotBridge')
+    .then(({ scheduleMistHotAutoPublish }) => scheduleMistHotAutoPublish(farmId))
+    .catch((error) => console.warn('[farmDiary] Publication deferred', error));
+}
 
 interface FarmDiaryState {
   events: DiaryEvent[];
@@ -157,7 +166,7 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
   },
 
   addEvent: async (farmId, canEdit, event) => {
-    if (!farmId || !canEdit) return undefined;
+    if (!farmId || !canEdit) throw new Error('You cannot save a diary entry for this farm.');
     const newEvent: DiaryEvent = {
       ...event,
       id: crypto.randomUUID(),
@@ -165,27 +174,17 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
       updatedAt: new Date().toISOString(),
     };
 
-    set((state) => ({
-      events: [newEvent, ...state.events].sort((a, b) => b.date.localeCompare(a.date)),
-    }));
-
     const { upsertLocalEntity } = await import('./localFarmRepo');
     await upsertLocalEntity(farmId, 'diary', newEvent, { queueCloud: true });
-
-    const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
-    scheduleMistHotAutoPublish(farmId);
-
-    try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return newEvent;
-      await diaryApi.saveEvent(farmId, newEvent);
-    } catch (err) {
-      console.warn('[farmDiary.addEvent] Cloud save deferred to outbox', err);
-    }
+    set((state) => state.currentFarmId !== farmId ? state : ({
+      events: [newEvent, ...state.events].sort((a, b) => b.date.localeCompare(a.date)),
+    }));
+    publishSavedDiary(farmId);
     return newEvent;
   },
 
   updateEvent: async (farmId, canEdit, id, updates, opts) => {
-    if (!farmId || !canEdit) return;
+    if (!farmId || !canEdit) throw new Error('You cannot update a diary entry for this farm.');
     const queueCloud = opts?.queueCloud !== false;
     const publishHot = opts?.publishHot !== false;
     const previous = get().events;
@@ -203,45 +202,35 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
       }
       return merged;
     });
-    set({ events: next.sort((a, b) => b.date.localeCompare(a.date)) });
     const updated = next.find((e) => e.id === id);
-    if (!updated) return;
+    if (!updated) throw new Error('Diary entry not found.');
 
     const { upsertLocalEntity } = await import('./localFarmRepo');
     await upsertLocalEntity(farmId, 'diary', updated, { queueCloud });
 
-    if (publishHot) {
-      const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
-      scheduleMistHotAutoPublish(farmId);
-    }
-
-    try {
-      if (!queueCloud) return;
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-      await diaryApi.saveEvent(farmId, updated);
-    } catch (err) {
-      console.warn('[farmDiary.updateEvent] Cloud save deferred to outbox', err);
+    set((state) => state.currentFarmId !== farmId ? state : ({
+      events: state.events.map((event) => event.id === id ? updated : event)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    }));
+    if (queueCloud && publishHot) publishSavedDiary(farmId);
+    else if (queueCloud) requestFarmOutboxFlush(farmId);
+    else if (publishHot) {
+      void import('../mist/mistHotBridge')
+        .then(({ scheduleMistHotAutoPublish }) => scheduleMistHotAutoPublish(farmId))
+        .catch((error) => console.warn('[farmDiary] Publication deferred', error));
     }
   },
 
   removeEvent: async (farmId, canEdit, id) => {
-    if (!farmId || !canEdit) return;
-    set((state) => ({
-      events: state.events.filter((e) => e.id !== id),
-    }));
+    if (!farmId || !canEdit) throw new Error('You cannot delete a diary entry for this farm.');
 
     const { deleteLocalEntity } = await import('./localFarmRepo');
     await deleteLocalEntity(farmId, 'diary', id, { queueCloud: true });
 
-    const { scheduleMistHotAutoPublish } = await import('../mist/mistHotBridge');
-    scheduleMistHotAutoPublish(farmId);
-
-    try {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-      await diaryApi.deleteEvent(farmId, id);
-    } catch (err) {
-      console.warn('[farmDiary.removeEvent] Cloud delete deferred to outbox', err);
-    }
+    set((state) => state.currentFarmId !== farmId ? state : ({
+      events: state.events.filter((e) => e.id !== id),
+    }));
+    publishSavedDiary(farmId);
   },
 
   updateSettings: async (farmId, canEdit, newSettings) => {

@@ -11,8 +11,18 @@ import { issuesForBlock } from '../lib/blockIssueCounts';
 import { useFarmDiaryIssues } from '../hooks/useFarmDiaryIssues';
 import { useFarmDiaryPage } from '../hooks/useFarmDiaryPage';
 import { useFarmDiaryComposer } from '../hooks/useFarmDiaryComposer';
+import { useState } from 'react';
 
 export function FarmDiary() {
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const runDiaryAction = async (action: () => Promise<void>) => {
+    setSaveError(null);
+    try {
+      await action();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save the diary change.');
+    }
+  };
   const { userData } = useAuth();
   const farmId = userData?.farmId;
   const { events, settings, addEvent, updateEvent, removeEvent, updateSettings, canEdit, loadMore, hasMore, isLoadingMore } =
@@ -35,33 +45,33 @@ export function FarmDiary() {
     createdBy: userData?.uid,
   });
 
-  const confirmDelete = (event: DiaryEvent) => {
+  const confirmDelete = (event: DiaryEvent) => runDiaryAction(async () => {
+    await removeEvent(event.id);
     if (event.type === 'work' && (event.status ?? 'planned') === 'planned' && event.linkedIssueId) {
       reopenLinkedIssue(event.linkedIssueId);
     }
-    removeEvent(event.id);
     page.setDeleteConfirmId(null);
-  };
+  });
 
-  const markDone = (event: DiaryEvent) => {
-    updateEvent(event.id, {
+  const markDone = (event: DiaryEvent) => runDiaryAction(async () => {
+    await updateEvent(event.id, {
       status: 'done',
       completedAt: new Date().toISOString(),
     });
     if (event.linkedIssueId) resolveLinkedIssue(event.linkedIssueId);
-  };
+  });
 
-  const cancelPlan = (event: DiaryEvent) => {
-    updateEvent(event.id, { status: 'cancelled' });
+  const cancelPlan = (event: DiaryEvent) => runDiaryAction(async () => {
+    await updateEvent(event.id, { status: 'cancelled' });
     if (event.linkedIssueId) reopenLinkedIssue(event.linkedIssueId);
-  };
+  });
 
-  const unlinkIssue = (event: DiaryEvent) => {
+  const unlinkIssue = (event: DiaryEvent) => runDiaryAction(async () => {
     const issueId = event.linkedIssueId;
     if (!issueId) return;
-    updateEvent(event.id, { linkedIssueId: undefined });
+    await updateEvent(event.id, { linkedIssueId: undefined });
     reopenLinkedIssue(issueId);
-  };
+  });
 
   return (
     <div className="h-full flex flex-col bg-slate-50 font-sans">
@@ -73,6 +83,7 @@ export function FarmDiary() {
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="max-w-3xl mx-auto py-6 px-4 sm:px-6 space-y-6">
+          {saveError && <p role="alert" className="text-sm text-red-700">{saveError}</p>}
           <DiaryBlockScope
             blocksSorted={page.blocksSorted}
             focusBlockId={page.focusBlockId}
@@ -139,13 +150,13 @@ export function FarmDiary() {
           subtitle="Confirm required checks before starting this planned work."
           confirmLabel="Accept & start"
           onCancel={() => page.setSafetyForEventId(null)}
-          onConfirm={() => {
-            updateEvent(page.safetyForEventId, {
+          onConfirm={() => runDiaryAction(async () => {
+            await updateEvent(page.safetyForEventId, {
               safetyChecklistAccepted: true,
               acceptedAt: new Date().toISOString(),
             });
             page.setSafetyForEventId(null);
-          }}
+          })}
         />
       )}
     </div>

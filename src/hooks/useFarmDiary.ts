@@ -19,22 +19,24 @@ export function useFarmDiary(startDate?: string, endDate?: string) {
 
   const addEvent = useCallback(
     async (event: Omit<DiaryEvent, 'id'>) => {
-      if (!farmId) return undefined;
+      if (!farmId) throw new Error('Select a farm before saving.');
       return store.addEvent(farmId, canEdit, event);
     },
     [farmId, canEdit, store.addEvent]
   );
 
   const updateEvent = useCallback(
-    (id: string, updates: Partial<DiaryEvent>) => {
-      if (farmId) store.updateEvent(farmId, canEdit, id, updates);
+    async (id: string, updates: Partial<DiaryEvent>) => {
+      if (!farmId) throw new Error('Select a farm before saving.');
+      await store.updateEvent(farmId, canEdit, id, updates);
     },
     [farmId, canEdit, store.updateEvent]
   );
 
   const removeEvent = useCallback(
-    (id: string) => {
-      if (farmId) store.removeEvent(farmId, canEdit, id);
+    async (id: string) => {
+      if (!farmId) throw new Error('Select a farm before deleting.');
+      await store.removeEvent(farmId, canEdit, id);
     },
     [farmId, canEdit, store.removeEvent]
   );

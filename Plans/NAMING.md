@@ -136,6 +136,12 @@ Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys
 
 ## 4. Browser storage — IndexedDB databases
 
+**Decision — 2026-09-15:** `pufom_farm_local` keeps its database name. Schema v2
+uses `entities_v2` keyed by `[farmId, kind, entityId]`, with `byFarmAndKind` and
+`byFarm` indexes. `outbox` keeps its existing keys and index; `metadata` stores
+the `outboxSequence` counter. **Decision — 2026-09-18:** no v1 migration is supported;
+clear the old local database as part of reinstallation. See `LOCAL_DATA_STORAGE.md` §1.
+
 Names and rename policy live here; **contents, authority, and how each store is cleared** are in [`LOCAL_DATA_STORAGE.md`](LOCAL_DATA_STORAGE.md).
 
 | DB name | Module | Legacy? | Notes |
@@ -203,6 +209,10 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.farmChat.log.v1.{farmId}` | Capped whole-farm chat cache (last **5** text lines). Hosted authority is `farms/{farmId}/farm_chat/log`; Freenet authority is Hot. Added 2026-09-15 (`FARM_MESSAGING.md`) |
 | `pufam.farmChat.day.v1.{farmId}` | Today's full chat buffer (`{ date, messages }`) before midnight flush. Added 2026-09-15 (`FARM_MESSAGING.md`) |
 | `pufam.farmChat.archiveIndex.v1.{farmId}` | Local cache of sealed chat-archive dates (not a live listen). Added 2026-09-15 (`FARM_MESSAGING.md`) |
+
+**Decision — 2026-09-16:** the `timeseries_demo` learning pack uses
+`pufam.timeseries_demo.range` for a device-only `{ from, to }` date preference.
+It is not a farm setting or sensor record; there is no settings document to wipe.
 
 ### CSS / DOM (non-storage)
 

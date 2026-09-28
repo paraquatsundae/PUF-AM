@@ -5,9 +5,9 @@
  * live here:
  *
  * 1. `undefined` never reaches Firestore (`stripUndefinedDeep`).
- * 2. An op that keeps failing *permanently* runs out of attempts
- *    (`OUTBOX_MAX_ATTEMPTS` in `flushFarmOutbox.ts`) — the entry itself stays
- *    in the local store, only the doomed write is dropped.
+ * 2. Failed operations remain queued; the failure counter/log noise is capped
+ *    (`OUTBOX_MAX_ATTEMPTS` in `flushFarmOutbox.ts`). Delivery tests live in
+ *    `farmOutboxDelivery.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest';
