@@ -417,7 +417,7 @@ function PlatformAdminDashboard() {
                                 <button
                                   onClick={() => deleteUser(user.uid)}
                                   className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                                  title="Delete Data"
+                                  title="Remove user"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>

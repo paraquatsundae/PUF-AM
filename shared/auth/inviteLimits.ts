@@ -60,12 +60,87 @@ export function adminInviteClaimedMessage(claimedDisplayName?: string | null): s
     : 'This admin invite has already been used. Ask the farm owner for a new invite.';
 }
 
+/**
+ * Staff invites start here: one slot for a phone, one for a tablet, one for a
+ * computer. Signing in again on a device that already took a slot does not
+ * take another. Admin invites stay uncapped — see the note at the top.
+ */
+export const STAFF_INVITE_DEVICE_CAP = 3;
+
+/** Stable id for one account on one browser. A missing agent shares one slot. */
+export function deviceSlotKey(uid: string, userAgent: string | null | undefined): string {
+  const agent = (userAgent || '').trim() || 'unknown-device';
+  return `${uid}|${agent}`;
+}
+
+/**
+ * Uncapped invites still count every sign-in, which is what the admin tests
+ * lock in. A capped invite spends a slot only for a browser this account has
+ * not used on this PIN before.
+ */
+export function redeemConsumesDeviceSlot(
+  record: { maxUses: number | null; deviceKeys?: readonly string[] | null },
+  uid: string,
+  userAgent: string | null | undefined
+): boolean {
+  if (record.maxUses == null) return true;
+  const keys = Array.isArray(record.deviceKeys) ? record.deviceKeys : [];
+  return !keys.includes(deviceSlotKey(uid, userAgent));
+}
+
+export function inviteStillOpen(
+  record: {
+    active: boolean;
+    expiresAt?: string | null;
+    maxUses: number | null;
+    useCount: number;
+    role?: string | null;
+  },
+  consumesSlot: boolean,
+  now = new Date()
+): { ok: true } | { ok: false; reason: string } {
+  if (!record.active) return { ok: false, reason: 'This invite PIN has been revoked.' };
+  if (record.expiresAt && new Date(record.expiresAt).getTime() < now.getTime()) {
+    return { ok: false, reason: 'This invite PIN has expired.' };
+  }
+  if (consumesSlot && record.maxUses != null && record.useCount >= record.maxUses) {
+    return { ok: false, reason: exhaustedInviteMessage(record) };
+  }
+  return { ok: true };
+}
+
+/**
+ * A replacement PIN can be held for the person who used up the previous one.
+ * The same name reopens that account. A different name does not.
+ */
+export function resolveHeldInviteUid(
+  record: { heldForUid?: string | null; heldForDisplayName?: string | null },
+  displayName: string,
+  uidFromPin: string
+): { ok: true; uid: string } | { ok: false; reason: string } {
+  const holder = record.heldForUid;
+  if (!holder) return { ok: true, uid: uidFromPin };
+  const expected = (record.heldForDisplayName || '').trim().toLowerCase();
+  if (expected && displayName.trim().toLowerCase() === expected) {
+    return { ok: true, uid: holder };
+  }
+  const who = record.heldForDisplayName?.trim();
+  return {
+    ok: false,
+    reason: who
+      ? `This PIN was issued for ${who}. Enter that name, or ask the farm admin for your own invite.`
+      : 'This PIN was issued for someone else. Ask the farm admin for your own invite.',
+  };
+}
+
 /** Message for a PIN that has run out of uses. */
 export function exhaustedInviteMessage(record: {
   role?: string | null;
   maxUses: number | null;
 }): string {
-  if (record.maxUses !== 1) return 'This invite PIN has no uses left.';
+  if (record.maxUses !== 1) {
+    return 'This invite PIN has no device uses left. Ask a farm admin to add uses or issue a linked PIN.';
+  }
   return record.role === 'admin'
     ? 'This admin invite has already been used. Ask the farm owner for a new invite.'
     : 'This invite PIN has already been used. Ask for a new one.';

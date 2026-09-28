@@ -56,7 +56,9 @@ export async function verifyBearer(req: Request): Promise<{
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   if (!token) throw Object.assign(new Error('Missing Authorization bearer token'), { status: 401 });
 
-  const decoded = await getAdminAuth().verifyIdToken(token);
+  // checkRevoked so revokeRefreshTokens (directory removal, remove-member)
+  // fails this token on the next API call, not only after it expires.
+  const decoded = await getAdminAuth().verifyIdToken(token, true);
   const farmId = typeof decoded.farmId === 'string' ? decoded.farmId : undefined;
   const role = typeof decoded.role === 'string' ? decoded.role : undefined;
   const authEpoch = typeof decoded.authEpoch === 'number' ? decoded.authEpoch : undefined;

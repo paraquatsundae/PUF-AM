@@ -89,6 +89,7 @@ async function computeFarmBlightAggregate(farmId) {
 }
 /** Nightly blight aggregate refresh for all farms (Step 12). */
 exports.refreshBlightAggregates = (0, scheduler_1.onSchedule)({
+    region: db_1.HOSTED_FUNCTIONS_REGION,
     schedule: "every day 05:00",
     timeZone: "Australia/Perth",
 }, async () => {
@@ -107,7 +108,7 @@ exports.refreshBlightAggregates = (0, scheduler_1.onSchedule)({
  * Production Ji risk ignores sprays; this still creates the aggregate on first
  * farm activity. Settings (inoculum, budbreak) are handled by onModelParamsWrite.
  */
-exports.onDiaryEventWrite = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/events/{eventId}", database: db_1.FIRESTORE_DATABASE_ID }, async (event) => {
+exports.onDiaryEventWrite = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/events/{eventId}", database: db_1.FIRESTORE_DATABASE_ID, region: db_1.HOSTED_FUNCTIONS_REGION }, async (event) => {
     const farmId = event.params.farmId;
     try {
         await computeFarmBlightAggregate(farmId);
@@ -120,7 +121,7 @@ exports.onDiaryEventWrite = (0, firestore_1.onDocumentWritten)({ document: "farm
  * Recompute when a farm admin changes Ji production terms (inoculum k, budbreak).
  * Without this the dashboard card lags the Blight Risk page until 05:00 Perth.
  */
-exports.onModelParamsWrite = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/settings/model_params", database: db_1.FIRESTORE_DATABASE_ID }, async (event) => {
+exports.onModelParamsWrite = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/settings/model_params", database: db_1.FIRESTORE_DATABASE_ID, region: db_1.HOSTED_FUNCTIONS_REGION }, async (event) => {
     const farmId = event.params.farmId;
     try {
         await computeFarmBlightAggregate(farmId);

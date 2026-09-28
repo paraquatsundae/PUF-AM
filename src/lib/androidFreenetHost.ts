@@ -13,6 +13,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 import { DEFAULT_LOCAL_FREENET_WS_URL } from '../../units/mist-freenet/src/freenet02-browser-get-url.ts';
+import { leftoverAfterKillSwitch } from '../../units/puf-freenet-host/src/kill-switch.ts';
 import type {
   FreenetHostStatus,
   FreenetKillSwitchResult,
@@ -180,9 +181,14 @@ export async function androidFreenetHostStopAllOurs(): Promise<FreenetKillSwitch
     const after = await androidFreenetHostStop();
     return asKillSwitch({
       ...after,
-      leftover: after.reachable ? after.leftover ?? 'foreign' : 'none',
+      leftover:
+        after.leftover
+        ?? leftoverAfterKillSwitch({
+          portStillFreenet: after.reachable === true,
+          packagesForUid: after.leftoverPackage ? [after.leftoverPackage] : undefined,
+        }),
       portFree: !after.reachable,
-      stoppedOurs: after.mode === 'stopped',
+      stoppedOurs: after.mode === 'stopped' || after.leftover === 'ours',
     });
   }
   try {

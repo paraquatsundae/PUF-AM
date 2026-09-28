@@ -273,7 +273,8 @@ service cloud.firestore {
                'farmId', 'role', 'label', 'active', 'maxUses', 'useCount', 'expiresAt',
                'createdBy', 'createdAt', 'modules', 'codeHint',
                'claimedBy', 'claimedDisplayName',
-               'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName'
+               'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName',
+               'deviceKeys', 'linkId', 'heldForUid', 'heldForDisplayName'
              ]) &&
              hasRequiredFields(['farmId', 'role', 'label', 'active', 'createdBy', 'createdAt']) &&
              data.farmId is string &&
@@ -291,7 +292,25 @@ service cloud.firestore {
              (!('claimedDisplayName' in data) || data.claimedDisplayName == null || data.claimedDisplayName is string) &&
              (!('lastRedeemedAt' in data) || data.lastRedeemedAt == null || data.lastRedeemedAt is string) &&
              (!('lastRedeemedBy' in data) || data.lastRedeemedBy == null || data.lastRedeemedBy is string) &&
-             (!('lastRedeemedDisplayName' in data) || data.lastRedeemedDisplayName == null || data.lastRedeemedDisplayName is string);
+             (!('lastRedeemedDisplayName' in data) || data.lastRedeemedDisplayName == null || data.lastRedeemedDisplayName is string) &&
+             (!('deviceKeys' in data) || data.deviceKeys is list) &&
+             (!('linkId' in data) || data.linkId == null || (data.linkId is string && data.linkId.size() < 200)) &&
+             (!('heldForUid' in data) || data.heldForUid == null || data.heldForUid is string) &&
+             (!('heldForDisplayName' in data) || data.heldForDisplayName == null || data.heldForDisplayName is string);
+    }
+
+    // A new browser spends one use. Signing in again on a browser already in
+    // deviceKeys does not. The size check stops a client from freezing the
+    // counter while adding devices.
+    function joinTicketDevicesHeld(prior, next) {
+      let priorKeys = prior.get('deviceKeys', []);
+      let nextKeys = next.get('deviceKeys', []);
+      return (next.useCount == prior.useCount + 1
+              && nextKeys.size() == priorKeys.size() + 1
+              && (prior.maxUses == null || next.useCount <= prior.maxUses))
+          || (next.useCount == prior.useCount
+              && nextKeys == priorKeys
+              && priorKeys.size() > 0);
     }
 
     // An admin join ticket belongs to whoever redeems it first: the first
@@ -1017,7 +1036,8 @@ service cloud.firestore {
 
     match /farms/{farmId} {
       allow read: if isFarmMember(farmId);
-      // Prefer server create-farm (Admin SDK). Client create kept for legacy Google owners.
+      // Prefer server create-farm / create-my-farm (Admin SDK). Client create remains
+      // for a whitelisted Google owner whose profile write still goes through rules.
       allow create: if isAuthorized() && isValidFarm(request.resource.data) && request.resource.data.ownerUid == request.auth.uid;
       allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) &&
                     request.resource.data.ownerUid == resource.data.ownerUid;
@@ -1341,8 +1361,8 @@ service cloud.firestore {
                             resource.data.active == true &&
                             request.resource.data.diff(resource.data).affectedKeys()
                               .hasOnly(['useCount', 'lastRedeemedAt', 'lastRedeemedBy', 'lastRedeemedDisplayName',
-                                        'claimedBy', 'claimedDisplayName']) &&
-                            request.resource.data.useCount == resource.data.useCount + 1 &&
+                                        'claimedBy', 'claimedDisplayName', 'deviceKeys']) &&
+                            joinTicketDevicesHeld(resource.data, request.resource.data) &&
                             joinTicketBindingHeld(resource.data, request.resource.data)
                           )
                         );
@@ -1358,6 +1378,12 @@ service cloud.firestore {
 
     // SHA-256 of spent enrollment codes — no plaintext. Platform admin audit only.
     match /enrollment_code_uses/{hash} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+
+    // SHA-256 of codes minted by a project admin. Plaintext is shown once, then dropped.
+    match /enrollment_code_issues/{hash} {
       allow read: if isPlatformAdmin();
       allow write: if false;
     }

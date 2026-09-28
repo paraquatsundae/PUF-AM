@@ -46,7 +46,13 @@ export function leftoverAfterKillSwitch(input: {
   if (packages.includes(FREENET_ANDROID_NODE_PACKAGE)) return 'android-node';
   if (input.listenerKind === 'ours' || input.listenerKind === 'other-appimage') return 'ours';
   if (input.listenerKind === 'login-leftover') return 'login-service';
-  return 'foreign';
+  // Named other Android package — only then “something else”. Hidepid / no
+  // packages / unknown uid is our LMK-orphaned libfreenet.so, not foreign.
+  // Plans/FREENET_OPERATOR_FLOW.md Decision — 2026-09-16 (hidepid leftover).
+  const namedOther = packages.filter((p) => p && p !== FREENET_ANDROID_NODE_PACKAGE);
+  if (namedOther.length > 0) return 'foreign';
+  if (input.listenerKind === 'foreign') return 'foreign';
+  return 'ours';
 }
 
 export function killSwitchHonestMessage(input: {

@@ -119,6 +119,19 @@ export function getWeatherDateWindow(days = WEATHER_RECENT_REFRESH_DAYS) {
   };
 }
 
+/**
+ * Start of the hourly DPIRD pull. Normally the rolling 14-day window. If the
+ * cache's last day is older than that window, start on the last cached day so
+ * a stopped scheduler does not leave a hole the next run never fills.
+ */
+export function refreshFetchStart(
+  existingEnd: string | null | undefined,
+  windowStart: string
+): string {
+  if (existingEnd && existingEnd < windowStart) return existingEnd;
+  return windowStart;
+}
+
 export function getHistoricStartDate(keepDays = WEATHER_HISTORIC_KEEP_DAYS) {
   const d = new Date();
   d.setDate(d.getDate() - keepDays);

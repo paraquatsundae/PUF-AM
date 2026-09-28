@@ -10,6 +10,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   enrollmentCodeHash,
+  formatEnrollmentCode,
+  mayMintEnrollmentCode,
   normalizeEnrollmentCode,
   parseEnrollmentCodes,
   unusedEnrollmentCount,
@@ -38,6 +40,61 @@ describe('parseEnrollmentCodes', () => {
   it('drops blanks and codes too short to have been issued', () => {
     expect(parseEnrollmentCodes(',, abc ,')).toEqual([]);
     expect(parseEnrollmentCodes('')).toEqual([]);
+  });
+});
+
+describe('mayMintEnrollmentCode', () => {
+  it('lets a platform admin mint', () => {
+    expect(
+      mayMintEnrollmentCode({
+        platformAdmin: true,
+        pinAuth: false,
+        email: 'george@pufworks.farm',
+        anyPlatformAdmin: true,
+      }).ok
+    ).toBe(true);
+  });
+
+  it('lets the first Google admin mint when the project has no platform admin yet', () => {
+    const decision = mayMintEnrollmentCode({
+      platformAdmin: false,
+      pinAuth: false,
+      email: 'george@pufworks.farm',
+      anyPlatformAdmin: false,
+    });
+    expect(decision).toMatchObject({ ok: true, bootstrap: true });
+  });
+
+  it('refuses everyone else once a platform admin exists', () => {
+    expect(
+      mayMintEnrollmentCode({
+        platformAdmin: false,
+        pinAuth: false,
+        email: 'someone@example.com',
+        anyPlatformAdmin: true,
+      })
+    ).toMatchObject({ ok: false, status: 403 });
+  });
+
+  it('refuses a PIN identity', () => {
+    expect(
+      mayMintEnrollmentCode({
+        platformAdmin: false,
+        pinAuth: true,
+        email: 'ap_abc@sentinut.local',
+        anyPlatformAdmin: false,
+      }).ok
+    ).toBe(false);
+  });
+});
+
+describe('formatEnrollmentCode', () => {
+  it('groups a code so it can be read aloud, without changing what is stored', () => {
+    expect(formatEnrollmentCode('ab2cdef3gh')).toBe('AB2CD-EF3GH');
+    expect(normalizeEnrollmentCode(formatEnrollmentCode('ab2cdef3gh'))).toBe('AB2CDEF3GH');
+    expect(enrollmentCodeHash(normalizeEnrollmentCode('AB2CD-EF3GH'))).toBe(
+      enrollmentCodeHash('AB2CDEF3GH')
+    );
   });
 });
 

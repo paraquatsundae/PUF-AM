@@ -11,6 +11,8 @@ import {
 import { packModulesToExclude } from '../../shared/farm/cropPacks';
 import {
   createInvitePin,
+  addInvitePinUses,
+  linkInvitePin,
   listInvitePins,
   revokeInvitePin,
   type PinRole,
@@ -108,6 +110,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [freshCode, setFreshCode] = useState<string | null>(null);
+  const [freshNote, setFreshNote] = useState<string | null>(null);
   const [freshRole, setFreshRole] = useState<PinRole>('farmer');
   const [copied, setCopied] = useState<'code' | 'share' | null>(null);
   const [label, setLabel] = useState('Season worker');
@@ -115,7 +118,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
   const [modules, setModules] = useState<FarmModuleId[]>(() =>
     clampModulesToFarm(WORK_MODULES, grantCatalog)
   );
-  const [maxUses, setMaxUses] = useState<string>('');
+  const [maxUses, setMaxUses] = useState('3');
   const [days, setDays] = useState('365');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -153,6 +156,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
     setCreating(true);
     setError(null);
     setFreshCode(null);
+    setFreshNote(null);
     try {
       const result = await createInvitePin(input);
       setFreshCode(result.code);
@@ -193,6 +197,39 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
       maxUses: preset.maxUses,
       expiresInDays: preset.days,
     });
+  };
+
+  const onAddUses = async (pinId: string) => {
+    setError(null);
+    try {
+      await addInvitePinUses(pinId, 3);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add device uses');
+    }
+  };
+
+  const onLink = async (pinId: string, labelText: string, roleForPin: PinRole) => {
+    setCreating(true);
+    setError(null);
+    setFreshCode(null);
+    setFreshNote(null);
+    try {
+      const result = await linkInvitePin(pinId);
+      setFreshCode(result.code);
+      setFreshRole(roleForPin);
+      setFreshNote(
+        result.heldForDisplayName
+          ? `Linked to ${labelText}. ${result.heldForDisplayName} signs in with this PIN and the same name, and gets 3 more devices on the same account.`
+          : `Linked to ${labelText}. It starts with 3 device uses.`
+      );
+      await refresh();
+      onCreated?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to issue a linked PIN');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const onRevoke = async (pinId: string) => {
@@ -240,6 +277,8 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
           <h2 className="text-lg font-bold text-slate-900">Invite PINs</h2>
           <p className="text-sm text-slate-500">
             Create a code with role + modules, share it with staff. They join with name + PIN.
+            A staff code starts with 3 devices — phone, tablet, and a computer. Signing in again
+            on the same one does not use another. Admin codes stay unlimited.
           </p>
         </div>
       </div>
@@ -264,6 +303,7 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
               {copied === 'code' ? 'Copied' : 'Copy'}
             </button>
           </div>
+          {freshNote ? <p className="text-sm text-emerald-900">{freshNote}</p> : null}
           <button
             type="button"
             onClick={() => void copyShare()}
@@ -319,7 +359,12 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
               <label className="text-xs font-medium text-slate-600">Role</label>
               <select
                 value={role}
-                onChange={(e) => setRole(e.target.value as PinRole)}
+                onChange={(e) => {
+                  const next = e.target.value as PinRole;
+                  setRole(next);
+                  if (next === 'admin') setMaxUses('');
+                  else setMaxUses((current) => (current.trim() === '' ? '3' : current));
+                }}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
               >
                 <option value="viewer">Viewer (read-only)</option>
@@ -328,7 +373,9 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-600">Max uses (blank = unlimited)</label>
+              <label className="text-xs font-medium text-slate-600">
+                Device cap (blank = unlimited)
+              </label>
               <input
                 value={maxUses}
                 onChange={(e) => setMaxUses(e.target.value)}
@@ -395,6 +442,10 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
               const pinName =
                 (p.label && p.label.trim()) ||
                 `${p.role} · ${(p.createdAt || '').slice(0, 10) || 'invite'}`;
+              const atCap = p.active && p.maxUses != null && p.useCount >= p.maxUses;
+              const linked = pins.filter(
+                (other) => p.linkId && other.linkId === p.linkId && other.pinId !== p.pinId
+              );
               return (
               <li
                 key={p.pinId}
@@ -410,11 +461,25 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
                     {p.codeHint || '••••'}
                     {' · '}
                     uses {p.useCount}
-                    {p.maxUses != null ? `/${p.maxUses}` : ''}
+                    {p.maxUses != null ? `/${p.maxUses} devices` : ''}
                     {p.createdAt ? ` · created ${p.createdAt.slice(0, 10)}` : ''}
                     {p.expiresAt ? ` · exp ${p.expiresAt.slice(0, 10)}` : ''}
                     {!p.active ? ' · revoked' : ''}
+                    {atCap ? ' · device limit reached' : ''}
                   </p>
+                  {linked.length > 0 ? (
+                    <p className="text-xs text-sky-800 mt-0.5 truncate">
+                      Linked with{' '}
+                      {linked
+                        .map((other) => other.label || other.codeHint || 'PIN')
+                        .join(', ')}
+                    </p>
+                  ) : null}
+                  {p.heldForDisplayName ? (
+                    <p className="text-xs text-slate-600 mt-0.5 truncate">
+                      For {p.heldForDisplayName}
+                    </p>
+                  ) : null}
                   {p.lastRedeemedDisplayName ? (
                     <p className="text-xs text-emerald-800 mt-0.5 truncate">
                       Used by {p.lastRedeemedDisplayName}
@@ -432,13 +497,33 @@ export function InvitePinManager({ onCreated }: { onCreated?: () => void }) {
                   )}
                 </div>
                 {p.active && (
-                  <button
-                    type="button"
-                    onClick={() => void onRevoke(p.pinId)}
-                    className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-900 shrink-0"
-                  >
-                    <Ban className="w-3.5 h-3.5" /> Revoke
-                  </button>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {atCap ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void onAddUses(p.pinId)}
+                          className="text-xs font-medium text-emerald-800 hover:text-emerald-950"
+                        >
+                          Add 3 devices
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void onLink(p.pinId, pinName, p.role)}
+                          className="text-xs font-medium text-sky-800 hover:text-sky-950"
+                        >
+                          New linked PIN
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void onRevoke(p.pinId)}
+                      className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-900"
+                    >
+                      <Ban className="w-3.5 h-3.5" /> Revoke
+                    </button>
+                  </div>
                 )}
               </li>
               );

@@ -9,6 +9,8 @@ import { isByoFirebase } from './byoFirebaseConfig';
 import {
   createByoFarmAccount,
   createByoInvitePin,
+  addByoInvitePinUses,
+  linkByoInvitePin,
   listByoFarmMembers,
   listByoInvitePins,
   redeemByoInvitePin,
@@ -82,6 +84,46 @@ export async function createFarmAccount(
     authEpoch: number;
     recoveryPin: string;
   };
+}
+
+/** Project-admin Google account mints a one-use enrollment code. Shown once. */
+export async function mintEnrollmentCode(): Promise<{ code: string; platformAdminGranted: boolean }> {
+  const res = await fetch(apiUrl('/api/auth/enrollment-codes'), {
+    method: 'POST',
+    headers: await authHeaders(),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) {
+    throw new Error(String(data.error || 'Failed to generate enrollment code'));
+  }
+  if (data.platformAdminGranted === true) {
+    const user = auth.currentUser;
+    if (user) await user.getIdToken(true);
+  }
+  return {
+    code: String(data.code || ''),
+    platformAdminGranted: data.platformAdminGranted === true,
+  };
+}
+
+/** Google account with no farm yet. Stays that user; server writes the farm. */
+export async function createFarmForSignedInAccount(input: {
+  farmName: string;
+  displayName: string;
+  enrollmentCode: string;
+}): Promise<{ farmId: string; recoveryPin: string; role: PinRole }> {
+  const res = await fetch(apiUrl('/api/auth/create-my-farm'), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify(input),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) {
+    throw new Error(String(data.error || 'Failed to create farm'));
+  }
+  const user = auth.currentUser;
+  if (user) await user.getIdToken(true);
+  return data as { farmId: string; recoveryPin: string; role: PinRole };
 }
 
 /** Owner sets which modules this farm offers (worker grants are a subset). */
@@ -195,6 +237,8 @@ export async function listInvitePins(): Promise<
     modules: FarmModuleId[];
     lastRedeemedAt: string | null;
     lastRedeemedDisplayName: string | null;
+    linkId: string | null;
+    heldForDisplayName: string | null;
   }>
 > {
   if (isByoFirebase()) return listByoInvitePins();
@@ -213,6 +257,32 @@ export async function revokeInvitePin(pinId: string): Promise<void> {
   });
   const data = await readJsonResponse(res);
   if (!res.ok) throw new Error(String(data.error || 'Failed to revoke PIN'));
+}
+
+export async function addInvitePinUses(pinId: string, addUses = 3): Promise<void> {
+  if (isByoFirebase()) return addByoInvitePinUses(pinId, addUses);
+  const res = await fetch(apiUrl('/api/auth/pin-uses'), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ pinId, addUses }),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) throw new Error(String(data.error || 'Failed to add device uses'));
+}
+
+export async function linkInvitePin(pinId: string): Promise<{ code: string; heldForDisplayName: string | null }> {
+  if (isByoFirebase()) return linkByoInvitePin(pinId);
+  const res = await fetch(apiUrl('/api/auth/link-pin'), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ pinId }),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) throw new Error(String(data.error || 'Failed to issue a linked PIN'));
+  return {
+    code: String(data.code || ''),
+    heldForDisplayName: typeof data.heldForDisplayName === 'string' ? data.heldForDisplayName : null,
+  };
 }
 
 export type FarmMember = {
@@ -259,4 +329,15 @@ export async function removeFarmMember(uid: string): Promise<void> {
   });
   const data = await readJsonResponse(res);
   if (!res.ok) throw new Error(String(data.error || 'Failed to remove member'));
+}
+
+/** Platform-admin User Directory. Disables the account and revokes its tokens. */
+export async function removeDirectoryUser(uid: string): Promise<void> {
+  const res = await fetch(apiUrl('/api/admin/remove-user'), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ uid }),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) throw new Error(String(data.error || 'Failed to remove user'));
 }

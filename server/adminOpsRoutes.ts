@@ -11,6 +11,7 @@ import type { AccessPinRecord } from './accessPinCrypto.ts';
 import { clientIp, forwardedChain, socketPeerIp } from './clientIp.ts';
 import { loadEnrollmentInventory } from './enrollmentCodes.ts';
 import { getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
+import { removeDirectoryUser } from './removeDirectoryUser.ts';
 import { isTrustedProxyAddress } from './trustedProxyRanges.ts';
 
 const PINS = 'access_pins';
@@ -154,6 +155,34 @@ export function registerAdminOpsRoutes(app: Express): void {
       const status = (error as { status?: number })?.status || 500;
       return res.status(status).json({
         error: error instanceof Error ? error.message : 'Failed to load ops snapshot',
+      });
+    }
+  });
+
+  /**
+   * Remove a user from the directory and kill their session.
+   * Not a self-service leave: the caller cannot remove their own account.
+   */
+  app.post('/api/admin/remove-user', async (req: Request, res: Response) => {
+    try {
+      if (!isAdminSdkReady()) {
+        return res.status(503).json({ error: 'Firebase Admin is not configured on this server.' });
+      }
+      const caller = await verifyBearer(req);
+      if (!caller.platformAdmin) {
+        return res.status(403).json({ error: 'Platform admin only' });
+      }
+      const uid = String(req.body?.uid || '').trim();
+      if (!uid) return res.status(400).json({ error: 'uid required' });
+      if (uid === caller.uid) {
+        return res.status(400).json({ error: 'You cannot remove your own account.' });
+      }
+      await removeDirectoryUser(uid);
+      return res.json({ ok: true, uid });
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status || 500;
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Failed to remove user',
       });
     }
   });

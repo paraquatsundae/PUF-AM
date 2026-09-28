@@ -31,6 +31,38 @@ export interface AccessPinRecord {
   lastRedeemedBy?: string | null;
   /** Display name entered on last redeem (helps admins pick which PIN to revoke). */
   lastRedeemedDisplayName?: string | null;
+  /** Each successful redeem. Same uid is the same name; a new uid is another person. */
+  redemptions?: PinRedemption[];
+  /** `${uid}|${userAgent}` slots. A repeat of one slot does not spend another use. */
+  deviceKeys?: string[];
+  /** Shared by a PIN and the replacement issued when its device cap was used up. */
+  linkId?: string | null;
+  /** Replacement PINs reopen this account when the typed name matches. */
+  heldForUid?: string | null;
+  heldForDisplayName?: string | null;
+}
+
+export type PinRedemption = {
+  at: string;
+  uid: string;
+  displayName: string;
+  ip: string | null;
+  userAgent: string | null;
+};
+
+/**
+ * Same uid on more than one IP or browser is one account on several devices.
+ * More than one uid means the code was redeemed under different names.
+ */
+export function summarizePinUses(rows: PinRedemption[]): string {
+  if (rows.length === 0) return 'No device log yet';
+  const accounts = new Set(rows.map((row) => row.uid));
+  if (accounts.size > 1) {
+    return `${accounts.size} different accounts — this code was used by more than one person`;
+  }
+  const devices = new Set(rows.map((row) => `${row.ip || ''}|${row.userAgent || ''}`));
+  if (devices.size > 1) return `Same account on ${devices.size} devices`;
+  return 'Same account, one device';
 }
 
 export function newFarmId(): string {

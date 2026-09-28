@@ -15,17 +15,7 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  runTransaction,
-  setDoc,
-  updateDoc,
-  where,
-} from 'firebase/firestore';
+import { arrayUnion, collection, doc, getDoc, getDocs, query, runTransaction, setDoc, updateDoc, where } from 'firebase/firestore';
 import { type FarmModuleId, type FarmRole } from '../../shared/auth/farmModules';
 import {
   defaultModulesWithoutCropPacks,
@@ -34,13 +24,18 @@ import {
 import {
   BYO_JOIN_TICKETS,
   byoAuthCredentials,
-  canRedeemJoinTicket,
   generatePinCode,
   hashPin,
   newFarmId,
   pinCodeHint,
 } from '../../shared/auth/byoPin';
-import { checkInviteClaim } from '../../shared/auth/inviteLimits';
+import {
+  checkInviteClaim,
+  deviceSlotKey,
+  inviteStillOpen,
+  redeemConsumesDeviceSlot,
+  STAFF_INVITE_DEVICE_CAP,
+} from '../../shared/auth/inviteLimits';
 import { auth, db } from '../firebase';
 import { BILLING_ACK_TEXT, byoProjectId, readStoredByoFirebase } from './byoFirebaseConfig';
 import { signOut } from 'firebase/auth';
@@ -67,6 +62,10 @@ type JoinTicketDoc = {
   lastRedeemedAt?: string | null;
   lastRedeemedBy?: string | null;
   lastRedeemedDisplayName?: string | null;
+  deviceKeys?: string[];
+  linkId?: string | null;
+  heldForUid?: string | null;
+  heldForDisplayName?: string | null;
 };
 
 async function signInByoAccount(pin: string, displayName: string): Promise<User> {
@@ -231,9 +230,13 @@ export async function redeemByoInvitePin(
     throw new Error('That PIN is not for this farm. Check the farm ID and the code.');
   }
   const ticket = snap.data() as JoinTicketDoc;
-  const allowed = canRedeemJoinTicket(ticket);
-  if (!allowed.ok) {
-    throw new Error('reason' in allowed ? allowed.reason : 'This invite PIN cannot be used.');
+  const gate = inviteStillOpen(ticket, false);
+  if ('reason' in gate) throw new Error(gate.reason);
+  const heldName = ticket.heldForDisplayName?.trim();
+  if (heldName && person.toLowerCase() !== heldName.toLowerCase()) {
+    throw new Error(
+      `This PIN was issued for ${heldName}. Enter that name, or ask the farm admin for your own invite.`
+    );
   }
 
   const user = await signInByoAccount(pin, person);
@@ -256,18 +259,20 @@ export async function redeemByoInvitePin(
       const fresh = await tx.get(ticketDoc);
       if (!fresh.exists()) throw new Error('That invite PIN no longer exists.');
       const current = fresh.data() as JoinTicketDoc;
-
-      const stillAllowed = canRedeemJoinTicket(current);
-      if (!stillAllowed.ok) {
-        throw new Error(
-          'reason' in stillAllowed ? stillAllowed.reason : 'This invite PIN cannot be used.'
-        );
-      }
+      const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 180) : null;
+      const consumes = redeemConsumesDeviceSlot(current, uid, userAgent);
+      const stillAllowed = inviteStillOpen(current, consumes);
+      if ('reason' in stillAllowed) throw new Error(stillAllowed.reason);
       const claim = checkInviteClaim(current, uid);
       if (claim.ok === false) throw new Error(claim.reason);
 
       tx.update(ticketDoc, {
-        useCount: (current.useCount || 0) + 1,
+        ...(consumes
+          ? {
+              useCount: (current.useCount || 0) + 1,
+              deviceKeys: arrayUnion(deviceSlotKey(uid, userAgent)),
+            }
+          : {}),
         lastRedeemedAt: now,
         lastRedeemedBy: uid,
         lastRedeemedDisplayName: person,
@@ -388,6 +393,8 @@ export async function listByoInvitePins(): Promise<
     modules: FarmModuleId[];
     lastRedeemedAt: string | null;
     lastRedeemedDisplayName: string | null;
+    linkId: string | null;
+    heldForDisplayName: string | null;
   }>
 > {
   const farmId = await callerFarmId();
@@ -405,15 +412,58 @@ export async function listByoInvitePins(): Promise<
       createdAt: data.createdAt,
       codeHint: data.codeHint ?? null,
       modules: data.modules || [],
-      lastRedeemedAt: data.lastRedeemedAt ?? null,
-      lastRedeemedDisplayName: data.lastRedeemedDisplayName ?? null,
-    };
+    lastRedeemedAt: data.lastRedeemedAt ?? null,
+    lastRedeemedDisplayName: data.lastRedeemedDisplayName ?? null,
+    linkId: data.linkId ?? null,
+    heldForDisplayName: data.heldForDisplayName ?? null,
+  };
   });
 }
 
 export async function revokeByoInvitePin(pinId: string): Promise<void> {
   const farmId = await callerFarmId();
   await updateDoc(ticketRef(farmId, pinId), { active: false });
+}
+
+export async function addByoInvitePinUses(pinId: string, addUses = STAFF_INVITE_DEVICE_CAP): Promise<void> {
+  const farmId = await callerFarmId();
+  const ref = ticketRef(farmId, pinId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('PIN not found');
+  const data = snap.data() as JoinTicketDoc;
+  if (data.maxUses == null) throw new Error('This PIN has no device cap.');
+  const add = Math.floor(addUses);
+  if (add < 1 || add > 30) throw new Error('Add between 1 and 30 device uses.');
+  await updateDoc(ref, { maxUses: Math.min(99, data.maxUses + add) });
+}
+
+export async function linkByoInvitePin(
+  pinId: string
+): Promise<{ code: string; heldForDisplayName: string | null }> {
+  const farmId = await callerFarmId();
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in');
+  const sourceSnap = await getDoc(ticketRef(farmId, pinId));
+  if (!sourceSnap.exists()) throw new Error('PIN not found');
+  const source = sourceSnap.data() as JoinTicketDoc;
+  if (!source.active) throw new Error('Revoked PINs cannot be linked. Mint a new invite instead.');
+  const code = generatePinCode(8);
+  const linkId = source.linkId || pinId;
+  const heldForDisplayName = source.claimedDisplayName || source.lastRedeemedDisplayName || null;
+  const heldForUid = heldForDisplayName ? source.claimedBy || source.lastRedeemedBy || null : null;
+  await updateDoc(ticketRef(farmId, pinId), { linkId });
+  await writeJoinTicket(farmId, code, {
+    farmId,
+    role: source.role,
+    label: source.label,
+    maxUses: source.role === 'admin' ? null : (source.maxUses ?? STAFF_INVITE_DEVICE_CAP),
+    expiresAt: source.expiresAt,
+    createdBy: user.uid,
+    modules: source.modules,
+    linkId,
+    ...(heldForUid ? { heldForUid, heldForDisplayName } : {}),
+  });
+  return { code, heldForDisplayName };
 }
 
 export async function listByoFarmMembers(): Promise<

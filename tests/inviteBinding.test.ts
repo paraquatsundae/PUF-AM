@@ -4,6 +4,7 @@ import {
   checkInviteClaim,
   exhaustedInviteMessage,
   inviteBindsToFirstRedeemer,
+  STAFF_INVITE_DEVICE_CAP,
 } from '../shared/auth/inviteLimits';
 import { MODULE_PRESETS } from '../shared/auth/farmModules';
 import { uidForPinRedeem } from '../server/accessPinCrypto';
@@ -64,10 +65,18 @@ describe('admin invite binds to its first redeemer', () => {
     expect(admin?.maxUses).toBeNull();
   });
 
+  it('starts staff presets at three devices', () => {
+    const staff = MODULE_PRESETS.filter((p) => p.role !== 'admin');
+    expect(staff.length).toBeGreaterThan(0);
+    for (const preset of staff) {
+      expect(preset.maxUses).toBe(STAFF_INVITE_DEVICE_CAP);
+    }
+  });
+
   it('explains an exhausted single-use invite', () => {
     expect(exhaustedInviteMessage({ role: 'admin', maxUses: 1 })).toContain('already been used');
     expect(exhaustedInviteMessage({ role: 'farmer', maxUses: 5 })).toBe(
-      'This invite PIN has no uses left.'
+      'This invite PIN has no device uses left. Ask a farm admin to add uses or issue a linked PIN.'
     );
   });
 });

@@ -90,6 +90,17 @@ final class FreenetLoopbackOwner {
                 || p.contains("/freenet/libfreenet.so");
     }
 
+    static boolean exeLooksLikeAndroidNode(String exe) {
+        if (exe == null || exe.isEmpty()) return false;
+        String p = exe.replace('\\', '/');
+        return p.contains("org.freenet.androidnode") || p.contains("/androidnode/");
+    }
+
+    static String exeForPid(int pid) {
+        if (pid <= 0) return null;
+        return readLink("/proc/" + pid + "/exe");
+    }
+
     static Listener inspect(int port) {
         TcpListen listen = parseListen(readProc("tcp"), port);
         if (listen == null) listen = parseListen(readProc("tcp6"), port);
@@ -97,12 +108,13 @@ final class FreenetLoopbackOwner {
         Listener out = new Listener();
         out.uid = listen.uid;
         out.ourUid = listen.uid == Process.myUid();
-        if (out.ourUid) {
-            Integer pid = findPidForInode(listen.inode);
-            if (pid != null) {
-                out.pid = pid;
-                out.exe = readLink("/proc/" + pid + "/exe");
-            }
+        // Always walk fds we can see. Hidepid may hide the tcp uid so ourUid
+        // is false even when the leftover is our same-uid libfreenet.so.
+        // Plans/FREENET_OPERATOR_FLOW.md Decision — 2026-09-16 (hidepid leftover).
+        Integer pid = findPidForInode(listen.inode);
+        if (pid != null) {
+            out.pid = pid;
+            out.exe = exeForPid(pid);
         }
         return out;
     }
@@ -125,12 +137,21 @@ final class FreenetLoopbackOwner {
     }
 
     static boolean signalTerm(int pid) {
+        return sendSignal(pid, 15);
+    }
+
+    /** Our persisted {@code libfreenet.so} child only — never a third-party pid. */
+    static boolean signalKill(int pid) {
+        return sendSignal(pid, 9);
+    }
+
+    private static boolean sendSignal(int pid, int signal) {
         if (pid <= 0 || pid == Process.myPid()) return false;
         try {
-            Process.sendSignal(pid, 15);
+            Process.sendSignal(pid, signal);
             return true;
         } catch (Throwable e) {
-            Log.w(FreenetHostPlugin.TAG, "signalTerm " + pid, e);
+            Log.w(FreenetHostPlugin.TAG, "signal " + signal + " " + pid, e);
             return false;
         }
     }

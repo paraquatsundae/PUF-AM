@@ -84,6 +84,8 @@ vi.mock('../../server/firebaseAdmin.ts', () => ({
   getAdminFieldValue: () => ({
     increment: (n: number) => ({ __increment: n }),
     delete: () => ({ __delete: true }),
+    arrayUnion: (...values: unknown[]) => ({ __arrayUnion: values }),
+    arrayRemove: (...values: unknown[]) => ({ __arrayRemove: values }),
   }),
   isAdminSdkReady: () => true,
 }));

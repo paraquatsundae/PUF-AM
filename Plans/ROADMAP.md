@@ -78,10 +78,10 @@ Verbatim from the step checklists (2026-09-10). Tick here and in `DEVELOPER_NOTE
 - [ ] **Harvest:** Create record; drying session link works
 - [ ] **Offline:** `OfflineIndicator` shows when network disabled; cached reads work
 
-**STEP-09** (hosted Cloud Functions are not yet deployed on `pufworks-am` — [`DEPLOY_CLOUD_RUN.md`](DEPLOY_CLOUD_RUN.md))
+**STEP-09** (`refreshWeatherCache` is on `pufworks-am` as of 2026-09-28. Blight and financial functions are still not deployed.)
 
-- [ ] Configure Cloud Scheduler → Pub/Sub → Function (deploy: `cd functions && npm run deploy`)
-- [ ] Deploy and verify single hourly fetch in Firebase logs
+- [x] Configure Cloud Scheduler → Pub/Sub → Function (deployed 2026-09-28: `refreshWeatherCache` on `pufworks-am`, `australia-southeast1`, every 60 minutes)
+- [ ] Confirm the first scheduled run in Firebase logs (cache itself was caught up the same day)
 
 **STEP-10**
 

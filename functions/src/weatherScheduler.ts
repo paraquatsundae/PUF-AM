@@ -177,10 +177,14 @@ export const refreshWeatherCache = onSchedule(
           historicBackfilledAt = now;
         }
 
+        // Same rule as refreshFetchStart in shared/weather/dpirdClient.ts.
+        // The 9 Sep 2026 migrate left caches ending before the 14-day window.
+        const fetchStart =
+          existing.endDate && existing.endDate < recentStart ? existing.endDate : recentStart;
         const recent = await fetchStationWeather(
           apiKey,
           station.stationCode,
-          recentStart,
+          fetchStart,
           recentEnd
         );
         weatherData = prune({ ...weatherData, ...recent });

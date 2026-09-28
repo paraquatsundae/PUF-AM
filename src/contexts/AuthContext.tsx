@@ -48,6 +48,8 @@ interface AuthContextType {
   isPlatformAdmin: boolean;
   loading: boolean;
   error: string | null;
+  /** Signed in with Google and this account has no farm yet. */
+  needsFarmSetup: boolean;
   /** Modules this farm offers (owner catalog). */
   farmEnabledModules: FarmModuleId[];
   refreshFarmModules: () => Promise<void>;
@@ -96,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsFarmSetup, setNeedsFarmSetup] = useState(false);
   const [farmEnabledModules, setFarmEnabledModules] =
     useState<FarmModuleId[]>(allFarmModules());
   const [farmCropPacks, setFarmCropPacks] = useState<FarmCropPacksMap>({});
@@ -131,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setError,
         setFarmEnabledModules,
         setMistLocked,
+        setNeedsFarmSetup,
         applyMistSession,
       }),
     []
@@ -339,6 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isPlatformAdmin,
         loading,
         error,
+        needsFarmSetup,
         farmEnabledModules,
         refreshFarmModules,
         farmCropPacks,

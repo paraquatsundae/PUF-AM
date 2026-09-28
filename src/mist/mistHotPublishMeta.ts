@@ -265,6 +265,24 @@ export function saveMistBonesPublishStatus(status: MistBonesPublishStatus): void
   }
 }
 
+/** Last Hot + bones URIs this device published — enough to remint a crew invite. */
+export function lastPublishedFreenetHandoff(farmId: string): {
+  hotUri: string;
+  bonesUri: string;
+  hotContentHash?: string;
+  bonesContentHash?: string;
+} | null {
+  const hot = hotWatchPairFromStatus(farmId);
+  const bones = bonesWatchPairFromStatus(farmId);
+  if (!hot || !bones) return null;
+  return {
+    hotUri: hot.hotUri,
+    bonesUri: bones.bonesUri,
+    ...(hot.hotContentHash ? { hotContentHash: hot.hotContentHash } : {}),
+    ...(bones.bonesContentHash ? { bonesContentHash: bones.bonesContentHash } : {}),
+  };
+}
+
 /** Last Freenet Bones URI+hash that may ride a watch ping — never mix a new local hash with an old URI. */
 export function bonesWatchPairFromStatus(
   farmId: string,

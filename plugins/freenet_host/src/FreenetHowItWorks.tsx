@@ -149,7 +149,8 @@ export function FreenetHowItWorksBody() {
         <p>
           Farm setup → People lists tickets minted on <strong>this</strong> laptop. Revoking a
           ticket stops the next person using it. A device that already pulled the farm keeps its
-          copy.
+          copy. If they signed out without a device PIN, the owner issues a new recovery code
+          from that same People list — they cannot get back in with the old invite.
         </p>
       </div>
 
@@ -158,7 +159,11 @@ export function FreenetHowItWorksBody() {
         <ol className="list-decimal pl-5 space-y-1">
           <li>Welcome → Freenet → Join a farm I already have.</li>
           <li>Join a farm and type the crew invite, or recover with the paper FarmCode if you are the owner.</li>
-          <li>Crew never need the FarmCode. Revoking an invite stops new joins, not a copy already fetched.</li>
+          <li>
+            Crew never need the FarmCode. Revoking an invite stops new joins, not a copy already
+            fetched. If you signed out without a device PIN, ask the owner for a new recovery
+            code from Farm setup → People.
+          </li>
         </ol>
         <p>
           A device that created or recovered the farm can Send through its own Freenet

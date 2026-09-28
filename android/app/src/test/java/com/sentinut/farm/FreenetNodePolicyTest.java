@@ -50,12 +50,33 @@ public class FreenetNodePolicyTest {
         // Hidepid: same-uid leftover with no exe path is still ours — not foreign ATTACH.
         assertEquals("ours", FreenetNodePolicy.classifyLeftover(true, true, null, new String[0]));
         assertEquals("ours", FreenetNodePolicy.classifyLeftover(true, true, "", new String[0]));
-        assertEquals("foreign", FreenetNodePolicy.classifyLeftover(true, false, null, new String[0]));
+        // Hidepid: no uid/packages — still ours, not “something else”.
+        assertEquals("ours", FreenetNodePolicy.classifyLeftover(true, false, null, new String[0]));
+        assertEquals(
+                "foreign",
+                FreenetNodePolicy.classifyLeftover(
+                        true, false, null, new String[] {"com.example.other"}));
         assertFalse(FreenetNodePolicy.mayStopListener(false, "/data/app/org.freenet.androidnode/x"));
         org.junit.Assert.assertTrue(
                 FreenetNodePolicy.mayStopListener(
                         true, "/data/app/com.sentinut.farm/lib/arm64/libfreenet.so"));
         org.junit.Assert.assertTrue(FreenetNodePolicy.mayStopListener(true, null));
+        org.junit.Assert.assertTrue(
+                FreenetNodePolicy.maySignalLeftover("ours", false, null));
+        assertFalse(FreenetNodePolicy.maySignalLeftover("android-node", false, null));
+        assertFalse(FreenetNodePolicy.maySignalLeftover("foreign", true, "/data/app/x.so"));
+        assertFalse(
+                FreenetNodePolicy.maySignalLeftover(
+                        "ours",
+                        false,
+                        "/data/app/org.freenet.androidnode/lib/arm64/libfreenet.so"));
+        org.junit.Assert.assertTrue(FreenetNodePolicy.shouldStopPersisted("ours", true));
+        org.junit.Assert.assertTrue(FreenetNodePolicy.shouldStopPersisted("none", false));
+        assertFalse(FreenetNodePolicy.shouldStopPersisted("android-node", true));
+        org.junit.Assert.assertTrue(FreenetNodePolicy.maySignalPersistedExe(null));
+        assertFalse(
+                FreenetNodePolicy.maySignalPersistedExe(
+                        "/data/app/org.freenet.androidnode/lib/arm64/libfreenet.so"));
     }
 
     @Test

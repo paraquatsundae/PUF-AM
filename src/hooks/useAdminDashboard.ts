@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import type { UserData } from '../contexts/AuthContext';
 import { db } from '../firebase';
+import { removeDirectoryUser } from '../lib/invitePinAuth';
 import { trackMetric, type UsageMetrics } from '../services/metricsService';
 
 export type AdminAccessList = Record<string, boolean>;
@@ -36,7 +37,11 @@ export function useAdminDashboard() {
     const unsubscribeUsers = onSnapshot(
       usersQuery,
       (snap) => {
-        setUsers(snap.docs.map((d) => d.data() as UserData));
+        setUsers(
+          snap.docs
+            .map((d) => d.data() as UserData)
+            .filter((u) => u.accessRevoked !== true)
+        );
         setLoading(false);
       },
       (error) => {
@@ -169,16 +174,15 @@ export function useAdminDashboard() {
   const deleteUser = async (uid: string) => {
     if (
       !window.confirm(
-        "Are you sure you want to delete this user's data? This will not delete their Google account, but they will lose all farm data."
+        'Remove this user? They are signed out, their login token is revoked, and the account cannot sign in until it is restored.'
       )
     ) {
       return;
     }
     try {
-      await deleteDoc(doc(db, 'users', uid));
-      setUsers((prev) => prev.filter((u) => u.uid !== uid));
+      await removeDirectoryUser(uid);
     } catch (error) {
-      console.error('Error deleting user:', error);
+      window.alert(error instanceof Error ? error.message : 'Could not remove that user.');
     }
   };
 

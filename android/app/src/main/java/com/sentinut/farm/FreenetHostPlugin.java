@@ -71,28 +71,7 @@ public class FreenetHostPlugin extends Plugin {
 
     @PluginMethod
     public void stopAllOurs(PluginCall call) {
-        runOffMain(call, () -> {
-            Context ctx = getContext();
-            stopOurService(ctx);
-            FreenetLoopbackOwner.Listener listener = FreenetLoopbackOwner.inspect(WS_PORT);
-            if (listener != null
-                    && listener.pid != null
-                    && FreenetNodePolicy.mayStopListener(listener.ourUid, listener.exe)) {
-                FreenetLoopbackOwner.signalTerm(listener.pid);
-            }
-            LeftoverSnap snap = classifyPort(ctx);
-            if (FreenetNodePolicy.shouldWaitAfterStop(snap.port, snap.leftover)) {
-                waitUntilPortFree();
-                snap = classifyPort(ctx);
-            }
-            String mode = FreenetNodePolicy.modeAfterStop(snap.freenet, snap.leftover);
-            FreenetHostStatusStore.write(ctx, mode, snap.freenet, null, null);
-            JSObject o = statusObject(mode, snap.freenet, null, null);
-            putLeftover(o, snap);
-            o.put("portFree", !snap.port);
-            o.put("stoppedOurs", true);
-            return o;
-        });
+        runOffMain(call, () -> stopOursAndClassify(getContext()));
     }
 
     @PluginMethod
@@ -134,25 +113,65 @@ public class FreenetHostPlugin extends Plugin {
     public void stop(PluginCall call) {
         runOffMain(call, () -> {
             Context ctx = getContext();
+            LeftoverSnap before = classifyPort(ctx);
             String mode = storedMode(FreenetHostStatusStore.read(ctx));
-            // Never stop a node we only attached to (Freenet Android Node / leftover).
-            if (!FreenetNodePolicy.mayStopOurNode(mode)) {
-                if (probeLoopback() && looksLikeFreenet()) {
-                    FreenetHostStatusStore.write(ctx, "attached", true, null, null);
-                    return statusObject("attached", true, null, null);
-                }
-                FreenetHostStatusStore.write(ctx, "stopped", false, null, null);
-                return statusObject("stopped", false, null, null);
-            }
-            stopOurService(ctx);
-            FreenetHostStatusStore.write(ctx, "stopped", false, null, null);
-            // Our child is gone. If :7509 is still Freenet 0.2, that is someone else.
-            if (probeLoopback() && looksLikeFreenet()) {
+            boolean storedOurs = FreenetNodePolicy.mayStopOurNode(mode);
+            boolean leftoverOurs = "ours".equals(before.leftover);
+            // Never signal FAN or a named other package. Hidepid "attached" that
+            // is ours still stops. Plans/FREENET_OPERATOR_FLOW.md Decision — 2026-09-16.
+            if (!storedOurs && !leftoverOurs && before.freenet) {
                 FreenetHostStatusStore.write(ctx, "attached", true, null, null);
-                return statusObject("attached", true, null, null);
+                JSObject o = statusObject("attached", true, null, null);
+                putLeftover(o, before);
+                return o;
             }
-            return statusObject("stopped", false, null, null);
+            if (!storedOurs && !leftoverOurs) {
+                FreenetHostStatusStore.write(ctx, "stopped", false, null, null);
+                JSObject o = statusObject("stopped", false, null, null);
+                putLeftover(o, before);
+                o.put("portFree", !before.port);
+                o.put("stoppedOurs", false);
+                return o;
+            }
+            return stopOursAndClassify(ctx);
         });
+    }
+
+    /**
+     * Stop PUF-AM's {@code :freenet} and persisted {@code libfreenet.so}.
+     * Never signals Freenet Android Node. Hidepid leftover classifies as ours.
+     */
+    static JSObject stopOursAndClassify(Context ctx) {
+        stopOurService(ctx);
+        FreenetLoopbackOwner.Listener listener = FreenetLoopbackOwner.inspect(WS_PORT);
+        LeftoverSnap first = classifyPort(ctx);
+        if (listener != null
+                && listener.pid != null
+                && FreenetNodePolicy.maySignalLeftover(first.leftover, listener.ourUid, listener.exe)) {
+            FreenetChildPid.writePid(ctx, listener.pid);
+            FreenetLoopbackOwner.signalTerm(listener.pid);
+        }
+        if (FreenetNodePolicy.shouldStopPersisted(first.leftover, first.freenet)) {
+            FreenetChildPid.stopPersisted(ctx);
+        }
+        LeftoverSnap snap = classifyPort(ctx);
+        if (listener != null
+                && listener.pid != null
+                && FreenetNodePolicy.maySignalLeftover(snap.leftover, listener.ourUid, listener.exe)
+                && snap.port) {
+            FreenetLoopbackOwner.signalKill(listener.pid);
+        }
+        if (FreenetNodePolicy.shouldWaitAfterStop(snap.port, snap.leftover)) {
+            waitUntilPortFree();
+            snap = classifyPort(ctx);
+        }
+        String next = FreenetNodePolicy.modeAfterStop(snap.freenet, snap.leftover);
+        FreenetHostStatusStore.write(ctx, next, snap.freenet, null, null);
+        JSObject o = statusObject(next, snap.freenet, null, null);
+        putLeftover(o, snap);
+        o.put("portFree", !snap.port);
+        o.put("stoppedOurs", true);
+        return o;
     }
 
     static String storedMode(JSObject stored) {
@@ -215,6 +234,7 @@ public class FreenetHostPlugin extends Plugin {
             String path = binary != null ? binary.getAbsolutePath() : null;
             JSObject managed = statusObject("managed", true, null, path);
             FreenetHostStatusStore.write(ctx, "managed", true, null, path);
+            rememberOurListenerPid(ctx);
             return managed;
         }
         if (FreenetNodePolicy.shouldWaitBeforeSpawn(portTaken, looksLike, listenerOurs)) {
@@ -228,6 +248,7 @@ public class FreenetHostPlugin extends Plugin {
                 String path = binary != null ? binary.getAbsolutePath() : null;
                 JSObject managed = statusObject("managed", true, null, path);
                 FreenetHostStatusStore.write(ctx, "managed", true, null, path);
+                rememberOurListenerPid(ctx);
                 return managed;
             }
         }
@@ -236,6 +257,7 @@ public class FreenetHostPlugin extends Plugin {
             String path = binary != null ? binary.getAbsolutePath() : null;
             JSObject managed = statusObject("managed", true, null, path);
             FreenetHostStatusStore.write(ctx, "managed", true, null, path);
+            rememberOurListenerPid(ctx);
             return managed;
         }
         if (action == FreenetNodePolicy.Action.ATTACH) {
@@ -365,6 +387,14 @@ public class FreenetHostPlugin extends Plugin {
     static void putLeftover(JSObject o, LeftoverSnap snap) {
         o.put("leftover", snap.leftover);
         if (snap.leftoverPkg != null) o.put("leftoverPackage", snap.leftoverPkg);
+    }
+
+    /** Remember the listen pid of our leftover so a later Stop can SIGKILL it. */
+    static void rememberOurListenerPid(Context ctx) {
+        FreenetLoopbackOwner.Listener listener = FreenetLoopbackOwner.inspect(WS_PORT);
+        if (listener == null || listener.pid == null) return;
+        if (!FreenetNodePolicy.maySignalLeftover("ours", listener.ourUid, listener.exe)) return;
+        FreenetChildPid.writePid(ctx, listener.pid);
     }
 
     /** Sleep-poll until :7509 is free or {@link FreenetNodePolicy#PORT_WAIT_MS}. */

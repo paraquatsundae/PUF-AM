@@ -15,10 +15,14 @@ import {
   type AccessPinRole,
 } from './accessPinCrypto.ts';
 import {
+  issueEnrollmentCode,
   markEnrollmentCodeUsed,
+  mayMintEnrollmentCode,
+  projectHasPlatformAdmin,
   releaseEnrollmentCode,
   reserveEnrollmentCode,
 } from './enrollmentCodes.ts';
+import { createOwnedFarmForCaller } from './createOwnedFarm.ts';
 import { getAdminAuth, getAdminDb, isAdminSdkReady } from './firebaseAdmin.ts';
 import {
   PINS,
@@ -208,6 +212,92 @@ export function registerAccessPinFarmRoutes(app: Express) {
     }
   });
 
+
+  /**
+   * Google sign-in with no `users/{uid}` doc. The caller stays that Google
+   * user; the farm's ownerUid and farm-role admin are their uid.
+   * Enrollment gate matches `POST /api/auth/create-farm`.
+   */
+  app.post('/api/auth/create-my-farm', async (req: Request, res: Response) => {
+    try {
+      if (!isAdminSdkReady()) {
+        return res.status(503).json({
+          error: 'Farm auth is not configured (missing Firebase Admin credentials in secrets/).',
+        });
+      }
+      const caller = await verifyBearer(req);
+      if (!rateLimit(`create-my-farm:${caller.uid}`, 5, 60 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many farm creations for this account. Try later.' });
+      }
+      const result = await createOwnedFarmForCaller({
+        uid: caller.uid,
+        farmName: String(req.body?.farmName || ''),
+        displayName: String(req.body?.displayName || ''),
+        enrollmentCode: String(req.body?.enrollmentCode || ''),
+      });
+      if ('error' in result) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      return res.json({
+        farmId: result.farmId,
+        role: result.role,
+        recoveryPin: result.recoveryPin,
+      });
+    } catch (error) {
+      const status = (error as { status?: number }).status ?? 500;
+      console.error('[auth] create-my-farm failed:', error);
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Failed to create farm',
+      });
+    }
+  });
+
+  /**
+   * Mint a one-use enrollment code. The signed-in Google project admin is the
+   * authority — there is no secret file above that account. The plaintext is
+   * returned once; Firestore stores only the hash.
+   */
+  app.post('/api/auth/enrollment-codes', async (req: Request, res: Response) => {
+    try {
+      if (!isAdminSdkReady()) {
+        return res.status(503).json({
+          error: 'Farm auth is not configured (missing Firebase Admin credentials in secrets/).',
+        });
+      }
+      const caller = await verifyBearer(req);
+      if (!rateLimit(`enrollment-codes:${caller.uid}`, 20, 60 * 60 * 1000)) {
+        return res.status(429).json({ error: 'Too many enrollment codes for this account. Try later.' });
+      }
+      const user = await getAdminAuth().getUser(caller.uid);
+      const email = user.email || '';
+      const pinAuth = user.customClaims?.pinAuth === true;
+      const anyPlatformAdmin = caller.platformAdmin ? true : await projectHasPlatformAdmin();
+      const allowed = mayMintEnrollmentCode({
+        platformAdmin: caller.platformAdmin,
+        pinAuth,
+        email,
+        anyPlatformAdmin,
+      });
+      if (!allowed.ok) {
+        return res.status(allowed.status ?? 403).json({ error: allowed.error });
+      }
+      if (allowed.bootstrap) {
+        await getAdminAuth().setCustomUserClaims(caller.uid, {
+          ...(user.customClaims || {}),
+          admin: true,
+          platformAdmin: true,
+        });
+      }
+      const issued = await issueEnrollmentCode({ uid: caller.uid, email });
+      return res.json({ code: issued.code, platformAdminGranted: allowed.bootstrap });
+    } catch (error) {
+      const status = (error as { status?: number }).status ?? 500;
+      console.error('[auth] enrollment-codes failed:', error);
+      return res.status(status).json({
+        error: error instanceof Error ? error.message : 'Failed to generate enrollment code',
+      });
+    }
+  });
 
   /**
    * Withdrawn 2026-09-13. Public farm browse is unused (join is invite PIN /

@@ -64,8 +64,28 @@ function resolveServiceAccountPath(): string | undefined {
   }
   const secretsDir = resolve(process.cwd(), 'secrets');
   if (!existsSync(secretsDir)) return undefined;
-  const match = readdirSync(secretsDir).find((f) => f.endsWith('.json') && f.includes('firebase-adminsdk'));
-  return match ? resolve(secretsDir, match) : undefined;
+  const matches = readdirSync(secretsDir).filter(
+    (f) => f.endsWith('.json') && f.includes('firebase-adminsdk'),
+  );
+  if (matches.length === 0) return undefined;
+  // secrets/ still holds the retired AI Studio key. Prefer the account for
+  // the project this workshop is actually pointed at (firebase-applet-config).
+  const projectId = process.env.FIREBASE_PROJECT_ID || resolveProjectConfig()?.projectId;
+  if (projectId) {
+    const named = matches.find((f) => f.startsWith(`${projectId}-`) || f.startsWith(projectId));
+    if (named) return resolve(secretsDir, named);
+    for (const file of matches) {
+      try {
+        const cred = JSON.parse(readFileSync(resolve(secretsDir, file), 'utf8')) as {
+          project_id?: string;
+        };
+        if (cred.project_id === projectId) return resolve(secretsDir, file);
+      } catch {
+        /* skip an unreadable key file */
+      }
+    }
+  }
+  return resolve(secretsDir, matches[0]!);
 }
 
 export function getAdminApp(): adminSdk.app.App {

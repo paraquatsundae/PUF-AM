@@ -3,13 +3,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, Lock, AlertCircle, CheckCircle2, ScrollText, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { isWorkshopMode } from '../lib/workshopMode';
+import { SignedInFarmRecovery, SignedInFarmSetup } from './login/SignedInFarmSetup';
 
 interface PrivacyGateProps {
   children: React.ReactNode;
 }
 
 export function PrivacyGate({ children }: PrivacyGateProps) {
-  const { userData, agreeToTerms, logout, loading, error } = useAuth();
+  const { userData, agreeToTerms, logout, loading, error, needsFarmSetup } = useAuth();
+  const [heldFarm, setHeldFarm] = useState<{ farmId: string; recoveryPin: string } | null>(null);
   const [hasReadToBottom, setHasReadToBottom] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,6 +61,20 @@ export function PrivacyGate({ children }: PrivacyGateProps) {
         </div>
       </div>
     );
+  }
+
+  if (heldFarm) {
+    return (
+      <SignedInFarmRecovery
+        farmId={heldFarm.farmId}
+        recoveryPin={heldFarm.recoveryPin}
+        onContinue={() => setHeldFarm(null)}
+      />
+    );
+  }
+
+  if (needsFarmSetup) {
+    return <SignedInFarmSetup onCreated={setHeldFarm} />;
   }
 
   // If user data is loading, show a loading state

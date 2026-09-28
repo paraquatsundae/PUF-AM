@@ -3,9 +3,8 @@ import {
   onAuthStateChanged,
   signOut,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { handleFirestoreError, OperationType } from './firestoreErrors';
 import { trackMetric } from '../services/metricsService';
 import { resolveIsAdmin, resolveIsPlatformAdmin } from './adminAuth';
 import { isWorkshopMode, WORKSHOP_USER_DATA } from './workshopMode';
@@ -27,7 +26,7 @@ import {
   sanitizeModules,
   type FarmModuleId,
 } from '../../shared/auth/farmModules';
-import type { Farm, UserData } from './authTypes';
+import type { UserData } from './authTypes';
 
 export type AuthSessionSetters = {
   setUser: (user: User | null) => void;
@@ -38,6 +37,8 @@ export type AuthSessionSetters = {
   setError: (error: string | null) => void;
   setFarmEnabledModules: (modules: FarmModuleId[]) => void;
   setMistLocked: (locked: boolean) => void;
+  /** Google sign-in with no user doc — show the create-farm form, do not write. */
+  setNeedsFarmSetup: (needs: boolean) => void;
   applyMistSession: (devicePin?: string) => Promise<boolean>;
 };
 
@@ -53,6 +54,7 @@ export function subscribeAuthSession(s: AuthSessionSetters): () => void {
     s.setIsPlatformAdmin(true);
     s.setError(null);
     s.setFarmEnabledModules(allFarmModules());
+    s.setNeedsFarmSetup(false);
     s.setLoading(false);
     return () => undefined;
   }
@@ -64,6 +66,7 @@ export function subscribeAuthSession(s: AuthSessionSetters): () => void {
       if (mistSessionNeedsPin()) {
         if (!cancelled) {
           s.setMistLocked(true);
+          s.setNeedsFarmSetup(false);
           s.setLoading(false);
         }
         return;
@@ -218,6 +221,7 @@ export function subscribeAuthSession(s: AuthSessionSetters): () => void {
         if (!userSnap.exists()) {
           if (pinAuth || isByoFirebase() || isByoAuthEmail(currentUser.email)) {
             if ((window as any)._lastAuthId === currentAuthId) {
+              s.setNeedsFarmSetup(false);
               s.setError('Your account profile is missing. Sign in again with your invite PIN, or ask a farm admin for a new PIN.');
               s.setLoading(false);
             }
@@ -225,65 +229,15 @@ export function subscribeAuthSession(s: AuthSessionSetters): () => void {
             return;
           }
 
-          try {
-            const farmId = `farm_${currentUser.uid}`;
-            const farmRef = doc(db, 'farms', farmId);
-            const newFarm: Farm = {
-              id: farmId,
-              name: `${currentUser.displayName || 'My'}'s Orchard`,
-              ownerUid: currentUser.uid,
-              createdAt: new Date().toISOString()
-            };
-
-            try {
-              trackMetric('write').catch(console.error);
-              await setDoc(farmRef, newFarm);
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, `farms/${farmId}`);
-            }
-
-            const newUserData: UserData = {
-              uid: currentUser.uid,
-              email: currentUser.email || 'no-email@example.com',
-              role: 'admin',
-              farmId,
-              modules: allFarmModules(),
-              authEpoch: 1,
-              subscriptionTier: 'free',
-              createdAt: new Date().toISOString()
-            };
-            if (currentUser.displayName) newUserData.displayName = currentUser.displayName;
-            if (currentUser.photoURL) newUserData.photoURL = currentUser.photoURL;
-
-            try {
-              trackMetric('write').catch(console.error);
-              await setDoc(userRef, newUserData);
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);
-            }
-
-            const publicRef = doc(db, 'users_public', currentUser.uid);
-            const publicData = {
-              uid: currentUser.uid,
-              displayName: currentUser.displayName || undefined,
-              photoURL: currentUser.photoURL || undefined,
-              role: 'admin' as const,
-              farmId
-            };
-            try {
-              trackMetric('write').catch(console.error);
-              await setDoc(publicRef, publicData);
-            } catch (err) {
-              handleFirestoreError(err, OperationType.WRITE, `users_public/${currentUser.uid}`);
-            }
-          } catch (err) {
-            console.error('Error creating user/farm documents:', err);
-            if ((window as any)._lastAuthId === currentAuthId) {
-              s.setError('Failed to initialize your account. Please contact support.');
-              s.setLoading(false);
-            }
-            return;
+          // Google (or other non-PIN) sign-in. Creating the farm from the
+          // client is denied unless this email is whitelisted, and the denial
+          // used to be swallowed — the screen spun on "Initializing…". The
+          // signed-in create form calls POST /api/auth/create-my-farm instead.
+          if ((window as any)._lastAuthId === currentAuthId) {
+            s.setNeedsFarmSetup(true);
           }
+        } else if ((window as any)._lastAuthId === currentAuthId) {
+          s.setNeedsFarmSetup(false);
         }
 
         if ((window as any)._lastAuthId !== currentAuthId) return;
@@ -306,13 +260,37 @@ export function subscribeAuthSession(s: AuthSessionSetters): () => void {
             s.setUserData(null);
             s.setIsAdmin(false);
             s.setIsPlatformAdmin(false);
+            if (!pinAuth && !isByoFirebase() && !isByoAuthEmail(currentUser.email)) {
+              s.setNeedsFarmSetup(true);
+            }
             s.setLoading(false);
             return;
           }
 
+          s.setNeedsFarmSetup(false);
+
           const data = snap.data() as UserData;
+          if (data.accessRevoked === true) {
+            clearDeviceRememberedFlag();
+            s.setError(
+              pinAuth
+                ? 'Access removed — ask a farm admin for a new invite PIN.'
+                : 'This account has been removed.'
+            );
+            s.setUserData(null);
+            s.setIsAdmin(false);
+            s.setIsPlatformAdmin(false);
+            s.setNeedsFarmSetup(false);
+            s.setLoading(false);
+            try {
+              await signOut(auth);
+            } catch {
+              /* ignore */
+            }
+            return;
+          }
+
           const revoked =
-            data.accessRevoked === true ||
             !data.farmId ||
             (typeof data.authEpoch === 'number' && data.authEpoch > claimAuthEpoch) ||
             (claimFarmId && data.farmId && claimFarmId !== data.farmId);
@@ -362,6 +340,7 @@ export function subscribeAuthSession(s: AuthSessionSetters): () => void {
           s.setUserData(null);
           s.setIsAdmin(false);
           s.setIsPlatformAdmin(false);
+          s.setNeedsFarmSetup(false);
           s.setLoading(false);
           if (loadingTimeout) clearTimeout(loadingTimeout);
         }

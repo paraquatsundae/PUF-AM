@@ -14,27 +14,13 @@
 
 import {
   bonesKey,
-  bytesToHex,
-  deriveBonesContractKey,
-  deriveHotContractKey,
   hotKey,
-  mintInviteToken,
   sha256Hex,
-  wrapCrewJoinEnvelope,
-  type CrewJoinEnvelope,
   type FreenetPeerStatus,
 } from '../../units/mist-freenet/src/index.ts';
 import { normalizeMistFreenetUri } from '../../units/mist-freenet/src/freenet-uri-normalize.ts';
-import {
-  DEFAULT_JOIN_ROLE,
-  defaultJoinTicketExpiry,
-  type JoinRole,
-} from '../../shared/sync/joinTicket.ts';
-import {
-  buildJoinPermissions,
-  type JoinPreset,
-  type JoinPresetId,
-} from '../../shared/sync/joinGrant.ts';
+import { type JoinRole } from '../../shared/sync/joinTicket.ts';
+import { type JoinPreset, type JoinPresetId } from '../../shared/sync/joinGrant.ts';
 import { apiHubMissing } from '../lib/apiBase.ts';
 import { withFreenetFarmPublishLock } from './freenetPublishLock.ts';
 import { BONES_FARM_GEOMETRY_ASSET_ID } from './bonesGeometry.ts';
@@ -54,15 +40,10 @@ import { publishLocalGeometryToMistBones, readLocalBonesCiphertext } from './mis
 import { farmChatLinesHash } from './hotAdapter.ts';
 import { farmChatHotBridge } from './hotFarmChatBridge.ts';
 import { getMistStoreForHotBridge, publishLocalFarmToMistHot } from './mistHotBridge.ts';
-import { buildJoinTicketV1, formatJoinTicket, type MistJoinTicketV1 } from './mistJoinTicket.ts';
-import { LanJoinTicketResolver, registerJoinTicketOnLan } from './joinTicketResolver.ts';
-import { publishCrewInviteToFreenetSlot } from './crewJoinSlot.ts';
+import { type MistJoinTicketV1 } from './mistJoinTicket.ts';
+import { issueCrewInvite } from './issueCrewInvite.ts';
 import { resolveMistFarmSeed } from './mistHotBridge.ts';
-import {
-  saveFreenetBonesUri,
-  saveFreenetHotUri,
-  saveJoinTicketForFarm,
-} from './mistHotPublishMeta.ts';
+import { saveFreenetBonesUri, saveFreenetHotUri } from './mistHotPublishMeta.ts';
 
 export type { FreenetPeerStatus, FreenetHotRecord };
 
@@ -447,132 +428,32 @@ export async function publishFarmToFreenet(
     throw new Error('Freenet publish incomplete — wait for peer connection and retry');
   }
 
-  const joinTicket = buildJoinTicketV1({
-    hotUri: hot.freenetUri,
-    bonesUri: bones.freenetUri,
-    hotContentHash: hot.contentHash,
-    bonesContentHash: bones.contentHash,
-  });
-
   const farmSeed = await resolveMistFarmSeed(options?.devicePin);
   if (!farmSeed) {
     throw new Error('Unlock this device before sending — the crew invite wraps this farm\'s read keys.');
   }
 
-  const minted = mintInviteToken();
-  const preset = options?.preset;
-  const role = preset?.role ?? options?.role ?? DEFAULT_JOIN_ROLE;
-  const expires = options?.expires ?? defaultJoinTicketExpiry();
-  const permissions =
-    options?.permissions ?? (preset ? buildJoinPermissions(preset) : undefined);
-  const hotKeyBytes = await deriveHotContractKey(farmSeed);
-  const bonesKeyBytes = await deriveBonesContractKey(farmSeed);
-
-  const envelope: CrewJoinEnvelope = {
-    v: 3,
-    kind: 'crew-join',
+  const issued = await issueCrewInvite({
     farmId,
+    farmSeed,
     hotUri: hot.freenetUri,
     bonesUri: bones.freenetUri,
-    hotKeyHex: bytesToHex(hotKeyBytes),
-    bonesKeyHex: bytesToHex(bonesKeyBytes),
-    role,
-    ticket: minted,
-    ...(permissions ? { permissions } : {}),
-    expires,
     hotContentHash: hot.contentHash,
     bonesContentHash: bones.contentHash,
-    ...(hybrid ? { cloudFarmId: hybrid.cloudFarmId } : {}),
-  };
-  const sealedCrew = bytesToHex(await wrapCrewJoinEnvelope(envelope, minted));
-
-  const manifestFields = {
-    ticket: minted,
-    farmId,
-    hotUri: hot.freenetUri,
-    bonesUri: bones.freenetUri,
-    role,
-    ...(permissions ? { permissions } : {}),
-    expires,
-    hotContentHash: hot.contentHash,
-    bonesContentHash: bones.contentHash,
-    ...(hybrid ? { cloudFarmId: hybrid.cloudFarmId } : {}),
-  };
-
-  let shortTicketOnLan = false;
-  let lanError: string | undefined;
-  try {
-    await registerJoinTicketOnLan({
-      ...manifestFields,
-      sealedCrew,
-      ...(options?.label ? { label: options.label } : {}),
-    });
-    await new LanJoinTicketResolver().resolve(minted, farmId);
-    shortTicketOnLan = true;
-  } catch (error) {
-    lanError = error instanceof Error ? error.message : 'the hub did not accept it';
-  }
-
-  let shortTicketOnFreenet: 'put' | 'update' | undefined;
-  let freenetError: string | undefined;
-  try {
-    const slot = await publishCrewInviteToFreenetSlot(envelope);
-    shortTicketOnFreenet = slot.mode;
-  } catch (error) {
-    freenetError = error instanceof Error ? error.message : 'the Freenet crew-invite slot publish failed';
-  }
-
-  const shortTicket = shortTicketOnLan || shortTicketOnFreenet ? minted : undefined;
-  if (shortTicket) {
-    saveJoinTicketForFarm(farmId, {
-      ticket: minted,
-      role,
-      ...(preset ? { preset: preset.id } : {}),
-      expires,
-    });
-  }
-
-  const shortTicketError = describeTicketRouteGap({ lanError, freenetError });
+    ...(options?.preset ? { preset: options.preset } : {}),
+    ...(options?.role ? { role: options.role } : {}),
+    ...(options?.permissions ? { permissions: options.permissions } : {}),
+    ...(options?.expires ? { expires: options.expires } : {}),
+    ...(options?.label ? { label: options.label } : {}),
+    ...(hybrid ? { hybrid } : {}),
+  });
 
   return {
     hot,
     bones,
-    joinTicket,
-    joinTicketText: formatJoinTicket(joinTicket),
-    ...(shortTicket ? { shortTicket } : {}),
-    shortTicketRole: role,
-    ...(preset ? { shortTicketPreset: preset.id } : {}),
-    shortTicketExpires: expires,
-    shortTicketOnLan,
-    ...(shortTicketOnFreenet ? { shortTicketOnFreenet } : {}),
-    ...(shortTicketError ? { shortTicketError } : {}),
+    ...issued,
   };
   });
-}
-
-/**
- * What to tell the operator about a ticket that only half landed.
- *
- * Worth spelling out rather than reporting a bare failure: a ticket on the shelf
- * but not in a slot still works, just only on this Wi‑Fi, and a ticket in a slot
- * but not on the shelf works everywhere but takes a few minutes to become
- * findable. Those are different things to say to someone about to read eight
- * InviteToken out loud.
- */
-function describeTicketRouteGap(input: {
-  lanError?: string;
-  freenetError?: string;
-}): string | undefined {
-  const { lanError, freenetError } = input;
-  if (!lanError && !freenetError) return undefined;
-
-  if (lanError && freenetError) {
-    return `no route can answer for it — this device's hub said "${lanError}", and Freenet said "${freenetError}"`;
-  }
-  if (freenetError) {
-    return `it works on this Wi‑Fi but not off it — the Freenet slot did not publish: ${freenetError}`;
-  }
-  return `it works off this Wi‑Fi but may take a few minutes to be findable — this device's hub did not take it: ${lanError}`;
 }
 
 export type FetchFarmFromFreenetResult = {

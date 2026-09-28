@@ -23,7 +23,7 @@ function applyTransactionToAggregate(aggregate, tx, multiplier) {
     }
 }
 /** Maintains farms/{farmId}/aggregates/financials on transaction writes (Step 12). */
-exports.syncFinancialAggregates = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/financial_transactions/{txId}", database: db_1.FIRESTORE_DATABASE_ID }, async (event) => {
+exports.syncFinancialAggregates = (0, firestore_1.onDocumentWritten)({ document: "farms/{farmId}/financial_transactions/{txId}", database: db_1.FIRESTORE_DATABASE_ID, region: db_1.HOSTED_FUNCTIONS_REGION }, async (event) => {
     const farmId = event.params.farmId;
     const before = event.data?.before?.data();
     const after = event.data?.after?.data();

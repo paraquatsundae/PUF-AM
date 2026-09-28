@@ -15,6 +15,9 @@ tests
 **/*.test.ts
 **/*.spec.ts
 android/
+tmp/
+release/
+vendor/
 .idea
 *.md
 !README.md

@@ -91,12 +91,48 @@ final class FreenetNodePolicy {
         return ourUid && exeLooksLikeOurLeftover(exe);
     }
 
+    /**
+     * Signal a listen pid only when leftover is ours (or same-uid our exe).
+     * Never Freenet Android Node or a named other package.
+     * Plans/FREENET_OPERATOR_FLOW.md Decision — 2026-09-16 (hidepid leftover).
+     */
+    static boolean maySignalLeftover(String leftover, boolean ourUid, String exe) {
+        if (FreenetLoopbackOwner.exeLooksLikeAndroidNode(exe)) return false;
+        if ("android-node".equals(leftover)
+                || "foreign".equals(leftover)
+                || "login-service".equals(leftover)) {
+            return false;
+        }
+        if ("ours".equals(leftover)) return true;
+        return mayStopListener(ourUid, exe);
+    }
+
+    /** Persist-pid SIGTERM/KILL when leftover is ours, or the port is already down. */
+    static boolean shouldStopPersisted(String leftover, boolean stillFreenet) {
+        return "ours".equals(leftover) || !stillFreenet;
+    }
+
+    /**
+     * Persisted child.pid is ours unless {@code /proc/pid/exe} names Freenet
+     * Android Node or another binary. Hidepid (null exe) still allows the signal.
+     */
+    static boolean maySignalPersistedExe(String exe) {
+        if (FreenetLoopbackOwner.exeLooksLikeAndroidNode(exe)) return false;
+        return exeLooksLikeOurLeftover(exe);
+    }
+
+    /**
+     * Hidepid often hides the listen uid from the WebView. If we cannot name
+     * another package and Freenet Android Node is not the owner, treat a live
+     * 0.2 port as our orphaned {@code libfreenet.so} — not “something else”.
+     */
     static String classifyLeftover(
             boolean portStillFreenet, boolean ourUid, String exe, String[] packages) {
         if (!portStillFreenet) return "none";
         if (containsPackage(packages, FREENET_ANDROID_NODE_PACKAGE)) return "android-node";
         if (ourUid && exeLooksLikeOurLeftover(exe)) return "ours";
-        return "foreign";
+        if (!ourUid && packages != null && packages.length > 0) return "foreign";
+        return "ours";
     }
 
     /** Wait after Stop while our dying child still holds :7509. Not for a foreign leftover. */

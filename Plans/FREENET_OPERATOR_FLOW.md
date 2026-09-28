@@ -74,6 +74,8 @@ Desktop with mist off no longer dead-ends Join — typing a FarmCode is the opt-
 
 **Decision — 2026-09-14 (Stop then Start leftover; device not tablet).** After Stop, wait briefly (≤4 s, 250 ms polls) for `:7509` to go free before Start execs one node. Same-uid leftover of our `libfreenet.so` (including when hidepid hides `/proc/.../exe`) is **reused as managed** — no “already open” / already-listening error. Freenet Android Node / other uid stays an honest leftover (“we cannot force-stop that app”), not a PUF-AM failure. Operator Freenet/join/Settings copy says **device**, not tablet (phone and tablet both run the APK).
 
+**Decision — 2026-09-16 (hidepid leftover is ours; persist child pid).** Samsung hidepid can hide the listen uid from the WebView, so Stop treated our LMK-orphaned `libfreenet.so` as foreign (“something else is still answering on :7509”). Unknown uid / no named other package → leftover **ours**, not foreign. Stop writes `files/freenet/child.pid` on spawn and SIGTERM then SIGKILL that pid when leftover is ours. Freenet Android Node (`org.freenet.androidnode`) is still never signalled. Copy: ours → “Try Stop again”; FAN → cannot force-stop; foreign only when another package is named. Do not re-enable `freenet.service`.
+
 **Decision — 2026-09-14 (0.2.135 peer count from our logs, not JSON).** Freenet 0.2.135 has no JSON peer API (`GET /status` 404; `GET /v1/version` is version only). Do **not** scrape the HTML dashboard. Settings → Sync reads the latest `ring_connections=` / `connection_count=` from this bake’s `--log-dir` (`~/.config/PUF-AM/freenet/logs/` on desktop; app-files `freenet/logs/` plus a one-line `pufam-ring.last` on Android). N≥1 → **On Opennet** and N count-only ring dots (no invented locations). N=0 or no line yet → **Listening** + “joining / no ring peers in the log yet.” Do not re-enable `freenet.service`.
 
 **Decision — 2026-09-14 (Send waits for On Opennet; native PUT settle).** Linux Send hung at 45s because 0.2.135’s native `PutResponse` is the Opennet insert, not a local ack. This node’s log later wrote `Client not found in response channels` after we closed the WS. Send is blocked until Settings → Sync says **On Opennet** (N≥1). Once peered, one PUT/slot waits up to **120 s** and native PUTs are serialized. A second Send while one is running is refused. Hang copy tells the operator to wait for On Opennet and not stack Send; Settings **Stop Freenet on this device** is the kill switch. Do not re-enable `freenet.service`. Rebuild the AppImage to pick this up.
@@ -119,7 +121,7 @@ Read out to the joiner:
 | If lookup fails | Owner LAN address from the Send card |
 | Advanced | Raw `FN02` JSON — works off Wi‑Fi, whole blob |
 
-Farm setup → People lists tickets minted on **this hub only**. Revoke stops new handouts, not a device that already pulled.
+Farm setup → People lists tickets minted on **this hub only**. Revoke stops new handouts, not a device that already pulled. **New code** remints a recovery invite for a person who signed out without a device PIN (`Decision — 2026-09-19`).
 
 ---
 
@@ -233,6 +235,8 @@ Merged from `archive/FREENET_HOLES.md` on 2026-09-10 (plan written 2026-08-14). 
 8. Vocabulary stays "network pack"; `kind: 'system'`, id `freenet_host`.
 
 **Decision — 2026-09-12.** **FarmSeed stays only on owner devices.** Crew type only an invite (`PUF-` / grant), never a FarmCode. Owner recover is not a join. The invite unwraps HotKey / BonesKey (or equivalent), not FarmSeed — FarmSeed must never ride on a short 40-bit `PUF-` ticket. **Implemented 2026-09-12:** Send no longer tells anyone to read out the paper FarmCode; crew join uses a 26-symbol InviteToken. Hole 4 stays open and honest — revoke ≠ kick for data already fetched; do not fake kick. Hosted web still cannot run a Freenet node (decision 5). Homes: [`LOGIN_JOIN_SINGLE_BOX.md`](LOGIN_JOIN_SINGLE_BOX.md) (join UX / hole 2) and [`FREENET_NETWORK_PACK.md`](FREENET_NETWORK_PACK.md) (grant / slot). Do not renumber [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) or `Plans/reference/*`.
+
+**Decision — 2026-09-19.** **Owner remints a recovery invite from People.** Sign out clears the mist session. A crew device that skipped the optional PIN then has nothing to unlock, and the old InviteToken may be expired or unread — that person is abandoned unless the owner can issue a new code. Farm setup → People (owner / Send-capable session only) has **New code** on a ticket row and **Issue code** for a name not on this hub. Remint reuses last published Hot + bones URIs when this device already Sent; it wraps Hot/Bones only, never FarmSeed. This is not a kick (hole 4). Do not renumber this file or [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md).
 
 **Rules that survive the done items** (each was the fix for a hole and must not regress):
 
@@ -396,14 +400,14 @@ The relay keeps its outbox and `freenet-index.json` for tablets whose hub node i
 | Recover FarmCode | `plugins/freenet_host/src/MistRecoverFarm.tsx` |
 | Send / Join card | `plugins/freenet_host/src/MistFarmSyncCard.tsx` |
 | Enter join ticket | `plugins/freenet_host/src/MistJoinTicketGate.tsx` |
-| People ledger | `src/components/FarmPeopleCard.tsx` |
-| Ticket mint / parse | `shared/sync/joinTicket.ts`, `shared/sync/joinGrant.ts` |
+| People ledger | `src/components/FarmPeopleCard.tsx`, `src/components/FreenetPeopleLedger.tsx` (recovery remint) |
+| Ticket mint / parse | `shared/sync/joinTicket.ts`, `shared/sync/joinGrant.ts`, `src/mist/issueCrewInvite.ts`, `src/mist/issueCrewRecoveryInvite.ts` |
 | Hub shelf | `server/joinManifestStore.ts`, `server/joinTicketRoutes.ts` |
 | Freenet slot | `units/mist-freenet/contracts/slot-contract`, `src/mist/joinSlotFreenet.ts`, `plugins/freenet_host/src/mistJoinWithTicket.ts` |
 | Transport (host vs relay) | `src/mist/freenetPackTransport.ts`, `freenetHostTransport.ts`, `freenetRelayTransport.ts`, `freenetTransportSelect.ts`; `server/freenetHostWire.ts`, `server/freenetSlotOps.ts` |
 | Freenet status + ring (Settings → Sync) | `src/components/FreenetStatusCard.tsx`, `src/components/FreenetPeerRing.tsx`, `src/hooks/useFreenetRingStatus.ts`, `units/puf-freenet-host/src/log-peer-count.ts` — **Decision — 2026-09-14** (peer count from logs) |
 | Join waits for On Opennet | `src/lib/freenetJoinWait.ts`, `src/hooks/useFreenetJoinWait.ts`, `plugins/freenet_host/src/FreenetJoinWaitPanel.tsx` — **Decision — 2026-09-14** (Join waits for On Opennet) |
 | Ask before cutting Freenet | `units/puf-freenet-host/src/quit-ask.ts`, `desktop/freenetQuitDialog.ts`, `desktop/main.ts` (`before-quit` / last window), Sign out / Leave farm (`useFreenetLeaveAsk.ts`) |
-| Kill switch (Stop Freenet on this device) | `units/puf-freenet-host/src/kill-switch.ts`, `src/lib/stopFreenetOnDevice.ts`, `src/lib/freenetHostHoldOff.ts` — **Decision — 2026-09-14** (kill switch) |
+| Kill switch (Stop Freenet on this device) | `units/puf-freenet-host/src/kill-switch.ts`, `src/lib/stopFreenetOnDevice.ts`, `src/lib/freenetHostHoldOff.ts` — **Decision — 2026-09-14** (kill switch); **Decision — 2026-09-16** (hidepid leftover) |
 
 Workshop exception: `showFreenetFarmTools()` still shows the Freenet card on a fake cloud bench session so Send/Join can be tested without a real mist login.

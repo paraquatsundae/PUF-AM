@@ -220,7 +220,7 @@ export const MODULE_PRESETS: ModulePreset[] = [
     blurb: 'Map, diary, crop tools, harvest',
     pinLabel: 'Season worker',
     days: 365,
-    maxUses: null,
+    maxUses: 3,
   },
   {
     id: 'field_only',
@@ -230,7 +230,7 @@ export const MODULE_PRESETS: ModulePreset[] = [
     blurb: 'Map + diary',
     pinLabel: 'Field worker',
     days: 365,
-    maxUses: null,
+    maxUses: 3,
   },
   {
     id: 'crop_scout',
@@ -240,7 +240,7 @@ export const MODULE_PRESETS: ModulePreset[] = [
     blurb: 'Blight (walnut pack), water, nutrition',
     pinLabel: 'Crop scout',
     days: 365,
-    maxUses: null,
+    maxUses: 3,
   },
   {
     id: 'records',
@@ -250,7 +250,7 @@ export const MODULE_PRESETS: ModulePreset[] = [
     blurb: 'Harvest + financials',
     pinLabel: 'Records',
     days: 365,
-    maxUses: null,
+    maxUses: 3,
   },
   {
     id: 'viewer',
@@ -260,7 +260,7 @@ export const MODULE_PRESETS: ModulePreset[] = [
     blurb: 'Read-only on work modules',
     pinLabel: 'Viewer',
     days: 365,
-    maxUses: null,
+    maxUses: 3,
   },
   {
     id: 'admin',

@@ -112,6 +112,7 @@ public class FreenetNodeService extends Service {
         if (action == FreenetNodePolicy.Action.REUSE) {
             FreenetHostStatusStore.write(
                     this, "managed", true, null, binary != null ? binary.getAbsolutePath() : null);
+            FreenetHostPlugin.rememberOurListenerPid(this);
             return START_NOT_STICKY;
         }
         if (action == FreenetNodePolicy.Action.ATTACH) {
@@ -220,6 +221,7 @@ public class FreenetNodeService extends Service {
                 getFilesDir().getAbsolutePath(),
                 cache != null ? cache.getAbsolutePath() : null);
         child = pb.start();
+        FreenetChildPid.write(this, child);
         watchChild(child, binary.getAbsolutePath(), logs);
         Log.i(FreenetHostPlugin.TAG, "spawned " + binary.getAbsolutePath()
                 + (wrapper != null ? " via wrap" : ""));
@@ -235,6 +237,7 @@ public class FreenetNodeService extends Service {
                 Thread.currentThread().interrupt();
                 return;
             }
+            FreenetChildPid.clear(this);
             if (stopping) return;
             boolean portTaken = FreenetHostPlugin.probeLoopback();
             boolean looksLike = portTaken && FreenetHostPlugin.looksLikeFreenet();
@@ -296,12 +299,17 @@ public class FreenetNodeService extends Service {
 
     /**
      * SIGTERM then SIGKILL of {@code child} only — the Process we spawned.
-     * Never a third-party PID or {@code org.freenet.androidnode}.
+     * When the Java handle is gone (LMK killed {@code :freenet}), signal the
+     * persisted pid. Never a third-party PID or {@code org.freenet.androidnode}.
+     * Plans/FREENET_OPERATOR_FLOW.md Decision — 2026-09-16 (hidepid leftover).
      */
     private void destroyChild() {
         Process proc = child;
         child = null;
-        if (proc == null) return;
+        if (proc == null) {
+            FreenetChildPid.stopPersisted(this);
+            return;
+        }
         proc.destroy();
         try {
             if (Build.VERSION.SDK_INT >= 26) {
@@ -315,6 +323,7 @@ public class FreenetNodeService extends Service {
             Thread.currentThread().interrupt();
             proc.destroy();
         }
+        FreenetChildPid.clear(this);
     }
 
     /**

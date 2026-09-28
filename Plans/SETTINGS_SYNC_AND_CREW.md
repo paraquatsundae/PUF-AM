@@ -429,6 +429,13 @@ redemption stamps, farm scoping, revoke by id, pre-preset tickets) and
   keeps what it has, per §3's honest limit. Copy must say "stop handing it out and
   rotate", never "remove their access".
 
+**Decision — 2026-09-19.** A Freenet crew device that signs out without a device PIN
+cannot unlock locally and cannot reuse a lost or expired invite. The owner issues a
+**new recovery InviteToken** from this People card (`New code` on a row, or Issue
+code for a name). Same grant, new token; last published URIs if this hub already
+Sent. Not a kick. See [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md)
+Decision — 2026-09-19. Do not renumber this file.
+
 ---
 
 ## §5 GPS / crew presence over Freenet

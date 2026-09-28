@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FIRESTORE_DATABASE_ID = void 0;
+exports.FIRESTORE_DATABASE_ID = exports.HOSTED_FUNCTIONS_REGION = void 0;
 exports.getDb = getDb;
 const admin = __importStar(require("firebase-admin"));
 const firestore_1 = require("firebase-admin/firestore");
@@ -41,12 +41,12 @@ if (!admin.apps.length) {
     admin.initializeApp();
 }
 /**
- * This AI Studio project has no `(default)` Firestore database — it uses a named
- * database (mirrors the Cloud Run server's FIRESTORE_DATABASE_ID). Every function
- * must target it explicitly, both at runtime (getDb) and for Firestore triggers
- * (the `database` option), or reads/writes and deploys hit a nonexistent DB.
+ * Hosted PUF-AM lives on `pufworks-am` with a normal `(default)` Firestore.
+ * The retired AI Studio project used a named database; do not point this file
+ * at that id. Triggers must still pass `database: FIRESTORE_DATABASE_ID`.
  */
-exports.FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || "ai-studio-143a17d7-b431-4490-8302-3a5ff176bb96";
+exports.HOSTED_FUNCTIONS_REGION = "australia-southeast1";
+exports.FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || "(default)";
 function getDb() {
     const app = admin.app();
     return exports.FIRESTORE_DATABASE_ID && exports.FIRESTORE_DATABASE_ID !== "(default)"

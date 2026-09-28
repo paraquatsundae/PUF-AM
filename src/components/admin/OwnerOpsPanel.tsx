@@ -5,6 +5,7 @@ import {
   fetchAdminOpsSnapshot,
   type AdminOpsSnapshot,
 } from '../../lib/adminOps';
+import { mintEnrollmentCode } from '../../lib/invitePinAuth';
 
 function formatWhen(iso: string | null): string {
   if (!iso) return '—';
@@ -17,6 +18,9 @@ export function OwnerOpsPanel() {
   const [data, setData] = useState<AdminOpsSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mintedCode, setMintedCode] = useState<string | null>(null);
+  const [minting, setMinting] = useState(false);
+  const [mintError, setMintError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,10 +86,37 @@ export function OwnerOpsPanel() {
       </section>
 
       <section>
-        <h3 className="text-sm font-bold text-slate-900 mb-1">Enrollment codes</h3>
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <h3 className="text-sm font-bold text-slate-900">Enrollment codes</h3>
+          <button
+            type="button"
+            disabled={minting}
+            onClick={() => {
+              setMinting(true);
+              setMintError(null);
+              void mintEnrollmentCode()
+                .then((issued) => setMintedCode(issued.code))
+                .catch((err: unknown) => {
+                  setMintError(err instanceof Error ? err.message : 'Could not generate a code.');
+                })
+                .finally(() => setMinting(false));
+            }}
+            className="text-xs font-semibold text-emerald-800 underline underline-offset-2 disabled:opacity-60"
+          >
+            {minting ? 'Generating…' : 'Generate a code'}
+          </button>
+        </div>
         <p className="text-xs text-slate-500 mb-3">
-          Codes themselves never leave Secret Manager. This is the spent-hash audit.
+          A generated code is shown once. After that only its hash is kept, so it cannot be looked up.
         </p>
+        {mintError ? (
+          <p className="mb-3 text-sm text-rose-700">{mintError}</p>
+        ) : null}
+        {mintedCode ? (
+          <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 font-mono text-sm tracking-widest text-emerald-950">
+            {mintedCode}
+          </p>
+        ) : null}
         <OpsTable
           empty="No enrollment codes have been reserved."
           headers={['Hash', 'Farm', 'Reserved', 'Used']}

@@ -106,7 +106,7 @@ export async function resolveCrewInviteFromFreenetSlot(
 
   if (envelope.expires && Date.parse(envelope.expires) <= Date.now()) {
     throw new JoinSlotMismatchError(
-      'That crew invite has expired. Ask the farm owner to send the farm again for a fresh one.',
+      'That crew invite has expired. Ask the farm owner for a new recovery code from Farm setup → People.',
     );
   }
 

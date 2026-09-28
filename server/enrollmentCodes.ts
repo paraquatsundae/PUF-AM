@@ -18,13 +18,17 @@
  *   code itself is never stored. The reservation is taken *before* the farm is
  *   built and released if the build fails.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { getAdminDb } from './firebaseAdmin.ts';
+import { resolvePlatformAdminClaim } from './memberClaims.ts';
+import { getAdminAuth, getAdminDb } from './firebaseAdmin.ts';
 
 const USED_CODES = 'enrollment_code_uses';
+/** Issued by a signed-in project admin. Doc id is the code hash. No plaintext. */
+const ISSUED_CODES = 'enrollment_code_issues';
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /**
  * Codes are read over the phone and typed on tablets, so match forgivingly:
@@ -92,23 +96,94 @@ export type EnrollmentCheck = {
 };
 
 /**
- * Validate and *reserve* an enrollment code — the reservation is the single-use
- * guarantee, so call this before building anything and release it on failure.
+ * Who may mint a code. A platform admin always may. If the project has none
+ * yet, the signed-in Google account becomes that admin — there is no secret
+ * file above them. A PIN identity never may.
  */
-export async function reserveEnrollmentCode(input: string): Promise<EnrollmentCheck> {
-  const codes = configuredCodes();
-  if (codes.length === 0) {
+export function mayMintEnrollmentCode(input: {
+  platformAdmin: boolean;
+  pinAuth: boolean;
+  email: string;
+  anyPlatformAdmin: boolean;
+}): { ok: boolean; bootstrap: boolean; status?: number; error?: string } {
+  const email = input.email.trim().toLowerCase();
+  if (!email || email.endsWith('@sentinut.local') || input.pinAuth) {
     return {
       ok: false,
-      status: 503,
-      error:
-        'Farm creation is closed on this server — no enrollment codes are configured. ' +
-        'If you run this server, add secrets/enrollment-codes.json or set PUF_ENROLLMENT_CODES.',
+      bootstrap: false,
+      status: 403,
+      error: 'Enrollment codes are issued by the project admin Google account.',
     };
   }
+  if (input.platformAdmin || !input.anyPlatformAdmin) {
+    return { ok: true, bootstrap: !input.platformAdmin };
+  }
+  return {
+    ok: false,
+    bootstrap: false,
+    status: 403,
+    error: 'Only a platform admin can generate enrollment codes.',
+  };
+}
 
+/** Readable form of a new code. Dashes are ignored when it is typed back. */
+export function formatEnrollmentCode(raw: string): string {
+  const code = normalizeEnrollmentCode(raw);
+  if (code.length <= 5) return code;
+  return `${code.slice(0, 5)}-${code.slice(5)}`;
+}
+
+function randomEnrollmentCode(): string {
+  const bytes = randomBytes(10);
+  let out = '';
+  for (let i = 0; i < 10; i++) out += CODE_ALPHABET[bytes[i]! % CODE_ALPHABET.length];
+  return formatEnrollmentCode(out);
+}
+
+/** True when some Firebase user already carries the platform-admin claim. */
+export async function projectHasPlatformAdmin(): Promise<boolean> {
+  const auth = getAdminAuth();
+  let pageToken: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const listed = await auth.listUsers(1000, pageToken);
+    for (const user of listed.users) {
+      if (resolvePlatformAdminClaim(user.customClaims || null)) return true;
+    }
+    pageToken = listed.pageToken;
+    if (!pageToken) return false;
+  }
+  return false;
+}
+
+/**
+ * Mint a single-use code. Plaintext is returned once; Firestore keeps the hash.
+ */
+export async function issueEnrollmentCode(issuer: {
+  uid: string;
+  email: string;
+}): Promise<{ code: string }> {
+  const code = randomEnrollmentCode();
+  const hash = codeHash(normalizeEnrollmentCode(code));
+  await getAdminDb()
+    .collection(ISSUED_CODES)
+    .doc(hash)
+    .create({
+      issuedAt: new Date().toISOString(),
+      issuedByUid: issuer.uid,
+      issuedByEmail: issuer.email,
+    });
+  return { code };
+}
+
+/**
+ * Validate and *reserve* an enrollment code — the reservation is the single-use
+ * guarantee, so call this before building anything and release it on failure.
+ * A code is valid when it was configured on the server or minted by an admin.
+ */
+export async function reserveEnrollmentCode(input: string): Promise<EnrollmentCheck> {
   const code = normalizeEnrollmentCode(String(input || ''));
-  if (!code || !codes.includes(code)) {
+  const configured = configuredCodes();
+  if (!code || code.length < 6) {
     return {
       ok: false,
       status: 403,
@@ -117,6 +192,28 @@ export async function reserveEnrollmentCode(input: string): Promise<EnrollmentCh
   }
 
   const hash = codeHash(code);
+  const issued = await getAdminDb().collection(ISSUED_CODES).doc(hash).get();
+  const known = configured.includes(code) || issued.exists;
+  if (!known) {
+    if (configured.length === 0) {
+      const anyIssued = await getAdminDb().collection(ISSUED_CODES).limit(1).get();
+      if (anyIssued.empty) {
+        return {
+          ok: false,
+          status: 503,
+          error:
+            'Farm creation is closed until a project admin generates an enrollment code. ' +
+            'Sign in with the admin Google account and use Generate a code.',
+        };
+      }
+    }
+    return {
+      ok: false,
+      status: 403,
+      error: 'Creating a cloud farm needs an enrollment code from whoever runs this server.',
+    };
+  }
+
   try {
     // create() fails if the doc exists — that *is* the used-once check, atomic
     // across instances rather than a read-then-write race.
@@ -165,7 +262,15 @@ export type EnrollmentInventory = {
 /** Platform-admin audit: how many codes are left, and what the spent ones bought. */
 export async function loadEnrollmentInventory(): Promise<EnrollmentInventory> {
   const configured = configuredCodes();
-  const snap = await getAdminDb().collection(USED_CODES).get();
+  const db = getAdminDb();
+  const [snap, issuedSnap] = await Promise.all([
+    db.collection(USED_CODES).get(),
+    db.collection(ISSUED_CODES).get(),
+  ]);
+  const known = new Set<string>([
+    ...configured.map((code) => enrollmentCodeHash(code)),
+    ...issuedSnap.docs.map((doc) => doc.id),
+  ]);
   const usedHashes: string[] = [];
   const uses: EnrollmentUseRow[] = [];
   for (const doc of snap.docs) {
@@ -185,9 +290,12 @@ export async function loadEnrollmentInventory(): Promise<EnrollmentInventory> {
     });
   }
   uses.sort((a, b) => (b.usedAt || b.reservedAt || '').localeCompare(a.usedAt || a.reservedAt || ''));
+  const used = new Set(usedHashes);
+  let unusedCount = 0;
+  for (const hash of known) if (!used.has(hash)) unusedCount += 1;
   return {
-    configuredCount: configured.length,
-    unusedCount: unusedEnrollmentCount(configured, usedHashes),
+    configuredCount: known.size,
+    unusedCount,
     uses,
   };
 }

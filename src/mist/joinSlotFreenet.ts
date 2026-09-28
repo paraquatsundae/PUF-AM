@@ -322,7 +322,7 @@ export async function resolveJoinTicketFromFreenetSlot(
   // never really revocable.
   if (isJoinManifestExpired(manifest)) {
     throw new JoinSlotMismatchError(
-      'That join ticket has expired. Ask the farm owner to send the farm again for a fresh one.',
+      'That join ticket has expired. Ask the farm owner for a new recovery code from Farm setup → People.',
     );
   }
 

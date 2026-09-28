@@ -61,6 +61,20 @@ describe('stopFreenetOnThisDevice', () => {
     expect(stopAllOurs).not.toHaveBeenCalled();
   });
 
+  it('says Try Stop again when our hidepid leftover is still on :7509', async () => {
+    pluginAvailable.mockReturnValue(true);
+    stopAllOurs.mockResolvedValue({
+      ...androidFreenetHostStatus({ mode: 'managed', reachable: true, leftover: 'ours' }),
+      leftover: 'ours' as const,
+      portFree: false,
+      stoppedOurs: true,
+    });
+    const after = await stopFreenetOnThisDevice();
+    expect(after.leftover).toBe('ours');
+    expect(freenetKillSwitchCopy(after)).toMatch(/Try Stop again/i);
+    expect(freenetKillSwitchCopy(after)).not.toMatch(/something else/i);
+  });
+
   it('does not silently claim Freenet Android Node was killed', async () => {
     pluginAvailable.mockReturnValue(true);
     stopAllOurs.mockResolvedValue({

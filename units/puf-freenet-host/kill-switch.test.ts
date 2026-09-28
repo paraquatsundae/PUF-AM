@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   FREENET_ANDROID_NODE_PACKAGE,
   FREENET_KILL_ANDROID_NODE_LEFT,
+  FREENET_KILL_FOREIGN_LEFT,
+  FREENET_KILL_OURS_LEFT,
   FREENET_KILL_STOPPED_OURS,
   claimedKilledAndroidNode,
   killSwitchHonestMessage,
@@ -41,6 +43,29 @@ describe('leftoverAfterKillSwitch', () => {
       leftoverAfterKillSwitch({ portStillFreenet: true, listenerKind: 'login-leftover' }),
     ).toBe('login-service');
   });
+
+  it('treats hidepid / unknown uid / no packages as ours, not foreign', () => {
+    expect(leftoverAfterKillSwitch({ portStillFreenet: true })).toBe('ours');
+    expect(
+      leftoverAfterKillSwitch({ portStillFreenet: true, listenerKind: 'unknown' }),
+    ).toBe('ours');
+    expect(
+      leftoverAfterKillSwitch({ portStillFreenet: true, listenerKind: null, packagesForUid: [] }),
+    ).toBe('ours');
+  });
+
+  it('is foreign only when another package is named or desktop identified foreign', () => {
+    expect(
+      leftoverAfterKillSwitch({
+        portStillFreenet: true,
+        listenerKind: 'unknown',
+        packagesForUid: ['com.example.other'],
+      }),
+    ).toBe('foreign');
+    expect(
+      leftoverAfterKillSwitch({ portStillFreenet: true, listenerKind: 'foreign' }),
+    ).toBe('foreign');
+  });
 });
 
 describe('kill-switch copy', () => {
@@ -55,6 +80,24 @@ describe('kill-switch copy', () => {
   it('says the port is free after we stopped ours', () => {
     expect(killSwitchHonestMessage({ leftover: 'none', stoppedOurs: true })).toBe(
       FREENET_KILL_STOPPED_OURS,
+    );
+  });
+
+  it('asks to try Stop again when our orphan is still on :7509', () => {
+    expect(killSwitchHonestMessage({ leftover: 'ours', stoppedOurs: true })).toBe(
+      FREENET_KILL_OURS_LEFT,
+    );
+    expect(killSwitchHonestMessage({ leftover: 'ours', stoppedOurs: true })).toMatch(
+      /Try Stop again/i,
+    );
+    expect(killSwitchHonestMessage({ leftover: 'ours', stoppedOurs: true })).not.toMatch(
+      /something else/i,
+    );
+  });
+
+  it('says something else only for a named foreign leftover', () => {
+    expect(killSwitchHonestMessage({ leftover: 'foreign', stoppedOurs: true })).toBe(
+      FREENET_KILL_FOREIGN_LEFT,
     );
   });
 });

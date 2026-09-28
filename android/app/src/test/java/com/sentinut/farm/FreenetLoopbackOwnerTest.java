@@ -29,6 +29,12 @@ public class FreenetLoopbackOwnerTest {
         assertTrue(FreenetNodePolicy.exeLooksLikeOurLeftover(null));
         assertTrue(FreenetNodePolicy.exeLooksLikeOurLeftover(""));
         assertFalse(FreenetLoopbackOwner.exeLooksLikeOurFreenet("/data/app/org.freenet.androidnode/lib/x.so"));
+        assertTrue(
+                FreenetLoopbackOwner.exeLooksLikeAndroidNode(
+                        "/data/app/org.freenet.androidnode/lib/arm64/x.so"));
+        assertFalse(
+                FreenetLoopbackOwner.exeLooksLikeAndroidNode(
+                        "/data/app/com.sentinut.farm/lib/arm64/libfreenet.so"));
         assertTrue(FreenetLoopbackOwner.isLoopbackHex("0100007F"));
         assertFalse(FreenetLoopbackOwner.isLoopbackHex("00000000"));
     }

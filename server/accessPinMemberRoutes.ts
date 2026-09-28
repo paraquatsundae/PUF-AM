@@ -7,9 +7,16 @@ import {
   sanitizeModules,
   type FarmModuleId,
 } from '../shared/auth/farmModules.ts';
-import { checkInviteClaim } from '../shared/auth/inviteLimits.ts';
 import {
-  canRedeemPin,
+  checkInviteClaim,
+  deviceSlotKey,
+  inviteStillOpen,
+  redeemConsumesDeviceSlot,
+  resolveHeldInviteUid,
+  STAFF_INVITE_DEVICE_CAP,
+} from '../shared/auth/inviteLimits.ts';
+import { clientIp } from './clientIp.ts';
+import {
   pinDocId,
   syntheticEmail,
   uidForPinRedeem,
@@ -34,6 +41,18 @@ import {
 } from './accessPinAuth.ts';
 
 /**
+ * Omitted means the staff default (3 devices). Explicit null stays unlimited,
+ * which is how a custom PIN and every admin PIN are left uncapped.
+ */
+function requestedMaxUses(raw: unknown, role: string): number | null {
+  if (raw === undefined) return role === 'admin' ? null : STAFF_INVITE_DEVICE_CAP;
+  if (raw === null) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(99, Math.floor(n));
+}
+
+/**
  * One shape rather than a discriminated union: `strictNullChecks` is off in this
  * repo, so `if (result.ok)` would not narrow and every field access would need
  * an `in` guard. See `Plans/CODEBASE_HEALTH.md` — Layering.
@@ -44,6 +63,9 @@ type PinReservation = {
   record?: AccessPinRecord;
   /** This redeem is what bound the PIN, so a rollback must unbind it. */
   bound?: boolean;
+  uid?: string;
+  /** False when this browser already has a slot, so a failed redeem must not refund one. */
+  consumes?: boolean;
 };
 
 export function registerAccessPinMemberRoutes(app: Express) {
@@ -88,9 +110,10 @@ export function registerAccessPinMemberRoutes(app: Express) {
        * passed the check inside that window and both wrote `useCount: 1`, so
        * `maxUses` was advisory. Checking and claiming have to be one step.
        */
-      // Derived from pin + displayName, so it is known before the transaction
-      // and can be matched against the PIN's binding inside it.
-      const uid = uidForPinRedeem(pin, displayName);
+      // Derived from pin + displayName, so it is known before the transaction.
+      // A linked replacement may reopen the previous account instead.
+      const freshUid = uidForPinRedeem(pin, displayName);
+      const userAgent = String(req.headers['user-agent'] || '').slice(0, 180) || null;
 
       const reservation = await db.runTransaction(async (tx): Promise<PinReservation> => {
         const snap = await tx.get(ref);
@@ -99,9 +122,15 @@ export function registerAccessPinMemberRoutes(app: Express) {
         }
 
         const pinRecord = snap.data() as AccessPinRecord;
-        const check = canRedeemPin(pinRecord);
-        if (check.ok === false) {
-          return { status: 403, message: check.reason };
+        const held = resolveHeldInviteUid(pinRecord, displayName, freshUid);
+        if ('reason' in held) {
+          return { status: 403, message: held.reason };
+        }
+        const uid = held.uid;
+        const consumes = redeemConsumesDeviceSlot(pinRecord, uid, userAgent);
+        const open = inviteStillOpen(pinRecord, consumes);
+        if ('reason' in open) {
+          return { status: 403, message: open.reason };
         }
         /**
          * An admin PIN belongs to the first person who redeems it. Checked in
@@ -121,15 +150,21 @@ export function registerAccessPinMemberRoutes(app: Express) {
           };
         }
 
+        const slot = deviceSlotKey(uid, userAgent);
         tx.set(
           ref,
           {
-            useCount: (pinRecord.useCount || 0) + 1,
+            ...(consumes
+              ? {
+                  useCount: (pinRecord.useCount || 0) + 1,
+                  deviceKeys: getAdminFieldValue().arrayUnion(slot),
+                }
+              : {}),
             ...(claim.bind ? { claimedBy: uid, claimedDisplayName: displayName } : {}),
           },
           { merge: true }
         );
-        return { record: pinRecord, bound: claim.bind };
+        return { record: pinRecord, bound: claim.bind, uid, consumes };
       });
 
       if (reservation.status) {
@@ -137,24 +172,33 @@ export function registerAccessPinMemberRoutes(app: Express) {
       }
 
       const record = reservation.record;
-      releaseReservation = async () => {
-        // `increment` rather than a re-read: the compensation must not race the
-        // next redeem the way the original increment did.
-        await ref.set(
-          {
-            useCount: getAdminFieldValue().increment(-1),
-            // A redeem that never completed must not leave the PIN bound to a
-            // uid that has no account, or the invite is dead for everyone.
-            ...(reservation.bound
-              ? {
-                  claimedBy: getAdminFieldValue().delete(),
-                  claimedDisplayName: getAdminFieldValue().delete(),
-                }
-              : {}),
-          },
-          { merge: true }
-        );
-      };
+      const uid = reservation.uid || freshUid;
+      if (reservation.consumes || reservation.bound) {
+        const slot = deviceSlotKey(uid, userAgent);
+        releaseReservation = async () => {
+          // `increment` rather than a re-read: the compensation must not race the
+          // next redeem the way the original increment did.
+          await ref.set(
+            {
+              ...(reservation.consumes
+                ? {
+                    useCount: getAdminFieldValue().increment(-1),
+                    deviceKeys: getAdminFieldValue().arrayRemove(slot),
+                  }
+                : {}),
+              // A redeem that never completed must not leave the PIN bound to a
+              // uid that has no account, or the invite is dead for everyone.
+              ...(reservation.bound
+                ? {
+                    claimedBy: getAdminFieldValue().delete(),
+                    claimedDisplayName: getAdminFieldValue().delete(),
+                  }
+                : {}),
+            },
+            { merge: true }
+          );
+        };
+      }
 
       const farmRef = db.collection('farms').doc(record.farmId);
       const farmSnap = await farmRef.get();
@@ -237,6 +281,13 @@ export function registerAccessPinMemberRoutes(app: Express) {
           lastRedeemedAt: now,
           lastRedeemedBy: uid,
           lastRedeemedDisplayName: displayName,
+          redemptions: getAdminFieldValue().arrayUnion({
+            at: now,
+            uid,
+            displayName,
+            ip: clientIp(req) || null,
+            userAgent,
+          }),
         },
         { merge: true }
       );
@@ -314,10 +365,7 @@ export function registerAccessPinMemberRoutes(app: Express) {
       }
 
       const label = String(req.body?.label || 'Invite').slice(0, 80);
-      const maxUses =
-        req.body?.maxUses === null || req.body?.maxUses === undefined
-          ? null
-          : Number(req.body.maxUses);
+      const maxUses = requestedMaxUses(req.body?.maxUses, role);
       const expiresInDays =
         req.body?.expiresInDays === null || req.body?.expiresInDays === undefined
           ? 90
@@ -391,6 +439,8 @@ export function registerAccessPinMemberRoutes(app: Express) {
           modules: data.modules || [],
           lastRedeemedAt: data.lastRedeemedAt || null,
           lastRedeemedDisplayName: data.lastRedeemedDisplayName || null,
+          linkId: data.linkId || null,
+          heldForDisplayName: data.heldForDisplayName || null,
         };
       });
 

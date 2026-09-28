@@ -104,7 +104,7 @@ async function resolveCrewInviteOnLan(
   const manifest = parseJoinManifestV2(body.manifest);
   if (manifest && isJoinManifestExpired(manifest)) {
     throw new JoinTicketMismatchError(
-      'That crew invite has expired. Ask the farm owner to send the farm again for a fresh one.',
+      'That crew invite has expired. Ask the farm owner for a new recovery code from Farm setup → People.',
     );
   }
 

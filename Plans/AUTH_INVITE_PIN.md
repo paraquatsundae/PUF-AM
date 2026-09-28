@@ -19,6 +19,8 @@ PUFAM signs users in with **Firebase Auth custom tokens**. Farm owners **create 
 5. Client `signInWithCustomToken` — session persists until logout or access revoke.
 6. Same **name + PIN** maps to the same UID (stable return login) while the PIN stays active.
 
+**Decision — 2026-09-28.** Staff presets (farmer and viewer) mint with a device cap of 3: phone, tablet, and a computer. A repeat sign-in on a browser that already has a slot does not spend another. Admin presets stay uncapped, because redeem is also return login. When a staff PIN is at its cap, the farm admin can add 3 devices or mint a linked PIN. The pair share a `linkId`. If the spent PIN has a name on it, the new PIN is held for that name and, on the hosted farm, reopens the same account.
+
 **Decision — 2026-09-13.** Public nearby-farm browse is withdrawn. Join is invite PIN / PUF- crew invite / FarmCode owner recover — there is no public farm signup and no GPS farm list. `GET /api/auth/nearby-farms` and `POST /api/auth/update-farm-discovery` fail closed (410, no enumeration). The login expander and Farm Management **Nearby discovery** card are gone. LAN hub pairing stays on the hub surface only. `farms_public` stays deny-all; Express no longer writes it.
 
 PINs are stored as SHA-256 hashes in `access_pins/{hash}` (clients cannot read this collection).

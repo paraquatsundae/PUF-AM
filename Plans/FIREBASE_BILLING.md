@@ -434,6 +434,17 @@ the code — reserved before the farm is built, released if the build fails, and
 with the resulting `farmId` for the audit trail. **Deploying this to Cloud Run and
 setting the secret is what makes it real on `am.pufworks.farm`.**
 
+**Decision — 2026-09-28:** a Google sign-in with no `users/{uid}` doc no longer
+tries to create the farm from the browser. `POST /api/auth/create-my-farm`
+writes it with the Admin SDK, same enrolment gate, and that Google uid is the
+owner and farm-role admin (`pinAuth` stays false).
+
+**Decision — 2026-09-28 (mint):** the project admin Google account issues
+enrollment codes (`POST /api/auth/enrollment-codes`). Firestore stores the
+SHA-256 only; the plaintext is shown once. A platform-admin claim may mint. If
+the project has no platform admin yet, that first Google account becomes one.
+PIN identities cannot mint. Static `PUF_ENROLLMENT_CODES` still work.
+
 | # | Action | Effort | Notes |
 |---|--------|--------|-------|
 | 1 | ~~**Gate `create-farm` behind an enrolment code** George issues (env var / Secret Manager list, single-use, logged).~~ **Done 2026-08-10** — see above; needs the Cloud Run redeploy + secret. | Small | The single highest-value change in this document. |

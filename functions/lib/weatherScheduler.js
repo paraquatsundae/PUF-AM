@@ -64,6 +64,7 @@ async function fetchStationWeather(apiKey, stationCode, startDate, endDate) {
             `&limit=${PAGE_LIMIT}&offset=${offset}`;
         const response = await fetch(url, {
             headers: { "api-key": apiKey, Accept: "application/json" },
+            signal: AbortSignal.timeout(55_000),
         });
         if (!response.ok) {
             throw new Error(`DPIRD ${stationCode}: HTTP ${response.status}`);
@@ -103,6 +104,7 @@ async function fetchStationWeather(apiKey, stationCode, startDate, endDate) {
  * - Empty/thin caches get a one-shot historic backfill
  */
 exports.refreshWeatherCache = (0, scheduler_1.onSchedule)({
+    region: db_1.HOSTED_FUNCTIONS_REGION,
     schedule: "every 60 minutes",
     timeZone: "Australia/Perth",
     secrets: [dpirdApiKey],
@@ -135,7 +137,10 @@ exports.refreshWeatherCache = (0, scheduler_1.onSchedule)({
                 weatherData = { ...weatherData, ...historic };
                 historicBackfilledAt = now;
             }
-            const recent = await fetchStationWeather(apiKey, station.stationCode, recentStart, recentEnd);
+            // Same rule as refreshFetchStart in shared/weather/dpirdClient.ts.
+            // The 9 Sep 2026 migrate left caches ending before the 14-day window.
+            const fetchStart = existing.endDate && existing.endDate < recentStart ? existing.endDate : recentStart;
+            const recent = await fetchStationWeather(apiKey, station.stationCode, fetchStart, recentEnd);
             weatherData = prune({ ...weatherData, ...recent });
             const next = bounds(weatherData);
             // MET Norway forecast (future days) — separate field so observed stays clean.
@@ -168,7 +173,18 @@ exports.refreshWeatherCache = (0, scheduler_1.onSchedule)({
                 weatherData,
                 ...(historicBackfilledAt ? { historicBackfilledAt } : {}),
                 ...forecastPatch,
-            }, { merge: true });
+            }, {
+                mergeFields: [
+                    "stationCode",
+                    "stationName",
+                    "lastUpdated",
+                    "startDate",
+                    "endDate",
+                    "weatherData",
+                    ...(historicBackfilledAt ? ["historicBackfilledAt"] : []),
+                    ...Object.keys(forecastPatch),
+                ],
+            });
             console.log(`[refreshWeatherCache] ${station.stationCode}: ${next.dayCount} days ` +
                 `(${next.startDate} → ${next.endDate}), recent ${Object.keys(recent).length}`);
         }
