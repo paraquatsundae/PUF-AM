@@ -165,6 +165,10 @@ Grant admin access:
 npx tsx scripts/setAdminClaim.ts <firebase-auth-uid>
 ```
 
+## Credit
+
+Alex ([aleki51](https://github.com/aleki51)) made on-device diary saves durable and stored each local farm entity as its own IndexedDB record. A save commits on this device before cloud sync. See [`Plans/LOCAL_DATA_STORAGE.md`](Plans/LOCAL_DATA_STORAGE.md).
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE). Same terms as [PUF-mobile](https://github.com/paraquatsundae/PUF-mobile).
