@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { presenceColourForUid } from './crewPresence';
+import { stripUndefinedDeep } from './stripUndefined';
 import {
   deleteLocalEntity,
   listLocalEntities,
@@ -254,20 +255,43 @@ export function activeMapHighlights(
   return highlights.filter((h) => h?.id && isHighlightActive(h.expiresAt, nowMs));
 }
 
+/** Firestore cannot store a polygon's nested coordinate arrays, so the cloud copy is a string. */
+export function highlightGeojsonForFirestore(geojson: MapHighlightDoc['geojson'] | string): string {
+  return typeof geojson === 'string' ? geojson : JSON.stringify(geojson);
+}
+
+export function highlightFromFirestore(
+  data: Record<string, unknown>,
+  fallbackId: string
+): MapHighlightDoc | null {
+  let geojson = data.geojson;
+  if (typeof geojson === 'string') {
+    try {
+      geojson = JSON.parse(geojson) as MapHighlightDoc['geojson'];
+    } catch {
+      return null;
+    }
+  }
+  if (!geojson || typeof geojson !== 'object') return null;
+  const id = typeof data.id === 'string' && data.id ? data.id : fallbackId;
+  return { ...(data as unknown as MapHighlightDoc), id, geojson: geojson as MapHighlightDoc['geojson'] };
+}
+
 export async function upsertMapHighlight(
   farmId: string,
   highlight: MapHighlightDoc
 ): Promise<void> {
   if (!farmId || !highlight.id) return;
   if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-  const payload: MapHighlightDoc = {
+  const payload = stripUndefinedDeep({
     ...highlight,
+    geojson: highlightGeojsonForFirestore(highlight.geojson),
     displayName: (highlight.displayName || 'Crew').slice(0, 100),
     colour: highlightColourForAuthor(highlight.createdBy, highlight.colour),
     note: highlight.note?.trim().slice(0, HIGHLIGHT_MAX_NOTE) || undefined,
     ...directedAtFields(highlight),
     updatedAt: highlight.updatedAt || new Date().toISOString(),
-  };
+  });
   await setDoc(doc(db, `farms/${farmId}/mapHighlights`, highlight.id), payload, {
     merge: true,
   });
@@ -294,9 +318,9 @@ export function subscribeFarmHighlights(
       const now = Date.now();
       const docs: MapHighlightDoc[] = [];
       snap.forEach((d) => {
-        const data = d.data() as MapHighlightDoc;
-        if (!isHighlightActive(data.expiresAt, now)) return;
-        docs.push({ ...data, id: data.id || d.id });
+        const data = highlightFromFirestore(d.data() as Record<string, unknown>, d.id);
+        if (!data || !isHighlightActive(data.expiresAt, now)) return;
+        docs.push(data);
       });
       onChange(docs);
     },

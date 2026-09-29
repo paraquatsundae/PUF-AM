@@ -4,6 +4,7 @@
 import L from './leaflet-setup';
 import { getInfraType } from '../../shared/farm/infraTypes';
 import { blockPolygonPathStyle, type BlockAnalyticsRow } from './mapBlockAnalytics';
+import { cultivarColor } from './cultivarParts';
 
 type MapMode = 'operate' | 'edit';
 type MapSubTab = 'blocks' | 'infrastructure' | 'tracks' | 'analytics';
@@ -62,7 +63,7 @@ export function applyDrawPassThrough({
     const mapping = layerMap[(layer as any)._leaflet_id];
     if (!mapping) continue;
     let passThrough = false;
-    if (mapping.type === 'block') passThrough = passBlocksThrough;
+    if (mapping.type === 'block' || mapping.type === 'cultivar') passThrough = passBlocksThrough;
     else if (mapping.type === 'track') passThrough = passTracksThrough;
     else continue;
     applyPassThrough(layer, passThrough);
@@ -174,7 +175,24 @@ export function refreshBlockHeatStyles({
   layers.forEach((layer: any) => {
     if (layer instanceof L.Polygon) {
       const mapping = layerMap[(layer as any)._leaflet_id];
-      if (!mapping || mapping.type !== 'block') return;
+      if (!mapping) return;
+      if (mapping.type === 'cultivar') {
+        const block = blocks.find((b) => b.id === mapping.blockId);
+        const part = block?.cultivarParts?.find((row) => row.id === mapping.id);
+        if (!block || !part) return;
+        const fill = cultivarColor(part.cultivar);
+        const on = block.id === highlightedBlockId;
+        layer.setStyle({
+          color: on ? '#0f172a' : fill,
+          fillColor: fill,
+          fillOpacity: 0.7,
+          weight: on ? 3 : 2,
+          dashArray: '',
+        });
+        layer.unbindTooltip();
+        return;
+      }
+      if (mapping.type !== 'block') return;
       const block = blocks.find((b) => b.id === mapping.id);
 
       if (block) {
@@ -183,13 +201,22 @@ export function refreshBlockHeatStyles({
         const showRiskHeat = mapMode === 'edit' && activeTab === 'analytics';
         const data = blockAnalytics[block.id];
         if (showRiskHeat && !data) return;
+        const style = blockPolygonPathStyle({
+          isHighlighted,
+          showRiskHeat,
+          analyticsView,
+          data,
+        });
+        const varietyFill =
+          !showRiskHeat && block.cultivar?.trim() ? cultivarColor(block.cultivar) : null;
         layer.setStyle(
-          blockPolygonPathStyle({
-            isHighlighted,
-            showRiskHeat,
-            analyticsView,
-            data,
-          })
+          varietyFill
+            ? {
+                ...style,
+                color: isHighlighted ? '#0f172a' : varietyFill,
+                fillColor: varietyFill,
+              }
+            : style
         );
         layer.unbindTooltip();
       }

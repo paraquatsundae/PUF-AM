@@ -165,6 +165,7 @@ export function OrchardMap() {
     placingHighlightRef: highlight.placingHighlightRef,
     boundaryEditRef: draw.boundaryEditRef,
     internalBoundaryDrawRef: draw.internalBoundaryDrawRef,
+    cultivarSplitDrawRef: draw.cultivarSplitDrawRef,
     activeTabRef: chrome.activeTabRef,
     highlightedBlockId: chrome.highlightedBlockId,
     highlightedBlockIdRef: chrome.highlightedBlockIdRef,
@@ -421,6 +422,14 @@ export function OrchardMap() {
             viewportApi.flyToTrack(track);
           }}
           beginInternalBoundaryDraw={draw.beginInternalBoundaryDraw}
+          beginCultivarSplitDraw={draw.beginCultivarSplitDraw}
+          onRemoveCultivarPart={(blockId, partId) => {
+            const block = blocks.find((row) => row.id === blockId);
+            if (!block) return;
+            updateBlock(blockId, {
+              cultivarParts: (block.cultivarParts || []).filter((part) => part.id !== partId),
+            });
+          }}
           harvests={analytics.harvests}
           analyticsView={analytics.analyticsView}
           setAnalyticsView={analytics.setAnalyticsView}
@@ -506,8 +515,10 @@ export function OrchardMap() {
           onSaveBoundary={draw.saveBoundaryEdit}
           onCancelBoundary={draw.cancelBoundaryEditUi}
           internalBoundaryDrawing={draw.internalBoundaryDrawing}
+          cultivarSplitDrawing={draw.cultivarSplitDrawing}
           onCancelDraw={() => {
             draw.clearInternalBoundaryDraw();
+            draw.clearCultivarSplitDraw();
             highlight.cancelHighlightPaint();
           }}
           {...canvasActions}

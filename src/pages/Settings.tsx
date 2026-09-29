@@ -14,6 +14,7 @@ import { InvitePinManager } from '../components/InvitePinManager';
 import { FarmSyncCards } from '../components/sync/FarmSyncCards';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { SettingsLeaveFarmCard } from '../components/SettingsLeaveFarmCard';
+import { SettingsClearLocalDataCard } from '../components/SettingsClearLocalDataCard';
 import { FreenetStatusCard } from '../components/FreenetStatusCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
@@ -116,7 +117,7 @@ export function Settings() {
           <PluginsPanel onOpenSync={() => setActiveTab('sync')} />
         ) : (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-lg font-bold text-slate-900">Farm Profile</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -140,6 +141,7 @@ export function Settings() {
             </div>
 
             <SettingsLeaveFarmCard />
+            <SettingsClearLocalDataCard />
 
             {/*
               Invite PINs are a Firebase mechanism — the code is minted and
@@ -151,9 +153,9 @@ export function Settings() {
             {isAdmin && <PackSurfaces surface="farmAdminSettings" />}
 
             {pipes.cloudMirror && (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
                 <h2 className="text-lg font-bold text-slate-900">Crew</h2>
-                <p className="text-sm text-slate-600 leading-relaxed">
+                <p className="text-sm text-slate-600 leading-relaxed break-words">
                   This device holds a <strong>read-only mirror</strong> of a cloud farm. The crew
                   list, invite PINs and every edit live in the cloud farm itself. To take part, ask
                   the farm owner for an invite PIN and sign in with it — the mirror here is for
@@ -163,9 +165,9 @@ export function Settings() {
             )}
 
             {farmPipe === 'freenet' && (
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-2">
                 <h2 className="text-lg font-bold text-slate-900">Crew</h2>
-                <p className="text-sm text-slate-600 leading-relaxed">
+                <p className="text-sm text-slate-600 leading-relaxed break-words">
                   This farm has no cloud account, so there are no invite PINs. Somebody joins by
                   being read a join ticket from{' '}
                   <button
@@ -190,12 +192,12 @@ export function Settings() {
 
             <UnlockPinSettingsCard />
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-lg font-bold text-slate-900">Privacy</h2>
-              <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-xl">
+              <div className="flex items-start sm:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 bg-slate-50 rounded-xl">
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">Share location with farm crew</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="font-medium text-slate-900 break-words">Share location with farm crew</p>
+                  <p className="text-xs text-slate-500 mt-0.5 break-words">
                     While the Farm Map is open, other signed-in members see your live GPS marker.
                     {farmPipe === 'freenet' || pipes.cloudMirror
                       ? ' On Freenet, only people on the same Wi‑Fi see you — there is no cloud crew list. Defaults on here; turn off anytime.'
@@ -228,7 +230,7 @@ export function Settings() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-lg font-bold text-slate-900">Legal & Compliance</h2>
               <div className="space-y-2">
                 <button 

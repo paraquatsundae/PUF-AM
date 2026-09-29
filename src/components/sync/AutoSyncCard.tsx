@@ -42,7 +42,7 @@ export function AutoSyncCard() {
   return (
     <div
       className={clsx(
-        'p-6 rounded-2xl border shadow-sm space-y-4',
+        'p-4 sm:p-6 rounded-2xl border shadow-sm space-y-4',
         live ? 'bg-white border-emerald-200' : 'bg-white border-slate-200',
       )}
     >
@@ -112,14 +112,16 @@ export function AutoSyncCard() {
           Look again
         </button>
 
-        <label className="ml-auto flex items-center gap-2 text-xs text-slate-600">
+        <label className="w-full sm:w-auto sm:ml-auto flex items-start gap-2 text-xs text-slate-600 min-w-0">
           <input
             type="checkbox"
             checked={sync.autoEnabled}
             onChange={(e) => sync.setAuto(e.target.checked)}
-            className="w-4 h-4 accent-emerald-700"
+            className="w-4 h-4 mt-0.5 accent-emerald-700 shrink-0"
           />
-          Sync by itself when a hub answers
+          <span className="min-w-0 break-words leading-snug">
+            Sync by itself when a hub answers
+          </span>
         </label>
       </div>
 

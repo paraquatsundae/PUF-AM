@@ -18,7 +18,11 @@ type ChromeSlice = Pick<
 
 type DrawSlice = Pick<
   OrchardMapDrawLayerCtx,
-  'activeDrawerRef' | 'internalBoundaryDrawRef' | 'setInternalBoundaryDrawing'
+  | 'activeDrawerRef'
+  | 'internalBoundaryDrawRef'
+  | 'cultivarSplitDrawRef'
+  | 'setInternalBoundaryDrawing'
+  | 'setCultivarSplitDrawing'
 >;
 
 type StoreSlice = Pick<
@@ -70,7 +74,9 @@ export function buildOrchardMapDrawLayerCtx(p: {
     setNamingBlock: p.chrome.setNamingBlock,
     activeDrawerRef: p.draw.activeDrawerRef,
     internalBoundaryDrawRef: p.draw.internalBoundaryDrawRef,
+    cultivarSplitDrawRef: p.draw.cultivarSplitDrawRef,
     setInternalBoundaryDrawing: p.draw.setInternalBoundaryDrawing,
+    setCultivarSplitDrawing: p.draw.setCultivarSplitDrawing,
     addBlock: p.store.addBlock,
     addPin: p.store.addPin,
     addTrack: p.store.addTrack,

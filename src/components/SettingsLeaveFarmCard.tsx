@@ -24,7 +24,7 @@ export function SettingsLeaveFarmCard() {
   const label = farmCode ? 'Leave this farm on this device' : 'Sign out';
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
       <FreenetLeaveAskOverlay {...freenetLeave} />
       <h2 className="text-lg font-bold text-slate-900">Account</h2>
       <p className="text-sm text-slate-600 leading-relaxed">

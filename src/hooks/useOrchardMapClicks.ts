@@ -17,6 +17,7 @@ export function useOrchardMapClicks({
   layerMapRef,
   boundaryEditRef,
   internalBoundaryDrawRef,
+  cultivarSplitDrawRef,
   activeTabRef,
   highlightedBlockId,
   highlightedBlockIdRef,
@@ -43,6 +44,7 @@ export function useOrchardMapClicks({
   layerMapRef: MutableRefObject<Record<number, LayerMapEntry>>;
   boundaryEditRef: MutableRefObject<unknown>;
   internalBoundaryDrawRef: MutableRefObject<unknown>;
+  cultivarSplitDrawRef: MutableRefObject<unknown>;
   activeTabRef: MutableRefObject<MapSubTab>;
   highlightedBlockId: string | null;
   highlightedBlockIdRef: MutableRefObject<string | null>;
@@ -66,7 +68,7 @@ export function useOrchardMapClicks({
       if (e.originalEvent?._stopped) return;
       if (placingHighlightRef.current) return;
       if (getCurrentDrawHandler()?._enabled) return;
-      if (internalBoundaryDrawRef.current) return;
+      if (internalBoundaryDrawRef.current || cultivarSplitDrawRef.current) return;
       if (boundaryEditRef.current) return;
       if (placingFlag && mapMode === 'operate') {
         const lat = e.latlng.lat as number;
@@ -111,14 +113,17 @@ export function useOrchardMapClicks({
         placingHighlightRef.current ||
         getCurrentDrawHandler()?._enabled ||
         boundaryEditRef.current ||
-        internalBoundaryDrawRef.current
+        internalBoundaryDrawRef.current ||
+        cultivarSplitDrawRef.current
       ) {
         if (e.originalEvent) e.originalEvent._stopped = true;
         return;
       }
 
       const mapping = layerMapRef.current[e.layer._leaflet_id];
-      if (mapping && mapping.type === 'block') {
+      const blockId =
+        mapping?.type === 'block' ? mapping.id : mapping?.type === 'cultivar' ? mapping.blockId : null;
+      if (mapping && blockId) {
         if (placingFlag && mapMode === 'operate') {
           if (e.originalEvent) {
             e.originalEvent._stopped = true;
@@ -128,12 +133,12 @@ export function useOrchardMapClicks({
             setReportDraft({
               lat: latlng.lat,
               lng: latlng.lng,
-              blockId: mapping.id,
+              blockId,
             });
             setPlacingFlag(false);
             setIssuesPanelBlockId(null);
             setSelectedIssue(null);
-            setHighlightedBlockId(mapping.id);
+            setHighlightedBlockId(blockId);
           }
           return;
         }
@@ -150,7 +155,7 @@ export function useOrchardMapClicks({
           e.originalEvent._stopped = true;
         }
 
-        const next = highlightedBlockIdRef.current === mapping.id ? null : mapping.id;
+        const next = highlightedBlockIdRef.current === blockId ? null : blockId;
         setHighlightedBlockId(next);
         if (next && mapMode === 'edit') {
           setActiveTab('blocks');
@@ -195,6 +200,7 @@ export function useOrchardMapClicks({
     layerMapRef,
     boundaryEditRef,
     internalBoundaryDrawRef,
+    cultivarSplitDrawRef,
     highlightedBlockIdRef,
     highlightedTrackIdRef,
     setHighlightedBlockId,

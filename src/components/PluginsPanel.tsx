@@ -327,21 +327,18 @@ function CropPackPluginRow({
         <div className="min-w-0 flex items-start gap-2">
           <Package className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900">
-              {entry.label}
-              {disk ? (
-                <span className="text-[10px] font-mono font-medium text-slate-400">
-                  {' '}
-                  {disk.id}@{disk.version}
-                </span>
-              ) : null}
-            </p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{entry.blurb}</p>
+            <p className="text-sm font-semibold text-slate-900 truncate">{entry.label}</p>
+            {disk ? (
+              <p className="text-[10px] font-mono font-medium text-slate-400 truncate">
+                {disk.id}@{disk.version}
+              </p>
+            ) : null}
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug break-words">{entry.blurb}</p>
           </div>
         </div>
         <span
           className={clsx(
-            'shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded',
+            'shrink-0 max-w-[6.5rem] text-center text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded leading-tight',
             !farmKind && !installed && 'bg-slate-100 text-slate-600',
             active && 'bg-emerald-100 text-emerald-800',
             (farmKind || installed) && !active && 'bg-amber-100 text-amber-900'

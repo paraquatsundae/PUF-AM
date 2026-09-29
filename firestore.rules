@@ -19,7 +19,8 @@ service cloud.firestore {
     //
     // Collection: users/{userId}/blocks
     // Document ID: blockId
-    // Fields: id, name, cultivar, density, irrigation, areaHa (optional), geojson
+    // Fields: id, name, cultivar, density, irrigation, areaHa (optional), geojson,
+    // cultivarParts (optional JSON string of variety polygons inside the paddock)
     //
     // Collection: users/{userId}/pins
     // Document ID: pinId
@@ -342,6 +343,7 @@ service cloud.firestore {
     function isValidOrchardBlock(data) {
       return hasOnlyAllowedFields([
                'id', 'name', 'cultivar', 'density', 'irrigation', 'areaHa', 'geojson',
+               'cultivarParts',
                'rowSpacing', 'treeSpacing', 'treeHeight', 'canopyWidth', 'canopyClosure'
              ]) &&
              hasRequiredFields(['id', 'geojson']) &&
@@ -356,7 +358,8 @@ service cloud.firestore {
              (!('treeHeight' in data) || (data.treeHeight is number && data.treeHeight >= 0 && data.treeHeight < 100)) &&
              (!('canopyWidth' in data) || (data.canopyWidth is number && data.canopyWidth >= 0 && data.canopyWidth < 100)) &&
              (!('canopyClosure' in data) || (data.canopyClosure is number && data.canopyClosure >= 0 && data.canopyClosure <= 1)) &&
-             data.geojson is string && data.geojson.size() < 100000;
+             data.geojson is string && data.geojson.size() < 100000 &&
+             (!('cultivarParts' in data) || (data.cultivarParts is string && data.cultivarParts.size() < 100000));
     }
 
     function isValidInfrastructurePin(data) {
@@ -720,10 +723,10 @@ service cloud.firestore {
       return hasOnlyAllowedFields([
                'id', 'geojson', 'createdBy', 'displayName', 'colour', 'note',
                'audience', 'expiresAt', 'createdAt', 'updatedAt',
-               'directedAtName', 'directedAtUid'
+               'directedAtName', 'directedAtUid', 'linkedDiaryEventId'
              ]) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 80 &&
-             data.geojson is map &&
+             (data.geojson is map || (data.geojson is string && data.geojson.size() > 0 && data.geojson.size() < 100000)) &&
              data.createdBy is string && data.createdBy == request.auth.uid &&
              data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 120 &&
              data.expiresAt is string && data.expiresAt.size() > 0 && data.expiresAt.size() < 40 &&
@@ -733,6 +736,7 @@ service cloud.firestore {
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() < 40)) &&
              (!('directedAtName' in data) || (data.directedAtName is string && data.directedAtName.size() < 120)) &&
              (!('directedAtUid' in data) || (data.directedAtUid is string && data.directedAtUid.size() < 80)) &&
+             (!('linkedDiaryEventId' in data) || (data.linkedDiaryEventId is string && data.linkedDiaryEventId.size() < 100)) &&
              (
                data.audience == 'all' ||
                (data.audience is list && data.audience.size() <= 40)

@@ -34,7 +34,7 @@ export function resolveCultivarTarget(
     name: cultivarName.trim(),
     requiredCP: CULTIVARS[0]!.requiredCP,
     sourceKind: 'estimate',
-    source: 'Unknown cultivar — using UCANR Chandler threshold (45 CP)',
+    source: `Unknown cultivar — using Chandler pass line (${CULTIVARS[0]!.requiredCP} CP)`,
   };
 }
 

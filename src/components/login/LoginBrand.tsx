@@ -12,9 +12,9 @@ export function LoginBrand({ title, subtitle }: { title: string; subtitle?: stri
           referrerPolicy="no-referrer"
         />
       </div>
-      <h2 className="mt-5 text-center text-2xl font-extrabold text-slate-900">{title}</h2>
+      <h2 className="mt-5 text-center text-2xl font-extrabold text-slate-900 break-words px-1">{title}</h2>
       <p className="mt-1 text-center text-sm font-medium text-emerald-800">{APP_TAGLINE}</p>
-      {subtitle && <p className="mt-2 text-center text-sm text-slate-600">{subtitle}</p>}
+      {subtitle && <p className="mt-2 text-center text-sm text-slate-600 break-words">{subtitle}</p>}
       <p className="mt-2 text-center text-xs text-slate-400 font-mono tabular-nums">v{APP_VERSION}</p>
     </div>
   );
@@ -30,7 +30,7 @@ export function LoginPanel({
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 py-10 px-4">
       <div
-        className={`w-full space-y-5 bg-white p-7 rounded-2xl shadow-xl ${
+        className={`w-full space-y-5 bg-white p-4 sm:p-7 rounded-2xl shadow-xl ${
           wide ? 'max-w-lg' : 'max-w-md'
         }`}
       >

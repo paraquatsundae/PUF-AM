@@ -9,6 +9,7 @@ import {
   type MapUiCopy,
 } from '../../../shared/farm/farmTypes';
 import type { InternalBoundaryKind } from './BoundaryEditActionBar';
+import { VarietySplitEditor } from './VarietySplitEditor';
 
 export function EditBlocksSidebar({
   blocks,
@@ -18,6 +19,8 @@ export function EditBlocksSidebar({
   mapCopy,
   onSelectBlock,
   beginInternalBoundaryDraw,
+  beginCultivarSplitDraw,
+  onRemoveCultivarPart,
 }: {
   blocks: OrchardBlock[];
   pins: InfrastructurePin[];
@@ -26,6 +29,8 @@ export function EditBlocksSidebar({
   mapCopy: MapUiCopy;
   onSelectBlock: (blockId: string) => void;
   beginInternalBoundaryDraw: (kind: InternalBoundaryKind, blockId: string) => void;
+  beginCultivarSplitDraw: (blockId: string, cultivar: string) => void;
+  onRemoveCultivarPart: (blockId: string, partId: string) => void;
 }) {
   if (blocks.length === 0) {
     return (
@@ -55,7 +60,7 @@ export function EditBlocksSidebar({
           )}
         >
           <div className="flex justify-between items-start mb-1 gap-2">
-            <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors min-w-0">
+            <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors min-w-0 truncate">
               {block.name || `Unnamed ${areaWordForCropKind(block.cropKind)}`}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -194,6 +199,13 @@ export function EditBlocksSidebar({
                 </div>
               );
             })()}
+            <VarietySplitEditor
+              block={block}
+              canEdit={canEdit}
+              highlighted={highlightedBlockId === block.id}
+              beginCultivarSplitDraw={beginCultivarSplitDraw}
+              onRemoveCultivarPart={onRemoveCultivarPart}
+            />
           </div>
         </div>
       ))}

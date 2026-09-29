@@ -28,8 +28,11 @@ import {
   polygonMostlyOutsideBlock,
   subtractingExclusionPolygons,
 } from './paddockExclusions';
+import { clipCultivarPart } from './cultivarParts';
 
-export type LayerMapEntry = { type: 'block' | 'pin' | 'track'; id: string };
+export type LayerMapEntry =
+  | { type: 'block' | 'pin' | 'track'; id: string }
+  | { type: 'cultivar'; id: string; blockId: string };
 
 export type OrchardMapDrawLayerCtx = {
   farmId: string | undefined;
@@ -43,6 +46,7 @@ export type OrchardMapDrawLayerCtx = {
   layerMapRef: { current: Record<number, LayerMapEntry> };
   activeDrawerRef: { current: LeafletDrawHandler | null };
   internalBoundaryDrawRef: { current: { kind: InternalBoundaryKind; blockId: string } | null };
+  cultivarSplitDrawRef: { current: { blockId: string; cultivar: string } | null };
   activeTabRef: { current: MapSubTab };
   infraDrawKindRef: { current: Exclude<InfraTypeId, ''> };
   pinsRef: { current: InfrastructurePin[] };
@@ -65,6 +69,7 @@ export type OrchardMapDrawLayerCtx = {
   setInternalBoundaryDrawing: (
     next: { kind: InternalBoundaryKind; blockId: string } | null
   ) => void;
+  setCultivarSplitDrawing: (next: { blockId: string; cultivar: string } | null) => void;
 };
 
 export function handleOrchardMapDrawCreated(ctx: OrchardMapDrawLayerCtx, e: any): void {
@@ -80,12 +85,14 @@ export function handleOrchardMapDrawCreated(ctx: OrchardMapDrawLayerCtx, e: any)
     layerMapRef,
     activeDrawerRef,
     internalBoundaryDrawRef,
+    cultivarSplitDrawRef,
     activeTabRef,
     infraDrawKindRef,
     pinsRef,
     addBlock,
     addPin,
     addTrack,
+    updateBlock,
     setEditingPinId,
     setEditingTrackId,
     setHighlightedBlockId,
@@ -94,9 +101,11 @@ export function handleOrchardMapDrawCreated(ctx: OrchardMapDrawLayerCtx, e: any)
     setShowSidebar,
     setNamingBlock,
     setInternalBoundaryDrawing,
+    setCultivarSplitDrawing,
   } = ctx;
                   // Capture before cancelActiveDrawer / DRAWSTOP can race-clear the ref.
                   const pendingInternal = internalBoundaryDrawRef.current;
+                  const pendingSplit = cultivarSplitDrawRef.current;
                   cancelActiveDrawer(activeDrawerRef);
                   const layer = e.layer;
                   const tab = activeTabRef.current;
@@ -231,6 +240,49 @@ export function handleOrchardMapDrawCreated(ctx: OrchardMapDrawLayerCtx, e: any)
                           'Could not save that pad/hazard. Try Add hazard/pad again, then Finish with at least 3 points.'
                         );
                       }
+                      return;
+                    }
+
+                    if (pendingSplit) {
+                      cultivarSplitDrawRef.current = null;
+                      setCultivarSplitDrawing(null);
+                      try {
+                        featureGroupRef.current?.removeLayer(layer);
+                      } catch {
+                        /* the clipped variety is added by the layer sync */
+                      }
+                      const block = blocks.find((row) => row.id === pendingSplit.blockId);
+                      if (!block) {
+                        alert('That paddock is no longer on the map.');
+                        return;
+                      }
+                      const clipped = clipCultivarPart(
+                        geojson,
+                        block.geojson,
+                        block.cultivarParts || []
+                      );
+                      if ('reason' in clipped) {
+                        alert(clipped.reason);
+                        return;
+                      }
+                      const partId =
+                        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                          ? crypto.randomUUID()
+                          : `part-${Date.now()}`;
+                      updateBlock(block.id, {
+                        cultivarParts: [
+                          ...(block.cultivarParts || []),
+                          {
+                            id: partId,
+                            cultivar: pendingSplit.cultivar,
+                            geojson: clipped.geojson,
+                            areaHa: clipped.areaHa,
+                          },
+                        ],
+                      });
+                      setHighlightedBlockId(block.id);
+                      setActiveTab('blocks');
+                      setShowSidebar(true);
                       return;
                     }
 

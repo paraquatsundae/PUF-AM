@@ -97,13 +97,11 @@ export async function persistHighlightAndDiary(
   opts: { queueCloud: boolean }
 ): Promise<{ highlight: MapHighlightDoc; diary: DiaryEvent | null }> {
   const stored = diary ? attachDiaryToHighlight(highlight, diary.id) : highlight;
+  // One local database connection at a time. Opening both together lets the
+  // first close abort the second, and Send never finishes.
+  await upsertLocalHighlight(farmId, stored);
   if (diary) {
-    await Promise.all([
-      upsertLocalHighlight(farmId, stored),
-      upsertLocalEntity(farmId, 'diary', diary, { queueCloud: opts.queueCloud }),
-    ]);
-  } else {
-    await upsertLocalHighlight(farmId, stored);
+    await upsertLocalEntity(farmId, 'diary', diary, { queueCloud: opts.queueCloud });
   }
   return { highlight: stored, diary };
 }

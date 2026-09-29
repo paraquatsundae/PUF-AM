@@ -212,6 +212,18 @@ After a review: triage take / dismiss / later; prepend a short note to the check
 
 Newest first. Short table here; full command output in [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md).
 
+### 2026-09-29
+
+Procedure A **failed** on dirty tree at `02c981e` + uncommitted paths. Same-day hosted peel: map types moved to `mapStoreTypes.ts` (`mapStore.ts` 544), outbox cycle broken via `requestFarmOutboxFlush.ts`, clear-local and map-layer test typings fixed. `audit:codebase` **passed** after that (Freenet size WARNs only). Full `tsc` still fails on `mistBonesBridge.ts` and `units/puf-freenet-host/contract-traffic.test.ts`. Next in-scope nearest the cap: `mapDrawHelpers.ts` 592.
+
+| Lines | File |
+|------:|------|
+| 1095 | `plugins/freenet_host/src/MistWorkshopCard.tsx` |
+| 1003 | `plugins/freenet_host/src/MistFarmSyncCard.tsx` |
+| ~610 | `src/lib/mapStore.ts` (was FAIL; types peeled to `mapStoreTypes.ts`, store now 544) |
+
+Full log: [`logs/CODEBASE_HEALTH_CHECK.md`](logs/CODEBASE_HEALTH_CHECK.md) 2026-09-29.
+
 ### 2026-09-16
 
 `npm run audit:codebase` **passed** after a move-only split (day-run 16 Sep items 1–2, run 2026-09-15 evening). First fail: `shared/farm/cropPackCatalog.ts` 611 (hard 600) and leftover-check mentions in uncommitted day-run / index / operator-flow docs. Plan helpers moved to `cropPackPlan.ts` (catalog 497, plan 128). `HARVEST_DRYING_ALLOW` gained `Plans/DAY_RUN_`, `Plans/README.md`, `Plans/FREENET_OPERATOR_FLOW.md` — those files name the leftover check; they are not a production leftover. Do not delete history. Layering / SoC / cycles green. `farm_feed` stays in `plugins/farm_feed/` (`kind: farm`); largest pack file 193 lines. `KNOWN_OVERSIZE` still Freenet only (WARN, not fail). In-scope nearest the 600 cap: `mapStore.ts` 599. Next: `mapDrawHelpers.ts` 592.

@@ -26,7 +26,11 @@ import { MapStatusBar } from './MapStatusBar';
 import { DrawingActionBar } from './DrawingActionBar';
 import { HighlightPaintLayer } from './HighlightPaintLayer';
 import { BoundaryEditActionBar } from './BoundaryEditActionBar';
-import { CoverageZonesLegend, InternalBoundaryDrawBanner } from './EditMapBanners';
+import {
+  CoverageZonesLegend,
+  CultivarSplitDrawBanner,
+  InternalBoundaryDrawBanner,
+} from './EditMapBanners';
 import { OrchardMapLeafletStyles } from './OrchardMapLeafletStyles';
 
 const leafletDrawOptions = {
@@ -132,6 +136,7 @@ export function OrchardMapCanvas({
   onCancelBoundary,
   onAddInternalBoundary,
   internalBoundaryDrawing,
+  cultivarSplitDrawing,
   onCancelDraw,
 }: OrchardMapCanvasProps) {
   return (
@@ -316,7 +321,8 @@ export function OrchardMapCanvas({
             placingHighlight &&
             highlightDrawMode === 'points' &&
             !canUndoHighlightPaint) ||
-          Boolean(internalBoundaryDrawing && mapMode === 'edit' && canEdit)
+          Boolean(internalBoundaryDrawing && mapMode === 'edit' && canEdit) ||
+          Boolean(cultivarSplitDrawing && mapMode === 'edit' && canEdit)
         }
         onCancel={onCancelDraw}
       />
@@ -341,6 +347,12 @@ export function OrchardMapCanvas({
         <InternalBoundaryDrawBanner
           kind={internalBoundaryDrawing.kind}
           blockName={blocks.find((x) => x.id === internalBoundaryDrawing.blockId)?.name}
+        />
+      )}
+      {cultivarSplitDrawing && mapMode === 'edit' && (
+        <CultivarSplitDrawBanner
+          cultivar={cultivarSplitDrawing.cultivar}
+          blockName={blocks.find((x) => x.id === cultivarSplitDrawing.blockId)?.name}
         />
       )}
 

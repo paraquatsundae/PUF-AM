@@ -25,6 +25,28 @@ export function InternalBoundaryDrawBanner({
   );
 }
 
+export function CultivarSplitDrawBanner({
+  cultivar,
+  blockName,
+}: {
+  cultivar: string;
+  blockName?: string;
+}) {
+  return (
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1100] pointer-events-none w-[calc(100%-1.5rem)] max-w-md">
+      <div className="rounded-xl border border-slate-200 bg-white/95 backdrop-blur shadow-lg px-3 py-2 text-center">
+        <p className="text-xs font-semibold text-slate-800">
+          Drawing {cultivar}
+          {blockName ? ` · ${blockName}` : ''}
+        </p>
+        <p className="text-[10px] text-slate-500 mt-0.5">
+          Draw inside the paddock · Finish to save · Cancel to abort
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function CoverageZonesLegend() {
   return (
     <motion.div

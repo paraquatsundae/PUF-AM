@@ -1,8 +1,7 @@
 /**
- * Shared Directed at chips — Everyone / people / typed name.
+ * Shared Directed at control — Everyone, farm users, or a typed name.
  * Used by highlight compose and issue compose. Do not invent a second mention UI.
  */
-import { cn } from '../../lib/utils';
 import type { HighlightAssigneeOption } from '../../lib/highlightAssignees';
 
 type Props = {
@@ -24,51 +23,23 @@ export function DirectedAtPicker({
 }: Props) {
   return (
     <div>
-      <span className="text-[9px] font-bold text-slate-400 uppercase">Directed at</span>
-      <div className="mt-1 flex flex-wrap gap-1.5">
-        <button
-          type="button"
+      <label className="block">
+        <span className="text-[9px] font-bold text-slate-400 uppercase">Directed at</span>
+        <select
+          value={assigneeKey}
           disabled={disabled}
-          onClick={() => onAssigneeKey('everyone')}
-          className={cn(
-            'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors disabled:opacity-50',
-            assigneeKey === 'everyone'
-              ? 'bg-teal-700 text-white border-teal-700'
-              : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
-          )}
+          onChange={(e) => onAssigneeKey(e.target.value)}
+          className="mt-1 w-full max-w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm disabled:opacity-50"
         >
-          Everyone
-        </button>
-        {assignees.map((person) => (
-          <button
-            key={person.id}
-            type="button"
-            disabled={disabled}
-            onClick={() => onAssigneeKey(person.id)}
-            className={cn(
-              'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors disabled:opacity-50',
-              assigneeKey === person.id
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
-            )}
-          >
-            {person.name}
-          </button>
-        ))}
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => onAssigneeKey('other')}
-          className={cn(
-            'px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors disabled:opacity-50',
-            assigneeKey === 'other'
-              ? 'bg-teal-700 text-white border-teal-700'
-              : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-teal-400'
-          )}
-        >
-          Someone else
-        </button>
-      </div>
+          <option value="everyone">Everyone</option>
+          {assignees.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.name}
+            </option>
+          ))}
+          <option value="other">Someone else</option>
+        </select>
+      </label>
       {assigneeKey === 'other' && (
         <input
           type="text"

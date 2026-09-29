@@ -10,6 +10,7 @@ import { flushPhotoOutbox } from './flushPhotoOutbox';
 import { omitIssuePhotoLocalFields } from './issuePhotoMeta';
 import { withPhotosForFirestore } from './farmPhoto';
 import { stripUndefinedDeep } from './stripUndefined';
+import { bindFarmOutboxFlush } from './requestFarmOutboxFlush';
 
 /**
  * Cap the recorded failure count/log noise, never discard an unacknowledged save.
@@ -118,9 +119,13 @@ export function flushFarmOutbox(farmId?: string): Promise<{ flushed: number; fai
 }
 
 /** Local save has already committed; cloud failure must not reject that save. */
-export function requestFarmOutboxFlush(farmId: string): void {
+function requestBoundFarmOutboxFlush(farmId: string): void {
   void flushFarmOutbox(farmId).catch((error) => console.warn('[flushFarmOutbox]', error));
 }
+
+bindFarmOutboxFlush(requestBoundFarmOutboxFlush);
+
+export { requestFarmOutboxFlush } from './requestFarmOutboxFlush';
 
 let listening = false;
 

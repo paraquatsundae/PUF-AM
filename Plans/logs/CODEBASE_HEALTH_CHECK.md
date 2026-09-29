@@ -23,6 +23,156 @@ npm run build && npm run audit:bundle
 
 ---
 
+## 2026-09-29 — Fix draft (hosted Procedure A), then started
+
+**Scope:** the four hosted failures from the Procedure A run above. Freenet / mist gate failures stay out (`freenetTransportSelect`, `mistBonesBridge`, `contract-traffic.test.ts`, known Freenet card size WARNs).
+
+| # | Failure | Fix |
+|---|---------|-----|
+| 1 | `src/lib/mapStore.ts` over hard 600 | Move paddock / pin / track / viewport types to `src/lib/mapStoreTypes.ts`. Re-export them from `mapStore.ts` so callers do not change. |
+| 2 | Cycle `farmDiaryStore` → `flushFarmOutbox` → `flushPhotoOutbox` | Photo flush loads the diary store with a dynamic import inside the event-photo row, not a top-level import. |
+| 3 | `tests/clearLocalFarmDb.test.ts` IDB event type | Call `onsuccess` / `onblocked` with `IDBVersionChangeEvent`. |
+| 4 | `tests/mapLayerPreference.test.ts` extra snapshot fields | `applyIncomingMapLayer` accepts a snapshot object that may also carry viewport and blocks. |
+
+Started immediately after this draft. Landed the same day:
+
+- `mapStore.ts` is 544 lines; paddock types live in `mapStoreTypes.ts` and are re-exported.
+- `requestFarmOutboxFlush` sits in its own module. The diary store calls that. `flushFarmOutbox` binds the real flush when it loads, so the photo outbox can still import the diary store.
+- Clear-local test events are `IDBVersionChangeEvent`.
+- `applyIncomingMapLayer` accepts snapshot `viewport` and `blocks` and still ignores them unless `mapLayer` is set.
+
+`npm run audit:codebase` **passed** after that (Freenet card size warnings only). Hosted tests for clear-local, map layer, diary save, and outbox delivery passed. Full `tsc` / `npm test` still fail on the Freenet items left out of this peel.
+
+---
+
+## 2026-09-29 — Procedure A (Firebase-hosted focus)
+
+**Host:** Linux (Fedora), repo `PUF-AM`, HEAD `02c981e` plus a **dirty working tree** (~45 paths).  
+**Why:** Recurring Procedure A / D health check. Focus = Firebase hosted path (web client, Express, Firestore rules, Cloud Run / `am.pufworks.farm`, crop packs that ship on hosted Firebase). Freenet / mist audited only where a gate failure also blocks the hosted deploy path.  
+**Dirty context (do not revert):** in-progress chill portions, variety split (`cultivarParts`), clear-local-data, highlight send / `linkedDiaryEventId`, map UI. Touches include `firestore.rules`, `src/lib/mapStore.ts`, `plugins/chill_portions/`, map components/hooks, `SettingsClearLocalDataCard`. No product fixes in this pass — record only.  
+**Env:** `VITE_API_BASE_URL`, `VITE_APP_URL`, `VITE_WORKSHOP_MODE` unset. Node via fnm `v22.23.1`. Did **not** run `npm audit fix --force`, deploy, or commit. Did **not** run `npm run build` / `audit:bundle` (Procedure B / fifth gate; not required for A/D log).
+
+### Commands run
+
+```
+npm test && npm run lint && npm run plugins:verify && npm run audit:codebase
+```
+
+(Run as four separate invocations so later gates still report when an earlier one fails.)
+
+### Gate results
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Fail** — 1801 passed, 1 failed, 7 skipped (249 files passed, 1 failed, 2 skipped) |
+| `npm run lint` | **Fail** — root `tsc --noEmit` (desktop tsc + eslint not reached) |
+| `npm run plugins:verify` | **Pass** — 8 first-party packs OK |
+| `npm run audit:codebase` | **Fail** — 2 issues (mapStore hard size + import cycle) |
+
+**Overall Procedure A: FAIL**
+
+### `npm test` (fail detail)
+
+Only failure is Freenet transport pinning (experimental path — does not break hosted Firebase app behaviour, but it fails the shared Procedure A gate):
+
+```
+FAIL  tests/freenetTransportSelect.test.ts > getFreenetPackTransport > honours a pinned transport for tests
+AssertionError: expected { kind: 'host', …(5) } to be { kind: 'host' } // Object.is equality
+  (pinned object identity lost — getter returns a richer host transport)
+```
+
+Hosted / crop-pack suites otherwise green in this run (incl. chill / highlight / clear-local tests that exercise dirty-tree work).
+
+### `npm run lint` (fail detail)
+
+Root `tsc --noEmit` errors:
+
+| Scope | File | Error |
+|-------|------|--------|
+| Hosted (dirty) | `tests/clearLocalFarmDb.test.ts` | `Event` not assignable to `IDBVersionChangeEvent` (`onsuccess` / `onblocked`) |
+| Hosted (map layer API; Hot/Bones-shaped fixtures) | `tests/mapLayerPreference.test.ts` | `viewport` / `blocks` not in `applyIncomingMapLayer` incoming type |
+| Freenet / mist (out of hosted product path) | `src/mist/mistBonesBridge.ts` | Cannot find name `getMistHotPublishStatus` |
+| Freenet host unit (out of scope) | `units/puf-freenet-host/contract-traffic.test.ts` | invalid `const` assertion |
+
+### `npm run plugins:verify`
+
+```
+OK  chill_portions@0.1.0  (crop, crop_pack)
+OK  drying@0.1.0  (crop, crop_pack)
+OK  farm_feed@0.1.0  (generic, farm)
+OK  freenet_host@0.1.0  (network, network)
+OK  harvest@0.1.0  (generic, crop_pack)
+OK  nutrition@0.1.0  (generic, crop_pack)
+OK  walnut_blight@0.1.0  (crop, crop_pack)
+OK  water@0.1.0  (generic, crop_pack)
+```
+
+### `npm run audit:codebase` (full output)
+
+```
+== File size ==
+   1095  plugins/freenet_host/src/MistWorkshopCard.tsx
+   1003  plugins/freenet_host/src/MistFarmSyncCard.tsx
+WARN  plugins/freenet_host/src/MistWorkshopCard.tsx is 1095 lines (over 800; known, do not grow).
+WARN  plugins/freenet_host/src/MistFarmSyncCard.tsx is 1003 lines (over 800; known, do not grow).
+FAIL  src/lib/mapStore.ts is 610 lines (new-file hard limit 600). Split it.
+
+== leftover harvest_drying ==
+OK    harvest_drying only in migrate / tests / docs
+
+== Pack folders ==
+OK    8 first-party pack folders have UI
+
+== Layering ==
+OK    farmModules ↛ cropPacks; AuthContext ↛ hooks / plugins; src ↛ plugins/*/src except registry
+
+== SoC greps ==
+OK    src/lib ↛ src/components; pages ↛ Leaflet / turf / Firestore
+
+== Import cycles ==
+FAIL  cycle: src/lib/farmDiaryStore.ts → src/lib/flushFarmOutbox.ts → src/lib/flushPhotoOutbox.ts
+
+audit:codebase failed (2 issues).
+```
+
+`mapStore.ts`: HEAD `02c981e` was **599** lines; dirty working tree is **~609–610** (grew past hard 600 under in-progress map / variety / highlight work). Cycle edges are present at HEAD too (`farmDiaryStore` → `flushFarmOutbox` → `flushPhotoOutbox` → `farmDiaryStore`); Sep-16 run reported cycles OK — worth re-checking detection vs when the third edge landed; either way it fails now.
+
+### Procedure D greps (hosted)
+
+- **Stale “Farm setup” for water/dryers/harvest:** pack copy is correct (`plugins/drying`, `plugins/water` say not Farm setup). Residual: `src/pages/PrivacyPolicy.tsx` still lists dryer list under “Farm setup values” — copy drift, not a nav bug. No new hard-coded pack routes in `src/App.tsx` / `src/lib/navConfig.ts`.
+- **`use*Pack`:** only existing pack-local hooks (`useChillPack`, `useWalnutPack`, `useFarmFeedPack` in `plugins/`); no new core `useFooPack`.
+- **Dirty Firestore rules (context, not validated by deploy):** uncommitted `firestore.rules` adds `cultivarParts` on orchard blocks and `linkedDiaryEventId` + string-or-map `geojson` on highlights — belongs with the in-progress variety-split / highlight-diary work; not exercised by Procedure A.
+
+### In-scope sizes near the cap (working tree)
+
+| Lines | File |
+|------:|------|
+| ~610 | `src/lib/mapStore.ts` (**FAIL** hard 600; dirty growth from 599 at HEAD) |
+| 592 | `src/lib/mapDrawHelpers.ts` |
+| 567 | `src/pages/OrchardMap.tsx` |
+| 497 | `shared/farm/cropPackCatalog.ts` |
+
+`KNOWN_OVERSIZE` Freenet WARNs only (out of peel scope): MistWorkshopCard 1095, MistFarmSyncCard 1003.
+
+### Verdict — Firebase-hosted findings (worst first)
+
+1. **`audit:codebase` FAIL — `src/lib/mapStore.ts` over hard 600** (dirty tree; split before merge / deploy).
+2. **`audit:codebase` FAIL — import cycle** `src/lib/farmDiaryStore.ts` → `flushFarmOutbox.ts` → `flushPhotoOutbox.ts` (hosted diary/photo outbox path).
+3. **`npm run lint` FAIL — hosted `tests/clearLocalFarmDb.test.ts`** IDB event typing (clear-local-data work in progress).
+4. **`npm run lint` FAIL — `tests/mapLayerPreference.test.ts`** fixtures vs narrowed `applyIncomingMapLayer` type (blocks hosted lint gate).
+5. Layering / SoC / leftover `harvest_drying` / pack folders: **OK**. `plugins:verify`: **OK**.
+
+### Out of scope (Freenet / mist) — noted only because they fail shared gates
+
+- `tests/freenetTransportSelect.test.ts` pin identity.
+- `src/mist/mistBonesBridge.ts` missing `getMistHotPublishStatus`.
+- `units/puf-freenet-host/contract-traffic.test.ts` const-assertion.
+- Freenet card size WARNs (known; do not grow in this peel).
+
+No fix pass. Next peel for hosted green: split `mapStore`, break the outbox cycle, fix the two hosted test typings; Freenet failures are separate.
+
+---
+
 ## 2026-09-16 — Day-run item 1 (`npm run audit:codebase`)
 
 **Host:** Linux (Fedora), repo `PUF-AM`, tree at `4f4d1a6` plus the catalog split / leftover-check allow-list (this pass).  

@@ -87,7 +87,7 @@ export function OrchardMapToolbar({
   return (
     <>
       <div className="shrink-0 z-20 bg-white border-b border-slate-200 px-2 sm:px-3 py-1.5">
-        <div className="flex items-center gap-2 min-h-[36px]">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 min-h-[36px]">
           {mapMode === 'edit' && (
             <button
               type="button"
@@ -100,13 +100,13 @@ export function OrchardMapToolbar({
             </button>
           )}
 
-          <h1 className="text-sm sm:text-base font-bold text-slate-900 whitespace-nowrap shrink-0">
+          <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate max-w-[9.5rem] sm:max-w-none sm:whitespace-nowrap shrink-0">
             {mapMode === 'operate' ? mapCopy.mapTitle : mapCopy.editTitle}
           </h1>
           {showCrewChip && (
             <span
               className={cn(
-                'inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10px] font-semibold border',
+                'inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10px] font-semibold border max-w-[9rem] truncate',
                 crewNearby > 0
                   ? 'bg-sky-50 text-sky-800 border-sky-100'
                   : crewPublishStatus === 'error'
@@ -128,7 +128,8 @@ export function OrchardMapToolbar({
                         : 'Crew presence — others appear here when they share + have GPS')
               }
             >
-              <User className="w-3 h-3" />
+              <User className="w-3 h-3 shrink-0" />
+              <span className="truncate">
               {crewNearby > 0
                 ? `Crew · ${crewNearby} nearby`
                 : crewPublishStatus === 'off'
@@ -140,6 +141,7 @@ export function OrchardMapToolbar({
                       : crewSharing
                         ? 'Crew · sharing'
                         : 'Crew'}
+              </span>
             </span>
           )}
           {pendingSyncCount > 0 && (
@@ -167,7 +169,7 @@ export function OrchardMapToolbar({
 
           <form
             onSubmit={onSearch}
-            className="flex-1 min-w-0 max-w-xs sm:max-w-sm flex items-center h-8 rounded-lg border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/40 overflow-hidden"
+            className="order-last w-full basis-full sm:order-none sm:basis-auto flex-1 min-w-0 sm:max-w-sm flex items-center h-8 rounded-lg border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/40 overflow-hidden"
           >
             <Search className="w-3.5 h-3.5 text-slate-400 ml-2 shrink-0" />
             <input

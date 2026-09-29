@@ -95,7 +95,16 @@ export function mergeMapLayerPreference(
 
 export function applyIncomingMapLayer(
   farmId: string,
-  incoming: { mapLayer?: unknown; mapLayerUpdatedAt?: unknown } | null | undefined,
+  incoming:
+    | {
+        mapLayer?: unknown;
+        mapLayerUpdatedAt?: unknown;
+        /** Present on a Bones/Hot snapshot; ignored unless mapLayer is set. */
+        viewport?: unknown;
+        blocks?: unknown;
+      }
+    | null
+    | undefined,
 ): MapLayerPreference | null {
   const merged = mergeMapLayerPreference(readMapLayerPreference(farmId), {
     layer: incoming?.mapLayer,

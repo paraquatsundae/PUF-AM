@@ -266,16 +266,16 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
             {step === 'search' && (
               <>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                      <HardDrive className="w-4 h-4 text-emerald-600" />
-                      Maps on this device
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 min-w-0">
+                      <HardDrive className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="truncate">Maps on this device</span>
                     </div>
                     <button
                       type="button"
                       onClick={() => void refreshDeviceScan()}
                       disabled={scanningDevice}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50"
+                      className="inline-flex items-center gap-1 shrink-0 text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${scanningDevice ? 'animate-spin' : ''}`} />
                       Rescan
@@ -354,15 +354,15 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                     ? 'Or download a new area'
                     : `Where is your ${placeWord}?`}
                 </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
+                <div className="flex gap-2 min-w-0">
+                  <div className="relative flex-1 min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && runSearch()}
                       placeholder="e.g. Manjimup WA"
-                      className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                      className="w-full min-w-0 pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                       autoFocus
                     />
                   </div>
@@ -370,7 +370,7 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                     type="button"
                     onClick={runSearch}
                     disabled={isSearching || !query.trim()}
-                    className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                    className="shrink-0 px-3 sm:px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
                   >
                     {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
                   </button>
@@ -386,7 +386,9 @@ export function FarmBasemapSetup({ farmId, onComplete, onCancel, forceSetup }: P
                       >
                         <div className="flex gap-2 items-start">
                           <MapPin className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-sm text-slate-800 leading-snug">{r.display_name}</span>
+                          <span className="text-sm text-slate-800 leading-snug break-words min-w-0">
+                            {r.display_name}
+                          </span>
                         </div>
                       </button>
                     </li>

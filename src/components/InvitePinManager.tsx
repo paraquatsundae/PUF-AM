@@ -69,20 +69,20 @@ function ModuleChecklist({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {available.map((id) => (
         <label
           key={id}
-          className="flex items-center gap-2 text-xs text-slate-700 px-2 py-1.5 rounded-lg border border-slate-100 bg-slate-50/80"
+          className="flex items-start gap-2 text-xs text-slate-700 px-2 py-1.5 rounded-lg border border-slate-100 bg-slate-50/80 min-w-0"
         >
           <input
             type="checkbox"
             checked={selected.includes(id)}
             disabled={disabled}
             onChange={() => toggle(id)}
-            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
           />
-          {MODULE_LABELS[id]}
+          <span className="min-w-0 break-words leading-snug">{MODULE_LABELS[id]}</span>
         </label>
       ))}
     </div>

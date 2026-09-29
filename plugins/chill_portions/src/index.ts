@@ -12,8 +12,8 @@ import {
   CHILL_PORTIONS_PACK_ID,
   CHILL_PORTIONS_PRIMARY_PATH,
 } from '../../../shared/farm/chillPortionsPackage';
-import { CULTIVARS } from '../../../shared/weather/chillPortions';
 import { lazyWithRetry } from '../../../src/lib/lazyWithRetry';
+import { CHILL_VARIETY_REQUIREMENTS, chillRequirementLabel } from './chillCrops';
 
 const WeatherEventsPage = lazyWithRetry(() =>
   import('./WeatherEvents').then((m) => ({ default: m.WeatherEvents }))
@@ -66,13 +66,15 @@ export const packUi: CropPackUiRegistration = {
     dashboardCard: ChillDashboardCard,
     blockOperateReadout: ChillBlockReadout,
   },
-  // Cited targets from the pack's engine.json — the chill requirement is the
-  // reason to pick one cultivar over another, so it rides along as the note.
-  blockCultivars: CULTIVARS.map((c) => ({
-    id: c.id,
-    name: c.name,
-    note: `${c.requiredCP} CP`,
-  })),
+  // Varieties with a published portion requirement. The note is that figure
+  // (a single target, or the standalone calculator's band). Names with no
+  // figure stay out of the picker — the block readout says the requirement
+  // is not set instead of inventing one.
+  blockCultivars: CHILL_VARIETY_REQUIREMENTS.flatMap((variety) => {
+    const note = chillRequirementLabel(variety);
+    if (note == null) return [];
+    return [{ id: variety.id, name: variety.name, note }];
+  }),
 };
 
 export { CHILL_PORTIONS_PRIMARY_PATH } from '../../../shared/farm/chillPortionsPackage';

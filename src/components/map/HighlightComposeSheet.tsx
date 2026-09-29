@@ -33,7 +33,7 @@ type Props = {
   freenetSync?: boolean;
   onCancel: () => void;
   onUndo?: () => void;
-  onSend: (opts: HighlightComposePayload) => void;
+  onSend: (opts: HighlightComposePayload) => void | Promise<void>;
   busy?: boolean;
 };
 
@@ -81,6 +81,7 @@ export function HighlightComposeSheet({
   );
   const [assigneeKey, setAssigneeKey] = useState('everyone');
   const [otherName, setOtherName] = useState('');
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const customHoursParsed = parseHighlightCustomHours(customHours);
   const customHoursMessage = highlightCustomHoursError(customHours);
@@ -106,11 +107,11 @@ export function HighlightComposeSheet({
 
   return (
     <div className="pufam-highlight-compose absolute bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 z-[1200] w-[calc(100%-1.5rem)] max-w-md pointer-events-auto">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-3 space-y-2.5">
-        <div className="flex items-start justify-between gap-2">
-          <div>
+      <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-3 space-y-2.5 max-h-[min(70vh,32rem)] overflow-y-auto">
+        <div className="flex items-start justify-between gap-2 min-w-0">
+          <div className="min-w-0">
             <p className="text-sm font-bold text-slate-900">Check this</p>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 break-words">
               Timed pulse for the crew. Paint more strokes to grow the zone. A
               note or a name becomes a farm diary task.
             </p>
@@ -229,6 +230,8 @@ export function HighlightComposeSheet({
           </p>
         )}
 
+        {sendError ? <p className="text-[11px] text-rose-600">{sendError}</p> : null}
+
         <div className="flex justify-end gap-2 pt-0.5">
           {onUndo && (
             <button
@@ -255,10 +258,14 @@ export function HighlightComposeSheet({
                 ? chosenSeconds
                 : farmDefault || HIGHLIGHT_DEFAULT_SECONDS;
               if (seconds == null || seconds <= 0) return;
-              onSend({
+              setSendError(null);
+              const pending = onSend({
                 note: note.trim(),
                 durationSeconds: seconds,
                 ...directedAt(),
+              });
+              void Promise.resolve(pending).catch((err: unknown) => {
+                setSendError(err instanceof Error ? err.message : 'Could not send that area.');
               });
             }}
             className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50"

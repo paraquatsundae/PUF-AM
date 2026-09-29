@@ -56,6 +56,14 @@ outbox writes, so export anything needed first. The app initializes the schema
 only for a fresh database and rejects an old schema with a reset-required message;
 it does not automatically copy or delete old data. Existing v2 databases reopen
 unchanged. V1-only builds cannot open a v2 database.
+
+**Decision — 2026-09-29:** do not put that migration back. Hosted farms in use are
+test farms; none have on-device diary data worth copying. Omega, created
+2026-09-28, is the one farm with users and a drawn map. Those accounts and that
+map live in Firestore (`users`, `farms/{id}/blocks`), not in `pufom_farm_local`,
+so this schema reject does not require deleting Omega. A device that already
+opened the old database clears site data or app storage once. No in-app copy and
+no automatic delete of the old database.
 Concurrent writes to distinct entities no longer replace each other's data. Full
 upserts of the same entity still use last-committed-write semantics; explicit snapshot
 replacement is still a replacement, not conflict resolution for stale imports.

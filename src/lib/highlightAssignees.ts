@@ -49,6 +49,23 @@ export function collectHighlightAssignees(input: {
   return out;
 }
 
+export function mergeHighlightAssignees(
+  farmMembers: HighlightAssigneeOption[],
+  device: HighlightAssigneeOption[]
+): HighlightAssigneeOption[] {
+  const seen = new Set<string>();
+  const out: HighlightAssigneeOption[] = [];
+  for (const person of [...farmMembers, ...device]) {
+    const id = person.id.trim();
+    const name = person.name.trim();
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, name });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
 export function assigneesFromDevice(input: {
   sessionName?: string | null;
   sessionId?: string | null;

@@ -90,7 +90,7 @@ export function BottomNav() {
                     type="button"
                     onClick={() => goTo(item.href)}
                     className={cn(
-                      'w-full flex items-center gap-3 px-4 min-h-12 text-left transition-colors',
+                      'w-full flex items-center gap-3 px-4 min-h-12 text-left transition-colors min-w-0',
                       active
                         ? item.adminOnly
                           ? 'bg-purple-50 text-purple-800'
@@ -99,7 +99,7 @@ export function BottomNav() {
                     )}
                   >
                     <item.icon className="w-5 h-5 flex-shrink-0" stroke={1.75} />
-                    <span className="text-base font-medium">{item.name}</span>
+                    <span className="text-base font-medium min-w-0 break-words">{item.name}</span>
                   </button>
                 );
               })}
@@ -108,7 +108,7 @@ export function BottomNav() {
         </div>
       )}
 
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-1 py-1 z-[5002] flex items-center justify-around pb-safe">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-0.5 py-1 z-[5002] flex items-stretch justify-around pb-safe">
         {hasModule('dashboard') && (
         <NavLink
           to="/"
@@ -116,13 +116,13 @@ export function BottomNav() {
           onClick={closeSheet}
           className={({ isActive }) =>
             cn(
-              'flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors min-w-[56px]',
+              'flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors flex-1 min-w-0 max-w-[4.75rem]',
               isActive ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-900'
             )
           }
         >
-          <IconLayoutDashboard className="w-6 h-6" stroke={1.75} />
-          <span className="text-[10px] font-medium">Home</span>
+          <IconLayoutDashboard className="w-6 h-6 shrink-0" stroke={1.75} />
+          <span className="text-[10px] font-medium truncate w-full text-center">Home</span>
         </NavLink>
         )}
 
@@ -145,7 +145,7 @@ export function BottomNav() {
               type="button"
               onClick={() => toggleGroup(group.id)}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg transition-colors min-w-[56px]',
+                'flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors flex-1 min-w-0 max-w-[4.75rem]',
                 isOpen || isActive
                   ? 'text-emerald-600'
                   : 'text-slate-500 hover:text-slate-900'
@@ -153,8 +153,8 @@ export function BottomNav() {
               aria-expanded={isOpen}
               aria-label={`${group.name} menu`}
             >
-              <Icon className="w-6 h-6" stroke={1.75} />
-              <span className="text-[10px] font-medium">{group.name}</span>
+              <Icon className="w-6 h-6 shrink-0" stroke={1.75} />
+              <span className="text-[10px] font-medium truncate w-full text-center">{group.name}</span>
             </button>
           );
         })}

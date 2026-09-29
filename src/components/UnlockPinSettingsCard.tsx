@@ -17,7 +17,7 @@ export function UnlockPinSettingsCard() {
   if (!uid) return null;
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+    <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
       <div className="flex items-start gap-3">
         <div className="p-2 rounded-xl bg-emerald-50">
           <KeyRound className="w-5 h-5 text-emerald-700" />

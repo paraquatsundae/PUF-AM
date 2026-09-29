@@ -13,6 +13,7 @@ import { getPinDivIcon } from './mapPinIcons';
 import { getPinTooltipHtml } from './mapPinTooltip';
 import type { FarmTrack, InfrastructurePin, OrchardBlock } from './mapStore';
 import type { LayerMapEntry } from './orchardMapDrawCreated';
+import { cultivarColor } from './cultivarParts';
 import { asFeature, parsePossiblyStringifiedGeojson } from './paddockExclusions';
 import { trackPathStyle } from './trackMapStyles';
 
@@ -56,7 +57,13 @@ export function syncOrchardMapLayers({
       const existing = new Map<string, L.Layer>();
       for (const layer of fg.getLayers() as L.Layer[]) {
         const mapping = layerMapRef.current[(layer as any)._leaflet_id];
-        if (mapping) existing.set(`${mapping.type}:${mapping.id}`, layer);
+        if (mapping) {
+          const key =
+            mapping.type === 'cultivar'
+              ? `cultivar:${mapping.blockId}:${mapping.id}`
+              : `${mapping.type}:${mapping.id}`;
+          existing.set(key, layer);
+        }
       }
 
       const wanted = new Set<string>();
@@ -75,6 +82,40 @@ export function syncOrchardMapLayers({
           membershipChanged = true;
         } catch (err) {
           console.warn('[OrchardMap] Failed to add block layer', block.id, err);
+        }
+      }
+
+      for (const block of blocks) {
+        for (const part of block.cultivarParts || []) {
+          const key = `cultivar:${block.id}:${part.id}`;
+          wanted.add(key);
+          if (existing.has(key)) continue;
+          const geo = normalizeGeojson(part.geojson);
+          if (!geo) continue;
+          try {
+            const fill = cultivarColor(part.cultivar);
+            const layer = L.geoJSON(geo, {
+              style: {
+                color: fill,
+                fillColor: fill,
+                fillOpacity: 0.62,
+                weight: 2,
+              },
+            }).getLayers()[0] as L.Layer | undefined;
+            if (!layer) continue;
+            fg.addLayer(layer);
+            if (typeof (layer as L.Path).bringToFront === 'function') {
+              (layer as L.Path).bringToFront();
+            }
+            layerMapRef.current[(layer as any)._leaflet_id] = {
+              type: 'cultivar',
+              id: part.id,
+              blockId: block.id,
+            };
+            membershipChanged = true;
+          } catch (err) {
+            console.warn('[OrchardMap] Failed to add variety layer', block.id, part.id, err);
+          }
         }
       }
 
@@ -193,6 +234,13 @@ export function syncOrchardMapLayers({
         fg.removeLayer(layer);
         delete layerMapRef.current[(layer as any)._leaflet_id];
         membershipChanged = true;
+      }
+
+      for (const layer of fg.getLayers() as L.Layer[]) {
+        const mapping = layerMapRef.current[(layer as any)._leaflet_id];
+        if (mapping?.type === 'cultivar' && typeof (layer as L.Path).bringToFront === 'function') {
+          (layer as L.Path).bringToFront();
+        }
       }
 
       return membershipChanged;

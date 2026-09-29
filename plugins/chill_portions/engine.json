@@ -21,66 +21,71 @@
     {
       "id": "chandler",
       "name": "Chandler",
-      "requiredCP": 45,
-      "rangeCP": { "min": 45, "max": 50 },
-      "sourceKind": "ucanr",
-      "source": "UCANR Fruit & Nut Chill Portions (Dynamic Model) — Chandler 45–50 CP"
+      "requiredCP": 65,
+      "rangeCP": { "min": 65, "max": 75 },
+      "sourceKind": "luedeling",
+      "source": "Chill Portion Calculator band 65–75 CP (paper ~70–72; Luedeling male buds ~72 CP)"
     },
     {
       "id": "hartley",
       "name": "Hartley",
-      "requiredCP": 54,
-      "sourceKind": "ucanr",
-      "source": "UCANR Fruit & Nut Chill Portions (Dynamic Model) — Hartley 54 CP"
+      "requiredCP": 50,
+      "rangeCP": { "min": 50, "max": 58 },
+      "sourceKind": "luedeling",
+      "source": "Chill Portion Calculator band 50–58 CP (Luedeling et al. 2009 male-bud ~54 CP)"
     },
     {
       "id": "payne",
       "name": "Payne",
-      "requiredCP": 38,
-      "sourceKind": "ucanr",
-      "source": "UCANR Fruit & Nut Chill Portions (Dynamic Model) — Payne 38 CP"
+      "requiredCP": 64,
+      "rangeCP": { "min": 64, "max": 72 },
+      "sourceKind": "luedeling",
+      "source": "Chill Portion Calculator band 64–72 CP (Luedeling et al. 2009 male-bud ~68 CP)"
     },
     {
       "id": "howard",
       "name": "Howard",
-      "requiredCP": 45,
+      "requiredCP": 65,
+      "rangeCP": { "min": 65, "max": 75 },
       "sourceKind": "estimate",
-      "source": "Estimate: Chandler-class (UCANR Chandler 45–50); no separate UCANR row"
+      "source": "Chill Portion Calculator band 65–75 CP (same band as Chandler)"
     },
     {
       "id": "tulare",
       "name": "Tulare",
-      "requiredCP": 42,
+      "requiredCP": 60,
+      "rangeCP": { "min": 60, "max": 70 },
       "sourceKind": "estimate",
-      "source": "Estimate: between Payne and Chandler UCANR bands; no separate UCANR row"
+      "source": "Chill Portion Calculator band 60–70 CP"
     },
     {
       "id": "vina",
       "name": "Vina",
       "requiredCP": 38,
       "sourceKind": "estimate",
-      "source": "Estimate: early cultivar aligned with UCANR Payne 38 CP; no separate UCANR row"
+      "source": "Older single estimate (38 CP). Not listed in the Chill Portion Calculator walnut table."
     },
     {
       "id": "franquette",
       "name": "Franquette",
       "requiredCP": 70,
+      "rangeCP": { "min": 70, "max": 85 },
       "sourceKind": "luedeling",
-      "source": "Luedeling et al. (2009) — Scharsch Franquette ~69.7 CP (rounded to 70); not listed in UCANR walnut table"
+      "source": "Chill Portion Calculator band 70–85 CP (Luedeling Scharsch Franquette male buds ~70 CP)"
     },
     {
       "id": "lara",
       "name": "Lara",
       "requiredCP": 45,
       "sourceKind": "estimate",
-      "source": "Estimate: Chandler-class pending local calibration; no UCANR row"
+      "source": "Older single estimate (45 CP). Not listed in the Chill Portion Calculator walnut table."
     },
     {
       "id": "cisco",
       "name": "Cisco",
       "requiredCP": 45,
       "sourceKind": "estimate",
-      "source": "Estimate: Chandler-class pending local calibration; no UCANR row"
+      "source": "Older single estimate (45 CP). Not listed in the Chill Portion Calculator walnut table."
     }
   ]
 }

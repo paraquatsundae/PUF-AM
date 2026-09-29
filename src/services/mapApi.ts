@@ -1,4 +1,5 @@
 import type { OrchardBlock, InfrastructurePin, FarmTrack, MapViewport } from '../lib/mapStore';
+import type { CultivarPart } from '../lib/cultivarParts';
 import { db } from '../firebase';
 import { collection, doc, getDocs, getDoc, getDocFromCache, setDoc, deleteDoc, query, where, getDocsFromCache } from 'firebase/firestore';
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
@@ -29,6 +30,20 @@ function intersectsBounds(
   );
 }
 
+function hydrateBlock(data: Record<string, unknown>): OrchardBlock {
+  const geojson = typeof data.geojson === 'string' ? JSON.parse(data.geojson) : data.geojson;
+  let cultivarParts: unknown = data.cultivarParts;
+  if (typeof cultivarParts === 'string') {
+    try {
+      cultivarParts = JSON.parse(cultivarParts);
+    } catch {
+      cultivarParts = undefined;
+    }
+  }
+  const parts = Array.isArray(cultivarParts) ? (cultivarParts as CultivarPart[]) : undefined;
+  return { ...data, geojson, cultivarParts: parts } as OrchardBlock;
+}
+
 // --- Map Data ---
 export const mapApi = {
   /**
@@ -48,13 +63,7 @@ export const mapApi = {
       const path = `farms/${farmId}/blocks`;
       const q = collection(db, path);
       const snapshot = isOffline() ? await getDocsFromCache(q) : await getDocs(q);
-      let blocks = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          ...data,
-          geojson: typeof data.geojson === 'string' ? JSON.parse(data.geojson) : data.geojson
-        } as OrchardBlock;
-      });
+      let blocks = snapshot.docs.map((doc) => hydrateBlock(doc.data() as Record<string, unknown>));
 
       if (bounds) {
         blocks = blocks.filter((block) => intersectsBounds(block.geojson, bounds));
@@ -88,6 +97,9 @@ export const mapApi = {
         areaHa: typeof block.areaHa === 'number' && !isNaN(block.areaHa) ? block.areaHa : 0,
         geojson: JSON.stringify(block.geojson),
       };
+      if (block.cultivarParts && block.cultivarParts.length > 0) {
+        dataToSave.cultivarParts = JSON.stringify(block.cultivarParts);
+      }
       const optionalNums: (keyof OrchardBlock)[] = [
         'rowSpacing',
         'treeSpacing',

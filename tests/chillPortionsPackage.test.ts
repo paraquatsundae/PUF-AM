@@ -35,6 +35,9 @@ describe('chill portions on-disk package', () => {
     expect(chillModelConstants.e0).toBe(4153.5);
     expect(chillModelConstants.kelvinOffset).toBe(273.0);
     expect(CULTIVARS.map((c) => c.name)).toEqual(chillCultivars.map((c) => c.name));
-    expect(chillCultivars.find((c) => c.id === 'chandler')?.requiredCP).toBe(45);
+    expect(chillCultivars.find((c) => c.id === 'chandler')).toMatchObject({
+      requiredCP: 65,
+      rangeCP: { min: 65, max: 75 },
+    });
   });
 });

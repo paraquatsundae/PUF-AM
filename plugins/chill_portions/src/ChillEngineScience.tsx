@@ -22,8 +22,8 @@ export function ChillEngineSciencePanel() {
         a DPIRD key — paste a CSV or type rows.
       </p>
       <p className="text-xs text-slate-500">
-        Utah model and classic chill hours are not implemented. Cultivar CP targets are UCANR /
-        Luedeling citations where published; unmarked rows are estimates.
+        Utah model and classic chill hours are not implemented. Cultivar CP targets follow the
+        Chill Portion Calculator bands where that app publishes one; other rows stay estimates.
       </p>
     </section>
   );

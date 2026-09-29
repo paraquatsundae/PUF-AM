@@ -39,7 +39,7 @@ export function SignedInFarmSetup({
 
   return (
     <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-50 py-12 px-4">
-      <form onSubmit={(e) => void submit(e)} className="max-w-md w-full space-y-4 bg-white p-8 rounded-2xl shadow-xl">
+      <form onSubmit={(e) => void submit(e)} className="max-w-md w-full space-y-4 bg-white p-4 sm:p-8 rounded-2xl shadow-xl">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 text-center">Create your farm</h2>
           <p className="mt-2 text-sm text-slate-600 text-center">
@@ -132,7 +132,7 @@ export function SignedInFarmRecovery({
 
   return (
     <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-50 py-12 px-4">
-      <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-2xl shadow-xl">
+      <div className="max-w-md w-full space-y-6 bg-white p-4 sm:p-8 rounded-2xl shadow-xl">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 text-center">Farm created</h2>
           <p className="mt-2 text-sm text-slate-600 text-center">

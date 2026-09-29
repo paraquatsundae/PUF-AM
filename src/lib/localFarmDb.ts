@@ -5,7 +5,9 @@ export const ENTITY_STORE = 'entities_v2';
 export const OUTBOX_STORE = 'outbox';
 export const META_STORE = 'metadata';
 export const OUTBOX_SEQUENCE_KEY = 'outboxSequence';
-const DB_NAME = 'pufom_farm_local';
+/** Plans/LOCAL_DATA_STORAGE.md §1. Deleting this name is how a device drops a rejected schema. */
+export const LOCAL_FARM_DB_NAME = 'pufom_farm_local';
+const DB_NAME = LOCAL_FARM_DB_NAME;
 const DB_VERSION = 2;
 
 export type EntityRow = {

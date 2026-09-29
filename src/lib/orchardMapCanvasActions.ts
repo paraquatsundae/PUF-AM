@@ -99,9 +99,11 @@ export function orchardMapCanvasActions(d: Deps) {
       directedAtName,
       directedAtUid,
     }: HighlightComposePayload) => {
-      if (!d.highlightDraftGeo) return;
+      if (!d.highlightDraftGeo) {
+        return Promise.reject(new Error('Draw the area again, then send.'));
+      }
       d.setHighlightSending(true);
-      void d
+      return d
         .createHighlight({
           geojson: d.highlightDraftGeo,
           note,
@@ -110,7 +112,8 @@ export function orchardMapCanvasActions(d: Deps) {
           directedAtUid,
           audience: 'all',
         })
-        .then(() => {
+        .then((doc) => {
+          if (!doc) throw new Error('Could not send that area.');
           d.clearHighlightDraft();
         })
         .finally(() => d.setHighlightSending(false));

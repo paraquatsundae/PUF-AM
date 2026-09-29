@@ -114,5 +114,6 @@ export type OrchardMapCanvasProps = {
   onCancelBoundary: () => void;
   onAddInternalBoundary?: (kind: InternalBoundaryKind) => void;
   internalBoundaryDrawing: { kind: InternalBoundaryKind; blockId: string } | null;
+  cultivarSplitDrawing: { blockId: string; cultivar: string } | null;
   onCancelDraw: () => void;
 };

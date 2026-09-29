@@ -79,15 +79,25 @@ export function useOrchardMapDraw({
     kind: InternalBoundaryKind;
     blockId: string;
   } | null>(null);
-  const skipInternalDrawClearRef = useRef(false);
   const [internalBoundaryDrawing, setInternalBoundaryDrawing] = useState<{
     kind: InternalBoundaryKind;
     blockId: string;
+  } | null>(null);
+  const skipInternalDrawClearRef = useRef(false);
+  const cultivarSplitDrawRef = useRef<{ blockId: string; cultivar: string } | null>(null);
+  const [cultivarSplitDrawing, setCultivarSplitDrawing] = useState<{
+    blockId: string;
+    cultivar: string;
   } | null>(null);
 
   const clearInternalBoundaryDraw = useCallback(() => {
     internalBoundaryDrawRef.current = null;
     setInternalBoundaryDrawing(null);
+  }, []);
+
+  const clearCultivarSplitDraw = useCallback(() => {
+    cultivarSplitDrawRef.current = null;
+    setCultivarSplitDrawing(null);
   }, []);
 
   // Cancel Quick Add drawers when leaving edit mode, switching tabs, or changing infra draw kind
@@ -103,9 +113,10 @@ export function useOrchardMapDraw({
 
     // Internal-boundary draw from block edit stays on Blocks — don't kill it when
     // infraDrawKind / unrelated context flaps. Leaving Blocks or Edit cancels it.
-    if (internalBoundaryDrawRef.current) {
+    if (internalBoundaryDrawRef.current || cultivarSplitDrawRef.current) {
       if (activeTab !== 'blocks' || mapMode !== 'edit') {
         clearInternalBoundaryDraw();
+        clearCultivarSplitDraw();
         cancelActiveDrawer(activeDrawerRef);
         if (boundaryEditRef.current) {
           cancelBoundaryEdit(boundaryEditRef.current);
@@ -122,7 +133,7 @@ export function useOrchardMapDraw({
       boundaryEditRef.current = null;
       setBoundaryEditBlockId(null);
     }
-  }, [activeTab, mapMode, infraDrawKind, clearInternalBoundaryDraw]);
+  }, [activeTab, mapMode, infraDrawKind, clearInternalBoundaryDraw, clearCultivarSplitDraw]);
 
   useEffect(() => {
     return () => {
@@ -138,6 +149,7 @@ export function useOrchardMapDraw({
     (blockId: string) => {
       if (!mapInstance || !canEdit || mapMode !== 'edit' || !featureGroupRef.current) return;
       clearInternalBoundaryDraw();
+      clearCultivarSplitDraw();
       cancelActiveDrawer(activeDrawerRef);
       if (boundaryEditRef.current) {
         cancelBoundaryEdit(boundaryEditRef.current);
@@ -217,6 +229,7 @@ export function useOrchardMapDraw({
       // Avoid DRAWSTOP from this cancel clearing the pending draw we are about to arm.
       skipInternalDrawClearRef.current = true;
       cancelActiveDrawer(activeDrawerRef);
+      clearCultivarSplitDraw();
       if (boundaryEditRef.current) {
         cancelBoundaryEdit(boundaryEditRef.current);
         boundaryEditRef.current = null;
@@ -301,8 +314,9 @@ export function useOrchardMapDraw({
       boundaryEditRef.current = null;
       setBoundaryEditBlockId(null);
     }
-    // Plus draws a paddock / track / infra asset — not an internal-boundary shortcut.
+    // Plus draws a paddock / track / infra asset — not a variety split.
     clearInternalBoundaryDraw();
+    clearCultivarSplitDraw();
 
     if (!(L as any).Draw) {
       console.error("Leaflet Draw not initialized");
@@ -372,7 +386,53 @@ export function useOrchardMapDraw({
       console.error("Failed to enable draw handler", err);
       cancelActiveDrawer(activeDrawerRef);
     }
-  }, [mapInstance, activeTab, canEdit, mapMode, infraDrawKind, clearInternalBoundaryDraw]);
+  }, [mapInstance, activeTab, canEdit, mapMode, infraDrawKind, clearInternalBoundaryDraw, clearCultivarSplitDraw]);
+
+  const beginCultivarSplitDraw = useCallback(
+    (blockId: string, cultivar: string) => {
+      const name = cultivar.trim();
+      if (!name || !mapInstance || !canEdit || mapMode !== 'edit') return;
+      if (!(L as any).Draw) {
+        console.error('Leaflet Draw not initialized');
+        return;
+      }
+      skipInternalDrawClearRef.current = true;
+      cancelActiveDrawer(activeDrawerRef);
+      clearInternalBoundaryDraw();
+      if (boundaryEditRef.current) {
+        cancelBoundaryEdit(boundaryEditRef.current);
+        boundaryEditRef.current = null;
+        setBoundaryEditBlockId(null);
+      }
+      setEditingBlockId(null);
+      setIsConfirmingDeleteBlock(false);
+      setEditingPinId(null);
+      setActiveTab('blocks');
+      setHighlightedBlockId(blockId);
+      cultivarSplitDrawRef.current = { blockId, cultivar: name };
+      setCultivarSplitDrawing({ blockId, cultivar: name });
+      try {
+        startActiveDrawer(
+          activeDrawerRef,
+          new (L as any).Draw.Polygon(mapInstance, {
+            shapeOptions: { color: '#15803d', fillColor: '#15803d', fillOpacity: 0.35, weight: 2 },
+          })
+        );
+        window.setTimeout(() => {
+          skipInternalDrawClearRef.current = false;
+        }, 0);
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+          setShowSidebar(false);
+        }
+      } catch (err) {
+        console.error('Failed to start variety draw', err);
+        skipInternalDrawClearRef.current = false;
+        clearCultivarSplitDraw();
+        cancelActiveDrawer(activeDrawerRef);
+      }
+    },
+    [mapInstance, canEdit, mapMode, clearInternalBoundaryDraw, clearCultivarSplitDraw]
+  );
 
   return {
     activeDrawerRef,
@@ -384,10 +444,15 @@ export function useOrchardMapDraw({
     internalBoundaryDrawing,
     setInternalBoundaryDrawing,
     clearInternalBoundaryDraw,
+    cultivarSplitDrawRef,
+    cultivarSplitDrawing,
+    setCultivarSplitDrawing,
+    clearCultivarSplitDraw,
     beginBoundaryEdit,
     saveBoundaryEdit,
     cancelBoundaryEditUi,
     beginInternalBoundaryDraw,
+    beginCultivarSplitDraw,
     handleQuickAdd,
   };
 }

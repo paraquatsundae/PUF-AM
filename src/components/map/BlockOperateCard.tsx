@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BookOpen, ClipboardList, Flag, X } from 'lucide-react';
+import { varietyAreaRows } from '../../lib/cultivarParts';
 import type { OrchardBlock } from '../../lib/mapStore';
 import { cn } from '../../lib/utils';
 import { PackBlockReadouts } from './PackBlockReadouts';
@@ -26,6 +27,7 @@ export function BlockOperateCard({
   onReportIssue,
 }: Props) {
   const tree = isTreeCropKind(block.cropKind);
+  const varietyRows = varietyAreaRows(block);
   const subtitle = tree
     ? [block.species, block.cultivar?.trim() || null].filter(Boolean).join(' · ') ||
       'Species not set'
@@ -48,6 +50,26 @@ export function BlockOperateCard({
           </h3>
           {typeof block.areaHa === 'number' && (
             <p className="text-xs text-slate-500 mt-0.5">{block.areaHa.toFixed(2)} ha</p>
+          )}
+          {varietyRows.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5">
+              {varietyRows.map((row) => (
+                <li
+                  key={`${row.rest ? 'rest' : 'part'}-${row.cultivar}`}
+                  className="flex items-center gap-1.5 text-[11px] text-slate-600"
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-sm shrink-0 border border-black/10"
+                    style={{ backgroundColor: row.color }}
+                  />
+                  <span className="truncate">
+                    {row.cultivar}
+                    {row.rest ? ' · rest of paddock' : ''}
+                  </span>
+                  <span className="ml-auto tabular-nums">{row.areaHa.toFixed(2)} ha</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         <button

@@ -38,6 +38,8 @@ export function EditMapSidebar({
   onSelectPin,
   onSelectTrack,
   beginInternalBoundaryDraw,
+  beginCultivarSplitDraw,
+  onRemoveCultivarPart,
   harvests,
   analyticsView,
   setAnalyticsView,
@@ -68,6 +70,8 @@ export function EditMapSidebar({
   onSelectPin: (pinId: string) => void;
   onSelectTrack: (track: FarmTrack) => void;
   beginInternalBoundaryDraw: (kind: InternalBoundaryKind, blockId: string) => void;
+  beginCultivarSplitDraw: (blockId: string, cultivar: string) => void;
+  onRemoveCultivarPart: (blockId: string, partId: string) => void;
   harvests: Array<{ totalWeight?: number }>;
   analyticsView: 'risk' | 'yield';
   setAnalyticsView: (view: 'risk' | 'yield') => void;
@@ -181,6 +185,8 @@ export function EditMapSidebar({
                 mapCopy={mapCopy}
                 onSelectBlock={onSelectBlock}
                 beginInternalBoundaryDraw={beginInternalBoundaryDraw}
+                beginCultivarSplitDraw={beginCultivarSplitDraw}
+                onRemoveCultivarPart={onRemoveCultivarPart}
               />
             )}
             {activeTab === 'infrastructure' && (

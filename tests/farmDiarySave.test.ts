@@ -7,7 +7,7 @@ vi.mock('../src/lib/localFarmRepo', () => ({
   upsertLocalEntity: mocks.save, deleteLocalEntity: mocks.remove,
 }));
 vi.mock('../src/services/api', () => ({ diaryApi: { saveEvent: mocks.cloudSave } }));
-vi.mock('../src/lib/flushFarmOutbox', () => ({ requestFarmOutboxFlush: mocks.flush }));
+vi.mock('../src/lib/requestFarmOutboxFlush', () => ({ requestFarmOutboxFlush: mocks.flush }));
 vi.mock('../src/mist/mistHotBridge', () => ({ scheduleMistHotAutoPublish: mocks.publish }));
 import { useFarmDiaryStore } from '../src/lib/farmDiaryStore';
 

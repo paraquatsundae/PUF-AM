@@ -8,23 +8,33 @@ import {
 } from '../shared/weather/chillPortions';
 
 describe('resolveCultivarTarget', () => {
-  it('matches UCANR-backed cultivar names case-insensitively', () => {
-    expect(resolveCultivarTarget('Chandler').requiredCP).toBe(45);
-    expect(resolveCultivarTarget('Chandler').sourceKind).toBe('ucanr');
-    expect(resolveCultivarTarget('hartley').requiredCP).toBe(54);
-    expect(resolveCultivarTarget('Payne').requiredCP).toBe(38);
+  it('matches calculator bands case-insensitively', () => {
+    expect(resolveCultivarTarget('Chandler')).toMatchObject({
+      requiredCP: 65,
+      rangeCP: { min: 65, max: 75 },
+      sourceKind: 'luedeling',
+    });
+    expect(resolveCultivarTarget('hartley')).toMatchObject({
+      requiredCP: 50,
+      rangeCP: { min: 50, max: 58 },
+    });
+    expect(resolveCultivarTarget('Payne')).toMatchObject({
+      requiredCP: 64,
+      rangeCP: { min: 64, max: 72 },
+    });
   });
 
-  it('uses Luedeling estimate for Franquette', () => {
+  it('uses the calculator band for Franquette', () => {
     const f = resolveCultivarTarget('Franquette');
     expect(f.requiredCP).toBe(70);
+    expect(f.rangeCP).toEqual({ min: 70, max: 85 });
     expect(f.sourceKind).toBe('luedeling');
   });
 
-  it('falls back unknown cultivars to Chandler threshold', () => {
+  it('falls back unknown cultivars to the Chandler pass line', () => {
     const t = resolveCultivarTarget('Mystery');
     expect(t.name).toBe('Mystery');
-    expect(t.requiredCP).toBe(45);
+    expect(t.requiredCP).toBe(65);
   });
 });
 

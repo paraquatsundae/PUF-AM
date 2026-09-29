@@ -193,7 +193,7 @@ export function FarmSetup() {
                   onClick={() => toggleEnterprise(ent.id)}
                   className="w-full text-left"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={cn(
                         'w-4 h-4 rounded border flex items-center justify-center text-[10px] font-bold shrink-0',
@@ -202,9 +202,11 @@ export function FarmSetup() {
                     >
                       {on ? '✓' : ''}
                     </span>
-                    <span className="text-xs font-semibold text-slate-900">{ent.label}</span>
+                    <span className="text-xs font-semibold text-slate-900 min-w-0 break-words">
+                      {ent.label}
+                    </span>
                     {isPrimary && (
-                      <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                      <span className="ml-auto shrink-0 text-[9px] font-bold uppercase tracking-wide text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
                         Primary
                       </span>
                     )}

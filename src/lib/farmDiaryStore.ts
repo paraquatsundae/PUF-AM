@@ -6,7 +6,7 @@ import { keepEventPhotosIfMissing } from './farmPhoto';
 import type { DiaryEvent, FarmSettings } from './farmDiaryTypes';
 import { getDefaultDiaryStartDate } from './farmDiaryTypes';
 import { usesCloudSyncOutbox } from './farmPipes';
-import { requestFarmOutboxFlush } from './flushFarmOutbox';
+import { requestFarmOutboxFlush } from './requestFarmOutboxFlush';
 
 function publishSavedDiary(farmId: string): void {
   requestFarmOutboxFlush(farmId);
