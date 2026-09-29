@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "wheat_yield",
+  "defaults": {
+    "heads": 320,
+    "height": 10,
+    "width": 3,
+    "hectolitreWeight": 74,
+    "deductionPercent": 10,
+    "thousandGrainWeightOverride": 0
+  }
+}

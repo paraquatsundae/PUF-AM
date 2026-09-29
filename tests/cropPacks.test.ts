@@ -52,6 +52,14 @@ describe('cropPacks catalog', () => {
     expect(chill.settingsOwnedKeys).toContain('weatherSource');
   });
 
+  it('registers wheat yield as a crop scout with no settings doc', () => {
+    const wheat = listCropPacks().find((p) => p.id === 'wheat_yield')!;
+    expect(wheat.modules).toEqual(['wheat']);
+    expect(wheat.category).toBe('crop');
+    expect(wheat.settingsDocId).toBeNull();
+    expect(wheat.primaryPath).toBe('/wheat-yield');
+  });
+
   it('registers water, nutrition, and harvest as generic ops packs', () => {
     const packs = listCropPacks();
     const water = packs.find((p) => p.id === 'water')!;

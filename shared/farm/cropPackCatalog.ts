@@ -58,6 +58,13 @@ import {
   walnutBlightModules,
 } from './walnutBlightPackage';
 import {
+  WHEAT_YIELD_PACK_ID,
+  WHEAT_YIELD_PRIMARY_PATH,
+  WHEAT_YIELD_SETTINGS_OWNED_KEYS,
+  wheatYieldManifest,
+  wheatYieldModules,
+} from './wheatYieldPackage';
+import {
   FARM_PACK_IDS,
   FARM_PACKS,
   getFarmPack,
@@ -77,6 +84,11 @@ export {
   CHILL_PORTIONS_PRIMARY_PATH,
   CHILL_PORTIONS_SETTINGS_OWNED_KEYS,
 } from './chillPortionsPackage';
+export {
+  WHEAT_YIELD_PACK_ID,
+  WHEAT_YIELD_PRIMARY_PATH,
+  WHEAT_YIELD_SETTINGS_OWNED_KEYS,
+} from './wheatYieldPackage';
 export {
   WATER_PACK_ID,
   WATER_PRIMARY_PATH,
@@ -109,6 +121,7 @@ export const CORE_OPS_PACK_IDS = [
 export const CROP_PACK_IDS = [
   WALNUT_BLIGHT_PACK_ID,
   CHILL_PORTIONS_PACK_ID,
+  WHEAT_YIELD_PACK_ID,
   ...CORE_OPS_PACK_IDS,
 ] as const;
 export type CropPackId = (typeof CROP_PACK_IDS)[number];
@@ -209,6 +222,17 @@ export const CROP_PACKS: readonly CropPackDef[] = [
         hard: false,
       };
     },
+  },
+  {
+    id: WHEAT_YIELD_PACK_ID,
+    label: wheatYieldManifest.label,
+    blurb: wheatYieldManifest.blurb,
+    category: wheatYieldManifest.category,
+    modules: wheatYieldModules,
+    settingsDocId: wheatYieldManifest.settingsDocId,
+    settingsOwnedKeys: WHEAT_YIELD_SETTINGS_OWNED_KEYS,
+    primaryPath: WHEAT_YIELD_PRIMARY_PATH,
+    canInstall: () => ({ ok: true }),
   },
   {
     id: WATER_PACK_ID,

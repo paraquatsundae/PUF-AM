@@ -90,13 +90,15 @@ describe('pack UI registry (CP-04)', () => {
     expect(CHILL_PORTIONS_PRIMARY_PATH).toBe('/weather-events');
   });
 
-  it('gets its cultivar list from the chill pack, not the block editor', () => {
+  it('gets cultivar suggestions from the packs, not the block editor', () => {
     const options = allPackCultivars();
+    const chill = getPackUi('chill_portions')!.blockCultivars ?? [];
 
-    expect(options.length).toBeGreaterThan(0);
+    expect(chill.length).toBeGreaterThan(0);
     // The note is what the editor shows in brackets; core does not build it.
-    expect(options.every((c) => c.name && c.note?.endsWith(' CP'))).toBe(true);
-    expect(getPackUi('chill_portions')!.blockCultivars?.length).toBe(options.length);
+    expect(chill.every((c) => c.name && c.note?.endsWith(' CP'))).toBe(true);
+    expect(options).toEqual(expect.arrayContaining([...chill]));
+    expect(options.some((c) => c.name === 'Wheat' && c.note == null)).toBe(true);
   });
 
   it('merges pack nav into crop group (not hardcoded in base shell list)', () => {

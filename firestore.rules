@@ -561,6 +561,22 @@ service cloud.firestore {
              data.createdBy is string && data.createdBy == request.auth.uid;
     }
 
+    function isValidWheatYieldScout(data) {
+      return hasOnlyAllowedFields([
+               'blockId', 'hectolitreWeight', 'deductionPercent', 'hectares',
+               'thousandGrainWeightOverride', 'counts', 'updatedAt', 'updatedBy'
+             ]) &&
+             hasRequiredFields(['blockId', 'hectolitreWeight', 'deductionPercent', 'hectares', 'counts', 'updatedAt', 'updatedBy']) &&
+             data.blockId is string && data.blockId.size() > 0 && data.blockId.size() < 100 &&
+             data.hectolitreWeight is number && data.hectolitreWeight >= 0 && data.hectolitreWeight <= 120 &&
+             data.deductionPercent is number && data.deductionPercent >= 0 && data.deductionPercent <= 100 &&
+             data.hectares is number && data.hectares >= 0 && data.hectares <= 100000 &&
+             (!('thousandGrainWeightOverride' in data) || (data.thousandGrainWeightOverride is number && data.thousandGrainWeightOverride >= 0 && data.thousandGrainWeightOverride <= 80)) &&
+             data.counts is list && data.counts.size() <= 30 &&
+             data.updatedAt is string && data.updatedAt.size() < 40 &&
+             data.updatedBy is string && data.updatedBy == request.auth.uid;
+    }
+
     function isValidNutrientData(data) {
       return hasRequiredFields(['reportId']) &&
              data.reportId is string &&
@@ -1128,6 +1144,13 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidHarvestRecord(request.resource.data);
         allow update: if canMutateFarm(farmId) && isValidHarvestRecord(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
+      }
+
+      match /wheat_yield/{blockId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidWheatYieldScout(request.resource.data) && request.resource.data.blockId == blockId;
+        allow update: if canMutateFarm(farmId) && isValidWheatYieldScout(request.resource.data) && request.resource.data.blockId == blockId;
         allow delete: if canMutateFarm(farmId);
       }
 

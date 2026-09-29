@@ -288,6 +288,7 @@ Top-level collections (production):
 | `farms/{farmId}/blocks|pins|tracks|viewport/…` | Map geometry (cloud mirror) |
 | `farms/{farmId}/settings/{doc}` | e.g. `safety`, `model_params` |
 | `farms/{farmId}/harvests/{id}` | Harvest records |
+| `farms/{farmId}/wheat_yield/{blockId}` | Wheat yield scout for one paddock (head counts, hectolitre, deduction, hectares). One document per paddock. Added 2026-09-29 (`WHEAT_YIELD_PLUGIN.md`) |
 | `farms/{farmId}/tasks/{id}` | Tasks |
 | `farms/{farmId}/presence/{uid}` | Crew GPS |
 | `farms/{farmId}/mapHighlights/{id}` | Map overlay highlights |

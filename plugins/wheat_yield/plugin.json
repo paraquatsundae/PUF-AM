@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "wheat_yield",
+  "version": "0.1.0",
+  "label": "Wheat yield",
+  "blurb": "Head-count scout for wheat paddocks. Estimates tonnes from heads, one-side fill, hectolitre weight, and a paddock deduction.",
+  "category": "crop",
+  "modules": ["wheat"],
+  "settingsDocId": null,
+  "primaryPath": "/wheat-yield",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

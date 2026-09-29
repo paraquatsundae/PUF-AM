@@ -68,6 +68,7 @@ describe('join presets', () => {
     expect(presets.find((p) => p.id === 'crop_scout')?.modules).toEqual([
       'dashboard',
       'chill',
+      'wheat',
       'water',
       'nutrition',
       'drying',
@@ -94,7 +95,7 @@ describe('buildJoinPermissions', () => {
     );
     expect(parsed?.permissions).toEqual({
       preset: 'crop_scout',
-      modules: 'dashboard,blight,chill,water,nutrition,drying,farm_feed',
+      modules: 'dashboard,blight,chill,wheat,water,nutrition,drying,farm_feed',
     });
   });
 });
