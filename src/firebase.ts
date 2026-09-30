@@ -21,6 +21,7 @@ const { config: firebaseConfig, byo: usingByoFirebase } = resolveFirebaseWebConf
 const app = initializeApp(firebaseConfig);
 
 export { usingByoFirebase };
+export const firebaseApp = app;
 
 const isNative = Capacitor.isNativePlatform();
 

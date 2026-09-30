@@ -11,6 +11,8 @@ type Props = {
   disabled?: boolean;
   onAssigneeKey: (key: string) => void;
   onOtherName: (name: string) => void;
+  /** Shown only for a real farm member, and only when this sender may notify. */
+  notify?: { checked: boolean; onChange: (on: boolean) => void };
 };
 
 export function DirectedAtPicker({
@@ -20,6 +22,7 @@ export function DirectedAtPicker({
   disabled,
   onAssigneeKey,
   onOtherName,
+  notify,
 }: Props) {
   return (
     <div>
@@ -40,6 +43,23 @@ export function DirectedAtPicker({
           <option value="other">Someone else</option>
         </select>
       </label>
+      {notify && assigneeKey !== 'everyone' && assigneeKey !== 'other' && (
+        <label className="mt-2 flex items-start gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={notify.checked}
+            disabled={disabled}
+            onChange={(e) => notify.onChange(e.target.checked)}
+          />
+          <span>
+            Notify them
+            <span className="block text-[11px] text-slate-500">
+              Push if they allowed it on a device. Otherwise email, when they have a real address.
+            </span>
+          </span>
+        </label>
+      )}
       {assigneeKey === 'other' && (
         <input
           type="text"

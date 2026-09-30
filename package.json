@@ -106,6 +106,7 @@
     "lodash": "^4.17.23",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "nodemailer": "^10.0.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-error-boundary": "^6.1.1",

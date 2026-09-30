@@ -45,6 +45,7 @@ export function registerFarmMemberRoutes(app: Express) {
           accessRevoked: data.accessRevoked === true,
           authMethod: data.authMethod || null,
           createdAt: data.createdAt || null,
+          canSendNotifications: data.canSendNotifications === true,
         };
       });
 

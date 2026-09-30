@@ -23,6 +23,8 @@ Related: [`SETTINGS_SYNC_AND_CREW.md`](SETTINGS_SYNC_AND_CREW.md) §1 (the XOR) 
 
 **Decision — 2026-09-15 (Farm chat daily archive):** live cap is now **5** on `farm_chat/log` (same single-doc snapshot). Today's full day is a sealed `dayBlob` on that doc (still one listen). Yesterday is written to **`farms/{farmId}/farm_chat_archives/{yyyy-mm-dd}`** (one doc per day) and listed by **`farms/{farmId}/farm_chat/archive_index`** (capped ≤400 dates). **Admin download is `getDoc` on click** — no `onSnapshot` of archives, no `getDocs` of the archive collection, no Cloud Function. Farmer devices may write an archive on day-roll (they Send); only farm admin may read the index/blobs. BYO uses the same paths on the owner’s project. Needs `firestore.rules` deploy (not done in this pass).
 
+**Decision — 2026-09-30 (directed alert):** one named person, only when the sender turns Notify on. Push if that person has a device token; email only when push did not land and the address is a real mailbox (not `@sentinut.local`). Farm admins may send. Other roles need `users/{uid}.canSendNotifications`, set by a farm admin. Staff cap **8/hour**, admin cap **40/hour**, on `users/{uid}/notify_quota/hour`. Tokens live in `users/{uid}/notify_devices`. No messages collection, no fan-out to Everyone, no Cloud Function trigger. FCM itself is free; the bill is the quota write plus the member reads on that one send. Email needs `NOTIFY_SMTP_*`. Web push needs `FCM_VAPID_KEY`. [`FARM_MESSAGING.md`](FARM_MESSAGING.md).
+
 ---
 
 ## §0 The locked decision this sits on

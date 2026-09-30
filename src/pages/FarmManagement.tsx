@@ -52,6 +52,7 @@ export function FarmManagement() {
     handleRemoveMember,
     handleUpdateRole,
     handleToggleMemberModule,
+    handleToggleNotifyPermission,
   } = useFarmManagementOrg(farmId, isAdmin, farmEnabledModules);
 
   return (
@@ -259,9 +260,26 @@ export function FarmManagement() {
                           })}
                         </div>
                       )}
+                      {isAdmin && member.uid !== userData?.uid && member.role !== 'admin' && (
+                        <label className="pl-0 sm:pl-20 flex items-start gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={member.canSendNotifications === true}
+                            disabled={isUpdating === member.uid}
+                            onChange={(e) => void handleToggleNotifyPermission(member, e.target.checked)}
+                          />
+                          <span>
+                            Can send notifications
+                            <span className="block text-[11px] text-slate-500">
+                              Off until you allow it. Eight an hour, and only to one person at a time.
+                            </span>
+                          </span>
+                        </label>
+                      )}
                       {member.role === 'admin' && (
                         <p className="pl-0 sm:pl-20 text-[11px] text-slate-400">
-                          Admins get every module enabled for this farm.
+                          Admins get every module enabled for this farm, and can send notifications.
                         </p>
                       )}
                     </div>

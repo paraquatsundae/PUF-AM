@@ -21,6 +21,7 @@ import {
 import { BottomNav } from './BottomNav';
 import { CloudMirrorBanner } from './CloudMirrorBanner';
 import { FreenetHotWatchHost } from './FreenetHotWatchHost';
+import { NotifyDeviceKeeper } from './NotifyDeviceKeeper';
 import { PackSurfaces } from './PackSurfaces';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
@@ -305,6 +306,7 @@ export function Layout() {
           <CloudMirrorBanner />
           <PackSurfaces surface="postSignInPrompt" />
           <FreenetHotWatchHost />
+          <NotifyDeviceKeeper />
           <Outlet />
         </main>
       </div>

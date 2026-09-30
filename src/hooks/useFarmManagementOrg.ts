@@ -3,6 +3,7 @@ import { mapApi } from '../services/api';
 import {
   listFarmMembers,
   removeFarmMember,
+  setMemberNotifyPermission,
   updateFarmMember,
   type FarmMember,
   type PinRole,
@@ -158,6 +159,24 @@ export function useFarmManagementOrg(
     }
   };
 
+  const handleToggleNotifyPermission = async (member: FarmMember, allowed: boolean) => {
+    if (member.role === 'admin') return;
+    setIsUpdating(member.uid);
+    try {
+      await setMemberNotifyPermission(member.uid, allowed);
+      setMembers((prev) =>
+        prev.map((row) =>
+          row.uid === member.uid ? { ...row, canSendNotifications: allowed } : row
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update notification permission:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update notification permission.');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
   return {
     farm,
     members,
@@ -176,5 +195,6 @@ export function useFarmManagementOrg(
     handleRemoveMember,
     handleUpdateRole,
     handleToggleMemberModule,
+    handleToggleNotifyPermission,
   };
 }

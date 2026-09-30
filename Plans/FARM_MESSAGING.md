@@ -181,7 +181,7 @@ Firestore stays the **authority** ([`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR
 | **In-app badge + For you** | Works whenever the farm session is open and the pipe has delivered the record | Phase 0 |
 | **Android OS banner** | No Capacitor Local Notifications in tree today. Foreground / briefly-backgrounded is doable. **Killed APK + no node = no Freenet ping.** Do not promise a paddock banner while the phone is in a pocket overnight | Phase 3 (app up) |
 | **Electron OS banner** | Window Notification API when unfocused; node must still be up for Freenet | Phase 3 (app up) |
-| **FCM / Play push** | Needs Google project config; lands on whoever pays for that Firebase | **Q4 open.** Not on `pufworks-am` without an explicit George yes |
+| **FCM / Play push** | Web push when `FCM_VAPID_KEY` is set and the person has allowed this browser. Email fallback needs `NOTIFY_SMTP_*`. Android APK still needs a later native token. | **Approved 2026-09-30** for one named person, admin-gated. Not a fan-out |
 | **SMS** | Out of product | No |
 
 ---
@@ -233,7 +233,7 @@ Do not start Phase 2. Do not start Phase 3 before Phase 0 is field-usable on Cla
 1. **~~May `pufworks-am` store a feed / chat collection at all?~~ Answered 2026-09-15.** Yes — **one** rolling `farms/{farmId}/farm_chat/log` (last **5** live + sealed today). Dated archives are one doc per day plus a capped index — **not** a growing `messages` collection and **not** an unbounded snapshot. Freenet-native stays on Hot. BYO uses the same cap on the owner’s project.
 2. **~~Freenet DM crew-readable vs wait for pair keys?~~ Answered 2026-09-15.** This sprint is the **farm feed + Directed at**, not DMs. Directed ping is farm-visible by design; pair keys are not required. Empty Directed at = Everyone. Phase 2 (DMs / pair keys) deferred.
 3. **~~For you home: Dashboard vs Messages nav?~~ Answered 2026-09-15.** Phase 0: **For you on Dashboard / the existing issues list** via pack **`farm_feed` surfaces**, not a Messages nav, not `src/pages/`. Phase 1: if the stream needs a home, one screen **in the pack** — **Farm feed** (all-farm stream + For you filter) — not a second inbox.
-4. **Phase 3:** local banners only, or is FCM on the table later (whose Firebase)? **Still open.**
+4. **~~Phase 3 / FCM?~~ Answered 2026-09-30.** Directed alerts: push when the person has allowed a device, email when they have a real address and push did not land. Farm admins send; other crew only if an admin allows them (`canSendNotifications`). Hourly caps. Not a fan-out, not Everyone, not SMS. Q4 closed for this path.
 5. **Cloud Directed at picker:** load Farm Management members into the existing assignee hook (same ping, better names), or leave Phase 0 on presence + typed name?
 
 ---
@@ -274,3 +274,5 @@ Do not start Phase 2. Do not start Phase 3 before Phase 0 is field-usable on Cla
 **2026-09-15 (Linux ↔ APK chat unstable — dive later).** First hop and the watch **hash+URI** / **20 s** retry patches landed (same day as the watch recheck above). Residual is still **flaky between AppImage and tablet**: later lines stay local or arrive late. Do **not** treat this as closed. Stability dive is **parked** — not [`DAY_RUN_2026_09_16.md`](DAY_RUN_2026_09_16.md) unless health is green **and** George asks. Operator line: [`FREENET_OPERATOR_FLOW.md`](FREENET_OPERATOR_FLOW.md) header + §9.2.
 
 **2026-09-15 (Linux ↔ APK chat function — no new Freenet features).** Incoming Hot **replaced** the day buffer (last-writer-wins). Two devices sending on Opennet each wiped the other’s same-day lines after the first hop. Watch also **skipped the 20 s poll** while the AppImage / WebView was unfocused. Fix: merge day+live by id; live is last 5 of the merged day; if this device still has a line Hot omitted, republish the union; poll even when hidden. Not a new slot, not a faster protocol, not photos.
+
+**2026-09-30 (directed alert, Q4).** George asked for a ping when the app is closed, with a toggle on the person, and an admin gate so a casual worker cannot spam the farm. Ship: Notify on Directed at (one uid, never Everyone). Push first (`FCM_VAPID_KEY` + `users/{uid}/notify_devices`). Email only if push did not land and the mailbox is real (`NOTIFY_SMTP_*`; not `@sentinut.local`). Farm admins may send. Farmers and viewers need `canSendNotifications`, toggled on Farm Management. Caps: 8/hour staff, 40/hour admin, plus 6/minute burst. No messages collection. No Cloud Function on every highlight. Rules must be deployed before the permission flag is turned on, or a later profile save for that person is rejected.

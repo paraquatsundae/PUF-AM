@@ -300,8 +300,10 @@ Top-level collections (production):
 | `farms/{farmId}/environmental_cache/{key}` | Per-farm env cache |
 | `farms/{farmId}/nutrition_data/{id}` | Nutrition uploads |
 | `farms_public/{farmId}` | Legacy nearby-discovery index (name + coarse location). **Withdrawn 2026-09-13** — Express no longer writes or lists it; rules stay deny-all |
-| `users/{uid}` | Membership, role, modules, `authEpoch` |
+| `users/{uid}` | Membership, role, modules, `authEpoch`, optional `canSendNotifications` (farm admin grant; admins may send without it). Client writes cannot change that flag |
 | `users_public/{uid}` | Display-safe profile |
+| `users/{uid}/notify_devices/{id}` | This person's web push tokens. Admin SDK only. Added 2026-09-30 (`FARM_MESSAGING.md`) |
+| `users/{uid}/notify_quota/hour` | Hourly send counter for directed alerts. Admin SDK only. Added 2026-09-30 |
 | `access_pins/{hash}` | Invite PIN hashes (admin SDK only) |
 | `chill_cache/{station-season}` | Shared chill aggregates |
 | `weather_cache/…` | DPIRD station cache (functions) |

@@ -203,7 +203,7 @@ service cloud.firestore {
                'uid', 'email', 'displayName', 'photoURL', 'role', 'farmId',
                'subscriptionTier', 'hasAgreedToTerms', 'agreedToTermsAt', 'createdAt',
                'modules', 'authEpoch', 'accessRevoked', 'authMethod',
-               'revokedFromFarmId', 'revokedAt'
+               'revokedFromFarmId', 'revokedAt', 'canSendNotifications'
              ]) &&
              hasRequiredFields(['uid', 'email', 'role', 'subscriptionTier', 'createdAt']) &&
              data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
@@ -219,7 +219,14 @@ service cloud.firestore {
              (!('authEpoch' in data) || data.authEpoch is number) &&
              (!('accessRevoked' in data) || data.accessRevoked is bool) &&
              (!('authMethod' in data) || data.authMethod is string) &&
+             (!('canSendNotifications' in data) || data.canSendNotifications is bool) &&
              (data.createdAt is string || data.createdAt is timestamp);
+    }
+
+    // Admin SDK sets this. A member must not grant it to themselves.
+    function canSendNotificationsUnchanged() {
+      return request.resource.data.get('canSendNotifications', false)
+          == resource.data.get('canSendNotifications', false);
     }
 
     function isValidUserPublic(data) {
@@ -1032,7 +1039,8 @@ service cloud.firestore {
                     (request.resource.data.role in ['farmer', 'viewer'] || 
                      isAdmin() || 
                      (request.resource.data.role == 'admin' && isFarmOwner(request.resource.data.farmId))) &&
-                     (request.resource.data.subscriptionTier == 'free' || isAdmin());
+                     (request.resource.data.subscriptionTier == 'free' || isAdmin()) &&
+                    request.resource.data.get('canSendNotifications', false) == false;
                     
       allow update: if isAuthorized() && 
                     (isOwner(userId) || isAdmin() ||
@@ -1040,6 +1048,7 @@ service cloud.firestore {
                     isValidUser(request.resource.data) && 
                     uidNotModified() && 
                     isUnchangedOrNew('createdAt') &&
+                    canSendNotificationsUnchanged() &&
                     // Prevent self-promotion to admin unless they are the farm owner
                     (
                       isAdmin() || 
@@ -1054,6 +1063,14 @@ service cloud.firestore {
         allow create: if isAuthorized() && isValidNotification(request.resource.data);
         allow update: if isOwner(userId) && isValidNotification(request.resource.data);
         allow delete: if isOwner(userId);
+      }
+
+      // Push tokens and the hourly send counter. Admin SDK only.
+      match /notify_devices/{deviceId} {
+        allow read, write: if false;
+      }
+      match /notify_quota/{quotaId} {
+        allow read, write: if false;
       }
     }
 

@@ -296,6 +296,7 @@ export type FarmMember = {
   accessRevoked?: boolean;
   authMethod: string | null;
   createdAt: string | null;
+  canSendNotifications?: boolean;
 };
 
 export async function listFarmMembers(): Promise<FarmMember[]> {
@@ -318,6 +319,19 @@ export async function updateFarmMember(
   });
   const data = await readJsonResponse(res);
   if (!res.ok) throw new Error(String(data.error || 'Failed to update member'));
+}
+
+export async function setMemberNotifyPermission(uid: string, allowed: boolean): Promise<void> {
+  if (isByoFirebase()) {
+    throw new Error('Notification permission is set on the hosted farm.');
+  }
+  const res = await fetch(apiUrl('/api/auth/notify-permission'), {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ uid, allowed }),
+  });
+  const data = await readJsonResponse(res);
+  if (!res.ok) throw new Error(String(data.error || 'Failed to update notification permission'));
 }
 
 export async function removeFarmMember(uid: string): Promise<void> {

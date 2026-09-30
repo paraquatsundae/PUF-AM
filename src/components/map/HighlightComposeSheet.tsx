@@ -20,6 +20,9 @@ import {
   type HighlightComposePayload,
 } from '../../lib/mapHighlights';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
+import { deliverDirectedNotify } from '../../lib/directedNotifyApi';
+import { isByoFirebase } from '../../lib/byoFirebaseConfig';
 import { DirectedAtPicker, directedAtFromPicker } from './DirectedAtPicker';
 
 type Props = {
@@ -57,13 +60,17 @@ export function HighlightComposeSheet({
       farmDefaultSeconds ?? (freenetSync ? HIGHLIGHT_FREENET_DEFAULT_SECONDS : undefined),
   });
 
-  const assignees = useHighlightAssignees({
+  const { userData } = useAuth();
+  const { assignees, memberIds } = useHighlightAssignees({
     farmId,
     sessionName,
     sessionId,
     presence,
     enabled: Boolean(farmId),
   });
+  const canNotify =
+    !isByoFirebase() &&
+    (userData?.role === 'admin' || userData?.canSendNotifications === true);
 
   const [note, setNote] = useState('');
   const [durationMode, setDurationMode] = useState<'preset' | 'custom'>(() =>
@@ -81,6 +88,7 @@ export function HighlightComposeSheet({
   );
   const [assigneeKey, setAssigneeKey] = useState('everyone');
   const [otherName, setOtherName] = useState('');
+  const [notifyThem, setNotifyThem] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
   const customHoursParsed = parseHighlightCustomHours(customHours);
@@ -131,8 +139,16 @@ export function HighlightComposeSheet({
           assigneeKey={assigneeKey}
           otherName={otherName}
           disabled={busy}
-          onAssigneeKey={setAssigneeKey}
+          onAssigneeKey={(key) => {
+            setAssigneeKey(key);
+            if (!memberIds.includes(key)) setNotifyThem(false);
+          }}
           onOtherName={setOtherName}
+          notify={
+            canNotify && memberIds.includes(assigneeKey)
+              ? { checked: notifyThem, onChange: setNotifyThem }
+              : undefined
+          }
         />
 
         <label className="block">
@@ -259,14 +275,30 @@ export function HighlightComposeSheet({
                 : farmDefault || HIGHLIGHT_DEFAULT_SECONDS;
               if (seconds == null || seconds <= 0) return;
               setSendError(null);
+              const directed = directedAt();
               const pending = onSend({
                 note: note.trim(),
                 durationSeconds: seconds,
-                ...directedAt(),
+                ...directed,
               });
-              void Promise.resolve(pending).catch((err: unknown) => {
-                setSendError(err instanceof Error ? err.message : 'Could not send that area.');
-              });
+              void Promise.resolve(pending)
+                .then(async () => {
+                  if (!notifyThem || !farmId || !directed.directedAtUid) return;
+                  try {
+                    const result = await deliverDirectedNotify({
+                      farmId,
+                      targetUid: directed.directedAtUid,
+                      note: note.trim(),
+                      kind: 'highlight',
+                    });
+                    if (result.channel === 'unreachable' && result.message) window.alert(result.message);
+                  } catch (err) {
+                    window.alert(err instanceof Error ? err.message : 'Could not send the notification.');
+                  }
+                })
+                .catch((err: unknown) => {
+                  setSendError(err instanceof Error ? err.message : 'Could not send that area.');
+                });
             }}
             className="inline-flex items-center justify-center gap-1.5 min-h-[44px] px-3 py-1.5 bg-teal-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
           >

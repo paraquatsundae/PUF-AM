@@ -32,6 +32,15 @@ const service = process.env.CLOUD_RUN_SERVICE || 'pufom';
 
 const DPIRD_SECRET = 'DPIRD_API_KEY';
 const ENROLL_SECRET = 'PUF_ENROLLMENT_CODES';
+/** Directed alerts. Attached only when the secret already exists, so a deploy does not wipe them and does not fail before they are created. */
+const NOTIFY_SECRETS = [
+  'FCM_VAPID_KEY',
+  'NOTIFY_SMTP_HOST',
+  'NOTIFY_SMTP_PORT',
+  'NOTIFY_SMTP_USER',
+  'NOTIFY_SMTP_PASS',
+  'NOTIFY_EMAIL_FROM',
+];
 
 function die(message) {
   console.error(message);
@@ -169,7 +178,9 @@ const projectNumber = runGcloud(['projects', 'describe', projectId, '--format=va
 }).stdout.trim();
 const runtimeSa = `${projectNumber}-compute@developer.gserviceaccount.com`;
 
-for (const secret of [DPIRD_SECRET, ENROLL_SECRET]) {
+const notifySecrets = NOTIFY_SECRETS.filter((name) => secretExists(name));
+
+for (const secret of [DPIRD_SECRET, ENROLL_SECRET, ...notifySecrets]) {
   runGcloud(
     [
       'secrets',
@@ -236,7 +247,9 @@ const deployArgs = [
   // Plans/FREENET_NETWORK_PACK.md decision 5.
   `--set-build-env-vars=VITE_APP_URL=${viteAppUrl}`,
   `--set-env-vars=NODE_ENV=production,FIREBASE_PROJECT_ID=${projectId},FIRESTORE_DATABASE_ID=${firestoreDb},APP_URL=${appUrl}`,
-  `--set-secrets=${DPIRD_SECRET}=${DPIRD_SECRET}:latest,${ENROLL_SECRET}=${ENROLL_SECRET}:latest`,
+  `--set-secrets=${[DPIRD_SECRET, ENROLL_SECRET, ...notifySecrets]
+    .map((name) => `${name}=${name}:latest`)
+    .join(',')}`,
 ];
 
 if (dryRun) {

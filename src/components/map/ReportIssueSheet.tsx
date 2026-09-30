@@ -4,6 +4,9 @@ import type { FieldIssue } from '../../lib/fieldStore';
 import { COMMON_ISSUE_PRESETS } from '../../lib/issuePresets';
 import { useHighlightAssignees } from '../../hooks/useHighlightAssignees';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
+import { deliverDirectedNotify } from '../../lib/directedNotifyApi';
+import { isByoFirebase } from '../../lib/byoFirebaseConfig';
 import { DirectedAtPicker, directedAtFromPicker } from './DirectedAtPicker';
 import { IssuePhotoField } from './IssuePhotoField';
 
@@ -44,13 +47,18 @@ export function ReportIssueSheet({
   const [photos, setPhotos] = useState<{ id: string; blob: Blob; src: string }[]>([]);
   const [assigneeKey, setAssigneeKey] = useState('everyone');
   const [otherName, setOtherName] = useState('');
-  const assignees = useHighlightAssignees({
+  const [notifyThem, setNotifyThem] = useState(false);
+  const { userData } = useAuth();
+  const { assignees, memberIds } = useHighlightAssignees({
     farmId,
     sessionName,
     sessionId,
     presence,
     enabled: Boolean(farmId),
   });
+  const canNotify =
+    !isByoFirebase() &&
+    (userData?.role === 'admin' || userData?.canSendNotifications === true);
 
   const commit = async (data: {
     category: FieldIssue['category'];
@@ -60,12 +68,26 @@ export function ReportIssueSheet({
     if (saving) return;
     setSaving(true);
     setError(null);
+    const directed = directedAtFromPicker(assigneeKey, otherName, assignees);
     try {
       await onSave({
         ...data,
-        ...directedAtFromPicker(assigneeKey, otherName, assignees),
+        ...directed,
         photos: photos.map((row) => row.blob),
       });
+      if (notifyThem && farmId && directed.directedAtUid) {
+        try {
+          const result = await deliverDirectedNotify({
+            farmId,
+            targetUid: directed.directedAtUid,
+            note: data.note,
+            kind: 'issue',
+          });
+          if (result.channel === 'unreachable' && result.message) window.alert(result.message);
+        } catch (err) {
+          window.alert(err instanceof Error ? err.message : 'Could not send the notification.');
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save issue');
       setSaving(false);
@@ -161,8 +183,16 @@ export function ReportIssueSheet({
             assigneeKey={assigneeKey}
             otherName={otherName}
             disabled={saving}
-            onAssigneeKey={setAssigneeKey}
+            onAssigneeKey={(key) => {
+              setAssigneeKey(key);
+              if (!memberIds.includes(key)) setNotifyThem(false);
+            }}
             onOtherName={setOtherName}
+            notify={
+              canNotify && memberIds.includes(assigneeKey)
+                ? { checked: notifyThem, onChange: setNotifyThem }
+                : undefined
+            }
           />
 
           <IssuePhotoField

@@ -15,6 +15,7 @@ import { FarmSyncCards } from '../components/sync/FarmSyncCards';
 import { UnlockPinSettingsCard } from '../components/UnlockPinSettingsCard';
 import { SettingsLeaveFarmCard } from '../components/SettingsLeaveFarmCard';
 import { SettingsClearLocalDataCard } from '../components/SettingsClearLocalDataCard';
+import { SettingsNotifyDeviceCard } from '../components/SettingsNotifyDeviceCard';
 import { FreenetStatusCard } from '../components/FreenetStatusCard';
 import { MistDeviceCard } from '../components/MistDeviceCard';
 import { TabletHubCard } from '../components/TabletHubCard';
@@ -141,6 +142,7 @@ export function Settings() {
             </div>
 
             <SettingsLeaveFarmCard />
+            <SettingsNotifyDeviceCard />
             <SettingsClearLocalDataCard />
 
             {/*

@@ -12,6 +12,8 @@ export interface UserData {
   modules?: FarmModuleId[];
   authEpoch?: number;
   accessRevoked?: boolean;
+  /** Farm admin grant. Admins may send without this flag. */
+  canSendNotifications?: boolean;
   subscriptionTier: 'free' | 'premium';
   hasAgreedToTerms?: boolean;
   agreedToTermsAt?: string;

@@ -25,7 +25,7 @@ export function useHighlightAssignees({
   sessionId,
   presence,
   enabled = true,
-}: Opts): HighlightAssigneeOption[] {
+}: Opts): { assignees: HighlightAssigneeOption[]; memberIds: string[] } {
   const [ledger, setLedger] = useState<Array<{ id?: string; label?: string | null }>>([]);
   const [farmMembers, setFarmMembers] = useState<HighlightAssigneeOption[]>([]);
 
@@ -66,8 +66,8 @@ export function useHighlightAssignees({
   }, [enabled, farmId]);
 
   return useMemo(
-    () =>
-      mergeHighlightAssignees(
+    () => ({
+      assignees: mergeHighlightAssignees(
         farmMembers,
         assigneesFromDevice({
           sessionName,
@@ -76,6 +76,8 @@ export function useHighlightAssignees({
           ledger,
         })
       ),
+      memberIds: farmMembers.map((member) => member.id),
+    }),
     [farmMembers, sessionName, sessionId, presence, ledger]
   );
 }
