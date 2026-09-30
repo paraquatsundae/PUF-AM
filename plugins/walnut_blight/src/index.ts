@@ -53,6 +53,7 @@ export const packUi: CropPackUiRegistration = {
   navItems: [
     {
       groupId: 'crop',
+      section: 'scout',
       name: 'Blight Risk',
       href: WALNUT_BLIGHT_PRIMARY_PATH,
       icon: IconBug,

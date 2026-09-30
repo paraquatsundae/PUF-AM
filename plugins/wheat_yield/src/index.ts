@@ -12,6 +12,9 @@ const WheatYieldScience = lazyWithRetry(() =>
 const WheatBlockReadout = lazyWithRetry(() =>
   import('./WheatBlockReadout').then((m) => ({ default: m.WheatBlockReadout }))
 );
+const WheatYieldDashboardCard = lazyWithRetry(() =>
+  import('./WheatYieldDashboardCard').then((m) => ({ default: m.WheatYieldDashboardCard }))
+);
 
 export const packUi: CropPackUiRegistration = {
   packId: WHEAT_YIELD_PACK_ID,
@@ -25,6 +28,7 @@ export const packUi: CropPackUiRegistration = {
   navItems: [
     {
       groupId: 'crop',
+      section: 'scout',
       name: 'Wheat yield',
       href: WHEAT_YIELD_PRIMARY_PATH,
       icon: IconWheat,
@@ -34,6 +38,7 @@ export const packUi: CropPackUiRegistration = {
   surfaces: {
     science: WheatYieldScience,
     blockOperateReadout: WheatBlockReadout,
+    dashboardCard: WheatYieldDashboardCard,
   },
   blockCultivars: [{ id: 'wheat', name: 'Wheat' }],
 };

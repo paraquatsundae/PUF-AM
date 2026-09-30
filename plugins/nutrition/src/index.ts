@@ -19,6 +19,7 @@ export const packUi: CropPackUiRegistration = {
   navItems: [
     {
       groupId: 'crop',
+      section: 'plan',
       name: 'Nutrition',
       href: NUTRITION_PRIMARY_PATH,
       icon: IconFlask2,

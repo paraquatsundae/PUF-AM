@@ -5,6 +5,8 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import {
   navGroupsForMapTitle,
+  navRows,
+  cropSectionLabel,
   visibleGroupItems,
   isPathInGroup,
   pathMatchesHref,
@@ -82,7 +84,18 @@ export function BottomNav() {
               </button>
             </div>
             <div className="overflow-y-auto py-1">
-              {sheetItems.map((item) => {
+              {navRows(sheetItems).map((row) => {
+                if (row.kind === 'heading') {
+                  return (
+                    <p
+                      key={row.section}
+                      className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400"
+                    >
+                      {cropSectionLabel(row.section)}
+                    </p>
+                  );
+                }
+                const item = row.item;
                 const active = pathMatchesHref(location.pathname, item.href);
                 return (
                   <button

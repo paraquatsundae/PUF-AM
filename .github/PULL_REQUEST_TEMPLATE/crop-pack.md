@@ -12,6 +12,7 @@ Use this template when adding or changing a **crop pack** (not a network pack �
 - [ ] `CropPackDef` registered in `shared/farm/cropPacks.ts` (id, label, blurb, **`category`** (`crop` \| `network` \| `generic`), modules, `settingsDocId` / owned keys, `canInstall`)
 - [ ] Module ids + `MODULE_LABELS` / `MODULE_BLURBS` (and pack module list if new)
 - [ ] `plugins/<id>/src/index.ts` exports `packUi` (routes, nav, surfaces). The registry discovers it — do **not** edit `src/packs/registry.ts`; a diff that touches it needs a reason
+- [ ] Crop nav (`groupId: 'crop'`) sets `section: 'scout'` (field check) or `section: 'plan'` (record or budget). Not a new Settings `category`. Harvest stays under Records. Field and system items leave `section` unset ([`Plans/NAMING.md`](../../Plans/NAMING.md), 2026-09-30)
 - [ ] Pack code lives only under `plugins/<id>/src/`; nothing new added to `src/pages/`, `src/components/`, or `src/lib/`
 - [ ] Production knobs on the pack surface (not Settings → Advanced)
 - [ ] Honesty / science copy on the pack page; About = pointer only

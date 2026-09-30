@@ -71,7 +71,8 @@ Replace `<id>` with a snake_case pack id (`apple_scab`). Module id can match the
 ```
 
 - `kind`: `crop_pack` \| `farm` \| `network` \| `system`. Farm feed is **`farm`**.
-- `category`: `crop` \| `network` \| `generic`. Use `generic` if unsure. Do **not** use `network` — that row is Freenet. Farm feed (`farm_feed`) uses **`generic`** and is a **farm pack**, not a crop — [`FARM_MESSAGING.md`](FARM_MESSAGING.md). Category is Settings → Plugins grouping only — shell menu is `navItems.groupId` ([`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)).
+- `category`: `crop` \| `network` \| `generic`. Use `generic` if unsure. Do **not** use `network` — that row is Freenet. Farm feed (`farm_feed`) uses **`generic`** and is a **farm pack**, not a crop — [`FARM_MESSAGING.md`](FARM_MESSAGING.md). Category is Settings → Plugins grouping only — shell menu is `navItems.groupId` ([`CODEBASE_HEALTH.md`](CODEBASE_HEALTH.md)). Do **not** add a Settings category named scout or plan.
+- **Crop menu section** (`navItems.section`, 2026-09-30): required when `groupId` is `crop`. `scout` is a field check (blight, chill portions, wheat yield). `plan` is a record or a budget (water, nutrition, drying). Harvest stays `groupId: 'records'` and does not set a section. Field and system items do not set one either. The phone bar stays four groups.
 - `settingsDocId`: dedicated doc id for new packs (`<id>`). Use `null` if there are no farm knobs.
 - `settingsOwnedKeys`: list every field Delete may wipe. Required when sharing a doc (legacy blight only).
 - `modules`: must already exist on `FARM_MODULE_IDS` after step 3, or the adapter must fail closed.

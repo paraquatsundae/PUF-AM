@@ -17,6 +17,7 @@ import {
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import { effectiveModules } from '../../shared/auth/farmModules';
 import { packNavItemsForGroup } from '../packs/registry';
+import type { CropNavSection } from '../packs/types';
 
 export type NavItem = {
   name: string;
@@ -25,7 +26,31 @@ export type NavItem = {
   adminOnly?: boolean;
   /** Farm module gate (platform Admin has no moduleId). */
   moduleId?: FarmModuleId;
+  /** Crop menu only. Scout above Plan. Other groups leave this unset. */
+  section?: CropNavSection;
 };
+
+export function cropSectionLabel(section: CropNavSection): string {
+  return section === 'scout' ? 'Scout' : 'Plan';
+}
+
+export type NavRow =
+  | { kind: 'heading'; section: CropNavSection }
+  | { kind: 'item'; item: NavItem };
+
+/** Headings only where the Crop section changes. Empty sections stay hidden. */
+export function navRows(items: NavItem[]): NavRow[] {
+  const rows: NavRow[] = [];
+  let last: CropNavSection | undefined;
+  for (const item of items) {
+    if (item.section && item.section !== last) {
+      rows.push({ kind: 'heading', section: item.section });
+      last = item.section;
+    }
+    rows.push({ kind: 'item', item });
+  }
+  return rows;
+}
 
 export type NavGroupId = 'field' | 'crop' | 'records' | 'system';
 
@@ -36,17 +61,25 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+function orderCropSections(items: NavItem[]): NavItem[] {
+  const plain = items.filter((item) => !item.section);
+  const scout = items.filter((item) => item.section === 'scout');
+  const plan = items.filter((item) => item.section === 'plan');
+  return [...plain, ...scout, ...plan];
+}
+
 function mergePackNav(groupId: NavGroupId, baseItems: NavItem[]): NavItem[] {
   const fromPacks = packNavItemsForGroup(groupId).map((item) => ({
     name: item.name,
     href: item.href,
     icon: item.icon,
     moduleId: item.moduleId,
+    ...(item.section ? { section: item.section } : {}),
     ...(item.adminOnly ? { adminOnly: true } : {}),
   }));
-  // Pack items first within the group (crop tools ahead of generic water/nutrition).
+  // Pack items first within the group. Crop scouts sit above plan items.
   const seen = new Set(fromPacks.map((i) => i.href));
-  return [...fromPacks, ...baseItems.filter((i) => !seen.has(i.href))];
+  return orderCropSections([...fromPacks, ...baseItems.filter((i) => !seen.has(i.href))]);
 }
 
 /** Clone nav with farm-type-aware map label (Orchard Map vs Paddock Map). */

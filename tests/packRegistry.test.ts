@@ -118,5 +118,21 @@ describe('pack UI registry (CP-04)', () => {
     );
     expect(allPackNavItems().some((i) => i.href === '/drying' && i.groupId === 'crop')).toBe(true);
     expect(allPackRoutes().length).toBe(PACK_UI_REGISTRY.flatMap((p) => p.routes).length);
+
+    const cropNav = allPackNavItems().filter((item) => item.groupId === 'crop');
+    expect(cropNav.every((item) => item.section === 'scout' || item.section === 'plan')).toBe(true);
+    expect(cropNav.filter((item) => item.section === 'scout').map((item) => item.href)).toEqual([
+      '/blight',
+      '/weather-events',
+      '/wheat-yield',
+    ]);
+    expect(cropNav.filter((item) => item.section === 'plan').map((item) => item.href)).toEqual([
+      '/water',
+      '/nutrition',
+      '/drying',
+    ]);
+    expect(allPackNavItems().filter((item) => item.groupId !== 'crop').every((item) => !item.section)).toBe(
+      true
+    );
   });
 });

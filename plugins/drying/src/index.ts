@@ -25,6 +25,7 @@ export const packUi: CropPackUiRegistration = {
   navItems: [
     {
       groupId: 'crop',
+      section: 'plan',
       name: 'Drying',
       href: DRYING_PRIMARY_PATH,
       icon: IconTemperature,

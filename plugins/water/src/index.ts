@@ -25,6 +25,7 @@ export const packUi: CropPackUiRegistration = {
   navItems: [
     {
       groupId: 'crop',
+      section: 'plan',
       name: 'Water',
       href: WATER_PRIMARY_PATH,
       icon: IconDroplets,

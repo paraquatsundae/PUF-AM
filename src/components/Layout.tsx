@@ -11,6 +11,8 @@ import { cn } from '../lib/utils';
 import {
   dashboardItem,
   navGroupsForMapTitle,
+  navRows,
+  cropSectionLabel,
   visibleGroupItems,
   pathMatchesHref,
   findGroupForPath,
@@ -195,30 +197,39 @@ export function Layout() {
 
                     {isOpen && (
                       <div className="ml-2 pl-2 border-l border-slate-700 space-y-0.5">
-                        {items.map((item) => (
+                        {navRows(items).map((row) =>
+                          row.kind === 'heading' ? (
+                            <p
+                              key={row.section}
+                              className="px-2 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                              {cropSectionLabel(row.section)}
+                            </p>
+                          ) : (
                           <NavLink
-                            key={item.href}
-                            to={item.href}
+                            key={row.item.href}
+                            to={row.item.href}
                             onClick={closeSidebar}
                             className={({ isActive }) =>
                               cn(
                                 'group flex items-center px-2 py-1.5 text-sm font-medium rounded-md transition-colors',
                                 isActive
-                                  ? item.adminOnly
+                                  ? row.item.adminOnly
                                     ? 'bg-purple-600 text-white'
                                     : 'bg-emerald-600 text-white'
                                   : 'hover:bg-slate-800 hover:text-white'
                               )
                             }
                           >
-                            <item.icon
+                            <row.item.icon
                               className="mr-2.5 flex-shrink-0 h-5 w-5"
                               stroke={1.75}
                               aria-hidden="true"
                             />
-                            {item.name}
+                            {row.item.name}
                           </NavLink>
-                        ))}
+                          )
+                        )}
                       </div>
                     )}
                   </div>

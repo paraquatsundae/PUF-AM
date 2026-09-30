@@ -68,6 +68,8 @@ Related plans (not duplicated here):
 
 **Decision — 2026-09-15:** Farm feed + For you is plugin kind **farm**, id **`farm_feed`**, not a crop pack and not inside `freenet_host`. Settings copy is **Farm feed**. Do not say “farm pack” in that UI — Files & backup already uses it for `.pufom`. [`FARM_MESSAGING.md`](FARM_MESSAGING.md). **Phase 0 + Phase 1 farm chat shipped.**
 
+**Decision — 2026-09-30:** Inside the Crop shell menu, a pack is either **Scout** or **Plan**. Scout is a field check (walnut blight, chill portions, wheat yield). Plan is a record or a budget (water, nutrition, drying). Harvest stays under **Records**. This is `navItems.section` (`scout` | `plan`) on a `groupId: 'crop'` item. It is not a Settings → Plugins `category`, not a new pack `kind`, and not a fifth phone-nav button. Field, records, and system items do not set a section.
+
 ---
 
 ## 2. Package, build & deploy identifiers

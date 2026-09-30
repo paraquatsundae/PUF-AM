@@ -13,6 +13,12 @@ import type { OrchardBlock } from '../lib/mapStore';
 /** Mirrors navConfig NavGroupId — kept here so packs do not import navConfig. */
 export type PackNavGroupId = 'field' | 'crop' | 'records' | 'system';
 
+/**
+ * Split inside the Crop menu only. Not a Settings category and not a new
+ * shell group. Plans/NAMING.md (2026-09-30).
+ */
+export type CropNavSection = 'scout' | 'plan';
+
 export type PackRouteRegistration = {
   /** Path segment under Layout, e.g. `blight` → `/blight`. */
   path: string;
@@ -29,6 +35,8 @@ export type PackNavRegistration = {
   icon: Icon;
   moduleId: FarmModuleId;
   adminOnly?: boolean;
+  /** Required when `groupId` is `crop`. Scout is a field check; plan is a record or budget. */
+  section?: CropNavSection;
 };
 
 /**

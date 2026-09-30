@@ -54,6 +54,7 @@ export const packUi: CropPackUiRegistration = {
   navItems: [
     {
       groupId: 'crop',
+      section: 'scout',
       name: 'Chill portions',
       href: CHILL_PORTIONS_PRIMARY_PATH,
       icon: IconSnowflake,
