@@ -107,7 +107,7 @@ export function FarmSetup() {
     setSaving(true);
     try {
       const profile = resolveFarmProfile(farmProfile);
-      updateSettings({
+      await updateSettings({
         irrigationSystemType: settings.irrigationSystemType || 'micro',
         waterAllocationMl:
           typeof settings.waterAllocationMl === 'number' ? settings.waterAllocationMl : 0,

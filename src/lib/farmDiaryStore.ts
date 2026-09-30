@@ -250,6 +250,7 @@ export const useFarmDiaryStore = create<FarmDiaryState>((set, get) => ({
         await diaryApi.saveSettings(farmId, updatedSettings);
       } catch (err) {
         console.error('Failed to save settings:', err);
+        throw err;
       }
     }
   },

@@ -43,7 +43,8 @@ export function useFarmDiary(startDate?: string, endDate?: string) {
 
   const updateSettings = useCallback(
     (newSettings: Partial<FarmSettings>) => {
-      if (farmId) store.updateSettings(farmId, canEdit, newSettings);
+      if (!farmId) return Promise.resolve();
+      return store.updateSettings(farmId, canEdit, newSettings);
     },
     [farmId, canEdit, store.updateSettings]
   );

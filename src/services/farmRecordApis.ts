@@ -4,6 +4,7 @@ import { collection, doc, getDocs, getDoc, setDoc, deleteDoc, query, where, getD
 import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import { handleFirestoreError, isBenignFirestoreFailure, OperationType } from '../lib/firestoreErrors';
 import { isOffline } from './firestoreOffline';
+import { farmSettingsForFirestore } from '../lib/farmSettingsFirestore';
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -176,13 +177,7 @@ export const diaryApi = {
     if (isLocalOnlyFarmSession()) return;
     try {
       const path = `farms/${farmId}/settings`;
-      const dataToSave = { ...settings };
-      Object.keys(dataToSave).forEach(key => {
-        if ((dataToSave as any)[key] === undefined) {
-          delete (dataToSave as any)[key];
-        }
-      });
-      await setDoc(doc(db, path, 'farm'), dataToSave);
+      await setDoc(doc(db, path, 'farm'), farmSettingsForFirestore(settings));
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/settings/farm`);
     }

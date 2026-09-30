@@ -6,6 +6,7 @@ import { isLocalOnlyFarmSession } from '../lib/workshopMode';
 import { localMapStore } from '../lib/localMapStore';
 import { handleFirestoreError, isBenignFirestoreFailure, OperationType } from '../lib/firestoreErrors';
 import { isOffline } from './firestoreOffline';
+import { orchardBlockForFirestore } from '../lib/orchardBlockFirestore';
 
 function intersectsBounds(
   geojson: { type?: string; coordinates?: unknown },
@@ -86,32 +87,7 @@ export const mapApi = {
     }
     try {
       const path = `farms/${farmId}/blocks`;
-      // Project to Firestore-allowlisted fields only (rules reject unknown keys).
-      // GeoJSON is stringified — Firestore cannot store nested arrays.
-      const dataToSave: Record<string, unknown> = {
-        id: block.id,
-        name: block.name || '',
-        cultivar: block.cultivar || '',
-        density: block.density || '',
-        irrigation: block.irrigation || '',
-        areaHa: typeof block.areaHa === 'number' && !isNaN(block.areaHa) ? block.areaHa : 0,
-        geojson: JSON.stringify(block.geojson),
-      };
-      if (block.cultivarParts && block.cultivarParts.length > 0) {
-        dataToSave.cultivarParts = JSON.stringify(block.cultivarParts);
-      }
-      const optionalNums: (keyof OrchardBlock)[] = [
-        'rowSpacing',
-        'treeSpacing',
-        'treeHeight',
-        'canopyWidth',
-        'canopyClosure',
-      ];
-      for (const key of optionalNums) {
-        const v = block[key];
-        if (typeof v === 'number' && !isNaN(v)) dataToSave[key] = v;
-      }
-      await setDoc(doc(db, path, block.id), dataToSave);
+      await setDoc(doc(db, path, block.id), orchardBlockForFirestore(block));
     } catch (error) {
       // Always throw so local-first sync can queue the write
       if (isBenignFirestoreFailure(error)) {

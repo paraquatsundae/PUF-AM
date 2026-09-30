@@ -343,13 +343,19 @@ service cloud.firestore {
     function isValidOrchardBlock(data) {
       return hasOnlyAllowedFields([
                'id', 'name', 'cultivar', 'density', 'irrigation', 'areaHa', 'geojson',
-               'cultivarParts',
+               'cultivarParts', 'cropKind', 'species', 'geometryKind', 'seasonLabel',
                'rowSpacing', 'treeSpacing', 'treeHeight', 'canopyWidth', 'canopyClosure'
              ]) &&
              hasRequiredFields(['id', 'geojson']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              (!('name' in data) || (data.name is string && data.name.size() < 100)) &&
              (!('cultivar' in data) || (data.cultivar is string && data.cultivar.size() < 100)) &&
+             (!('cropKind' in data) || data.cropKind in [
+               'orchard_tree', 'fruit', 'vineyard', 'broadacre', 'hort_veg', 'station', 'aquaculture'
+             ]) &&
+             (!('species' in data) || (data.species is string && data.species.size() < 40)) &&
+             (!('geometryKind' in data) || data.geometryKind in ['boundary', 'water_zone', 'dam']) &&
+             (!('seasonLabel' in data) || (data.seasonLabel is string && data.seasonLabel.size() < 80)) &&
              (!('density' in data) || (data.density is string && data.density.size() < 50)) &&
              (!('irrigation' in data) || (data.irrigation is string && data.irrigation.size() < 50)) &&
              (!('areaHa' in data) || (data.areaHa is number && data.areaHa >= 0)) &&
@@ -466,7 +472,8 @@ service cloud.firestore {
       return hasOnlyAllowedFields([
                'irrigationSystemType', 'waterAllocationMl', 'farmName',
                'customChemicals', 'customBiologicals', 'customCarriers', 'customAdjuvants',
-               'farmProfile', 'highlightDefaultSeconds'
+               'farmProfile', 'highlightDefaultSeconds',
+               'dpirdStationCode', 'dpirdStationName'
              ]) &&
              hasRequiredFields(['irrigationSystemType']) &&
              data.irrigationSystemType in ['micro', 'surface_drip', 'sub_surface', 'flood'] &&
@@ -477,6 +484,8 @@ service cloud.firestore {
              (!('customCarriers' in data) || data.customCarriers is list) &&
              (!('customAdjuvants' in data) || data.customAdjuvants is list) &&
              (!('farmProfile' in data) || data.farmProfile is map) &&
+             (!('dpirdStationCode' in data) || (data.dpirdStationCode is string && data.dpirdStationCode.size() < 20)) &&
+             (!('dpirdStationName' in data) || (data.dpirdStationName is string && data.dpirdStationName.size() < 120)) &&
              (!('highlightDefaultSeconds' in data) || (
                data.highlightDefaultSeconds is number &&
                data.highlightDefaultSeconds >= 5 &&
