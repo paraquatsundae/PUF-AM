@@ -7,6 +7,7 @@ import {
   NOTIFY_ADMIN_PER_HOUR,
   NOTIFY_HOUR_MS,
   NOTIFY_STAFF_PER_HOUR,
+  pushSubscriptionFrom,
   unreachableNotifyMessage,
 } from '../shared/notify/directedNotify';
 
@@ -70,5 +71,15 @@ describe('directed notify', () => {
     expect(copy.title).toBe('Check this');
     expect(copy.body).toContain('George');
     expect(copy.emailText).toContain('https://am.pufworks.farm/map');
+  });
+
+  it('accepts a browser push subscription and rejects a bare token', () => {
+    expect(
+      pushSubscriptionFrom({
+        endpoint: 'https://fcm.googleapis.com/fcm/send/abc',
+        keys: { p256dh: 'B'.repeat(40), auth: 'a'.repeat(16) },
+      })?.endpoint
+    ).toContain('https://');
+    expect(pushSubscriptionFrom({ token: 'abc' })).toBeNull();
   });
 });

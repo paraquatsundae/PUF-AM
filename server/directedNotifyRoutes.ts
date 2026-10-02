@@ -16,14 +16,14 @@ import type { Express, Request, Response } from 'express';
 import {
   directedNotifyCopy,
   isDeliverableMailbox,
-  isPlausiblePushToken,
   maySendDirectedNotify,
   nextNotifyQuota,
   NOTIFY_DEVICE_CAP,
+  pushSubscriptionFrom,
   unreachableNotifyMessage,
 } from '../shared/notify/directedNotify.ts';
 import { rateLimit, verifyBearer } from './accessPinAuth.ts';
-import { getAdminApp, getAdminDb } from './firebaseAdmin.ts';
+import { getAdminDb } from './firebaseAdmin.ts';
 import { isNotifyEmailConfigured, sendNotifyMail } from './notifyMail.ts';
 
 const BURST_PER_MINUTE = 6;
@@ -32,8 +32,11 @@ function appUrl(): string {
   return (process.env.APP_URL || 'https://am.pufworks.farm').replace(/\/$/, '');
 }
 
-function vapidKey(): string {
-  return (process.env.FCM_VAPID_KEY || '').trim();
+function vapidPair(): { publicKey: string; privateKey: string } | null {
+  const publicKey = (process.env.FCM_VAPID_KEY || '').trim();
+  const privateKey = (process.env.FCM_VAPID_PRIVATE || '').trim();
+  if (!publicKey || !privateKey) return null;
+  return { publicKey, privateKey };
 }
 
 function tokenId(token: string): string {
@@ -84,41 +87,46 @@ async function consumeQuota(uid: string, role: string): Promise<void> {
   });
 }
 
-async function pushToTokens(
-  tokens: string[],
+async function pushToSubscriptions(
+  subs: Array<{ endpoint: string; p256dh: string; auth: string }>,
   copy: { title: string; body: string },
   link: string
 ): Promise<{ delivered: boolean; dead: string[] }> {
-  if (tokens.length === 0) return { delivered: false, dead: [] };
-  const { getMessaging } = (await import('firebase-admin/messaging')) as typeof import('firebase-admin/messaging');
-  getAdminApp();
-  const response = await getMessaging().sendEachForMulticast({
-    tokens,
-    notification: { title: copy.title, body: copy.body },
-    data: { url: link },
-    webpush: { fcmOptions: { link } },
-  });
+  const pair = vapidPair();
+  if (!pair || subs.length === 0) return { delivered: false, dead: [] };
+  const webpush = (await import('web-push')) as {
+    setVapidDetails: (subject: string, publicKey: string, privateKey: string) => void;
+    sendNotification: (
+      sub: { endpoint: string; keys: { p256dh: string; auth: string } },
+      payload: string
+    ) => Promise<unknown>;
+  };
+  webpush.setVapidDetails(appUrl(), pair.publicKey, pair.privateKey);
   const dead: string[] = [];
-  response.responses.forEach((row, index) => {
-    const code = row.error?.code || '';
-    if (
-      code === 'messaging/registration-token-not-registered' ||
-      code === 'messaging/invalid-registration-token'
-    ) {
-      const token = tokens[index];
-      if (token) dead.push(token);
+  let delivered = false;
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        JSON.stringify({ title: copy.title, body: copy.body, url: link })
+      );
+      delivered = true;
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      if (status === 404 || status === 410) dead.push(sub.endpoint);
+      else console.error('[notify] push failed', error instanceof Error ? error.message : error);
     }
-  });
-  return { delivered: response.successCount > 0, dead };
+  }
+  return { delivered, dead };
 }
 
 export function registerDirectedNotifyRoutes(app: Express) {
   app.get('/api/auth/notify-config', async (req: Request, res: Response) => {
     try {
       await verifyBearer(req);
-      const key = vapidKey();
+      const pair = vapidPair();
       return res.json({
-        vapidKey: key || null,
+        vapidKey: pair ? pair.publicKey : null,
         emailConfigured: isNotifyEmailConfigured(),
       });
     } catch (error: unknown) {
@@ -131,14 +139,15 @@ export function registerDirectedNotifyRoutes(app: Express) {
   app.post('/api/auth/notify-device', async (req: Request, res: Response) => {
     try {
       const caller = await verifyBearer(req);
-      const token = String(req.body?.token || '').trim();
-      if (!isPlausiblePushToken(token)) {
-        return res.status(400).json({ error: 'That push token is not usable.' });
+      const subscription = pushSubscriptionFrom(req.body?.subscription);
+      if (!subscription) {
+        return res.status(400).json({ error: 'That push subscription is not usable.' });
       }
       const db = getAdminDb();
       const col = db.collection('users').doc(caller.uid).collection('notify_devices');
-      await col.doc(tokenId(token)).set({
-        token,
+      await col.doc(tokenId(subscription.endpoint)).set({
+        endpoint: subscription.endpoint,
+        keys: { p256dh: subscription.p256dh, auth: subscription.auth },
         platform: 'web',
         updatedAt: new Date().toISOString(),
       });
@@ -236,28 +245,24 @@ export function registerDirectedNotifyRoutes(app: Express) {
         .collection('notify_devices')
         .limit(NOTIFY_DEVICE_CAP)
         .get();
-      const tokens = deviceSnap.docs
-        .map((doc) => (typeof doc.data().token === 'string' ? doc.data().token : ''))
-        .filter(isPlausiblePushToken);
+      const subs = deviceSnap.docs
+        .map((doc) => pushSubscriptionFrom(doc.data()))
+        .filter((sub): sub is NonNullable<typeof sub> => sub !== null);
 
       let delivered = false;
-      if (tokens.length > 0) {
-        try {
-          const push = await pushToTokens(tokens, copy, link);
-          delivered = push.delivered;
-          await Promise.all(
-            push.dead.map((token) =>
-              getAdminDb()
-                .collection('users')
-                .doc(targetUid)
-                .collection('notify_devices')
-                .doc(tokenId(token))
-                .delete()
-            )
-          );
-        } catch (error) {
-          console.error('[notify] push failed', error instanceof Error ? error.message : error);
-        }
+      if (subs.length > 0) {
+        const push = await pushToSubscriptions(subs, copy, link);
+        delivered = push.delivered;
+        await Promise.all(
+          push.dead.map((endpoint) =>
+            getAdminDb()
+              .collection('users')
+              .doc(targetUid)
+              .collection('notify_devices')
+              .doc(tokenId(endpoint))
+              .delete()
+          )
+        );
       }
 
       if (delivered) {

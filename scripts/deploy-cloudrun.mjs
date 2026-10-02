@@ -35,6 +35,7 @@ const ENROLL_SECRET = 'PUF_ENROLLMENT_CODES';
 /** Directed alerts. Attached only when the secret already exists, so a deploy does not wipe them and does not fail before they are created. */
 const NOTIFY_SECRETS = [
   'FCM_VAPID_KEY',
+  'FCM_VAPID_PRIVATE',
   'NOTIFY_SMTP_HOST',
   'NOTIFY_SMTP_PORT',
   'NOTIFY_SMTP_USER',

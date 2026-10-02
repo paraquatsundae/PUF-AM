@@ -41,6 +41,23 @@ export function isPlausiblePushToken(token: string): boolean {
   return token.length >= 20 && token.length <= 4096 && !/\s/.test(token);
 }
 
+/** Browser PushSubscription, the shape `web-push` sends to. */
+export function pushSubscriptionFrom(input: unknown): {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+} | null {
+  if (!input || typeof input !== 'object') return null;
+  const row = input as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
+  const endpoint = typeof row.endpoint === 'string' ? row.endpoint.trim() : '';
+  const p256dh = typeof row.keys?.p256dh === 'string' ? row.keys.p256dh.trim() : '';
+  const auth = typeof row.keys?.auth === 'string' ? row.keys.auth.trim() : '';
+  if (!endpoint.startsWith('https://') || endpoint.length > 2000) return null;
+  if (p256dh.length < 20 || p256dh.length > 200 || auth.length < 10 || auth.length > 200) return null;
+  if (/\s/.test(p256dh) || /\s/.test(auth)) return null;
+  return { endpoint, p256dh, auth };
+}
+
 export function nextNotifyQuota(input: {
   role: string | undefined;
   windowStart: number;
