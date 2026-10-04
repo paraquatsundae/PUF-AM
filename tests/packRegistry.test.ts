@@ -16,6 +16,11 @@ import { WALNUT_BLIGHT_PRIMARY_PATH } from '../plugins/walnut_blight/src/index';
 import { CHILL_PORTIONS_PRIMARY_PATH } from '../plugins/chill_portions/src/index';
 
 describe('pack UI registry (CP-04)', () => {
+  it('discovers the dendrometer demo route and crop-menu entry', () => {
+    const ui = getPackUi('timeseries_demo');
+    expect(ui?.routes[0]).toMatchObject({ path: 'timeseries-demo', moduleId: 'timeseries_demo' });
+    expect(ui?.navItems[0]).toMatchObject({ href: '/timeseries-demo', groupId: 'crop', moduleId: 'timeseries_demo' });
+  });
   it('registers UI for every catalog pack id', () => {
     for (const id of CROP_PACK_IDS) {
       expect(getPackUi(id), `missing UI registration for ${id}`).toBeTruthy();

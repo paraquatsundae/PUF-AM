@@ -56,6 +56,10 @@ import {
   walnutBlightManifest,
   walnutBlightModules,
 } from './walnutBlightPackage';
+import {
+  TIMESERIES_DEMO_PACK_ID, TIMESERIES_DEMO_PRIMARY_PATH,
+  TIMESERIES_DEMO_SETTINGS_OWNED_KEYS, timeseriesDemoManifest, timeseriesDemoModules,
+} from './timeseriesDemoPackage';
 
 export {
   WALNUT_BLIGHT_PACK_ID,
@@ -100,6 +104,7 @@ export const CROP_PACK_IDS = [
   WALNUT_BLIGHT_PACK_ID,
   CHILL_PORTIONS_PACK_ID,
   ...CORE_OPS_PACK_IDS,
+  TIMESERIES_DEMO_PACK_ID,
 ] as const;
 export type CropPackId = (typeof CROP_PACK_IDS)[number];
 
@@ -235,6 +240,17 @@ export const CROP_PACKS: readonly CropPackDef[] = [
     settingsDocId: dryingManifest.settingsDocId,
     settingsOwnedKeys: DRYING_SETTINGS_OWNED_KEYS,
     primaryPath: DRYING_PRIMARY_PATH,
+  },
+  {
+    id: TIMESERIES_DEMO_PACK_ID,
+    label: timeseriesDemoManifest.label,
+    blurb: timeseriesDemoManifest.blurb,
+    category: timeseriesDemoManifest.category,
+    modules: timeseriesDemoModules,
+    settingsDocId: timeseriesDemoManifest.settingsDocId,
+    settingsOwnedKeys: TIMESERIES_DEMO_SETTINGS_OWNED_KEYS,
+    primaryPath: TIMESERIES_DEMO_PRIMARY_PATH,
+    canInstall: () => ({ ok: true, hint: 'Learning demo only — no live sensor connection.' }),
   },
 ];
 

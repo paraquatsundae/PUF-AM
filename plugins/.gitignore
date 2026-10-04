@@ -21,3 +21,5 @@
 !drying/**
 !freenet_host/
 !freenet_host/**
+!timeseries_demo/
+!timeseries_demo/**

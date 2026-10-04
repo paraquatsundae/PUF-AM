@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "timeseries_demo",
+  "version": "0.1.0",
+  "label": "Dendrometer demo",
+  "blurb": "Explore two years of demonstration dendrometer readings in raw and normalized charts.",
+  "category": "generic",
+  "modules": ["timeseries_demo"],
+  "settingsDocId": null,
+  "primaryPath": "/timeseries-demo",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

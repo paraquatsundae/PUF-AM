@@ -1,5 +1,9 @@
 # PUF-AM local plugin packages
 
+Learning example: [`timeseries_demo/`](timeseries_demo/) shows two dendrometer
+series over two years, with a shared range and a normalized chart below the raw
+chart. It needs no telemetry API, database, or engine configuration.
+
 **Adding a pack to the app:** [`Plans/PLUGIN_AUTHORING.md`](../Plans/PLUGIN_AUTHORING.md). A zip here is catalog + optional engine defaults. It does **not** register routes or appear under Settings → Plugins until `cropPacks.ts` lists the id.
 
 **Layout change done (2026-09-03):** [`Plans/PLUGIN_PACK_LAYOUT.md`](../Plans/PLUGIN_PACK_LAYOUT.md). Each pack's React code now lives beside its manifest in `plugins/<id>/src/`, and `src/packs/registry.ts` discovers it at build time. Still statically compiled — hot-load stays out of scope.
