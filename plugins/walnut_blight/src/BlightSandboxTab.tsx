@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, Settings2, Sparkles, X } from 'lucide-react';
+import { ClipboardList, RefreshCw, Settings2, Sparkles, X } from 'lucide-react';
 import { BlightResearchModifiersPanel } from './BlightResearchModifiersPanel';
 import { BlightSandboxSidebar } from './BlightSandboxSidebar';
 import { BlightSandboxChart } from './BlightSandboxChart';
@@ -21,10 +21,14 @@ export function BlightSandboxTab({
   setActiveScenarioId,
   sandboxUseSecondaryLatency,
   setSandboxUseSecondaryLatency,
+  sandboxShowEfficacyLines,
+  setSandboxShowEfficacyLines,
   compareAllScenarios,
   setCompareAllScenarios,
   handleAutoDistribute,
   handleCloneScenario,
+  handleAddRecordedScenario,
+  recordedSprayCount,
   selectedSeason,
   setSelectedSeason,
   availableSeasons,
@@ -61,10 +65,14 @@ export function BlightSandboxTab({
   setActiveScenarioId: (id: string) => void;
   sandboxUseSecondaryLatency: boolean;
   setSandboxUseSecondaryLatency: (v: boolean) => void;
+  sandboxShowEfficacyLines: boolean;
+  setSandboxShowEfficacyLines: (v: boolean) => void;
   compareAllScenarios: boolean;
   setCompareAllScenarios: (v: boolean) => void;
   handleAutoDistribute: (type?: SprayType) => void;
   handleCloneScenario: (id: string) => void;
+  handleAddRecordedScenario: () => void;
+  recordedSprayCount: number;
   selectedSeason: string;
   setSelectedSeason: (s: string) => void;
   availableSeasons: string[];
@@ -160,9 +168,39 @@ export function BlightSandboxTab({
                 >
                   + Add
                 </button>
+                <button
+                  type="button"
+                  onClick={handleAddRecordedScenario}
+                  disabled={recordedSprayCount === 0}
+                  title={
+                    recordedSprayCount === 0
+                      ? 'No sprays recorded for this block'
+                      : `Copy ${recordedSprayCount} recorded spray day${recordedSprayCount === 1 ? '' : 's'} into a new scenario`
+                  }
+                  className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-all whitespace-nowrap flex items-center gap-1.5"
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Recorded sprays
+                </button>
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                  <span
+                    className="text-xs font-medium text-slate-500"
+                    title="Show or hide the chemical and biological cover lines. Decay still changes the threat curve."
+                  >
+                    Efficacy lines
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSandboxShowEfficacyLines(!sandboxShowEfficacyLines)}
+                    className={`w-10 h-5 rounded-full transition-colors relative ${sandboxShowEfficacyLines ? 'bg-indigo-500' : 'bg-slate-300'}`}
+                    aria-pressed={sandboxShowEfficacyLines}
+                  >
+                    <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${sandboxShowEfficacyLines ? 'left-6' : 'left-1'}`}></div>
+                  </button>
+                </div>
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
                   <span className="text-xs font-medium text-slate-500" title="Experimental GDD latency queue + secondary threat bump. Off on Forecast/Historical.">
                     Latency / secondary
@@ -211,7 +249,7 @@ export function BlightSandboxTab({
                   </button>
                   <button 
                     onClick={() => {
-                      setScenarios(prev => prev.map(s => s.id === activeScenarioId ? { ...s, sprays: {}, irrigation: {} } : s));
+                      setScenarios(prev => prev.map(s => s.id === activeScenarioId ? { ...s, sprays: {}, irrigation: {}, ownsSprayProgram: false } : s));
                     }}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                   >
@@ -254,6 +292,7 @@ export function BlightSandboxTab({
               sandboxScenariosData={sandboxScenariosData}
               selectedSeason={selectedSeason}
               sandboxUseSecondaryLatency={sandboxUseSecondaryLatency}
+              sandboxShowEfficacyLines={sandboxShowEfficacyLines}
               activeScenario={activeScenario}
               historicalStats={historicalStats}
               sandboxHistoricalStats={sandboxHistoricalStats}

@@ -30,6 +30,7 @@ export function BlightSandboxChart({
   sandboxScenariosData,
   selectedSeason,
   sandboxUseSecondaryLatency,
+  sandboxShowEfficacyLines,
   activeScenario,
   historicalStats,
   sandboxHistoricalStats,
@@ -48,6 +49,7 @@ export function BlightSandboxChart({
   sandboxScenariosData: Record<string, DailyData[]>;
   selectedSeason: string;
   sandboxUseSecondaryLatency: boolean;
+  sandboxShowEfficacyLines: boolean;
   activeScenario: SandboxScenario;
   historicalStats: { highRiskDays: number; totalSprays: number; avgThreat: string };
   sandboxHistoricalStats: Record<string, { highRiskDays: number; totalSprays: number; avgThreat: string }>;
@@ -181,28 +183,32 @@ export function BlightSandboxChart({
                             />
                             {s.id === activeScenarioId && (
                               <>
-                                <Line
-                                  type="monotone"
-                                  data={filteredData}
-                                  dataKey="chem"
-                                  xAxisId="baseline"
-                                  name="Chemical efficacy (hyp.)"
-                                  stroke="#3b82f6"
-                                  strokeWidth={2}
-                                  dot={false}
-                                  activeDot={{ r: 4 }}
-                                />
-                                <Line
-                                  type="monotone"
-                                  data={filteredData}
-                                  dataKey="bio"
-                                  xAxisId="baseline"
-                                  name="Biological efficacy (hyp.)"
-                                  stroke="#22c55e"
-                                  strokeWidth={2}
-                                  dot={false}
-                                  activeDot={{ r: 4 }}
-                                />
+                                {sandboxShowEfficacyLines && (
+                                  <>
+                                    <Line
+                                      type="monotone"
+                                      data={filteredData}
+                                      dataKey="chem"
+                                      xAxisId="baseline"
+                                      name="Chemical efficacy (hyp.)"
+                                      stroke="#3b82f6"
+                                      strokeWidth={2}
+                                      dot={false}
+                                      activeDot={{ r: 4 }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      data={filteredData}
+                                      dataKey="bio"
+                                      xAxisId="baseline"
+                                      name="Biological efficacy (hyp.)"
+                                      stroke="#22c55e"
+                                      strokeWidth={2}
+                                      dot={false}
+                                      activeDot={{ r: 4 }}
+                                    />
+                                  </>
+                                )}
                                 {sandboxUseSecondaryLatency && (
                                   <>
                                     <Area
@@ -317,10 +323,17 @@ export function BlightSandboxChart({
                 <div className="mt-8 space-y-6">
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold text-slate-900 flex items-center">
-                        <Bug className="w-5 h-5 mr-2 text-indigo-500" />
-                        Hypothetical Sprays
-                      </h3>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 flex items-center">
+                          <Bug className="w-5 h-5 mr-2 text-indigo-500" />
+                          Hypothetical Sprays
+                        </h3>
+                        {activeScenario.ownsSprayProgram && (
+                          <p className="text-xs text-slate-500 mt-1">
+                            Copied from recorded sprays. Edits stay in this scenario and are not written back to the diary.
+                          </p>
+                        )}
+                      </div>
                       <button 
                         // Arg-less on purpose: passing this straight to onClick
                         // feeds a MouseEvent to its `type` parameter.

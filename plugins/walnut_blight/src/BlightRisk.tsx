@@ -86,6 +86,8 @@ export function BlightRisk() {
     setSandboxView,
     sandboxUseSecondaryLatency,
     setSandboxUseSecondaryLatency,
+    sandboxShowEfficacyLines,
+    setSandboxShowEfficacyLines,
     scenarios,
     setScenarios,
     activeScenarioId,
@@ -99,6 +101,7 @@ export function BlightRisk() {
     setSandboxWidth,
     setSandboxSpacing,
     handleCloneScenario,
+    handleAddRecordedScenario,
     handleAutoDistribute: runAutoDistribute,
   } = useBlightSandbox();
 
@@ -336,10 +339,14 @@ export function BlightRisk() {
           setActiveScenarioId={setActiveScenarioId}
           sandboxUseSecondaryLatency={sandboxUseSecondaryLatency}
           setSandboxUseSecondaryLatency={setSandboxUseSecondaryLatency}
+          sandboxShowEfficacyLines={sandboxShowEfficacyLines}
+          setSandboxShowEfficacyLines={setSandboxShowEfficacyLines}
           compareAllScenarios={compareAllScenarios}
           setCompareAllScenarios={setCompareAllScenarios}
           handleAutoDistribute={handleAutoDistribute}
           handleCloneScenario={handleCloneScenario}
+          handleAddRecordedScenario={() => handleAddRecordedScenario(sprayEvents)}
+          recordedSprayCount={Object.keys(sprayEvents).length}
           selectedSeason={selectedSeason}
           setSelectedSeason={setSelectedSeason}
           availableSeasons={availableSeasons}

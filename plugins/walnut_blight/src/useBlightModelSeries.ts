@@ -30,7 +30,7 @@ import {
   mergeObservedAndForecast,
   type BlightTimeRange,
 } from './blightSeason';
-import type { SandboxScenario } from './useBlightSandbox';
+import { spraysForSandboxScenario, type SandboxScenario } from './useBlightSandbox';
 
 export type BlightStageBreakdown = {
   name: string;
@@ -229,7 +229,7 @@ export function useBlightModelSeries({
         },
       });
       const scenarioCoverage = Math.min(1, canopy.canopyWidth / canopy.rowSpacing);
-      const combinedSprays = { ...sprayEvents, ...scenario.sprays };
+      const combinedSprays = spraysForSandboxScenario(scenario, sprayEvents);
       const combinedIrrigation = { ...irrigationEvents, ...scenario.irrigation };
       results[scenario.id] = runBlightModel(
         startDate,

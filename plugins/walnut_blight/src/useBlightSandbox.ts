@@ -10,16 +10,48 @@ import {
   type WeatherData,
 } from './blightModel';
 
+export type SandboxSprayMap = Record<string, { type: SprayType; method: ApplicationMethod }>;
+
 export type SandboxScenario = {
   id: string;
   name: string;
-  sprays: Record<string, { type: SprayType; method: ApplicationMethod }>;
+  sprays: SandboxSprayMap;
   irrigation: Record<string, number>;
   treeHeight: number | null;
   canopyWidth: number | null;
   rowSpacing: number | null;
   color: string;
+  /**
+   * When set, `sprays` is the whole program for this scenario (a diary snapshot
+   * you can edit). Otherwise diary sprays stay underneath and `sprays` are extras.
+   */
+  ownsSprayProgram?: boolean;
 };
+
+export const SANDBOX_SCENARIO_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+
+/** Diary sprays, unless this scenario already owns a copied program. */
+export function spraysForSandboxScenario(
+  scenario: Pick<SandboxScenario, 'sprays' | 'ownsSprayProgram'>,
+  recorded: SandboxSprayMap
+): SandboxSprayMap {
+  if (scenario.ownsSprayProgram) return scenario.sprays;
+  return { ...recorded, ...scenario.sprays };
+}
+
+export function nextScenarioId(scenarios: { id: string }[]): string {
+  const nums = scenarios.map((s) => Number(s.id)).filter((n) => Number.isFinite(n));
+  const max = nums.length ? Math.max(...nums) : 0;
+  return String(max + 1);
+}
+
+export function nextRecordedScenarioName(scenarios: { name: string }[]): string {
+  const base = 'Recorded sprays';
+  if (!scenarios.some((s) => s.name === base)) return base;
+  let n = 2;
+  while (scenarios.some((s) => s.name === `${base} ${n}`)) n += 1;
+  return `${base} ${n}`;
+}
 
 const EMPTY_SCENARIOS: SandboxScenario[] = [
   {
@@ -47,6 +79,7 @@ const EMPTY_SCENARIOS: SandboxScenario[] = [
 export function useBlightSandbox() {
   const [sandboxView, setSandboxView] = useState<'forecast' | 'historical'>('forecast');
   const [sandboxUseSecondaryLatency, setSandboxUseSecondaryLatency] = useState(false);
+  const [sandboxShowEfficacyLines, setSandboxShowEfficacyLines] = useState(true);
   const [scenarios, setScenarios] = useState<SandboxScenario[]>(EMPTY_SCENARIOS);
   const [activeScenarioId, setActiveScenarioId] = useState('1');
   const [compareAllScenarios, setCompareAllScenarios] = useState(false);
@@ -92,10 +125,30 @@ export function useBlightSandbox() {
               treeHeight: source.treeHeight,
               canopyWidth: source.canopyWidth,
               rowSpacing: source.rowSpacing,
+              ownsSprayProgram: source.ownsSprayProgram,
             }
           : s
       )
     );
+  };
+
+  /** New scenario whose spray days are a copy of the diary, editable here only. */
+  const handleAddRecordedScenario = (recorded: SandboxSprayMap) => {
+    if (Object.keys(recorded).length === 0) return;
+    const id = nextScenarioId(scenarios);
+    const scenario: SandboxScenario = {
+      id,
+      name: nextRecordedScenarioName(scenarios),
+      sprays: { ...recorded },
+      irrigation: {},
+      treeHeight: null,
+      canopyWidth: null,
+      rowSpacing: null,
+      color: SANDBOX_SCENARIO_COLORS[scenarios.length % SANDBOX_SCENARIO_COLORS.length],
+      ownsSprayProgram: true,
+    };
+    setScenarios((prev) => [...prev, scenario]);
+    setActiveScenarioId(id);
   };
 
   const handleAutoDistribute = ({
@@ -216,6 +269,8 @@ export function useBlightSandbox() {
     setSandboxView,
     sandboxUseSecondaryLatency,
     setSandboxUseSecondaryLatency,
+    sandboxShowEfficacyLines,
+    setSandboxShowEfficacyLines,
     scenarios,
     setScenarios,
     activeScenarioId,
@@ -229,6 +284,7 @@ export function useBlightSandbox() {
     setSandboxWidth,
     setSandboxSpacing,
     handleCloneScenario,
+    handleAddRecordedScenario,
     handleAutoDistribute,
   };
 }

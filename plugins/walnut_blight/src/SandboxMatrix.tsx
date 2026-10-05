@@ -126,7 +126,9 @@ export function SandboxMatrix({ season, type, data, onChange }: SandboxMatrixPro
     if (!value) return 'bg-slate-100 hover:bg-slate-200';
 
     if (type === 'spray') {
-      return value.type === 'chem' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600';
+      if (value.type === 'chem') return 'bg-rose-500 hover:bg-rose-600';
+      if (value.type === 'both') return 'bg-violet-500 hover:bg-violet-600';
+      return 'bg-emerald-500 hover:bg-emerald-600';
     } else {
       return value === 6 ? 'bg-blue-300 hover:bg-blue-400' : 'bg-blue-600 hover:bg-blue-700';
     }
@@ -140,7 +142,17 @@ export function SandboxMatrix({ season, type, data, onChange }: SandboxMatrixPro
     if (!value) return date;
 
     if (type === 'spray') {
-      return `${date}: ${value.type === 'chem' ? 'Chemical' : 'Biological'} Spray (${value.method === 'drone' ? 'Drone' : 'Ground Rig'})`;
+      const typeLabel =
+        value.type === 'chem' ? 'Chemical' : value.type === 'bio' ? 'Biological' : 'Chemical + biological';
+      const methodLabel =
+        value.method === 'drone'
+          ? 'Drone'
+          : value.method === 'helicopter'
+            ? 'Helicopter'
+            : value.method === 'aeroplane'
+              ? 'Aeroplane'
+              : 'Ground Rig';
+      return `${date}: ${typeLabel} Spray (${methodLabel})`;
     } else {
       return `${date}: ${value}h Irrigation`;
     }
@@ -172,6 +184,7 @@ export function SandboxMatrix({ season, type, data, onChange }: SandboxMatrixPro
               <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded-sm bg-slate-100 border border-slate-200"></div> None</div>
               <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded-sm bg-rose-500"></div> Chemical</div>
               <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded-sm bg-emerald-500"></div> Biological</div>
+              <div className="flex items-center gap-1.5"><div className="w-4 h-4 rounded-sm bg-violet-500"></div> Both</div>
             </>
           ) : (
             <>
