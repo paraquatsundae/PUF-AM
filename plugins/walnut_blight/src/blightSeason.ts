@@ -105,22 +105,33 @@ export function filterBySeasonAndRange<T extends { timestamp: number; fullDate?:
   return seasonData.slice(-daysToSubtract);
 }
 
-/** Sandbox chart: forecast days from today, or this Jul–Jun season up to today. */
+/**
+ * Sandbox chart window.
+ * Forecast: today onward. Historical: the same season and time range as the
+ * baseline (1M / 3M / 6M / 1Y / custom), through today.
+ */
 export function filterSandboxScenarioDays<T extends { fullDate: string; timestamp: number }>(
   rows: T[],
-  opts: { sandboxView: 'forecast' | 'historical'; todayStr: string; selectedSeason: string }
+  opts: {
+    sandboxView: 'forecast' | 'historical';
+    todayStr: string;
+    selectedSeason: string;
+    timeRange?: BlightTimeRange;
+    customStartMonth?: number;
+    customEndMonth?: number;
+  }
 ): T[] {
   if (opts.sandboxView === 'forecast') {
     return [...rows.filter((d) => d.fullDate >= opts.todayStr)].sort((a, b) => a.timestamp - b.timestamp);
   }
-  const [startYearStr, endYearSuffixStr] = opts.selectedSeason.split('-');
-  const startYear = parseInt(startYearStr, 10);
-  const fullEndYear = 2000 + parseInt(endYearSuffixStr, 10);
-  const seasonStart = new Date(`${startYear}-07-01T00:00:00Z`).getTime();
-  const seasonEnd = new Date(`${fullEndYear}-06-30T23:59:59Z`).getTime();
-  return [...rows.filter((d) => d.timestamp >= seasonStart && d.timestamp <= seasonEnd && d.fullDate <= opts.todayStr)].sort(
-    (a, b) => a.timestamp - b.timestamp
-  );
+  const ordered = [...rows].sort((a, b) => a.timestamp - b.timestamp);
+  return filterBySeasonAndRange(ordered, {
+    selectedSeason: opts.selectedSeason,
+    timeRange: opts.timeRange ?? '1Y',
+    customStartMonth: opts.customStartMonth ?? 0,
+    customEndMonth: opts.customEndMonth ?? 11,
+    todayStr: opts.todayStr,
+  });
 }
 
 export function mergeObservedAndForecast<T>(

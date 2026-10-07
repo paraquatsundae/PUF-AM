@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { SandboxMatrix } from './SandboxMatrix';
-import { filterSandboxScenarioDays, getCurrentSeasonStr } from './blightSeason';
+import { filterSandboxScenarioDays, getCurrentSeasonStr, type BlightTimeRange } from './blightSeason';
 import type { DailyData, SprayType } from './blightModel';
 import type { SandboxScenario } from './useBlightSandbox';
 import { BlightChartTooltip } from './BlightChartTooltip';
@@ -29,6 +29,9 @@ export function BlightSandboxChart({
   filteredHistoricalData,
   sandboxScenariosData,
   selectedSeason,
+  timeRange,
+  customStartMonth,
+  customEndMonth,
   sandboxUseSecondaryLatency,
   sandboxShowEfficacyLines,
   activeScenario,
@@ -48,6 +51,9 @@ export function BlightSandboxChart({
   filteredHistoricalData: DailyData[];
   sandboxScenariosData: Record<string, DailyData[]>;
   selectedSeason: string;
+  timeRange: BlightTimeRange;
+  customStartMonth: number;
+  customEndMonth: number;
   sandboxUseSecondaryLatency: boolean;
   sandboxShowEfficacyLines: boolean;
   activeScenario: SandboxScenario;
@@ -72,9 +78,66 @@ export function BlightSandboxChart({
         sandboxView,
         todayStr,
         selectedSeason,
+        timeRange,
+        customStartMonth,
+        customEndMonth,
       }),
-    [sandboxScenariosData, activeScenarioId, sandboxView, todayStr, selectedSeason]
+    [sandboxScenariosData, activeScenarioId, sandboxView, todayStr, selectedSeason, timeRange, customStartMonth, customEndMonth]
   );
+
+  const baselineData = React.useMemo(
+    () =>
+      [...(sandboxView === 'forecast' ? allData.filter((d) => d.fullDate >= todayStr) : filteredHistoricalData)].sort(
+        (a, b) => a.timestamp - b.timestamp
+      ),
+    [sandboxView, allData, todayStr, filteredHistoricalData]
+  );
+
+  const plottedRows = React.useMemo(() => {
+    const rows = [...baselineData, ...activeScenarioData];
+    if (!compareAllScenarios) return rows;
+    for (const scenario of scenarios) {
+      if (scenario.id === activeScenarioId) continue;
+      rows.push(
+        ...filterSandboxScenarioDays(sandboxScenariosData[scenario.id] || [], {
+          sandboxView,
+          todayStr,
+          selectedSeason,
+          timeRange,
+          customStartMonth,
+          customEndMonth,
+        })
+      );
+    }
+    return rows;
+  }, [baselineData, activeScenarioData, compareAllScenarios, scenarios, sandboxScenariosData, activeScenarioId, sandboxView, todayStr, selectedSeason, timeRange, customStartMonth, customEndMonth]);
+
+  const xDomain = React.useMemo((): [number, number] | ['dataMin', 'dataMax'] => {
+    if (sandboxView !== 'historical' || plottedRows.length === 0) return ['dataMin', 'dataMax'];
+    let min = plottedRows[0].timestamp;
+    let max = plottedRows[0].timestamp;
+    for (const row of plottedRows) {
+      if (row.timestamp < min) min = row.timestamp;
+      if (row.timestamp > max) max = row.timestamp;
+    }
+    return [min, max];
+  }, [sandboxView, plottedRows]);
+
+  const yDomain = React.useMemo((): [number, number | 'auto'] => {
+    if (sandboxView !== 'historical') return [0, 1.5];
+    let max = 0;
+    for (const row of plottedRows) {
+      max = Math.max(max, row.threat || 0);
+      if (sandboxShowEfficacyLines) max = Math.max(max, row.chem || 0, row.bio || 0);
+      if (sandboxUseSecondaryLatency) max = Math.max(max, row.latentThreat || 0, row.eruptingThreat || 0);
+    }
+    if (max <= 0) return [0, 1];
+    const padded = max * 1.15;
+    if (max >= 0.85) return [0, Math.max(padded, 1.05)];
+    return [0, padded];
+  }, [sandboxView, plottedRows, sandboxShowEfficacyLines, sandboxUseSecondaryLatency]);
+
+  const windowDates = React.useMemo(() => new Set(plottedRows.map((row) => row.fullDate)), [plottedRows]);
 
   return (
             <div className="lg:col-span-8">
@@ -120,7 +183,8 @@ export function BlightSandboxChart({
                         dataKey="timestamp" 
                         xAxisId="baseline"
                         type="number"
-                        domain={['dataMin', 'dataMax']}
+                        domain={xDomain}
+                        allowDataOverflow
                         axisLine={false} 
                         tickLine={false} 
                         tick={{ fill: '#64748b', fontSize: 12 }} 
@@ -129,7 +193,8 @@ export function BlightSandboxChart({
                         minTickGap={40}
                       />
                       <YAxis 
-                        domain={[0, sandboxView === 'forecast' ? 1.5 : 'auto']} 
+                        domain={yDomain}
+                        allowDataOverflow
                         axisLine={false} 
                         tickLine={false} 
                         tick={{ fill: '#64748b', fontSize: 12 }} 
@@ -144,11 +209,11 @@ export function BlightSandboxChart({
                         line would appear and vanish with the scenario.
                       */}
                       <Tooltip content={<BlightChartTooltip />} axisId="baseline" />
-                      <ReferenceLine y={1.0} xAxisId="baseline" stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Critical Threshold', fill: '#ef4444', fontSize: 10 }} />
+                      <ReferenceLine y={1.0} xAxisId="baseline" ifOverflow="hidden" stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: 'Critical Threshold', fill: '#ef4444', fontSize: 10 }} />
                       
                         <Line 
                           type="monotone" 
-                          data={[...(sandboxView === 'forecast' ? allData.filter(d => d.fullDate >= todayStr) : filteredHistoricalData)].sort((a, b) => a.timestamp - b.timestamp)} 
+                          data={baselineData} 
                           dataKey="threat" 
                           xAxisId="baseline"
                           name="Baseline Threat" 
@@ -165,6 +230,9 @@ export function BlightSandboxChart({
                             sandboxView,
                             todayStr,
                             selectedSeason,
+                            timeRange,
+                            customStartMonth,
+                            customEndMonth,
                           });
 
                         return (
@@ -244,22 +312,24 @@ export function BlightSandboxChart({
                       })}
 
                       {/* Render reference lines for active scenario sprays */}
-                      {activeScenario?.sprays && Object.keys(activeScenario.sprays).map(date => (
+                      {activeScenario?.sprays && Object.keys(activeScenario.sprays).filter((date) => windowDates.has(date)).map(date => (
                         <ReferenceLine 
                           key={`sandbox-spray-${date}`} 
                           x={new Date(`${date}T12:00:00Z`).getTime()} 
                           xAxisId="baseline"
+                          ifOverflow="hidden"
                           stroke={activeScenario.color} 
                           strokeDasharray="3 3" 
                         />
                       ))}
 
                       {/* Render reference lines for active scenario irrigation */}
-                      {activeScenario?.irrigation && Object.keys(activeScenario.irrigation).map(date => (
+                      {activeScenario?.irrigation && Object.keys(activeScenario.irrigation).filter((date) => windowDates.has(date)).map(date => (
                         <ReferenceLine 
                           key={`sandbox-irrigation-${date}`} 
                           x={new Date(`${date}T12:00:00Z`).getTime()} 
                           xAxisId="baseline"
+                          ifOverflow="hidden"
                           stroke="#3b82f6" 
                           strokeDasharray="3 3" 
                         />

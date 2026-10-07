@@ -77,6 +77,33 @@ describe('blightSeason', () => {
     expect(historical.map((r) => r.fullDate)).toEqual(['2025-08-01']);
   });
 
+  it('clips a historical sandbox scenario to the same 1M window as the baseline', () => {
+    const rows = Array.from({ length: 40 }, (_, i) => {
+      const date = new Date(Date.UTC(2026, 6, 1 + i, 12));
+      return { fullDate: date.toISOString().slice(0, 10), timestamp: date.getTime() };
+    });
+    const opts = {
+      selectedSeason: '2026-27',
+      timeRange: '1M' as const,
+      customStartMonth: 0,
+      customEndMonth: 11,
+      todayStr: '2026-10-01',
+    };
+    const baseline = filterBySeasonAndRange(rows, opts);
+    const scenario = filterSandboxScenarioDays(rows, {
+      sandboxView: 'historical',
+      todayStr: opts.todayStr,
+      selectedSeason: opts.selectedSeason,
+      timeRange: '1M',
+      customStartMonth: 0,
+      customEndMonth: 11,
+    });
+    expect(scenario.map((r) => r.fullDate)).toEqual(baseline.map((r) => r.fullDate));
+    expect(scenario).toHaveLength(30);
+    expect(scenario[0].fullDate).toBe('2026-07-11');
+    expect(scenario[scenario.length - 1].fullDate).toBe('2026-08-09');
+  });
+
   it('formats local today and adds days on an ISO date', () => {
     expect(todayDateStr(new Date(2026, 7, 27))).toBe('2026-08-27');
     expect(addDaysIso('2026-08-27', 7)).toBe('2026-09-03');

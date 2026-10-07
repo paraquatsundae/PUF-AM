@@ -291,6 +291,9 @@ export function BlightSandboxTab({
               filteredHistoricalData={filteredHistoricalData}
               sandboxScenariosData={sandboxScenariosData}
               selectedSeason={selectedSeason}
+              timeRange={timeRange}
+              customStartMonth={customStartMonth}
+              customEndMonth={customEndMonth}
               sandboxUseSecondaryLatency={sandboxUseSecondaryLatency}
               sandboxShowEfficacyLines={sandboxShowEfficacyLines}
               activeScenario={activeScenario}
