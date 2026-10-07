@@ -58,8 +58,8 @@ export async function importWithRetry<T>(load: () => Promise<T>): Promise<T> {
 }
 
 /** `React.lazy`, with the retry above. Use this for every route and surface. */
-export function lazyWithRetry<T extends ComponentType<never>>(
-  load: () => Promise<{ default: T }>
-): LazyExoticComponent<T> {
+export function lazyWithRetry<P>(
+  load: () => Promise<{ default: ComponentType<P> }>
+): LazyExoticComponent<ComponentType<P>> {
   return lazy(() => importWithRetry(load));
 }

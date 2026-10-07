@@ -107,7 +107,7 @@ export function FarmDiary() {
             />
           ) : (
             <>
-              <DiaryComposer canEdit={canEdit} blocks={blocks} composer={composer} />
+              <DiaryComposer canEdit={canEdit} blocks={blocks} composer={composer} farmId={farmId} />
               <DiaryTimeline
                 farmId={farmId}
                 blocks={blocks}

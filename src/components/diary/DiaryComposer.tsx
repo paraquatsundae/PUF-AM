@@ -1,20 +1,50 @@
 import { Calendar as CalendarIcon, CheckCircle2, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { FarmDiaryComposer } from '../../hooks/useFarmDiaryComposer';
+import type { LogTab } from '../../lib/farmDiaryView';
 import type { OrchardBlock } from '../../lib/mapStore';
 import { cn } from '../../lib/utils';
+import { DiaryBlockPicker } from './DiaryBlockPicker';
 import { DiaryComposerPlanFields } from './DiaryComposerPlanFields';
 import { DiaryComposerSprayFields } from './DiaryComposerSprayFields';
 import { DiaryComposerWaterFields } from './DiaryComposerWaterFields';
 import { IssuePhotoField } from '../map/IssuePhotoField';
 
+const LOG_TABS: { id: LogTab; label: string; active: string; idle: string }[] = [
+  {
+    id: 'plan',
+    label: 'Plan',
+    active: 'bg-amber-500 border-amber-600 text-white shadow-sm',
+    idle: 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100',
+  },
+  {
+    id: 'spray',
+    label: 'Spray',
+    active: 'bg-orange-500 border-orange-600 text-white shadow-sm',
+    idle: 'bg-orange-50 border-orange-200 text-orange-900 hover:bg-orange-100',
+  },
+  {
+    id: 'irrigation',
+    label: 'Water',
+    active: 'bg-sky-500 border-sky-600 text-white shadow-sm',
+    idle: 'bg-sky-50 border-sky-200 text-sky-900 hover:bg-sky-100',
+  },
+];
+
+const SAVE_BUTTON_CLASS: Record<LogTab, string> = {
+  plan: 'bg-amber-600 hover:bg-amber-700',
+  spray: 'bg-orange-600 hover:bg-orange-700',
+  irrigation: 'bg-sky-600 hover:bg-sky-700',
+};
+
 type Props = {
   canEdit: boolean;
   blocks: OrchardBlock[];
   composer: FarmDiaryComposer;
+  farmId?: string;
 };
 
-export function DiaryComposer({ canEdit, blocks, composer }: Props) {
+export function DiaryComposer({ canEdit, blocks, composer, farmId }: Props) {
   if (!canEdit) return null;
 
   const {
@@ -40,8 +70,9 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
     setCarrier,
     adjuvant,
     setAdjuvant,
-    selectedBlockId,
-    setSelectedBlockId,
+    selectedBlockIds,
+    toggleSelectedBlock,
+    clearSelectedBlocks,
     amount,
     setAmount,
     duration,
@@ -114,37 +145,21 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
             className="overflow-hidden border-t border-slate-100"
           >
             <div className="p-4 sm:p-5 space-y-5">
-              <div className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('plan')}
-                  className={cn(
-                    'py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all',
-                    activeTab === 'plan' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  )}
-                >
-                  Plan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('spray')}
-                  className={cn(
-                    'py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all',
-                    activeTab === 'spray' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  )}
-                >
-                  Spray
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('irrigation')}
-                  className={cn(
-                    'py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all',
-                    activeTab === 'irrigation' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  )}
-                >
-                  Water
-                </button>
+              <div className="grid grid-cols-3 gap-1">
+                {LOG_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    aria-pressed={activeTab === tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      'py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg border transition-all',
+                      activeTab === tab.id ? tab.active : tab.idle
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -184,23 +199,13 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1.5 ml-1">
-                          Target Block
-                        </label>
-                        <select
-                          value={selectedBlockId}
-                          onChange={(e) => setSelectedBlockId(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900 transition-all"
-                        >
-                          <option value="">All Blocks / General</option>
-                          {blocks.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name} ({b.areaHa} Ha)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <DiaryBlockPicker
+                        blocks={blocks}
+                        selectedBlockIds={selectedBlockIds}
+                        onToggleBlock={toggleSelectedBlock}
+                        onClearBlocks={clearSelectedBlocks}
+                        farmId={farmId}
+                      />
 
                       {activeTab === 'plan' ? (
                         <DiaryComposerPlanFields
@@ -276,7 +281,10 @@ export function DiaryComposer({ canEdit, blocks, composer }: Props) {
 
                       <button
                         type="submit"
-                        className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2"
+                        className={cn(
+                          'w-full py-4 text-white rounded-xl font-bold uppercase tracking-widest text-xs transition-all shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2',
+                          SAVE_BUTTON_CLASS[activeTab]
+                        )}
                       >
                         {isSaving ? 'Saving…' : activeTab === 'plan' ? 'Save plan' : 'Save log'}
                         <ChevronRight className="w-4 h-4" />

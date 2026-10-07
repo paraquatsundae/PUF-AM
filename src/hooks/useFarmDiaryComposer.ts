@@ -40,7 +40,7 @@ export function useFarmDiaryComposer({
   const [agentName, setAgentName] = useState('');
   const [carrier, setCarrier] = useState('Water');
   const [adjuvant, setAdjuvant] = useState('None');
-  const [selectedBlockId, setSelectedBlockId] = useState<string>('');
+  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
   const [amount, setAmount] = useState('');
   const [duration, setDuration] = useState('');
   const [notes, setNotes] = useState('');
@@ -56,8 +56,15 @@ export function useFarmDiaryComposer({
   const [pendingPhotos, setPendingPhotos] = useState<{ id: string; blob: Blob; src: string }[]>([]);
 
   useEffect(() => {
-    if (focusBlockId) setSelectedBlockId(focusBlockId);
+    if (focusBlockId) setSelectedBlockIds([focusBlockId]);
   }, [focusBlockId]);
+
+  const toggleSelectedBlock = (blockId: string) => {
+    if (saving.current) return;
+    setSelectedBlockIds((prev) =>
+      prev.includes(blockId) ? prev.filter((id) => id !== blockId) : [...prev, blockId]
+    );
+  };
 
   const allChemicals = useMemo(
     () => [...DEFAULT_CHEMICALS, ...(settings.customChemicals || [])],
@@ -93,7 +100,7 @@ export function useFarmDiaryComposer({
     setComposerOpen(true);
     setShowSuccess(false);
     setLinkedIssueId(issue.id);
-    setSelectedBlockId(blockId || '');
+    setSelectedBlockIds(blockId ? [blockId] : []);
     setWorkTitle(title);
     setNotes(issue.note || '');
     setWorkPriority(issue.priority);
@@ -107,12 +114,18 @@ export function useFarmDiaryComposer({
     setSaveError(null);
 
     try {
-      let saved: DiaryEvent | undefined | void;
-      if (activeTab === 'spray') {
-        const finalAgent = showCustomAgent ? customAgent : agentName;
-        const finalCarrier = showCustomCarrier ? customCarrier : carrier;
-        const finalAdjuvant = showCustomAdjuvant ? customAdjuvant : adjuvant;
+      const targets = selectedBlockIds.length === 0 ? [undefined] : [...new Set(selectedBlockIds)];
+      const finalAgent = showCustomAgent ? customAgent : agentName;
+      const finalCarrier = showCustomCarrier ? customCarrier : carrier;
+      const finalAdjuvant = showCustomAdjuvant ? customAdjuvant : adjuvant;
 
+      if (activeTab === 'irrigation') {
+        if (isNaN(parseFloat(amount))) return;
+      } else if (activeTab === 'plan' && !workTitle.trim()) {
+        return;
+      }
+
+      if (activeTab === 'spray') {
         if (showCustomAgent && customAgent) {
           if (sprayType === 'chem' && !allChemicals.includes(customAgent)) {
             updateSettings({ customChemicals: [...(settings.customChemicals || []), customAgent] });
@@ -126,60 +139,83 @@ export function useFarmDiaryComposer({
         if (showCustomAdjuvant && customAdjuvant && !allAdjuvants.includes(customAdjuvant)) {
           updateSettings({ customAdjuvants: [...(settings.customAdjuvants || []), customAdjuvant] });
         }
-
-        saved = await addEvent({
-          date,
-          type: 'spray',
-          status: 'done',
-          blockId: selectedBlockId || undefined,
-          sprayType,
-          applicationMethod,
-          agentName: finalAgent || undefined,
-          carrier: finalCarrier || undefined,
-          adjuvant: finalAdjuvant || undefined,
-          notes: notes || undefined,
-          createdBy,
-        });
-      } else if (activeTab === 'irrigation') {
-        const numAmount = parseFloat(amount);
-        const numDuration = parseFloat(duration);
-        if (isNaN(numAmount)) return;
-        saved = await addEvent({
-          date,
-          type: 'irrigation',
-          status: 'done',
-          blockId: selectedBlockId || undefined,
-          irrigationAmount: numAmount,
-          durationMinutes: isNaN(numDuration) ? undefined : numDuration,
-          notes: notes || undefined,
-          createdBy,
-        });
-      } else {
-        if (!workTitle.trim()) return;
-        const issueId = linkedIssueId || undefined;
-        saved = await addEvent({
-          date,
-          type: 'work',
-          status: 'planned',
-          title: workTitle.trim(),
-          blockId: selectedBlockId || undefined,
-          assignedToName: assigneeName.trim() || undefined,
-          priority: workPriority,
-          notes: notes || undefined,
-          linkedIssueId: issueId,
-          createdBy,
-        });
-        if (issueId) markIssueInProgress(issueId);
       }
 
-      if (saved && farmId && createdBy && pendingPhotos.length) {
-        const { attachEventPhoto } = await import('../lib/attachEventPhoto');
-        for (const row of pendingPhotos) {
-          try {
-            await attachEventPhoto(farmId, saved.id, row.blob, { createdBy });
-          } catch {
-            /* photoStatus is already failed — keep the diary row */
+      const numAmount = parseFloat(amount);
+      const numDuration = parseFloat(duration);
+      let attachEventPhoto: typeof import('../lib/attachEventPhoto').attachEventPhoto | null = null;
+      if (farmId && createdBy && pendingPhotos.length) {
+        attachEventPhoto = (await import('../lib/attachEventPhoto')).attachEventPhoto;
+      }
+
+      const savedBlockIds: string[] = [];
+      let markedIssue = false;
+      for (let i = 0; i < targets.length; i++) {
+        const blockId = targets[i];
+        try {
+          const saved = await addEvent(
+            activeTab === 'spray'
+              ? {
+                  date,
+                  type: 'spray',
+                  status: 'done',
+                  blockId,
+                  sprayType,
+                  applicationMethod,
+                  agentName: finalAgent || undefined,
+                  carrier: finalCarrier || undefined,
+                  adjuvant: finalAdjuvant || undefined,
+                  notes: notes || undefined,
+                  createdBy,
+                }
+              : activeTab === 'irrigation'
+                ? {
+                    date,
+                    type: 'irrigation',
+                    status: 'done',
+                    blockId,
+                    irrigationAmount: numAmount,
+                    durationMinutes: isNaN(numDuration) ? undefined : numDuration,
+                    notes: notes || undefined,
+                    createdBy,
+                  }
+                : {
+                    date,
+                    type: 'work',
+                    status: 'planned',
+                    title: workTitle.trim(),
+                    blockId,
+                    assignedToName: assigneeName.trim() || undefined,
+                    priority: workPriority,
+                    notes: notes || undefined,
+                    linkedIssueId: i === 0 ? linkedIssueId || undefined : undefined,
+                    createdBy,
+                  }
+          );
+          if (blockId) savedBlockIds.push(blockId);
+          if (!markedIssue && activeTab === 'plan' && linkedIssueId) {
+            markIssueInProgress(linkedIssueId);
+            markedIssue = true;
           }
+          const savedId =
+            saved && typeof saved === 'object' && 'id' in saved && typeof saved.id === 'string'
+              ? saved.id
+              : null;
+          if (savedId && attachEventPhoto && farmId && createdBy) {
+            for (const row of pendingPhotos) {
+              try {
+                await attachEventPhoto(farmId, savedId, row.blob, { createdBy });
+              } catch {
+                /* photoStatus is already failed — keep the diary row */
+              }
+            }
+          }
+        } catch (error) {
+          if (savedBlockIds.length > 0) {
+            const savedIds = new Set(savedBlockIds);
+            setSelectedBlockIds((prev) => prev.filter((id) => !savedIds.has(id)));
+          }
+          throw error;
         }
       }
 
@@ -191,7 +227,7 @@ export function useFarmDiaryComposer({
       setShowCustomCarrier(false);
       setCustomAdjuvant('');
       setShowCustomAdjuvant(false);
-      setSelectedBlockId('');
+      setSelectedBlockIds([]);
       setDuration('');
       setNotes('');
       setWorkTitle('');
@@ -236,8 +272,10 @@ export function useFarmDiaryComposer({
     setCarrier,
     adjuvant,
     setAdjuvant,
-    selectedBlockId,
-    setSelectedBlockId,
+    selectedBlockIds,
+    setSelectedBlockIds,
+    toggleSelectedBlock,
+    clearSelectedBlocks: () => setSelectedBlockIds([]),
     amount,
     setAmount,
     duration,
