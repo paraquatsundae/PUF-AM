@@ -264,7 +264,7 @@ const deployArgs = [
   // the hosted web hides Freenet by host capability (it has no node), and the
   // `cloud` API surface never registers /api/mist/freenet/* in the first place.
   // Plans/FREENET_NETWORK_PACK.md decision 5.
-  `--set-build-env-vars=^|^VITE_APP_URL=${viteAppUrl}^|^VITE_CARTO_BASEMAP_KEY=${cartoKey}`,
+  `--set-build-env-vars=^|^VITE_APP_URL=${viteAppUrl}|VITE_CARTO_BASEMAP_KEY=${cartoKey}`,
   `--set-env-vars=NODE_ENV=production,FIREBASE_PROJECT_ID=${projectId},FIRESTORE_DATABASE_ID=${firestoreDb},APP_URL=${appUrl}`,
   `--set-secrets=${[DPIRD_SECRET, ENROLL_SECRET, ...notifySecrets]
     .map((name) => `${name}=${name}:latest`)
