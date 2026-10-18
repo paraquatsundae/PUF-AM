@@ -268,7 +268,7 @@ npx wrangler login   # or export CLOUDFLARE_API_TOKEN=...
    APP_URL=https://am.pufworks.farm
    VITE_APP_URL=https://am.pufworks.farm
    ```
-   `npm run deploy:cloudrun` now sets runtime `APP_URL` and passes `VITE_APP_URL` and `VITE_CARTO_BASEMAP_KEY` as **build** env vars — required because `.env*` is in `.gcloudignore`. Satellite imagery goes through `/api/tiles`. The CARTO key is the street-map exception — see [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md).
+   `npm run deploy:cloudrun` sets runtime `APP_URL`. `.env*` is in `.gcloudignore`, and Cloud Run does not pass build env vars into `docker build`, so the CARTO street-map key is uploaded as a gitignored `.carto-basemap-key` and deleted after Vite inlines it. Satellite imagery goes through `/api/tiles`. See [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md).
 
 2. **Firebase Auth** authorized domains — add `am.pufworks.farm` (keep the `*.run.app` host until cutover is proven):  
    https://console.firebase.google.com/project/pufworks-am/authentication/settings

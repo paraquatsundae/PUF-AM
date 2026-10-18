@@ -18,7 +18,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -216,10 +216,10 @@ let appUrl = envAppUrl || 'https://am.pufworks.farm';
 const fromEnvFile = readEnvValue('APP_URL');
 if (fromEnvFile && !fromEnvFile.includes('localhost')) appUrl = fromEnvFile;
 
-// Vite bakes VITE_* at image build time; .env is in .gcloudignore so pass build env explicitly.
-// Satellite imagery still has no client key (/api/tiles). Street tiles and the
-// satellite labels do: CARTO forbids a proxy, so the browser calls them with
-// VITE_CARTO_BASEMAP_KEY. The Dockerfile declares that ARG. See
+// .env is in .gcloudignore. Cloud Run does not pass --set-build-env-vars into
+// `docker build` (confirmed on the 18 Oct 2026 build: no --build-arg). The
+// CARTO key therefore goes up as .carto-basemap-key, which the Dockerfile reads
+// and deletes. .env itself stays home — it holds server secrets. See
 // Plans/API_KEY_SECURITY.md.
 let viteAppUrl = appUrl;
 const viteFromEnvFile = readEnvValue('VITE_APP_URL');
@@ -264,7 +264,7 @@ const deployArgs = [
   // the hosted web hides Freenet by host capability (it has no node), and the
   // `cloud` API surface never registers /api/mist/freenet/* in the first place.
   // Plans/FREENET_NETWORK_PACK.md decision 5.
-  `--set-build-env-vars=^|^VITE_APP_URL=${viteAppUrl}|VITE_CARTO_BASEMAP_KEY=${cartoKey}`,
+  `--set-build-env-vars=VITE_APP_URL=${viteAppUrl}`,
   `--set-env-vars=NODE_ENV=production,FIREBASE_PROJECT_ID=${projectId},FIRESTORE_DATABASE_ID=${firestoreDb},APP_URL=${appUrl}`,
   `--set-secrets=${[DPIRD_SECRET, ENROLL_SECRET, ...notifySecrets]
     .map((name) => `${name}=${name}:latest`)
@@ -273,11 +273,24 @@ const deployArgs = [
 
 if (dryRun) {
   console.log(`  [dry-run] would run: gcloud ${redactArgs(deployArgs)}`);
+  console.log('  [dry-run] would upload .carto-basemap-key with the source, then delete it locally.');
   console.log('\nDry run complete — nothing was deployed.');
   process.exit(0);
 }
 
+const cartoKeyFile = join(repoRoot, '.carto-basemap-key');
+const removeCartoKeyFile = () => {
+  try {
+    rmSync(cartoKeyFile, { force: true });
+  } catch {
+    /* the next deploy overwrites it */
+  }
+};
+process.on('exit', removeCartoKeyFile);
+writeFileSync(cartoKeyFile, `${cartoKey}\n`, { mode: 0o600 });
+
 runGcloud(deployArgs, { mutates: true });
+removeCartoKeyFile();
 
 const url = runGcloud(
   ['run', 'services', 'describe', service, '--region', region, '--format=value(status.url)'],

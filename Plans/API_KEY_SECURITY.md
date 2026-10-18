@@ -101,10 +101,11 @@ It has to travel on the URL the browser requests. The [Basemap Terms](https://ca
 forbid proxying or caching these tiles on our server (section 9.c), so they do
 not go through `/api/tiles`, and this is the one provider key that uses the
 `VITE_` prefix. The value stays in `.env` and is never committed. Vite inlines
-it into the build that loads that file. `scripts/deploy-cloudrun.mjs` passes it
-as a Cloud Run build env var; the Dockerfile declares the `ARG` so the image
-build can see it, then clears it from the runtime environment. The key is still
-visible in the shipped JavaScript, which is how a CARTO tile URL works.
+it into the build that loads that file. Cloud Run does not forward
+`--set-build-env-vars` into `docker build`, so `scripts/deploy-cloudrun.mjs`
+uploads a gitignored `.carto-basemap-key` with the source. The Dockerfile reads
+that file for the Vite build and deletes it. The key is still visible in the
+shipped JavaScript, which is how a CARTO tile URL works.
 
 Attribution on every CARTO layer, and in the README, is © OpenStreetMap
 contributors, © CARTO, both linked, as on [carto.com/attribution](https://carto.com/attribution/).
