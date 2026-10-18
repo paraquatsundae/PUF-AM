@@ -89,7 +89,7 @@ const gcloud = findGcloud();
 
 function runGcloud(args, { capture = false, input, allowFailure = false, mutates = false } = {}) {
   if (dryRun && mutates) {
-    console.log(`  [dry-run] skipped: gcloud ${args.join(' ')}`);
+    console.log(`  [dry-run] skipped: gcloud ${redactArgs(args)}`);
     return { status: 0, stdout: '', stderr: '' };
   }
   const command = isWindows ? winQuote(gcloud) : gcloud;
@@ -107,6 +107,13 @@ function runGcloud(args, { capture = false, input, allowFailure = false, mutates
     die(`gcloud ${args[0]} ${args[1] ?? ''} failed (exit ${result.status}).`);
   }
   return result;
+}
+
+/** Keep the CARTO key out of deploy logs. It still ends up in the client bundle. */
+function redactArgs(args) {
+  return args
+    .map((arg) => arg.replace(/VITE_CARTO_BASEMAP_KEY=[^^,]*/g, 'VITE_CARTO_BASEMAP_KEY=<redacted>'))
+    .join(' ');
 }
 
 /** Minimal `.env` reader: the deploy needs three keys, not a process-wide load. */
@@ -210,15 +217,26 @@ const fromEnvFile = readEnvValue('APP_URL');
 if (fromEnvFile && !fromEnvFile.includes('localhost')) appUrl = fromEnvFile;
 
 // Vite bakes VITE_* at image build time; .env is in .gcloudignore so pass build env explicitly.
-// No map key here any more: satellite imagery goes through /api/tiles on the
-// server, so nothing map-related needs to reach the browser. See
+// Satellite imagery still has no client key (/api/tiles). Street tiles and the
+// satellite labels do: CARTO forbids a proxy, so the browser calls them with
+// VITE_CARTO_BASEMAP_KEY. The Dockerfile declares that ARG. See
 // Plans/API_KEY_SECURITY.md.
 let viteAppUrl = appUrl;
 const viteFromEnvFile = readEnvValue('VITE_APP_URL');
 if (viteFromEnvFile && !viteFromEnvFile.includes('localhost')) viteAppUrl = viteFromEnvFile;
 
+const cartoKey =
+  process.env.VITE_CARTO_BASEMAP_KEY?.trim().replace(/^["']|["']$/g, '') ||
+  readEnvValue('VITE_CARTO_BASEMAP_KEY');
+if (!cartoKey) {
+  die(
+    'VITE_CARTO_BASEMAP_KEY is missing from .env. Street tiles need it or the live map shows "API KEY REQUIRED". See Plans/API_KEY_SECURITY.md.',
+  );
+}
+
 console.log(`APP_URL:  ${appUrl}`);
 console.log(`Firestore: ${firestoreDb}`);
+console.log('CARTO basemap key: present (not printed)');
 console.log('Building and deploying (Cloud Build + Cloud Run)...');
 
 const deployArgs = [
@@ -246,7 +264,7 @@ const deployArgs = [
   // the hosted web hides Freenet by host capability (it has no node), and the
   // `cloud` API surface never registers /api/mist/freenet/* in the first place.
   // Plans/FREENET_NETWORK_PACK.md decision 5.
-  `--set-build-env-vars=VITE_APP_URL=${viteAppUrl}`,
+  `--set-build-env-vars=^|^VITE_APP_URL=${viteAppUrl}^|^VITE_CARTO_BASEMAP_KEY=${cartoKey}`,
   `--set-env-vars=NODE_ENV=production,FIREBASE_PROJECT_ID=${projectId},FIRESTORE_DATABASE_ID=${firestoreDb},APP_URL=${appUrl}`,
   `--set-secrets=${[DPIRD_SECRET, ENROLL_SECRET, ...notifySecrets]
     .map((name) => `${name}=${name}:latest`)
@@ -254,7 +272,7 @@ const deployArgs = [
 ];
 
 if (dryRun) {
-  console.log(`  [dry-run] would run: gcloud ${deployArgs.join(' ')}`);
+  console.log(`  [dry-run] would run: gcloud ${redactArgs(deployArgs)}`);
   console.log('\nDry run complete — nothing was deployed.');
   process.exit(0);
 }

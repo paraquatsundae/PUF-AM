@@ -1,6 +1,6 @@
 # Developer Notes: Architecture
 
-**Last updated:** 14 August 2026  
+**Last updated:** 18 October 2026  
 **Current shape:** One React SPA in three shells — workshop (`npm run dev`), Electron desktop (AppImage / portable exe), Capacitor APK. Firebase Auth + invite PIN is the shipping cloud path; mist/Freenet stays experimental.  
 **Companions:** [`Plans/ROADMAP.md`](Plans/ROADMAP.md) · [`Plans/NAMING.md`](Plans/NAMING.md) · [`Plans/CROP_PACK_PLUGIN.md`](Plans/CROP_PACK_PLUGIN.md) · [`Plans/APK_FREENET_HOST.md`](Plans/APK_FREENET_HOST.md) · **today:** [`Plans/DAY_RUN_2026_09_15.md`](Plans/DAY_RUN_2026_09_15.md)
 
@@ -263,6 +263,10 @@ classDiagram
 *   **Farm data export (v1 wired):** Human-readable `farm-export.json` (+ optional xlsx / photo zip) from local IndexedDB — parallel to Firestore; see [`Plans/FARM_EXPORT_JSON_XLSX.md`](Plans/FARM_EXPORT_JSON_XLSX.md). Complements `.pufom` device sync — does not replace it.
 *   **Auth:** Invite PIN sessions (not Google-only). Workshop mode can run UI without Firestore. See §4.1 Auth UX.
 *   **Weather:** Prefer Firestore cache + Cloud Functions refresh; client may ensure/backfill in dev.
+
+### 4.0 Map tiles (18 Oct 2026)
+
+Satellite photos come from Landgate through `/api/tiles`. The street map (`light_all`) and the place names drawn over satellite (`voyager_only_labels`) are CARTO raster tiles, requested by the browser. `VITE_CARTO_BASEMAP_KEY` in `.env` is what replaces the "API KEY REQUIRED" tiles; CARTO's terms forbid a server proxy, so this is the one client map key, and it is baked at build time rather than stored as a server secret. Credit on the map and in the README: © OpenStreetMap contributors, © CARTO. See [`Plans/API_KEY_SECURITY.md`](Plans/API_KEY_SECURITY.md).
 
 ### 4.1 Auth UX (invite PIN → device session → unlock PIN)
 

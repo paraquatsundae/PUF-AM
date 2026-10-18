@@ -75,7 +75,8 @@ Home shows open issues and plans (plus a blight snapshot when the walnut pack is
    Edit `firebase-applet-config.json` with your Firebase project credentials.
    Edit `.env` with your API keys:
    - `DPIRD_API_KEY` — WA DPIRD weather API (**server only** — never `VITE_`)
-   - `TILE_UPSTREAM_URL` — optional; overrides the satellite imagery upstream (defaults to Landgate SLIP). Server only — there is no client map key. See `Plans/API_KEY_SECURITY.md`
+   - `TILE_UPSTREAM_URL` — optional; overrides the satellite imagery upstream (defaults to Landgate SLIP). Server only. See `Plans/API_KEY_SECURITY.md`
+   - `VITE_CARTO_BASEMAP_KEY` — CARTO key for the street map and satellite place names. Request one at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/). It is baked into the bundle that loads `.env`; do not commit the value
    - `ALLOWED_ORIGINS` — optional; comma-separated CORS allowlist. Unlisted origins get no CORS header
    - `APP_URL` — `http://localhost:3000` for local dev; Cloud Run URL after publish
    - `VITE_APP_URL` — optional; set to Cloud Run **App URL** after publish
@@ -168,6 +169,14 @@ npx tsx scripts/setAdminClaim.ts <firebase-auth-uid>
 ## Credit
 
 Alex ([aleki51](https://github.com/aleki51)) made on-device diary saves durable and stored each local farm entity as its own IndexedDB record. A save commits on this device before cloud sync. See [`Plans/LOCAL_DATA_STORAGE.md`](Plans/LOCAL_DATA_STORAGE.md).
+
+## Map attribution
+
+The street map, and the place names drawn over the satellite view, are CARTO basemaps:
+
+© [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © [CARTO](https://carto.com/attribution/)
+
+Satellite photos are © Western Australian Land Information Authority (Landgate) — SLIP, served by this app's `/api/tiles` proxy. The same credits appear on the map itself.
 
 ## License
 

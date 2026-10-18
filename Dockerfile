@@ -13,8 +13,19 @@ RUN npm ci
 
 COPY . .
 
+# Vite inlines VITE_* at build time. Cloud Run's --set-build-env-vars arrive as
+# Docker build-args, and a RUN step cannot see them unless they are declared.
+# The CARTO key is dropped from the runtime environment after the bundle has it.
+# Plans/API_KEY_SECURITY.md
+ARG VITE_APP_URL
+ARG VITE_CARTO_BASEMAP_KEY
+ENV VITE_APP_URL=$VITE_APP_URL
+ENV VITE_CARTO_BASEMAP_KEY=$VITE_CARTO_BASEMAP_KEY
+
 # Web build (absolute asset paths for Cloud Run)
 RUN npm run build
+
+ENV VITE_CARTO_BASEMAP_KEY=
 
 ENV NODE_ENV=production
 ENV PORT=8080

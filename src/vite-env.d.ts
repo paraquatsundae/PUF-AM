@@ -13,7 +13,11 @@ declare module '*.wasm?url' {
 interface ImportMetaEnv {
   /** Baked from package.json `version` by vite.config.ts — Plans/NAMING.md §2. */
   readonly VITE_APP_VERSION?: string
-  /** Maps JS API — client-visible; restrict in Google Cloud (see Plans/API_KEY_SECURITY.md) */
+  /**
+   * CARTO basemap key. On the tile URL the browser requests — CARTO forbids a
+   * server proxy. Value stays in `.env`. Plans/API_KEY_SECURITY.md.
+   */
+  readonly VITE_CARTO_BASEMAP_KEY?: string
   /** Capacitor / device API origin, e.g. http://10.0.2.2:3000 or http://192.168.x.x:3000 */
   readonly VITE_API_BASE_URL?: string
   readonly VITE_WORKSHOP_MODE?: string

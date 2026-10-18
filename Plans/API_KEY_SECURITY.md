@@ -1,6 +1,6 @@
 # API key security (workshop)
 
-**Last updated:** 13 September 2026
+**Last updated:** 18 October 2026
 
 ## DPIRD (weather) — server only
 
@@ -17,11 +17,12 @@ Clients never call DPIRD directly — they hit `/api/weather/*` and Firestore `w
 
 ---
 
-## Map imagery — no client key at all
+## Map imagery
 
-There is no map key any more. `VITE_GOOGLE_MAPS_API_KEY`, `GoogleMapsLayer`,
+Satellite imagery has no client key. `VITE_GOOGLE_MAPS_API_KEY`, `GoogleMapsLayer`,
 `resolveGoogleMapsApiKey` and the `$mapsKey` block in `scripts/deploy-cloudrun.ps1`
-are gone, and so is the hardcoded `server.arcgisonline.com` layer.
+are gone, and so is the hardcoded `server.arcgisonline.com` layer. Street tiles
+are the exception in [CARTO street tiles](#carto-street-tiles--18-oct-2026) below.
 
 Satellite tiles come from **`GET /api/tiles/:z/:x/:y`** on *whichever PUF-AM
 server the client is already talking to* ([`server/tileProxyRoutes.ts`](../server/tileProxyRoutes.ts)),
@@ -88,6 +89,32 @@ is there:
   client release. Offline packs pull up to 20,000 tiles into IndexedDB, and
   bulk extraction is commonly permissioned separately from viewing — read the
   chosen provider's terms with that in mind.
+
+### CARTO street tiles — 18 Oct 2026
+
+The street map (`light_all`) and the place names on the satellite view
+(`rastertiles/voyager_only_labels`) are CARTO raster tiles. Since 25 September
+2026 a request without a CARTO basemaps key is answered with an "API KEY
+REQUIRED" tile. `VITE_CARTO_BASEMAP_KEY` is that key.
+
+It has to travel on the URL the browser requests. The [Basemap Terms](https://carto.com/legal/basemap-terms/)
+forbid proxying or caching these tiles on our server (section 9.c), so they do
+not go through `/api/tiles`, and this is the one provider key that uses the
+`VITE_` prefix. The value stays in `.env` and is never committed. Vite inlines
+it into the build that loads that file. `scripts/deploy-cloudrun.mjs` passes it
+as a Cloud Run build env var; the Dockerfile declares the `ARG` so the image
+build can see it, then clears it from the runtime environment. The key is still
+visible in the shipped JavaScript, which is how a CARTO tile URL works.
+
+Attribution on every CARTO layer, and in the README, is © OpenStreetMap
+contributors, © CARTO, both linked, as on [carto.com/attribution](https://carto.com/attribution/).
+
+Someone who runs their own copy requests their own key at
+[carto.com/basemaps/apikey](https://carto.com/basemaps/apikey/). Research, teaching
+and non-profit use is free up to 5 million tile requests a month. Use by a
+business in the course of its trade is free up to 1 million, then a paid plan.
+The GitHub Actions APK build has no `.env`, so a release APK keeps the notice
+until that workflow is given `VITE_CARTO_BASEMAP_KEY`.
 
 ---
 

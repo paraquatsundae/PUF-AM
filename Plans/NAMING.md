@@ -115,10 +115,11 @@ Related plans (not duplicated here):
 | `VITE_APP_VERSION` | Client (build-time) | Set by `vite.config.ts` from `package.json` `version`. Do not put in `.env` |
 | `VITE_API_BASE_URL` | Client (build-time) | Physical device → LAN IP of dev hub |
 | `VITE_CAPACITOR` | Build script | Set by `build:android` — not usually in `.env` |
-| `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in**. Vite inlines it. A local `.env` with `true` fails `audit:bundle`; Cloud Run must leave it unset (the deploy script does). Packaged Android (`scripts/build-android-web.mjs` / `apk:debug`) and desktop (`scripts/build-desktop-web.mjs`) **force `false`** so a workshop `.env` cannot leak into an APK or AppImage. There is no client Maps key — imagery is `/api/tiles`. |
+| `VITE_WORKSHOP_MODE` | Client | Local UI without Firestore — **opt-in**. Vite inlines it. A local `.env` with `true` fails `audit:bundle`; Cloud Run must leave it unset (the deploy script does). Packaged Android (`scripts/build-android-web.mjs` / `apk:debug`) and desktop (`scripts/build-desktop-web.mjs`) **force `false`** so a workshop `.env` cannot leak into an APK or AppImage. Satellite imagery is `/api/tiles`. Street tiles use `VITE_CARTO_BASEMAP_KEY`. |
 | `VITE_REQUIRE_AUTH` | Client | Forces login even if workshop enabled |
 | `VITE_MIST_EXPERIMENTAL` | Client (build-time) | Opens the mist gate. **Inlined by Vite** — no runtime flag can un-gate a bundle built without it. Packaged AppImage (`scripts/build-desktop-web.mjs`) and APK (`scripts/build-android-web.mjs`) **force `true`** unless `--no-mist` — a stray `false` in the shell must not drop Freenet Sync from desktop dist. Since 2026-09-10 the login Freenet option also needs a *host capability* (`src/lib/freenetHostCapability.ts`), so `deploy-cloudrun.mjs` no longer bakes it — the hosted web hides Freenet either way (`FREENET_NETWORK_PACK.md` decision 5) |
 | `VITE_MIST_FREENET_API` | Client (build-time) | Origin for `/api/mist/freenet/*` when it is not same-origin. On Capacitor this is what makes the runtime `android-hub` instead of `android-no-host` — see [`reference/APK_FREENET_PLUGIN.md`](reference/APK_FREENET_PLUGIN.md) §7 |
+| `VITE_CARTO_BASEMAP_KEY` | Client (build-time) | CARTO key for the street map and the place names on satellite. On the tile URL the browser requests — CARTO forbids proxying these tiles through `/api/tiles`. Value stays in `.env`. Cloud Run bakes it (`scripts/deploy-cloudrun.mjs`). A GitHub Actions APK has no `.env`, so it keeps the "API KEY REQUIRED" tiles until that workflow is given the key. [`API_KEY_SECURITY.md`](API_KEY_SECURITY.md) |
 | `CAP_PACKAGED` | Build script | `1` drops `server.url` from the Capacitor config so the WebView loads its own assets. Set by `apk:debug`; without it the APK points at the emulator address `http://10.0.2.2:3000` |
 | `CAP_SERVER_URL` | Build script | Live-reload origin for a workshop APK (`npx cap sync`) |
 | `MIST_FREENET` | Server / desktop main | `1` enables the in-process Freenet peer (and, on desktop, starts the bundled node) |
@@ -132,7 +133,7 @@ Related plans (not duplicated here):
 | `PUF_CLOUD_API_BASE` | Desktop main | Override for cloud-only routes (`/api/auth/*`, `/api/weather/*`); default `https://am.pufworks.farm` |
 | `DPIRD_API_KEY` | **Server only** | Never `VITE_*` — would bake into APK |
 
-Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys that must not ship in the client bundle **never** use the `VITE_` prefix.
+Template: [`.env.example`](../.env.example). **Rule:** secrets and provider keys that must not ship in the client bundle **never** use the `VITE_` prefix. Exception, 18 Oct 2026: `VITE_CARTO_BASEMAP_KEY`, which CARTO requires on the browser tile URL.
 
 ---
 
