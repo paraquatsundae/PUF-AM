@@ -47,6 +47,14 @@ function statusOf(error: unknown): number {
   return (error as { status?: number })?.status || 500;
 }
 
+type WebPushApi = {
+  setVapidDetails: (subject: string, publicKey: string, privateKey: string) => void;
+  sendNotification: (
+    sub: { endpoint: string; keys: { p256dh: string; auth: string } },
+    payload: string
+  ) => Promise<unknown>;
+};
+
 async function senderProfile(uid: string): Promise<{
   role: string;
   farmId: string;
@@ -94,13 +102,19 @@ async function pushToSubscriptions(
 ): Promise<{ delivered: boolean; dead: string[] }> {
   const pair = vapidPair();
   if (!pair || subs.length === 0) return { delivered: false, dead: [] };
-  const webpush = (await import('web-push')) as {
-    setVapidDetails: (subject: string, publicKey: string, privateKey: string) => void;
-    sendNotification: (
-      sub: { endpoint: string; keys: { p256dh: string; auth: string } },
-      payload: string
-    ) => Promise<unknown>;
+  // CJS interop: setVapidDetails and sendNotification are on default, not the namespace.
+  const loaded = (await import('web-push')) as {
+    default?: WebPushApi;
+    setVapidDetails?: WebPushApi['setVapidDetails'];
+    sendNotification?: WebPushApi['sendNotification'];
   };
+  const webpush =
+    typeof loaded.setVapidDetails === 'function' && typeof loaded.sendNotification === 'function'
+      ? loaded
+      : loaded.default;
+  if (!webpush || typeof webpush.setVapidDetails !== 'function') {
+    throw new Error('Web push library did not load.');
+  }
   webpush.setVapidDetails(appUrl(), pair.publicKey, pair.privateKey);
   const dead: string[] = [];
   let delivered = false;
