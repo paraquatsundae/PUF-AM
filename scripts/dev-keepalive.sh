@@ -21,6 +21,9 @@ LOG="${PUFAM_DEV_LOG:-/tmp/pufam-dev.log}"
 PIDFILE="${PUFAM_DEV_PIDFILE:-/tmp/pufam-dev-keepalive.pid}"
 SLEEP_SECS="${PUFAM_DEV_RESTART_SLEEP:-2}"
 
+# Launcher flock lives on fd 9. Drop it if this process inherited the descriptor.
+exec 9<&- || true
+
 echo $$ >"$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
