@@ -11,6 +11,7 @@ import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestoreErrors';
 import { isWorkshopMode } from '../lib/workshopMode';
+import { readWorkshopFarm, subscribeWorkshopFarm } from '../lib/workshopFarmState';
 import { isMistFarmSessionActive, tryLoadMistFarmSession } from '../mist/mistFarmSession.ts';
 import { ensureBrowserMistStore, resetBrowserMistStore } from '../mist/createFarmStore.ts';
 import { leaveFarmSession } from '../lib/leaveFarmSession.ts';
@@ -233,6 +234,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [userData?.farmId]);
 
+  // Workshop keeps Install / Activate / Deactivate in localStorage, not Firestore.
+  useEffect(() => {
+    if (!isWorkshopMode()) return;
+    const apply = () => {
+      const local = readWorkshopFarm();
+      if (!local) return;
+      setFarmEnabledModules(resolveFarmEnabledModules(local.modules));
+      setFarmCropPacks(resolveFarmCropPacks(local.cropPacks));
+    };
+    apply();
+    return subscribeWorkshopFarm(apply);
+  }, []);
+
   // BYO weather URL lives on their Firestore; cache it so apiUrl is sync.
   useEffect(() => {
     if (isMistFarmSessionActive() || !isByoFirebase()) {
@@ -249,7 +263,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshFarmModules = async () => {
     const farmId = userData?.farmId;
-    if (!farmId || isWorkshopMode() || isMistFarmSessionActive()) {
+    if (isWorkshopMode()) {
+      const local = readWorkshopFarm();
+      if (local) setFarmEnabledModules(resolveFarmEnabledModules(local.modules));
+      return;
+    }
+    if (!farmId || isMistFarmSessionActive()) {
       setFarmEnabledModules(allFarmModules());
       return;
     }
@@ -263,7 +282,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshFarmCropPacks = async () => {
     const farmId = userData?.farmId;
-    if (!farmId || isWorkshopMode() || isMistFarmSessionActive()) {
+    if (isWorkshopMode()) {
+      const local = readWorkshopFarm();
+      setFarmCropPacks(local ? resolveFarmCropPacks(local.cropPacks) : {});
+      return;
+    }
+    if (!farmId || isMistFarmSessionActive()) {
       setFarmCropPacks({});
       return;
     }

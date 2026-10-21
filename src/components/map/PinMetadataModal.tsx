@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { InfrastructurePin } from '../../lib/mapStore';
+import { PackSurfaces } from '../PackSurfaces';
 import {
   getInfraType,
   INFRA_TYPES,
@@ -158,6 +159,8 @@ export function PinMetadataModal({
                           placeholder="Optional notes"
                         />
                       </div>
+
+                      <PackSurfaces surface="pinMetadataExtra" pin={pin} />
 
                       <div className="space-y-1.5">
                         <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Coordinates</label>

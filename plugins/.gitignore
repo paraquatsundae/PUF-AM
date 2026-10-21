@@ -25,3 +25,5 @@
 !freenet_host/**
 !farm_feed/
 !farm_feed/**
+!sensors/
+!sensors/**

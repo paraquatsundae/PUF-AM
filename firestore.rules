@@ -538,6 +538,12 @@ service cloud.firestore {
              (!('setAt' in data) || (data.setAt is string && data.setAt.size() < 40));
     }
 
+    function isValidSensorSettings(data) {
+      return hasOnlyAllowedFields(['bindings']) &&
+             data.bindings is map &&
+             data.bindings.size() <= 200;
+    }
+
     function isValidChillPortionsSettings(data) {
       return hasOnlyAllowedFields([
                'weatherSource', 'latitude',
@@ -1150,6 +1156,13 @@ service cloud.firestore {
         allow create: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidChillPortionsSettings(request.resource.data);
         allow update: if canMutateFarm(farmId) && isFarmAdmin(farmId) && isValidChillPortionsSettings(request.resource.data);
         allow delete: if canMutateFarm(farmId) && isFarmAdmin(farmId);
+      }
+
+      match /settings/sensors {
+        allow read: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidSensorSettings(request.resource.data);
+        allow update: if canMutateFarm(farmId) && isValidSensorSettings(request.resource.data);
+        allow delete: if canMutateFarm(farmId);
       }
 
       match /settings/assets {

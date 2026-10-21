@@ -76,6 +76,8 @@ Mappable farm assets beyond paddocks/tracks. Catalog: `shared/farm/infraTypes.ts
 | `fuel` | Fuel point | point | Diesel / AdBlue / storage |
 | `hazard` | Hazard | point | Powerlines, soft ground, chem store, etc. |
 
+**Sensor class (2026-10-20):** `weather`, `soil`, and `irrigation` stay these three pin types (`isSensorInfraType` in `infraTypes.ts`). Location and online/offline stay on the pin. The sensors pack (`plugins/sensors`, Field nav `/sensors`, `settings/sensors`) names them and stores a source stub (`manual` / `dpird` / `other`) plus an optional paddock. Install is opt-in. Delete wipes bindings only. Live vendor polling is later.
+
 **Draw UX (Farm Map → Infrastructure):** pick type chips → Plus / Leaflet draw toolbar uses that type’s mode (marker / polyline / polygon). Blocks tab still draws paddock polygons; Tracks tab still draws track polylines.
 
 **Fields:** `type`, `name`, `status`, `lat`/`lng` (always — centroid for area/line), optional `geojson`, `notes`, `trackerId` (vehicles).

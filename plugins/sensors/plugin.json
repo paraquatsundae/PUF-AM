@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "sensors",
+  "version": "0.1.0",
+  "label": "Sensors",
+  "blurb": "Name weather, soil, and irrigation pins and set their input sources. Place the dots on the Farm Map.",
+  "category": "generic",
+  "modules": ["sensors"],
+  "settingsDocId": "sensors",
+  "primaryPath": "/sensors",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

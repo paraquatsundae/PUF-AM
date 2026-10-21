@@ -41,7 +41,7 @@ describe('pluginsCatalog', () => {
     expect(crop.entries.some((e) => e.id === 'chill_portions')).toBe(true);
     const generic = groups.find((g) => g.category === 'generic')!;
     expect(generic.entries.map((e) => e.id)).toEqual(
-      expect.arrayContaining(['water', 'nutrition', 'harvest', 'farm_feed'])
+      expect.arrayContaining(['water', 'nutrition', 'harvest', 'farm_feed', 'sensors'])
     );
     expect(generic.entries.find((e) => e.id === 'farm_feed')?.kind).toBe('farm');
     expect(crop.entries.some((e) => e.id === 'drying')).toBe(true);

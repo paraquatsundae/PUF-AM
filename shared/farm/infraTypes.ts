@@ -20,6 +20,10 @@ export const INFRA_TYPE_IDS = [
 
 export type InfraTypeId = (typeof INFRA_TYPE_IDS)[number];
 
+/** Map pin types that are the Sensor class (location only). The sensors pack owns source. */
+export const SENSOR_INFRA_TYPE_IDS = ['weather', 'soil', 'irrigation'] as const;
+export type SensorInfraTypeId = (typeof SENSOR_INFRA_TYPE_IDS)[number];
+
 export type InfraDrawMode = 'point' | 'line' | 'polygon';
 
 /** SVG fill pattern key for area assets (OrchardMap injects matching defs). */
@@ -150,6 +154,10 @@ export function infraDrawMode(id: string | undefined | null): InfraDrawMode {
 
 export function isInfraTypeId(v: string): v is Exclude<InfraTypeId, ''> {
   return v !== '' && v in BY_ID;
+}
+
+export function isSensorInfraType(id: string | undefined | null): id is SensorInfraTypeId {
+  return !!id && (SENSOR_INFRA_TYPE_IDS as readonly string[]).includes(id);
 }
 
 /** True for dam / impassable internal zones (and future area subtractors). */

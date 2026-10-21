@@ -83,6 +83,15 @@ describe('cropPacks catalog', () => {
     expect(drying.primaryPath).toBe('/drying');
   });
 
+  it('registers sensors as an opt-in generic pack with its own settings doc', () => {
+    const sensors = listCropPacks().find((p) => p.id === 'sensors')!;
+    expect(sensors.modules).toEqual(['sensors']);
+    expect(sensors.category).toBe('generic');
+    expect(sensors.settingsDocId).toBe('sensors');
+    expect(sensors.primaryPath).toBe('/sensors');
+    expect(defaultModulesWithoutCropPacks()).not.toContain('sensors');
+  });
+
   it('derives pack-owned modules from CROP_PACKS', () => {
     const owned = allPackModuleIds();
     expect(owned).toEqual(

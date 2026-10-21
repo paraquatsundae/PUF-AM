@@ -147,6 +147,10 @@ describe('pack golden set', () => {
     expect(getPackUi('harvest')!.navItems[0]?.groupId).toBe('records');
     expect(drying.category).toBe('crop');
     expect(getPackUi('drying')!.navItems[0]?.groupId).toBe('crop');
+    const sensors = listCropPacks().find((p) => p.id === 'sensors')!;
+    expect(sensors.category).toBe('generic');
+    expect(getPackUi('sensors')!.navItems[0]?.groupId).toBe('field');
+    expect(getPackUi('sensors')!.navItems[0]?.section).toBeUndefined();
   });
 });
 

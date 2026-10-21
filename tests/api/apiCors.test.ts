@@ -8,9 +8,11 @@
  * nothing, because same-origin traffic never consults CORS at all.
  *
  * The other half is the localhost reflection. A tablet talking to a shed laptop
- * genuinely needs `capacitor://localhost` and loopback origins allowed; Cloud Run
- * never does, and allowing them there hands a read to any page an attacker can
- * get running on a victim's own machine.
+ * genuinely needs `capacitor://localhost` and loopback origins allowed. Cloud Run
+ * also reflects the two exact packaged-WebView origins (`https://localhost`,
+ * `capacitor://localhost`), because a packaged APK calls it for invite PIN and
+ * weather. Port-wildcard loopback stays hub-only: allowing that on Cloud Run
+ * would hand a read to any page served from a localhost port.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Server } from 'node:http';
@@ -98,18 +100,19 @@ describe('API CORS', () => {
   });
 
   describe('LAN client origins', () => {
-    const lanOrigins = [
-      'capacitor://localhost',
-      'https://localhost',
-      'http://localhost:5173',
-      'http://127.0.0.1:3000',
-    ];
+    const packagedOrigins = ['capacitor://localhost', 'https://localhost'];
+    const loopbackOrigins = ['http://localhost:5173', 'http://127.0.0.1:3000'];
 
-    it.each(lanOrigins)('%s is reflected on the hub surface', async (origin) => {
+    it.each(packagedOrigins)('%s is reflected on both surfaces', async (origin) => {
+      expect(await allowOrigin('hub', origin)).toBe(origin);
+      expect(await allowOrigin('cloud', origin)).toBe(origin);
+    });
+
+    it.each(loopbackOrigins)('%s is reflected on the hub surface', async (origin) => {
       expect(await allowOrigin('hub', origin)).toBe(origin);
     });
 
-    it.each(lanOrigins)('%s is refused on the cloud surface', async (origin) => {
+    it.each(loopbackOrigins)('%s is refused on the cloud surface', async (origin) => {
       expect(await allowOrigin('cloud', origin)).toBeNull();
     });
   });

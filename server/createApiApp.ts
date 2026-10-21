@@ -52,20 +52,31 @@ function allowedCorsOrigins(): Set<string> {
 }
 
 /**
- * The loopback and Capacitor origins a tablet talks to a LAN hub from.
+ * Exact origins of a packaged Capacitor WebView.
  *
- * These belong to the hub surface only. On Cloud Run they let any page served
- * from any localhost port read the response, which is a real origin on a
- * developer's machine and one an attacker can arrange to be — it costs nothing
- * to allow there and buys nothing either, because the cloud API is never the
- * thing a `capacitor://localhost` page is calling on the LAN.
+ * `CAP_PACKAGED=1` sets `androidScheme: 'https'`, so the APK page is
+ * `https://localhost`. Older builds used `capacitor://localhost`. Invite PIN
+ * and weather from that page call Cloud Run (`apiUrl` → `hubCloudBaseFor`),
+ * which is cross-origin. These two have to be reflected on the cloud surface
+ * or the WebView reports `TypeError: Failed to fetch` and the PIN form never
+ * sees the JSON. They are exact hosts, not `http://localhost:<port>`.
+ */
+function isPackagedApkOrigin(origin: string): boolean {
+  return origin === 'https://localhost' || origin === 'capacitor://localhost';
+}
+
+/**
+ * Loopback origins a tablet uses when it talks to a shed laptop, plus the
+ * packaged WebView origins above.
+ *
+ * The port wildcards stay on the hub surface only. On Cloud Run they would let
+ * any page served from any localhost port read the response.
  */
 function isLanClientOrigin(origin: string): boolean {
   return (
     origin.startsWith('http://127.0.0.1:') ||
     origin.startsWith('http://localhost:') ||
-    origin === 'https://localhost' ||
-    origin === 'capacitor://localhost'
+    isPackagedApkOrigin(origin)
   );
 }
 
@@ -87,6 +98,7 @@ export function apiCorsMiddleware(surface: ApiSurface = 'cloud'): express.Reques
     const allowed =
       typeof origin === 'string' &&
       (allowedCorsOrigins().has(origin) ||
+        isPackagedApkOrigin(origin) ||
         (servesLanFamilies(surface) && isLanClientOrigin(origin)));
 
     if (allowed) {

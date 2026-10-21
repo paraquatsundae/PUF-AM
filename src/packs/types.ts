@@ -8,7 +8,7 @@ import type { Icon } from '@tabler/icons-react';
 import type { FarmModuleId } from '../../shared/auth/farmModules';
 import type { CropPackId, FarmPackId } from '../../shared/farm/cropPacks';
 import type { SystemPluginId } from '../../shared/farm/pluginsCatalog';
-import type { OrchardBlock } from '../lib/mapStore';
+import type { InfrastructurePin, OrchardBlock } from '../lib/mapStore';
 
 /** Mirrors navConfig NavGroupId — kept here so packs do not import navConfig. */
 export type PackNavGroupId = 'field' | 'crop' | 'records' | 'system';
@@ -75,6 +75,11 @@ export type PackSurfaceComponents = {
    * its pack and the block, since the operate card opens for every area.
    */
   blockOperateReadout?: PackSurface;
+  /**
+   * Extra fields on the map pin editor. Gets `PackPinProps`. The surface gates
+   * itself (pack active and pin class). Core mounts every registered extra.
+   */
+  pinMetadataExtra?: PackSurface;
 
   // ---- Network-pack surfaces (Plans/NETWORK_PACK_PLUGIN.md § Surfaces) ----
   // Core renders each of these from the registry without naming a pack; a
@@ -142,6 +147,11 @@ export type PackPublicRouteRegistration = {
 /** What `blockOperateReadout` receives. */
 export type PackBlockReadoutProps = {
   block: OrchardBlock;
+};
+
+/** What `pinMetadataExtra` receives. */
+export type PackPinProps = {
+  pin: InfrastructurePin;
 };
 
 /**

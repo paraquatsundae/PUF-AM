@@ -21,6 +21,8 @@ import {
 import { resolveFarmEnabledModules, type FarmModuleId } from '../../shared/auth/farmModules';
 import { db } from '../firebase';
 import { updateFarmModules } from './invitePinAuth';
+import { isLocalOnlyFarmSession } from './workshopMode';
+import { loadWorkshopFarm, writeWorkshopFarm } from './workshopFarmState';
 
 export type CropPackLifecycleResult = {
   cropPacks: FarmCropPacksMap;
@@ -33,6 +35,14 @@ async function readFarmPackState(farmId: string): Promise<{
   cropPacks: FarmCropPacksMap;
   modules: FarmModuleId[];
 }> {
+  if (isLocalOnlyFarmSession()) {
+    const local = loadWorkshopFarm();
+    return {
+      cropPacksRaw: local.cropPacks,
+      cropPacks: resolveFarmCropPacks(local.cropPacks),
+      modules: resolveFarmEnabledModules(local.modules),
+    };
+  }
   const snap = await getDoc(doc(db, 'farms', farmId));
   const data = snap.data() || {};
   return {
@@ -43,6 +53,10 @@ async function readFarmPackState(farmId: string): Promise<{
 }
 
 async function writeCropPacks(farmId: string, cropPacks: FarmCropPacksMap): Promise<void> {
+  if (isLocalOnlyFarmSession()) {
+    writeWorkshopFarm({ ...loadWorkshopFarm(), cropPacks });
+    return;
+  }
   const ref = doc(db, 'farms', farmId);
   // Firestore merges map fields — clear first so Delete can drop pack keys.
   await updateDoc(ref, { cropPacks: deleteField() });
@@ -51,9 +65,27 @@ async function writeCropPacks(farmId: string, cropPacks: FarmCropPacksMap): Prom
   }
 }
 
+async function persistModules(modules: FarmModuleId[]): Promise<FarmModuleId[]> {
+  if (isLocalOnlyFarmSession()) {
+    const resolved = resolveFarmEnabledModules(modules);
+    writeWorkshopFarm({ ...loadWorkshopFarm(), modules: resolved });
+    return resolved;
+  }
+  return updateFarmModules(modules);
+}
+
 async function wipePackSettings(farmId: string, packId: InstallablePackId): Promise<void> {
   const pack = getInstallablePack(packId);
   if (!pack.settingsDocId) return;
+  if (isLocalOnlyFarmSession()) {
+    if (pack.settingsDocId === 'sensors') {
+      writeWorkshopFarm({
+        ...loadWorkshopFarm(),
+        sensorSettings: { bindings: {} },
+      });
+    }
+    return;
+  }
   const ref = doc(db, 'farms', farmId, 'settings', pack.settingsDocId);
   const keys = pack.settingsOwnedKeys;
   if (keys && keys.length > 0) {
@@ -94,7 +126,7 @@ export async function ensureLegacyPacksMigrated(
   if (result.migrated) {
     await writeCropPacks(ctx.farmId, result.cropPacks);
   }
-  const written = await updateFarmModules(modules);
+  const written = await persistModules(modules);
   return { cropPacks: result.cropPacks, modules: written, migrated: true };
 }
 
@@ -119,7 +151,7 @@ export async function installCropPack(
     opts?.activate !== false
   );
   await writeCropPacks(ctx.farmId, planned.cropPacks);
-  const modules = await updateFarmModules(planned.modules);
+  const modules = await persistModules(planned.modules);
   return { cropPacks: planned.cropPacks, modules };
 }
 
@@ -136,7 +168,7 @@ export async function activateCropPack(
     new Date().toISOString()
   );
   await writeCropPacks(ctx.farmId, planned.cropPacks);
-  const modules = await updateFarmModules(planned.modules);
+  const modules = await persistModules(planned.modules);
   return { cropPacks: planned.cropPacks, modules };
 }
 
@@ -153,7 +185,7 @@ export async function deactivateCropPack(
     new Date().toISOString()
   );
   await writeCropPacks(ctx.farmId, planned.cropPacks);
-  const modules = await updateFarmModules(planned.modules);
+  const modules = await persistModules(planned.modules);
   return { cropPacks: planned.cropPacks, modules };
 }
 
@@ -166,6 +198,6 @@ export async function deleteCropPack(
   const planned = planDeletePack(state.cropPacks, state.modules, packId);
   await wipePackSettings(ctx.farmId, packId);
   await writeCropPacks(ctx.farmId, planned.cropPacks);
-  const modules = await updateFarmModules(planned.modules);
+  const modules = await persistModules(planned.modules);
   return { cropPacks: planned.cropPacks, modules };
 }

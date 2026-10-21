@@ -30,6 +30,13 @@ import {
   dryingModules,
 } from './dryingPackage';
 import {
+  SENSORS_PACK_ID,
+  SENSORS_PRIMARY_PATH,
+  SENSORS_SETTINGS_OWNED_KEYS,
+  sensorsManifest,
+  sensorsModules,
+} from './sensorsPackage';
+import {
   HARVEST_PACK_ID,
   HARVEST_PRIMARY_PATH,
   HARVEST_SETTINGS_OWNED_KEYS,
@@ -109,6 +116,11 @@ export {
   DRYING_PRIMARY_PATH,
   DRYING_SETTINGS_OWNED_KEYS,
 } from './dryingPackage';
+export {
+  SENSORS_PACK_ID,
+  SENSORS_PRIMARY_PATH,
+  SENSORS_SETTINGS_OWNED_KEYS,
+} from './sensorsPackage';
 
 /** Used to be core ops modules; one-time Install if the farm already had them on. */
 export const CORE_OPS_PACK_IDS = [
@@ -123,6 +135,7 @@ export const CROP_PACK_IDS = [
   CHILL_PORTIONS_PACK_ID,
   WHEAT_YIELD_PACK_ID,
   ...CORE_OPS_PACK_IDS,
+  SENSORS_PACK_ID,
 ] as const;
 export type CropPackId = (typeof CROP_PACK_IDS)[number];
 /** Crop packs plus farm packs (`farm_feed`). Same farm-doc `cropPacks` map. */
@@ -273,6 +286,16 @@ export const CROP_PACKS: readonly CropPackDef[] = [
     settingsDocId: dryingManifest.settingsDocId,
     settingsOwnedKeys: DRYING_SETTINGS_OWNED_KEYS,
     primaryPath: DRYING_PRIMARY_PATH,
+  },
+  {
+    id: SENSORS_PACK_ID,
+    label: sensorsManifest.label,
+    blurb: sensorsManifest.blurb,
+    category: sensorsManifest.category,
+    modules: sensorsModules,
+    settingsDocId: sensorsManifest.settingsDocId,
+    settingsOwnedKeys: SENSORS_SETTINGS_OWNED_KEYS,
+    primaryPath: SENSORS_PRIMARY_PATH,
   },
 ];
 
