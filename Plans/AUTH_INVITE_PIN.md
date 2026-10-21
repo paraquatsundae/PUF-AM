@@ -2,6 +2,8 @@
 
 PUFAM signs users in with **Firebase Auth custom tokens**. Farm owners **create a farm in the app**, then mint **invite PINs** with a role and module list for workers.
 
+Session lifetime, code expiry, and which actions log other devices out are requirements in [`HOSTED_MULTIUSER_AUTH.md`](HOSTED_MULTIUSER_AUTH.md) (2026-10-08). This file stays the operator description of the PIN.
+
 ## Owner flow
 
 1. Open `/login` → **Create a farm** → enter farm name + your name.

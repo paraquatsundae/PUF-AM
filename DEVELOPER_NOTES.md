@@ -280,7 +280,7 @@ Satellite photos come from Landgate through `/api/tiles`. The street map (`light
 
 Rationale: orchard tablets should stay open without re-typing the farm invite code every shift; unlock PIN adds a light privacy gate without inventing passwords for synthetic Auth emails.
 
-Details: [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md).
+Details: [`Plans/AUTH_INVITE_PIN.md`](Plans/AUTH_INVITE_PIN.md). What expires, and which actions log other devices out: [`Plans/HOSTED_MULTIUSER_AUTH.md`](Plans/HOSTED_MULTIUSER_AUTH.md).
 
 ### 4.2 Blight engine — Ji et al. 2025 core (July 2026)
 
