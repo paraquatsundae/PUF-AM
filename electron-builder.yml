@@ -37,19 +37,21 @@ files:
   # `desktop:dist:prep` fails the build if this drifts from the bundle.
   - '!node_modules/**'
   - node_modules/{@freenetorg/freenet-stdlib,@leichtgewicht/ip-codec,@noble/curves}/**
-  - node_modules/{@noble/hashes,accepts,array-flatten,base-x,body-parser,bonjour-service}/**
-  - node_modules/{bs58,bytes,call-bind-apply-helpers,call-bound,content-disposition}/**
-  - node_modules/{content-type,cookie,cookie-signature,debug,depd,destroy,dns-packet,dotenv}/**
-  - node_modules/{dunder-proto,ee-first,encodeurl,es-define-property,es-errors}/**
+  - node_modules/{@noble/hashes,accepts,agent-base,array-flatten,asn1.js,base-x,bn.js}/**
+  - node_modules/{body-parser,bonjour-service,bs58,buffer-equal-constant-time,bytes}/**
+  - node_modules/{call-bind-apply-helpers,call-bound,content-disposition,content-type,cookie}/**
+  - node_modules/{cookie-signature,debug,depd,destroy,dns-packet,dotenv,dunder-proto}/**
+  - node_modules/{ecdsa-sig-formatter,ee-first,encodeurl,es-define-property,es-errors}/**
   - node_modules/{es-object-atoms,escape-html,etag,express,fast-deep-equal,finalhandler}/**
   - node_modules/{flatbuffers,forwarded,fresh,function-bind,get-intrinsic,get-proto,gopd}/**
-  - node_modules/{has-symbols,hasown,http-errors,iconv-lite,inherits,ipaddr.js}/**
-  - node_modules/{math-intrinsics,media-typer,merge-descriptors,methods,mime,mime-db}/**
-  - node_modules/{mime-types,ms,multicast-dns,negotiator,object-inspect,on-finished,parseurl}/**
+  - node_modules/{has-symbols,hasown,http-errors,http_ece,https-proxy-agent,iconv-lite}/**
+  - node_modules/{inherits,ipaddr.js,jwa,jws,math-intrinsics,media-typer,merge-descriptors}/**
+  - node_modules/{methods,mime,mime-db,mime-types,minimalistic-assert,minimist,ms}/**
+  - node_modules/{multicast-dns,negotiator,nodemailer,object-inspect,on-finished,parseurl}/**
   - node_modules/{path-to-regexp,proxy-addr,qs,range-parser,raw-body,safe-buffer}/**
   - node_modules/{safer-buffer,send,serve-static,setprototypeof,side-channel}/**
   - node_modules/{side-channel-list,side-channel-map,side-channel-weakmap,statuses,thunky}/**
-  - node_modules/{toidentifier,type-is,unpipe,utils-merge,vary,ws}/**
+  - node_modules/{toidentifier,type-is,unpipe,utils-merge,vary,web-push,ws}/**
 
 # Outside the asar on purpose: the spawned `freenet` node needs a real filesystem
 # path, which asar-packed files do not have (plan §7.1). The resolver looks for
