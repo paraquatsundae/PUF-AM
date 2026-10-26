@@ -13,6 +13,8 @@ import { FarmBasemapSetup } from './FarmBasemapSetup';
 import { StableEditControl } from './StableEditControl';
 import { OrchardMapBasemapLayers } from './OrchardMapBasemapLayers';
 import { InfraCoverageLayer } from './InfraCoverageLayer';
+import { FieldBinReadoutCard } from './FieldBinReadoutCard';
+import { SensorReadoutPanel } from './SensorReadoutPanel';
 import { EventMarkerCluster } from './EventMarkerCluster';
 import { OperateIssuesLayer } from './OperateIssuesLayer';
 import { PaddockNameLayer } from './PaddockNameLayer';
@@ -64,6 +66,10 @@ export function OrchardMapCanvas({
   drawLayerCtx,
   boundaryEditBlockId,
   showCoverage,
+  selectedSensorId,
+  onCloseSensorReadout,
+  selectedFieldBinId,
+  onCloseFieldBinReadout,
   pins,
   dailyEvents,
   blockCenters,
@@ -139,6 +145,14 @@ export function OrchardMapCanvas({
   cultivarSplitDrawing,
   onCancelDraw,
 }: OrchardMapCanvasProps) {
+  const selectedSensor =
+    mapMode === 'operate' && selectedSensorId
+      ? pins.find((pin) => pin.id === selectedSensorId)
+      : undefined;
+  const selectedFieldBin =
+    mapMode === 'operate' && selectedFieldBinId
+      ? pins.find((pin) => pin.id === selectedFieldBinId)
+      : undefined;
   return (
     <div className="flex-1 min-h-0 bg-slate-900 relative overflow-hidden group">
       {showBasemapSetup && (
@@ -184,7 +198,7 @@ export function OrchardMapCanvas({
         </FeatureGroup>
 
         {activeTab === 'infrastructure' && showCoverage && (
-          <InfraCoverageLayer pins={pins} />
+          <InfraCoverageLayer pins={pins} farmId={farmId} />
         )}
 
         {activeTab === 'analytics' && (
@@ -359,6 +373,24 @@ export function OrchardMapCanvas({
       <AnimatePresence>
         {activeTab === 'infrastructure' && showCoverage && <CoverageZonesLegend />}
       </AnimatePresence>
+
+      {selectedSensor && (
+        <SensorReadoutPanel
+          pin={selectedSensor}
+          farmId={farmId}
+          map={mapInstance}
+          onClose={onCloseSensorReadout}
+        />
+      )}
+      {selectedFieldBin && (
+        <FieldBinReadoutCard
+          pin={selectedFieldBin}
+          blocks={blocks}
+          farmId={farmId}
+          map={mapInstance}
+          onClose={onCloseFieldBinReadout}
+        />
+      )}
 
       <OrchardMapLeafletStyles />
     </div>

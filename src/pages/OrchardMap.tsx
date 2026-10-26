@@ -176,6 +176,11 @@ export function OrchardMap() {
     setShowSidebar: chrome.setShowSidebar,
     setEditingTrackId: chrome.setEditingTrackId,
     setEditingPinId: chrome.setEditingPinId,
+    selectedSensorIdRef: chrome.selectedSensorIdRef,
+    setSelectedSensorId: chrome.setSelectedSensorId,
+    selectedFieldBinIdRef: chrome.selectedFieldBinIdRef,
+    setSelectedFieldBinId: chrome.setSelectedFieldBinId,
+    pins,
     placingFlag: operate.placingFlag,
     setPlacingFlag: operate.setPlacingFlag,
     setReportDraft: operate.setReportDraft,
@@ -205,6 +210,7 @@ export function OrchardMap() {
     layerMapRef: chrome.layerMapRef,
     highlightedTrackId: chrome.highlightedTrackId,
     highlightedTrackIdRef: chrome.highlightedTrackIdRef,
+    selectedSensorId: chrome.selectedFieldBinId ?? chrome.selectedSensorId,
     highlightedBlockId: chrome.highlightedBlockId,
     internalBoundaryDrawing: draw.internalBoundaryDrawing,
     analyticsView: analytics.analyticsView,
@@ -451,6 +457,10 @@ export function OrchardMap() {
           drawLayerCtx={drawLayerCtx}
           boundaryEditBlockId={draw.boundaryEditBlockId}
           showCoverage={chrome.showCoverage}
+          selectedSensorId={chrome.selectedSensorId}
+          onCloseSensorReadout={() => chrome.setSelectedSensorId(null)}
+          selectedFieldBinId={chrome.selectedFieldBinId}
+          onCloseFieldBinReadout={() => chrome.setSelectedFieldBinId(null)}
           pins={pins}
           dailyEvents={analytics.dailyEvents}
           blockCenters={analytics.blockCenters}

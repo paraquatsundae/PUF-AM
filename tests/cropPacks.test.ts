@@ -92,6 +92,15 @@ describe('cropPacks catalog', () => {
     expect(defaultModulesWithoutCropPacks()).not.toContain('sensors');
   });
 
+  it('registers field bins as an opt-in generic pack on the field menu', () => {
+    const pack = listCropPacks().find((p) => p.id === 'field_bins')!;
+    expect(pack.modules).toEqual(['field_bins']);
+    expect(pack.category).toBe('generic');
+    expect(pack.settingsDocId).toBe('field_bins');
+    expect(pack.primaryPath).toBe('/field-bins');
+    expect(defaultModulesWithoutCropPacks()).not.toContain('field_bins');
+  });
+
   it('derives pack-owned modules from CROP_PACKS', () => {
     const owned = allPackModuleIds();
     expect(owned).toEqual(

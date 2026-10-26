@@ -24,6 +24,7 @@ export function syncOrchardMapLayers({
   pins,
   tracks,
   highlightedTrackIdRef,
+  selectedSensorId = null,
 }: {
   featureGroupRef: { current: any };
   layerMapRef: { current: Record<number, LayerMapEntry> };
@@ -31,6 +32,7 @@ export function syncOrchardMapLayers({
   pins: InfrastructurePin[];
   tracks: FarmTrack[];
   highlightedTrackIdRef: { current: string | null };
+  selectedSensorId?: string | null;
 }): boolean {
     const normalizeGeojson = (raw: unknown): any | null => {
       const parsed = parsePossiblyStringifiedGeojson(raw);
@@ -171,7 +173,7 @@ export function syncOrchardMapLayers({
         }
         if (!layer) {
           const marker = L.marker([pin.lat, pin.lng]);
-          marker.setIcon(getPinDivIcon(pin));
+          marker.setIcon(getPinDivIcon(pin, pin.id === selectedSensorId));
           layer = marker;
         }
         layer.bindTooltip(getPinTooltipHtml(pin), {

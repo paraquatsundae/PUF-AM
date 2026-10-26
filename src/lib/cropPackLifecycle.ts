@@ -2,7 +2,17 @@
  * Client I/O for crop-pack Install / Activate / Deactivate / Delete.
  * Pure planning lives in shared/farm/cropPacks.ts.
  */
-import { deleteDoc, deleteField, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  deleteField,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import {
   getInstallablePack,
   isInstallablePackId,
@@ -23,6 +33,7 @@ import { db } from '../firebase';
 import { updateFarmModules } from './invitePinAuth';
 import { isLocalOnlyFarmSession } from './workshopMode';
 import { loadWorkshopFarm, writeWorkshopFarm } from './workshopFarmState';
+import { emptyFieldBinSettings } from '../../shared/farm/fieldBinStock';
 
 export type CropPackLifecycleResult = {
   cropPacks: FarmCropPacksMap;
@@ -84,7 +95,22 @@ async function wipePackSettings(farmId: string, packId: InstallablePackId): Prom
         sensorSettings: { bindings: {} },
       });
     }
+    if (pack.settingsDocId === 'field_bins') {
+      writeWorkshopFarm({
+        ...loadWorkshopFarm(),
+        fieldBinSettings: emptyFieldBinSettings(),
+        fieldBinMovements: [],
+      });
+    }
     return;
+  }
+  if (pack.settingsDocId === 'field_bins') {
+    const snap = await getDocs(collection(db, 'farms', farmId, 'field_bin_movements'));
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      const batch = writeBatch(db);
+      snap.docs.slice(i, i + 400).forEach((row) => batch.delete(row.ref));
+      await batch.commit();
+    }
   }
   const ref = doc(db, 'farms', farmId, 'settings', pack.settingsDocId);
   const keys = pack.settingsOwnedKeys;

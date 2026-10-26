@@ -118,7 +118,8 @@ describe('pack UI registry (CP-04)', () => {
     );
     expect(allPackNavItems().some((i) => i.href === '/drying' && i.groupId === 'crop')).toBe(true);
     expect(allPackNavItems().some((i) => i.href === '/sensors' && i.groupId === 'field')).toBe(true);
-    expect(packSurfaces('pinMetadataExtra').map((s) => s.packId)).toEqual(['sensors']);
+    expect(packSurfaces('pinMetadataExtra').map((s) => s.packId).sort()).toEqual(['field_bins', 'sensors']);
+    expect(allPackNavItems().some((i) => i.href === '/field-bins' && i.groupId === 'field')).toBe(true);
     expect(allPackRoutes().length).toBe(PACK_UI_REGISTRY.flatMap((p) => p.routes).length);
 
     const cropNav = allPackNavItems().filter((item) => item.groupId === 'crop');

@@ -9,7 +9,7 @@ export { getPinTooltipHtml } from './mapPinTooltip';
 const DEFAULT_PIN_SVG =
   `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
 
-export function getPinDivIcon(pin: InfrastructurePin): L.DivIcon {
+export function getPinDivIcon(pin: InfrastructurePin, selected = false): L.DivIcon {
   const def = getInfraType(pin.type);
   let svg = DEFAULT_PIN_SVG;
   let colorClass = 'text-slate-500 bg-slate-100 border-slate-300';
@@ -27,14 +27,22 @@ export function getPinDivIcon(pin: InfrastructurePin): L.DivIcon {
     colorClass = 'text-indigo-600 bg-indigo-50 border-indigo-200';
   } else if (pin.type === 'fuel') {
     colorClass = 'text-amber-800 bg-amber-50 border-amber-300';
+  } else if (pin.type === 'field_bin') {
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 21V9l6-4 6 4v12"/><path d="M10 21v-6h4v6"/></svg>`;
+    colorClass = 'text-amber-800 bg-amber-50 border-amber-300';
   } else if (pin.type === 'hazard') {
     colorClass = 'text-rose-600 bg-rose-50 border-rose-200';
   } else if (def) {
     colorClass = 'text-sky-700 bg-sky-50 border-sky-200';
   }
 
+  const shell = selected ? 'text-white bg-indigo-600 border-white' : colorClass;
+  const selectedMark = selected
+    ? ' style="box-shadow:0 0 0 3px #fff, 0 0 0 6px #4f46e5"'
+    : '';
+
   return L.divIcon({
-    html: `<div class="w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-md ${colorClass}">${svg}</div>
+    html: `<div class="w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-md ${shell}"${selectedMark}>${svg}</div>
              ${pin.status === 'active' ? `<div class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>` :
                pin.status === 'warning' ? `<div class="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 border-2 border-white rounded-full"></div>` :
                `<div class="absolute -top-1 -right-1 w-3 h-3 bg-slate-400 border-2 border-white rounded-full"></div>`}`,

@@ -1,9 +1,9 @@
 {
   "name": "walnut-farm-manager",
   "private": true,
-  "version": "0.0.2",
+  "version": "0.0.3",
   "//version": "Workshop bake number (x.x.#). Source of truth for AppImage filename, Android versionName, and in-app APP_VERSION. Bump patch + androidVersionCode together per AppImage+APK pair — Plans/NAMING.md §2. Do not bump for docs-only. 0.1.0 is the future public cut, not this series.",
-  "androidVersionCode": 2,
+  "androidVersionCode": 3,
   "license": "MIT",
   "description": "PUFAM — Ag Manager. Mixed-farm tools: mapping, diary, blight risk, and team coordination.",
   "type": "module",

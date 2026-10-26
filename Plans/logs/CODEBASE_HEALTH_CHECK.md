@@ -12,7 +12,54 @@ Command (procedure A):
 npm test && npm run lint && npm run plugins:verify && npm run audit:codebase
 ```
 
-`npm run lint` is `tsc --noEmit` + desktop `tsc` + `eslint --quiet`. Procedure A is green as of 2026-09-08 (1116 tests).
+`npm run lint` is `tsc --noEmit` + desktop `tsc` + `eslint --quiet`. Procedure A is green as of 2026-09-08 (1116 tests). Latest run 2026-10-26 failed on the same Freenet / mist items as 2026-09-29; hosted gates passed.
+
+---
+
+## 2026-10-26 — Procedure A (field bins + core seam)
+
+**Host:** Linux (Fedora), repo `PUF-AM`, HEAD `305ef4a` plus a dirty tree (field bins, and the 2026-10-21 sensor coverage still uncommitted).  
+**Why:** George asked for a health check of the field bins pack and how it meets the main app, then a ship.  
+**Env:** `VITE_API_BASE_URL`, `VITE_APP_URL`, `VITE_WORKSHOP_MODE` unset. Node via fnm `v22.23.1`.
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Fail** — 1861 passed, 1 failed, 7 skipped. The failure is `tests/freenetTransportSelect.test.ts` pinned-transport identity. Field-bin suites passed. |
+| Root `tsc --noEmit` | **Fail** — the three known Freenet / diary errors only (`mistBonesBridge.ts`, `units/puf-freenet-host/contract-traffic.test.ts`, `tests/farmDiaryComposerSave.test.tsx`). No field-bin error. |
+| Desktop `tsc` | **Pass** |
+| `eslint . --quiet` | **Fail** — 5 errors, all under a local `tmp/freenet-core-0.2.135` tree, not the app. |
+| `npm run plugins:verify` | **Pass** — 11 packs, including `field_bins@0.1.0` |
+| `npm run audit:codebase` | **Pass** — layering, SoC, cycles, leftover `harvest_drying`. Freenet size WARNs only |
+
+**Overall Procedure A: FAIL** on the same known Freenet / mist items. The field-bin seam is clean.
+
+Core does not import `plugins/field_bins/src`. The map card and `useFieldBinData` use `shared/farm/fieldBinStock.ts`. `AuthContext` does not import the pack. `farmModules` does not import `cropPacks`. New field-bin files are under the 600 hard cap (`fieldBinStock.ts` 527, `FieldBinChaserPage.tsx` 482, `FieldBinTruckPage.tsx` 432, `FieldBinHistoryPage.tsx` 415). `OrchardMap.tsx` is 577.
+
+## 2026-10-21 — Procedure A (sensor coverage + map readout)
+
+**Host:** Linux (Fedora), repo `PUF-AM`, HEAD `305ef4a` plus a **dirty working tree** (sensor radius, paddock assignment, map readout).  
+**Why:** George asked for a codebase health check after the uncommitted sensor work.  
+**Env:** `VITE_API_BASE_URL`, `VITE_APP_URL`, `VITE_WORKSHOP_MODE` unset. Node via fnm `v22.23.1`. Did **not** run `npm audit fix --force`, deploy, or commit. Did **not** run `npm run build` / `audit:bundle`.
+
+### Gate results
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Fail** — 1835 passed, 1 failed, 7 skipped (258 files passed, 1 failed, 2 skipped) |
+| `npm run lint` | **Fail** — root `tsc --noEmit` (desktop tsc + eslint not reached) |
+| `npm run plugins:verify` | **Pass** — 10 first-party packs OK, including `sensors@0.1.0` |
+| `npm run audit:codebase` | **Pass** — layering, SoC, cycles, leftover `harvest_drying`. Freenet size WARNs only |
+
+**Overall Procedure A: FAIL**
+
+The three failures are the same Freenet / mist items recorded on 2026-09-29. None are in the sensor coverage or map readout diff.
+
+- `tests/freenetTransportSelect.test.ts` — pinned transport identity (`toBe` sees extra methods after wrap).
+- `src/mist/mistBonesBridge.ts` — `getMistHotPublishStatus` is not defined.
+- `tests/farmDiaryComposerSave.test.tsx` — composer mock returns `{ id }` where `Promise<void>` is required.
+- `units/puf-freenet-host/contract-traffic.test.ts` — `const` assertion on a non-literal.
+
+In-scope nearest the 600 hard cap: `src/pages/OrchardMap.tsx` at 573. New readout and coverage files are all under 250 lines.
 
 There is now a fifth gate for anything touching the client bundle, because some
 questions only a built artefact can answer:

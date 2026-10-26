@@ -15,6 +15,7 @@ export const INFRA_TYPE_IDS = [
   'vehicle',
   'fuel',
   'hazard',
+  'field_bin',
   '',
 ] as const;
 
@@ -23,6 +24,11 @@ export type InfraTypeId = (typeof INFRA_TYPE_IDS)[number];
 /** Map pin types that are the Sensor class (location only). The sensors pack owns source. */
 export const SENSOR_INFRA_TYPE_IDS = ['weather', 'soil', 'irrigation'] as const;
 export type SensorInfraTypeId = (typeof SENSOR_INFRA_TYPE_IDS)[number];
+
+/** Paddock silo. The field bins pack owns capacity and movements. */
+export function isFieldBinInfraType(id: string | undefined | null): boolean {
+  return id === 'field_bin';
+}
 
 export type InfraDrawMode = 'point' | 'line' | 'polygon';
 
@@ -132,6 +138,14 @@ export const INFRA_TYPES: readonly InfraTypeDef[] = [
     blurb: 'Powerlines, soft ground, chemical store, etc.',
     draw: 'point',
     color: '#dc2626',
+  },
+  {
+    id: 'field_bin',
+    label: 'Field bin',
+    shortLabel: 'Field bin',
+    blurb: 'Paddock silo. Capacity and loads are on Field bins.',
+    draw: 'point',
+    color: '#a16207',
   },
 ] as const;
 

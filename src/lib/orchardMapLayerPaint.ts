@@ -80,12 +80,14 @@ export function refreshPinAndTrackStyles({
   pins,
   tracks,
   highlightedTrackId,
+  selectedSensorId = null,
 }: {
   featureGroup: any;
   layerMap: Record<number, LayerMapEntry>;
   pins: InfrastructurePin[];
   tracks: FarmTrack[];
   highlightedTrackId: string | null;
+  selectedSensorId?: string | null;
 }): void {
   const layers = featureGroup.getLayers();
   layers.forEach((layer: any) => {
@@ -96,7 +98,9 @@ export function refreshPinAndTrackStyles({
       const pin = pins.find((p) => p.id === mapping.id);
 
       if (pin) {
-        layer.setIcon(getPinDivIcon(pin));
+        const selected = pin.id === selectedSensorId;
+        layer.setIcon(getPinDivIcon(pin, selected));
+        if (typeof layer.setZIndexOffset === 'function') layer.setZIndexOffset(selected ? 800 : 0);
         layer.bindTooltip(getPinTooltipHtml(pin), { direction: 'top', offset: [0, -32], className: 'custom-tooltip' });
       }
     } else if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {

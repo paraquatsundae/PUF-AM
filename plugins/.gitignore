@@ -27,3 +27,5 @@
 !farm_feed/**
 !sensors/
 !sensors/**
+!field_bins/
+!field_bins/**

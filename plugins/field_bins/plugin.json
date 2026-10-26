@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "crop_pack",
+  "id": "field_bins",
+  "version": "0.1.0",
+  "label": "Field bins",
+  "blurb": "Track tonnes and moisture in paddock silos. Chasers and trucks move a percent of a load either way.",
+  "category": "generic",
+  "modules": ["field_bins"],
+  "settingsDocId": "field_bins",
+  "primaryPath": "/field-bins",
+  "author": "PUF-AM",
+  "license": "MIT"
+}

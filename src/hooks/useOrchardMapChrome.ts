@@ -32,6 +32,12 @@ export function useOrchardMapChrome(farmId?: string) {
   const highlightedBlockIdRef = useRef<string | null>(null);
   highlightedBlockIdRef.current = highlightedBlockId;
   const [editingPinId, setEditingPinId] = useState<string | null>(null);
+  const [selectedSensorId, setSelectedSensorId] = useState<string | null>(null);
+  const selectedSensorIdRef = useRef<string | null>(null);
+  selectedSensorIdRef.current = selectedSensorId;
+  const [selectedFieldBinId, setSelectedFieldBinId] = useState<string | null>(null);
+  const selectedFieldBinIdRef = useRef<string | null>(null);
+  selectedFieldBinIdRef.current = selectedFieldBinId;
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
   const [highlightedTrackId, setHighlightedTrackId] = useState<string | null>(null);
   const highlightedTrackIdRef = useRef<string | null>(null);
@@ -95,6 +101,12 @@ export function useOrchardMapChrome(farmId?: string) {
     highlightedBlockIdRef,
     editingPinId,
     setEditingPinId,
+    selectedSensorId,
+    setSelectedSensorId,
+    selectedSensorIdRef,
+    selectedFieldBinId,
+    setSelectedFieldBinId,
+    selectedFieldBinIdRef,
     editingTrackId,
     setEditingTrackId,
     highlightedTrackId,

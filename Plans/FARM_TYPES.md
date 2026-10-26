@@ -75,8 +75,9 @@ Mappable farm assets beyond paddocks/tracks. Catalog: `shared/farm/infraTypes.ts
 | `vehicle` | Vehicle | point | Static home/park pin; optional `trackerId` |
 | `fuel` | Fuel point | point | Diesel / AdBlue / storage |
 | `hazard` | Hazard | point | Powerlines, soft ground, chem store, etc. |
+| `field_bin` | Field bin | point | Paddock silo. Capacity, crop label, and tonne movements belong to the field bins pack (`Plans/FIELD_BINS_PLUGIN.md`) |
 
-**Sensor class (2026-10-20):** `weather`, `soil`, and `irrigation` stay these three pin types (`isSensorInfraType` in `infraTypes.ts`). Location and online/offline stay on the pin. The sensors pack (`plugins/sensors`, Field nav `/sensors`, `settings/sensors`) names them and stores a source stub (`manual` / `dpird` / `other`) plus an optional paddock. Install is opt-in. Delete wipes bindings only. Live vendor polling is later.
+**Sensor class (2026-10-20):** `weather`, `soil`, and `irrigation` stay these three pin types (`isSensorInfraType` in `infraTypes.ts`). Location and online/offline stay on the pin. The sensors pack (`plugins/sensors`, Field nav `/sensors`, `settings/sensors`) names them and stores a source stub (`manual` / `dpird` / `other`). **Coverage (2026-10-21):** each sensor has a radius from 1 m to 50 km (class defaults 500 / 50 / 150 m until set). Paddocks whose polygon meets that circle are the assignment. `blockIds` on the binding is a manual override of that list. Install is opt-in. Delete wipes bindings only. Live vendor polling is later.
 
 **Draw UX (Farm Map → Infrastructure):** pick type chips → Plus / Leaflet draw toolbar uses that type’s mode (marker / polyline / polygon). Blocks tab still draws paddock polygons; Tracks tab still draws track polylines.
 

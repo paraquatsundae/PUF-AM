@@ -1,8 +1,9 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { Map as LeafletMap } from 'leaflet';
+import { isFieldBinInfraType, isSensorInfraType } from '../../shared/farm/infraTypes';
 import { findBlockIdAtPoint } from '../lib/farmMapHit';
 import { getCurrentDrawHandler } from '../lib/mapDrawHelpers';
-import type { OrchardBlock } from '../lib/mapStore';
+import type { InfrastructurePin, OrchardBlock } from '../lib/mapStore';
 import type { LayerMapEntry } from '../lib/orchardMapDrawCreated';
 import type { MapMode, MapSubTab } from '../components/map/editMapTypes';
 import type { FieldIssue } from '../lib/fieldStore';
@@ -13,6 +14,7 @@ export function useOrchardMapClicks({
   mapMode,
   activeTab,
   blocks,
+  pins,
   featureGroupRef,
   layerMapRef,
   boundaryEditRef,
@@ -28,6 +30,10 @@ export function useOrchardMapClicks({
   setShowSidebar,
   setEditingTrackId,
   setEditingPinId,
+  selectedSensorIdRef,
+  setSelectedSensorId,
+  selectedFieldBinIdRef,
+  setSelectedFieldBinId,
   placingFlag,
   setPlacingFlag,
   setReportDraft,
@@ -40,6 +46,7 @@ export function useOrchardMapClicks({
   mapMode: MapMode;
   activeTab: MapSubTab;
   blocks: OrchardBlock[];
+  pins: InfrastructurePin[];
   featureGroupRef: { current: any };
   layerMapRef: MutableRefObject<Record<number, LayerMapEntry>>;
   boundaryEditRef: MutableRefObject<unknown>;
@@ -55,6 +62,10 @@ export function useOrchardMapClicks({
   setShowSidebar: (open: boolean) => void;
   setEditingTrackId: (id: string | null) => void;
   setEditingPinId: (id: string | null) => void;
+  selectedSensorIdRef: MutableRefObject<string | null>;
+  setSelectedSensorId: (id: string | null) => void;
+  selectedFieldBinIdRef: MutableRefObject<string | null>;
+  setSelectedFieldBinId: (id: string | null) => void;
   placingFlag: boolean;
   setPlacingFlag: (placing: boolean) => void;
   setReportDraft: (draft: { lat: number; lng: number; blockId?: string } | null) => void;
@@ -84,6 +95,8 @@ export function useOrchardMapClicks({
       setHighlightedBlockId(null);
       setIssuesPanelBlockId(null);
       setSelectedIssue(null);
+      setSelectedSensorId(null);
+      setSelectedFieldBinId(null);
     };
     mapInstance.on('click', handleMapClick);
     return () => {
@@ -101,6 +114,8 @@ export function useOrchardMapClicks({
     setPlacingFlag,
     setIssuesPanelBlockId,
     setSelectedIssue,
+    setSelectedSensorId,
+    setSelectedFieldBinId,
     setHighlightedBlockId,
   ]);
 
@@ -178,6 +193,19 @@ export function useOrchardMapClicks({
           setEditingTrackId(next);
         }
       } else if (mapping && mapping.type === 'pin') {
+        const pin = pins.find((row) => row.id === mapping.id);
+        if (mapMode === 'operate' && pin && isSensorInfraType(pin.type)) {
+          if (e.originalEvent) e.originalEvent._stopped = true;
+          setSelectedFieldBinId(null);
+          setSelectedSensorId(selectedSensorIdRef.current === pin.id ? null : pin.id);
+          return;
+        }
+        if (mapMode === 'operate' && pin && isFieldBinInfraType(pin.type)) {
+          if (e.originalEvent) e.originalEvent._stopped = true;
+          setSelectedSensorId(null);
+          setSelectedFieldBinId(selectedFieldBinIdRef.current === pin.id ? null : pin.id);
+          return;
+        }
         if (mapMode !== 'edit' || activeTabRef.current !== 'infrastructure') return;
         if (e.originalEvent) {
           e.originalEvent._stopped = true;
@@ -209,11 +237,23 @@ export function useOrchardMapClicks({
     setShowSidebar,
     setEditingTrackId,
     setEditingPinId,
+    selectedSensorIdRef,
+    setSelectedSensorId,
+    selectedFieldBinIdRef,
+    setSelectedFieldBinId,
+    pins,
     setReportDraft,
     setPlacingFlag,
     setIssuesPanelBlockId,
     setSelectedIssue,
   ]);
+
+  useEffect(() => {
+    if (mapMode !== 'operate') {
+      setSelectedSensorId(null);
+      setSelectedFieldBinId(null);
+    }
+  }, [mapMode, setSelectedSensorId, setSelectedFieldBinId]);
 
   useEffect(() => {
     if (highlightedBlockId) {

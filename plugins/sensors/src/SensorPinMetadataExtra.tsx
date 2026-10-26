@@ -7,6 +7,7 @@ import { useAuth } from '../../../src/contexts/AuthContext';
 import { useMapStore } from '../../../src/lib/mapStore';
 import type { PackPinProps } from '../../../src/packs/types';
 import { SensorBindingFields } from './SensorBindingFields';
+import { SensorCoverageFields } from './SensorCoverageFields';
 import { useSensorSettings } from './useSensorSettings';
 
 /** Pin editor extra — source and paddock. Core must not import this file. */
@@ -27,9 +28,16 @@ export function SensorPinMetadataExtra({ pin }: PackPinProps) {
       <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
         Sensor source
       </p>
+      <SensorCoverageFields
+        pinId={pin.id}
+        pin={pin}
+        binding={binding}
+        blocks={blocks}
+        disabled={!canEdit}
+        onChange={(next) => void upsertBinding(pin.id, next)}
+      />
       <SensorBindingFields
         binding={binding}
-        blocks={blocks.map((b) => ({ id: b.id, name: b.name }))}
         disabled={!canEdit}
         onChange={(next) => void upsertBinding(pin.id, next)}
       />

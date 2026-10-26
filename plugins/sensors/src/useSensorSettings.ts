@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from '../../../src/firebase';
 import { handleFirestoreError, OperationType } from '../../../src/lib/firestoreErrors';
@@ -21,11 +21,13 @@ export function useSensorSettings(farmId: string | undefined, canWrite = false) 
   const [loading, setLoading] = useState(true);
 
   const workshop = isWorkshopMode();
+  const pendingRef = useRef<SensorSettings | null>(null);
 
   useEffect(() => {
     if (!workshop) return;
     const apply = () => {
-      setSettings(loadWorkshopFarm().sensorSettings);
+      if (pendingRef.current) return;
+      setSettings(parseSensorSettings(loadWorkshopFarm().sensorSettings));
       setLoading(false);
     };
     apply();
@@ -60,7 +62,7 @@ export function useSensorSettings(farmId: string | undefined, canWrite = false) 
           setLoading(false);
           return;
         }
-        setSettings(parseSensorSettings(snap.data()));
+        if (!pendingRef.current) setSettings(parseSensorSettings(snap.data()));
         setLoading(false);
       },
       (error) => {
@@ -77,13 +79,14 @@ export function useSensorSettings(farmId: string | undefined, canWrite = false) 
 
   const saveBindings = useCallback(
     async (next: SensorSettings) => {
+      const parsed = parseSensorSettings(next);
       if (workshop) {
-        writeWorkshopFarm({ ...loadWorkshopFarm(), sensorSettings: next });
+        writeWorkshopFarm({ ...loadWorkshopFarm(), sensorSettings: parsed });
         return;
       }
       if (!farmId) return;
-      const bindings: Record<string, Record<string, string>> = {};
-      for (const [pinId, binding] of Object.entries(next.bindings)) {
+      const bindings: Record<string, ReturnType<typeof bindingToWrite>> = {};
+      for (const [pinId, binding] of Object.entries(parsed.bindings)) {
         bindings[pinId] = bindingToWrite(binding);
       }
       await setDoc(doc(db, 'farms', farmId, 'settings', 'sensors'), { bindings });
@@ -91,26 +94,49 @@ export function useSensorSettings(farmId: string | undefined, canWrite = false) 
     [farmId, workshop]
   );
 
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      if (pending) void saveBindings(pending);
+    };
+  }, [saveBindings]);
+
   const upsertBinding = useCallback(
     async (pinId: string, nextBinding: SensorBinding) => {
-      const merged: SensorBinding = { source: nextBinding.source };
-      if (nextBinding.externalId) merged.externalId = nextBinding.externalId;
-      if (nextBinding.blockId) merged.blockId = nextBinding.blockId;
-      const next: SensorSettings = {
-        bindings: { ...settings.bindings, [pinId]: merged },
+      const merged = parseSensorSettings({ bindings: { [pinId]: nextBinding } }).bindings[pinId] ?? {
+        source: nextBinding.source,
       };
+      const next: SensorSettings = {
+        bindings: { ...settingsRef.current.bindings, [pinId]: merged },
+      };
+      settingsRef.current = next;
+      pendingRef.current = next;
       setSettings(next);
-      try {
-        await saveBindings(next);
-      } catch (error) {
-        try {
-          handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/settings/sensors`);
-        } catch {
-          /* already logged */
-        }
-      }
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        const body = pendingRef.current;
+        saveTimer.current = null;
+        if (!body) return;
+        void saveBindings(body)
+          .catch((error) => {
+            try {
+              handleFirestoreError(error, OperationType.WRITE, `farms/${farmId}/settings/sensors`);
+            } catch {
+              /* already logged */
+            }
+          })
+          .finally(() => {
+            if (pendingRef.current === body) pendingRef.current = null;
+          });
+      }, 250);
     },
-    [farmId, saveBindings, settings.bindings]
+    [farmId, saveBindings]
   );
 
   return { settings, loading, upsertBinding };

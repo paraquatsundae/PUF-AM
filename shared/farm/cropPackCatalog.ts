@@ -37,6 +37,13 @@ import {
   sensorsModules,
 } from './sensorsPackage';
 import {
+  FIELD_BINS_PACK_ID,
+  FIELD_BINS_PRIMARY_PATH,
+  FIELD_BINS_SETTINGS_OWNED_KEYS,
+  fieldBinsManifest,
+  fieldBinsModules,
+} from './fieldBinsPackage';
+import {
   HARVEST_PACK_ID,
   HARVEST_PRIMARY_PATH,
   HARVEST_SETTINGS_OWNED_KEYS,
@@ -121,6 +128,11 @@ export {
   SENSORS_PRIMARY_PATH,
   SENSORS_SETTINGS_OWNED_KEYS,
 } from './sensorsPackage';
+export {
+  FIELD_BINS_PACK_ID,
+  FIELD_BINS_PRIMARY_PATH,
+  FIELD_BINS_SETTINGS_OWNED_KEYS,
+} from './fieldBinsPackage';
 
 /** Used to be core ops modules; one-time Install if the farm already had them on. */
 export const CORE_OPS_PACK_IDS = [
@@ -136,6 +148,7 @@ export const CROP_PACK_IDS = [
   WHEAT_YIELD_PACK_ID,
   ...CORE_OPS_PACK_IDS,
   SENSORS_PACK_ID,
+  FIELD_BINS_PACK_ID,
 ] as const;
 export type CropPackId = (typeof CROP_PACK_IDS)[number];
 /** Crop packs plus farm packs (`farm_feed`). Same farm-doc `cropPacks` map. */
@@ -296,6 +309,16 @@ export const CROP_PACKS: readonly CropPackDef[] = [
     settingsDocId: sensorsManifest.settingsDocId,
     settingsOwnedKeys: SENSORS_SETTINGS_OWNED_KEYS,
     primaryPath: SENSORS_PRIMARY_PATH,
+  },
+  {
+    id: FIELD_BINS_PACK_ID,
+    label: fieldBinsManifest.label,
+    blurb: fieldBinsManifest.blurb,
+    category: fieldBinsManifest.category,
+    modules: fieldBinsModules,
+    settingsDocId: fieldBinsManifest.settingsDocId,
+    settingsOwnedKeys: FIELD_BINS_SETTINGS_OWNED_KEYS,
+    primaryPath: FIELD_BINS_PRIMARY_PATH,
   },
 ];
 

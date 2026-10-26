@@ -26,6 +26,7 @@ import { PackSurfaces } from './PackSurfaces';
 import { useFarmDiary } from '../lib/farmDiary';
 import { useOfferedFarmModules } from '../hooks/useOfferedFarmModules';
 import { mapUiCopy } from '../../shared/farm/farmTypes';
+import { FIELD_BINS_PRIMARY_PATH } from '../../shared/farm/fieldBinsPackage';
 import { APP_FULL_NAME, APP_LOGO_SRC, APP_NAME } from '../brand';
 import { FreenetLeaveAskOverlay } from './FreenetQuitAskDialog';
 import { useFreenetLeaveAsk } from '../hooks/useFreenetLeaveAsk';
@@ -298,7 +299,7 @@ export function Layout() {
         <main
           className={cn(
             'flex-1 focus:outline-none p-0 pb-16 lg:pb-0 min-h-0',
-            location.pathname === '/map'
+            location.pathname === '/map' || location.pathname === FIELD_BINS_PRIMARY_PATH
               ? 'overflow-hidden flex flex-col'
               : 'overflow-y-auto'
           )}

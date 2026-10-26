@@ -94,7 +94,7 @@ Related plans (not duplicated here):
 | mDNS LAN sync | `_pufom-sync._tcp` (`PUFOM_MDNS_TYPE`) | Dual-advertise if renamed |
 | Android Java package | `com.sentinut.farm` | Keep with `appId` |
 | Site asset paths | `/assets/pufom/`, `/downloads/pufom/` | Alias `/pufam/` when APK renamed |
-| Release `version` | `package.json` `version` (`0.0.2` now) | **Source of truth.** Patch +1 per AppImage+APK pair (`npm run release:bump`). Do not bump for docs-only. Public **v 0.1** is a future `0.1.0` cut — see Decision — 2026-09-14 |
+| Release `version` | `package.json` `version` (`0.0.3` now) | **Source of truth.** Patch +1 per AppImage+APK pair (`npm run release:bump`). Do not bump for docs-only. Public **v 0.1** is a future `0.1.0` cut — see Decision — 2026-09-14 |
 | Android `versionName` | same as `package.json` `version` | Read by `android/app/build.gradle` — do not hardcode in Gradle |
 | Android `versionCode` | `package.json` `androidVersionCode` | Monotonic integer; +1 on the same bump as the patch |
 | AppImage filename | `PUF-AM-<version>.AppImage` | electron-builder reads `package.json` `version` |
@@ -103,6 +103,8 @@ Related plans (not duplicated here):
 **Decision — 2026-09-14:** Track workshop bakes as `0.0.#` until George cuts public **v 0.1** (`0.1.0`). `package.json` was set to `0.1.0` on 2026-07-13 as STEP-04 package-identity rename (`react-example` → `walnut-farm-manager`), not as a shipped milestone — staying on `0.1.0` for every AppImage would pretend each bake was the first public release. NAMING never froze a public `0.1.0`. This afternoon’s issue-apply + satellite-preserve bake is **`0.0.1`** (`androidVersionCode` `1`). Bump the **patch** and `androidVersionCode` together when we ship a new AppImage+APK pair (`npm run release:bump`). Do **not** bump for docs-only. When George says cut v 0.1, set `version` to `0.1.0` and increment `androidVersionCode` once more.
 
 **Bake — 2026-09-14 evening:** three-device Freenet Bones paddock-sync milestone is **`0.0.2`** (`androidVersionCode` `2`). Public v 0.1 remains a future `0.1.0`. **Next (2026-09-15):** [`DAY_RUN_2026_09_15.md`](DAY_RUN_2026_09_15.md).
+
+**Bake — 2026-10-26:** field bins (map, bins, chaser, truck blend) plus the sensor coverage readout is **`0.0.3`** (`androidVersionCode` `3`). Public v 0.1 remains a future `0.1.0`.
 
 ---
 

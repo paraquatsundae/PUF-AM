@@ -38,6 +38,7 @@ Agents: read the repo-root [`AGENTS.md`](../AGENTS.md) first, then whichever row
 | [`PLUGIN_PACK_LAYOUT.md`](PLUGIN_PACK_LAYOUT.md) | Active plan | Self-contained `plugins/<id>/src/` migration — Phases 0–1 done, Phase 2 open |
 | [`BLIGHT_ENGINE_PLUGIN.md`](BLIGHT_ENGINE_PLUGIN.md) | Live spec | Walnut blight pack settings home and parameter slices |
 | [`WHEAT_YIELD_PLUGIN.md`](WHEAT_YIELD_PLUGIN.md) | Live spec | Wheat head-count yield scout. Formula stays in the pack |
+| [`FIELD_BINS_PLUGIN.md`](FIELD_BINS_PLUGIN.md) | Active plan | Field bins: map, Chaser, Truck, and a Bins history (day and paddock summaries). Vehicle balance is later |
 | [`BLIGHT_VALIDATION.md`](BLIGHT_VALIDATION.md) | Active plan | Ji model science track, parity checks, open BV items |
 
 ## Ops, auth & billing

@@ -28,6 +28,7 @@ export function useOrchardMapLayers({
   layerMapRef,
   highlightedTrackId,
   highlightedTrackIdRef,
+  selectedSensorId = null,
   highlightedBlockId,
   internalBoundaryDrawing,
   analyticsView,
@@ -44,6 +45,7 @@ export function useOrchardMapLayers({
   layerMapRef: { current: Record<number, LayerMapEntry> };
   highlightedTrackId: string | null;
   highlightedTrackIdRef: { current: string | null };
+  selectedSensorId?: string | null;
   highlightedBlockId: string | null;
   internalBoundaryDrawing: unknown;
   analyticsView: 'risk' | 'yield';
@@ -78,6 +80,7 @@ export function useOrchardMapLayers({
         pins,
         tracks,
         highlightedTrackIdRef,
+        selectedSensorId,
       });
       if (membershipChanged) setForceRender((prev) => prev + 1);
     };
@@ -90,7 +93,7 @@ export function useOrchardMapLayers({
       window.cancelAnimationFrame(raf);
       window.clearTimeout(t1);
     };
-  }, [isLoaded, blocks, pins, tracks, mapInstance, mapMode, activeTab, featureGroupRef, layerMapRef, highlightedTrackIdRef]);
+  }, [isLoaded, blocks, pins, tracks, mapInstance, mapMode, activeTab, featureGroupRef, layerMapRef, highlightedTrackIdRef, selectedSensorId]);
 
   // Let draw tools receive taps over paddocks when placing infra / tracks
   // (and when drawing an internal hazard/pad from Blocks — same tab would
@@ -131,8 +134,9 @@ export function useOrchardMapLayers({
       pins,
       tracks,
       highlightedTrackId,
+      selectedSensorId,
     });
-  }, [pins, blocks, tracks, forceRender, highlightedTrackId, featureGroupRef, layerMapRef]);
+  }, [pins, blocks, tracks, forceRender, highlightedTrackId, selectedSensorId, featureGroupRef, layerMapRef]);
 
   useEffect(() => {
     if (!featureGroupRef.current) return;

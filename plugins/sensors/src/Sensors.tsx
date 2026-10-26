@@ -16,6 +16,7 @@ import { useAuth } from '../../../src/contexts/AuthContext';
 import { useMapStore } from '../../../src/lib/mapStore';
 import { cn } from '../../../src/lib/utils';
 import { SensorBindingFields } from './SensorBindingFields';
+import { SensorCoverageFields } from './SensorCoverageFields';
 import { useSensorSettings } from './useSensorSettings';
 
 const SOURCE_LABELS: Record<SensorSource, string> = {
@@ -63,8 +64,8 @@ export function Sensors() {
           Sensors
         </h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Name weather, soil, and irrigation pins and set their input source. Place the dots on
-          the{' '}
+          Name weather, soil, and irrigation pins, set how far each one covers, and see which
+          paddocks fall inside that circle. Place the dots on the{' '}
           <Link to="/map" className="text-emerald-700 font-semibold hover:underline">
             Farm Map
           </Link>
@@ -204,9 +205,16 @@ export function Sensors() {
                       </select>
                     </div>
                   </div>
+                  <SensorCoverageFields
+                    pinId={pin.id}
+                    pin={pin}
+                    binding={binding}
+                    blocks={blocks}
+                    disabled={!canEdit}
+                    onChange={(next) => void upsertBinding(pin.id, next)}
+                  />
                   <SensorBindingFields
                     binding={binding}
-                    blocks={blocks.map((b) => ({ id: b.id, name: b.name }))}
                     disabled={!canEdit}
                     onChange={(next) => void upsertBinding(pin.id, next)}
                   />
@@ -223,9 +231,6 @@ export function Sensors() {
                       placeholder="Optional notes"
                     />
                   </div>
-                  <p className="text-[11px] font-mono text-slate-400">
-                    {pin.lat.toFixed(5)}, {pin.lng.toFixed(5)}
-                  </p>
                 </div>
               );
             })}

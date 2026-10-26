@@ -59,17 +59,18 @@ export function CoverageZonesLegend() {
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-blue-600/20 border border-blue-600 border-dashed"></div>
-          <span className="text-xs text-slate-600">Weather Station (500m)</span>
+          <span className="text-xs text-slate-600">Weather station</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-amber-600/20 border border-amber-600 border-dashed"></div>
-          <span className="text-xs text-slate-600">Soil Sensor (50m)</span>
+          <span className="text-xs text-slate-600">Soil sensor</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-cyan-600/20 border border-cyan-600 border-dashed"></div>
-          <span className="text-xs text-slate-600">Irrigation Valve (150m)</span>
+          <span className="text-xs text-slate-600">Irrigation valve</span>
         </div>
       </div>
+      <p className="text-[10px] text-slate-500 mt-2">Radius is set on Sensors. Defaults are 500 m, 50 m, and 150 m.</p>
     </motion.div>
   );
 }

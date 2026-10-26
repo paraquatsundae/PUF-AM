@@ -27,6 +27,10 @@ export type OrchardMapCanvasProps = {
   drawLayerCtx: OrchardMapDrawLayerCtx;
   boundaryEditBlockId: string | null;
   showCoverage: boolean;
+  selectedSensorId: string | null;
+  onCloseSensorReadout: () => void;
+  selectedFieldBinId: string | null;
+  onCloseFieldBinReadout: () => void;
   pins: InfrastructurePin[];
   dailyEvents: Array<{
     id: string;
