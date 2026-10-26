@@ -43,8 +43,13 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
+      # cmdline-tools 16 dropped the obsolete `tools` package. The action's
+      # default install list is `tools platform-tools`, which fails the job
+      # before Gradle starts (seen on the v0.0.3 tag, run 40415171038).
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Install npm dependencies
         run: npm ci
