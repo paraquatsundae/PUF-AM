@@ -214,6 +214,7 @@ Names and rename policy live here; **contents, authority, and how each store is 
 | `pufam.farmChat.log.v1.{farmId}` | Capped whole-farm chat cache (last **5** text lines). Hosted authority is `farms/{farmId}/farm_chat/log`; Freenet authority is Hot. Added 2026-09-15 (`FARM_MESSAGING.md`) |
 | `pufam.farmChat.day.v1.{farmId}` | Today's full chat buffer (`{ date, messages }`) before midnight flush. Added 2026-09-15 (`FARM_MESSAGING.md`) |
 | `pufam.farmChat.archiveIndex.v1.{farmId}` | Local cache of sealed chat-archive dates (not a live listen). Added 2026-09-15 (`FARM_MESSAGING.md`) |
+| `pufam.harvestLoss.trays.v1.{farmId}` | Drop trays made on the farm (name, rectangle or round, centimetre sides). Device copy so the next paddock can use them. A harvest-loss save also copies the list onto `wheat_yield_loss`. Added 2026-10-30 (`WHEAT_YIELD_PLUGIN.md`) |
 
 **Decision — 2026-09-16:** the `timeseries_demo` learning pack uses
 `pufam.timeseries_demo.range` for a device-only `{ from, to }` date preference.
@@ -294,6 +295,7 @@ Top-level collections (production):
 | `farms/{farmId}/settings/{doc}` | e.g. `safety`, `model_params` |
 | `farms/{farmId}/harvests/{id}` | Harvest records |
 | `farms/{farmId}/wheat_yield/{blockId}` | Wheat yield scout for one paddock (head counts, hectolitre, deduction, hectares). One document per paddock. Added 2026-09-29 (`WHEAT_YIELD_PLUGIN.md`) |
+| `farms/{farmId}/wheat_yield_loss/{blockId}` | Crop assessment harvest-loss checks for one paddock. Each calculation has header width, spread width, crop, and drop trays. Optional `trays` lists trays made on the farm. One document per paddock. Does not replace the yield scout. Added 2026-10-29, drop trays 2026-10-30 (`WHEAT_YIELD_PLUGIN.md`) |
 | `farms/{farmId}/tasks/{id}` | Tasks |
 | `farms/{farmId}/presence/{uid}` | Crew GPS |
 | `farms/{farmId}/mapHighlights/{id}` | Map overlay highlights |

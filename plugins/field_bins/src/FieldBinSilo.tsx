@@ -66,6 +66,7 @@ export function FieldBinSilo({
   onAskCapacity,
   onAskMoisture,
   onAskClear,
+  onAskMove,
 }: {
   name: string;
   tonnes: number;
@@ -79,6 +80,7 @@ export function FieldBinSilo({
   onAskCapacity: () => void;
   onAskMoisture: () => void;
   onAskClear: () => void;
+  onAskMove: () => void;
 }) {
   const clipId = useId().replace(/:/g, '');
   const fraction = capacityT && capacityT > 0 ? Math.min(1, Math.max(0, tonnes / capacityT)) : 0;
@@ -152,6 +154,15 @@ export function FieldBinSilo({
         className="mt-1 w-full rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-800"
       >
         {capacityT ? `${formatTonnes(capacityT)} capacity` : 'Set capacity'}
+      </button>
+      <button
+        type="button"
+        aria-label={`Move ${name}`}
+        disabled={disabled}
+        onClick={onAskMove}
+        className="mt-2 w-full rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40"
+      >
+        {paddock === 'Not on the map' ? 'Place' : 'Move'}
       </button>
       <button
         type="button"

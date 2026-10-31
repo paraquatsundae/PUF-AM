@@ -544,10 +544,20 @@ service cloud.firestore {
              data.bindings.size() <= 200;
     }
 
+    function isValidFieldBinReceival(data) {
+      return data is map &&
+             data.keys().hasOnly(['gradeId', 'deliverAt', 'trailerMax']) &&
+             data.gradeId is string && data.gradeId.size() > 0 && data.gradeId.size() < 40 &&
+             data.deliverAt is number && data.deliverAt >= 0 && data.deliverAt <= 100 &&
+             data.trailerMax is number && data.trailerMax >= 0 && data.trailerMax <= 100 &&
+             data.trailerMax >= data.deliverAt;
+    }
+
     function isValidFieldBinSettings(data) {
-      return hasOnlyAllowedFields(['vehicles', 'bins']) &&
+      return hasOnlyAllowedFields(['vehicles', 'bins', 'receival']) &&
              data.vehicles is list && data.vehicles.size() <= 80 &&
-             data.bins is map && data.bins.size() <= 200;
+             data.bins is map && data.bins.size() <= 200 &&
+             (!('receival' in data) || isValidFieldBinReceival(data.receival));
     }
 
     function isValidFieldBinMovement(data) {
@@ -618,6 +628,16 @@ service cloud.firestore {
              data.hectares is number && data.hectares >= 0 && data.hectares <= 100000 &&
              (!('thousandGrainWeightOverride' in data) || (data.thousandGrainWeightOverride is number && data.thousandGrainWeightOverride >= 0 && data.thousandGrainWeightOverride <= 80)) &&
              data.counts is list && data.counts.size() <= 30 &&
+             data.updatedAt is string && data.updatedAt.size() < 40 &&
+             data.updatedBy is string && data.updatedBy == request.auth.uid;
+    }
+
+    function isValidWheatYieldLoss(data) {
+      return hasOnlyAllowedFields(['blockId', 'calculations', 'trays', 'updatedAt', 'updatedBy']) &&
+             hasRequiredFields(['blockId', 'calculations', 'updatedAt', 'updatedBy']) &&
+             data.blockId is string && data.blockId.size() > 0 && data.blockId.size() < 100 &&
+             data.calculations is list && data.calculations.size() <= 20 &&
+             (!('trays' in data) || (data.trays is list && data.trays.size() <= 12)) &&
              data.updatedAt is string && data.updatedAt.size() < 40 &&
              data.updatedBy is string && data.updatedBy == request.auth.uid;
     }
@@ -1227,6 +1247,13 @@ service cloud.firestore {
         allow read: if isFarmMember(farmId);
         allow create: if canMutateFarm(farmId) && isValidWheatYieldScout(request.resource.data) && request.resource.data.blockId == blockId;
         allow update: if canMutateFarm(farmId) && isValidWheatYieldScout(request.resource.data) && request.resource.data.blockId == blockId;
+        allow delete: if canMutateFarm(farmId);
+      }
+
+      match /wheat_yield_loss/{blockId} {
+        allow read: if isFarmMember(farmId);
+        allow create: if canMutateFarm(farmId) && isValidWheatYieldLoss(request.resource.data) && request.resource.data.blockId == blockId;
+        allow update: if canMutateFarm(farmId) && isValidWheatYieldLoss(request.resource.data) && request.resource.data.blockId == blockId;
         allow delete: if canMutateFarm(farmId);
       }
 

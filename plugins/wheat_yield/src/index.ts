@@ -29,7 +29,7 @@ export const packUi: CropPackUiRegistration = {
     {
       groupId: 'crop',
       section: 'scout',
-      name: 'Wheat yield',
+      name: 'Crop assessment',
       href: WHEAT_YIELD_PRIMARY_PATH,
       icon: IconWheat,
       moduleId: 'wheat',

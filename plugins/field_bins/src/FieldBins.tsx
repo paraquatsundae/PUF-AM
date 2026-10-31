@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { canWriteFarmData } from '../../../shared/auth/farmModules';
 import { isPackActive } from '../../../shared/farm/cropPacks';
 import { FIELD_BINS_PACK_ID } from '../../../shared/farm/fieldBinsPackage';
-import type { FieldBinVehicle, FieldBinVehicleKind } from '../../../shared/farm/fieldBinStock';
+import type { FieldBinSettings, FieldBinVehicle, FieldBinVehicleKind } from '../../../shared/farm/fieldBinStock';
+import { fieldBinPlaces, parkFieldBin, unparkFieldBin } from '../../../shared/farm/fieldBinPlace';
 import { useAuth } from '../../../src/contexts/AuthContext';
 import { useFieldBinData } from '../../../src/hooks/useFieldBinData';
 import { useMapStore, type InfrastructurePin } from '../../../src/lib/mapStore';
@@ -14,8 +15,11 @@ import { FieldBinStatusSheet } from './FieldBinStatusSheet';
 import { FieldBinTripSheet } from './FieldBinTripSheet';
 import { FieldBinTruckPage } from './FieldBinTruckPage';
 
-function nextBinName(pins: InfrastructurePin[]): string {
-  const names = new Set(pins.filter((pin) => pin.type === 'field_bin').map((pin) => pin.name));
+function nextBinName(pins: InfrastructurePin[], settings: FieldBinSettings): string {
+  const names = new Set<string>([
+    ...pins.filter((pin) => pin.type === 'field_bin').map((pin) => pin.name),
+    ...Object.values(settings.bins).flatMap((bin) => (bin.parkedName ? [bin.parkedName] : [])),
+  ]);
   let n = 1;
   while (names.has(`Field bin ${n}`)) n += 1;
   return `Field bin ${n}`;
@@ -25,13 +29,15 @@ export function FieldBins() {
   const { farmCropPacks, userData } = useAuth();
   const farmId = userData?.farmId;
   const canEdit = canWriteFarmData(userData?.role);
-  const { blocks, pins, loadData, isLoaded, addPin, updatePin } = useMapStore();
+  const { blocks, pins, loadData, isLoaded, addPin, updatePin, removePin } = useMapStore();
   const { settings, movements, stock, vehicleStock, writeSettings, commitTransfer, commitTruckLoad, clearHeld, setBinLevel, setBinMoisture } =
     useFieldBinData(farmId, canEdit);
   const [mode, setMode] = useState<FieldBinMode>('map');
   const [paddockId, setPaddockId] = useState<string | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
+  const [placingId, setPlacingId] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
   const [storageOpen, setStorageOpen] = useState(false);
 
   useEffect(() => {
@@ -41,9 +47,34 @@ export function FieldBins() {
   const placePin = useCallback(
     (lat: number, lng: number) => {
       if (!canEdit) return;
+      if (placingId) {
+        const record = settings.bins[placingId];
+        const name = record?.parkedName || 'Field bin';
+        const notes = record?.parkedNotes;
+        const pin: InfrastructurePin = {
+          id: placingId,
+          name,
+          type: 'field_bin',
+          status: 'active',
+          lat,
+          lng,
+          ...(notes ? { notes } : {}),
+        };
+        if (pins.some((row) => row.id === placingId)) {
+          updatePin(placingId, { name, lat, lng, ...(notes ? { notes } : {}) });
+        } else {
+          void addPin(pin);
+        }
+        void writeSettings(unparkFieldBin(settings, placingId));
+        setPlacingId(null);
+        setDropping(false);
+        setSelectedPinId(placingId);
+        setStorageOpen(false);
+        return;
+      }
       const pin: InfrastructurePin = {
         id: crypto.randomUUID(),
-        name: nextBinName(pins),
+        name: nextBinName(pins, settings),
         type: 'field_bin',
         status: 'active',
         lat,
@@ -54,8 +85,34 @@ export function FieldBins() {
       setSelectedPinId(pin.id);
       setStorageOpen(false);
     },
-    [addPin, canEdit, pins]
+    [addPin, canEdit, pins, placingId, settings, updatePin, writeSettings]
   );
+
+  const armPlace = (id: string) => {
+    setMode('map');
+    setPlacingId(id);
+    setDropping(true);
+    setSelectedPinId(null);
+    setStorageOpen(false);
+  };
+
+  const unpinPin = async (pin: InfrastructurePin) => {
+    if (!canEdit || moving) return;
+    setMoving(true);
+    try {
+      await writeSettings(parkFieldBin(settings, pin));
+      removePin(pin.id);
+      armPlace(pin.id);
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  const moveBin = (id: string) => {
+    const pin = pins.find((row) => row.id === id && row.type === 'field_bin');
+    if (pin) void unpinPin(pin);
+    else armPlace(id);
+  };
 
   const saveBin = (capacityT: number, cropLabel: string) => {
     if (!selectedPinId) return;
@@ -95,7 +152,19 @@ export function FieldBins() {
           const bins = { ...settings.bins, [pinId]: { ...settings.bins[pinId], capacityT } };
           void writeSettings({ ...settings, bins });
         }}
-        onRename={(pinId, name) => updatePin(pinId, { name })}
+        onRename={(pinId, name) => {
+          const record = settings.bins[pinId];
+          const onMap = pins.some((pin) => pin.id === pinId && pin.type === 'field_bin');
+          if (!onMap && record?.parkedName) {
+            const parkedName = name.trim().slice(0, 99) || record.parkedName;
+            void writeSettings({
+              ...settings,
+              bins: { ...settings.bins, [pinId]: { ...record, parkedName } },
+            });
+            return;
+          }
+          updatePin(pinId, { name });
+        }}
         onVehicles={(vehicles) => void writeSettings({ ...settings, vehicles })}
       />
     );
@@ -126,6 +195,7 @@ export function FieldBins() {
         }}
         onSetLevel={setBinLevel}
         onSetMoisture={setBinMoisture}
+        onMove={moveBin}
       />
     );
   }
@@ -144,10 +214,14 @@ export function FieldBins() {
         onRemoveTruck={(id) =>
           void writeSettings({ ...settings, vehicles: settings.vehicles.filter((row) => row.id !== id) })
         }
+        onSaveReceival={(receival) => void writeSettings({ ...settings, receival })}
         onCommit={commitTruckLoad}
       />
     );
   }
+
+  const parked = fieldBinPlaces(pins, settings).filter((place) => place.lat == null);
+  const droppingNew = dropping && !placingId;
 
   return (
     <div className="relative flex-1 min-h-0 bg-slate-100">
@@ -162,6 +236,7 @@ export function FieldBins() {
         onSelectPin={(id) => {
           setSelectedPinId(id);
           setDropping(false);
+          setPlacingId(null);
           setStorageOpen(false);
         }}
         onPlace={placePin}
@@ -190,17 +265,51 @@ export function FieldBins() {
         <button
           type="button"
           disabled={!canEdit}
-          aria-pressed={dropping}
+          aria-pressed={droppingNew}
           onClick={() => {
-            setDropping((on) => !on);
+            if (droppingNew) {
+              setDropping(false);
+              return;
+            }
+            setPlacingId(null);
+            setDropping(true);
             setSelectedPinId(null);
           }}
           className={`pointer-events-auto px-3 py-2 rounded-xl text-sm font-semibold shadow ${
-            dropping ? 'bg-amber-700 text-white' : 'bg-white text-slate-800 border border-slate-200'
+            droppingNew ? 'bg-amber-700 text-white' : 'bg-white text-slate-800 border border-slate-200'
           }`}
         >
-          {dropping ? 'Tap the map' : 'Drop bin'}
+          {droppingNew ? 'Tap the map' : 'Drop bin'}
         </button>
+        {parked.length > 0 && (
+          <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl bg-white/95 border border-slate-200 shadow px-2 py-1">
+            <span className="text-xs font-semibold text-slate-500">Off the map</span>
+            {parked.map((place) => (
+              <button
+                key={place.id}
+                type="button"
+                aria-pressed={placingId === place.id}
+                disabled={!canEdit || moving}
+                onClick={() => {
+                  if (placingId === place.id) {
+                    setPlacingId(null);
+                    setDropping(false);
+                    return;
+                  }
+                  setPlacingId(place.id);
+                  setDropping(true);
+                  setSelectedPinId(null);
+                  setStorageOpen(false);
+                }}
+                className={`px-2 py-1 rounded-lg text-sm font-semibold ${
+                  placingId === place.id ? 'bg-amber-700 text-white' : 'bg-slate-100 text-slate-800'
+                }`}
+              >
+                {place.name}
+              </button>
+            ))}
+          </div>
+        )}
         <button
           type="button"
           onClick={() => setStorageOpen((open) => !open)}
@@ -221,6 +330,9 @@ export function FieldBins() {
           onCommit={commitTransfer}
           onSaveBin={saveBin}
           onAddVehicle={addVehicle}
+          onUnpin={() => {
+            if (selected) void unpinPin(selected);
+          }}
         />
       )}
 
@@ -233,9 +345,15 @@ export function FieldBins() {
           disabled={!canEdit}
           onClose={() => setStorageOpen(false)}
           onSelectPin={(id) => {
+            const onMap = pins.some((pin) => pin.id === id && pin.type === 'field_bin');
+            if (!onMap) {
+              armPlace(id);
+              return;
+            }
             setSelectedPinId(id);
             setStorageOpen(false);
             setDropping(false);
+            setPlacingId(null);
           }}
           onVehicles={(vehicles) => void writeSettings({ ...settings, vehicles })}
         />

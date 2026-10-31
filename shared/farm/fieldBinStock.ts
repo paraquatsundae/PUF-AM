@@ -2,6 +2,7 @@
  * Field-bin tonnes and moisture. Plans/FIELD_BINS_PLUGIN.md.
  * Pure so the map card and the pack page share one replay. No vehicle balance in v1.
  */
+import { receivalGrade } from './fieldBinReceival';
 
 export const TRUCK_COLOR_IDS = ['amber', 'red', 'blue', 'green', 'violet', 'orange', 'teal', 'slate'] as const;
 export type TruckColorId = (typeof TRUCK_COLOR_IDS)[number];
@@ -35,13 +36,25 @@ export type FieldBinVehicle = {
 };
 
 export type FieldBinRecord = {
-  capacityT: number;
+  /** Missing until the operator sets it. A bin taken off the map can still have none. */
+  capacityT?: number;
   cropLabel?: string;
+  /** Set while this bin is off the map. The name lives here until it is placed again. */
+  parkedName?: string;
+  parkedNotes?: string;
+};
+
+/** Delivery moisture the truck blend aims at, and the cap on any one trailer. */
+export type FieldBinReceival = {
+  gradeId: string;
+  deliverAt: number;
+  trailerMax: number;
 };
 
 export type FieldBinSettings = {
   vehicles: FieldBinVehicle[];
   bins: Record<string, FieldBinRecord>;
+  receival?: FieldBinReceival;
 };
 
 export type FieldBinMovementLine = {
@@ -149,7 +162,7 @@ function cleanLabel(raw: unknown, max: number): string {
 export function parseFieldBinSettings(raw: unknown): FieldBinSettings {
   const empty = emptyFieldBinSettings();
   if (!raw || typeof raw !== 'object') return empty;
-  const data = raw as { vehicles?: unknown; bins?: unknown };
+  const data = raw as { vehicles?: unknown; bins?: unknown; receival?: unknown };
   const vehicles: FieldBinVehicle[] = [];
   if (Array.isArray(data.vehicles)) {
     for (const row of data.vehicles) {
@@ -183,14 +196,31 @@ export function parseFieldBinSettings(raw: unknown): FieldBinSettings {
       if (!pinId || pinId.length > 80 || !row || typeof row !== 'object') continue;
       const rec = row as Partial<FieldBinRecord>;
       const capacityT = finiteIn(rec.capacityT, 0.001, TONNE_CAP);
-      if (capacityT == null) continue;
+      const parkedName = cleanLabel(rec.parkedName, 99);
+      if (capacityT == null && !parkedName) continue;
       const cropLabel = cleanLabel(rec.cropLabel, 40);
-      bins[pinId] = cropLabel
-        ? { capacityT: roundTonnes(capacityT), cropLabel }
-        : { capacityT: roundTonnes(capacityT) };
+      const parkedNotes = cleanLabel(rec.parkedNotes, 1990);
+      bins[pinId] = {
+        ...(capacityT != null ? { capacityT: roundTonnes(capacityT) } : {}),
+        ...(cropLabel ? { cropLabel } : {}),
+        ...(parkedName ? { parkedName } : {}),
+        ...(parkedName && parkedNotes ? { parkedNotes } : {}),
+      };
     }
   }
-  return { vehicles, bins };
+  const receival = parseReceival(data.receival);
+  return receival ? { vehicles, bins, receival } : { vehicles, bins };
+}
+
+function parseReceival(raw: unknown): FieldBinReceival | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const row = raw as Partial<FieldBinReceival>;
+  const grade = receivalGrade(typeof row.gradeId === 'string' ? row.gradeId : '');
+  if (!grade) return undefined;
+  const deliverAt = finiteIn(row.deliverAt, 0, 100);
+  const trailerMax = finiteIn(row.trailerMax, 0, 100);
+  if (deliverAt == null || trailerMax == null) return undefined;
+  return { gradeId: grade.id, deliverAt, trailerMax: Math.max(trailerMax, deliverAt) };
 }
 
 export function settingsToWrite(settings: FieldBinSettings): FieldBinSettings {

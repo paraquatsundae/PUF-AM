@@ -31,6 +31,14 @@ Track grain in and out of field bins (silos standing in a paddock). Chasers and 
 
 **Decision — 2026-10-26 (truck blend):** On the Truck tab, Recommended blend loads the selected truck the way a blend is pulled. Trailer 1 goes to the first bin that has grain and a moisture and takes that bin's share of the truck. The share is that bin's part of the grain on hand, which sets the mix moisture. The next bin finishes trailer 1 or, when trailer 1 is already full, starts the next trailer, and so on. A bin with grain and no moisture is left out. Use this blend copies those percents into the load, which can still be changed before it is recorded. This is not a saved recipe.
 
+**Decision — 2026-10-27 (blend target):** The recommendation aims up to a delivery moisture instead of splitting by how much grain is on hand. The starting figures are the CBH 2026/27 moisture maximums (CAG1 canola 8%, milling wheat 12.5%, AWW1 13.5%, malt barley 12.5%, feed barley 13.5%, oats 12%, lupin 14%). Deliver at, and no trailer over, can be changed when a site is taking grain above the standard — Esperance CAG1 at 8.5% with no trailer over 9% is that kind of change, not a second built-in standard. Grain drier than the delivery moisture fills the truck first, bin by bin. Wetter grain is added only until the mix reaches the target, and a trailer that would sit over its limit takes just enough drier grain to come back to that limit. A 50/50 truck is trailer 1 from the first bin, the middle trailer split, and the last trailer from the second bin, not the same split on every trailer. The grade and the two figures are stored on the field-bin settings. This is still not a saved recipe.
+
+**Decision — 2026-10-27 (blend fractions):** Each trailer’s share is a fraction a loader can see: 1/4, 1/3, 1/2, 2/3, 3/4 or 4/4. A 6% sliver is not shown as a percent. By eye is the usual reading. Tonnes switches the same blend to the tonne figure for a trailer that has scales. The percent on a label is a whole number.
+
+**Decision — 2026-10-28 (blend picture):** The selected truck draws the blend on its trailers. Each bin has its own colour, the percent on a block is a whole number, and a key under the truck names the colour.
+
+**Decision — 2026-10-29 (move a bin):** Unpin takes that field bin off the map. The name, notes, capacity, and grain stay on the same bin, and it can be tapped down in a new place. While it is off the map it still shows on Bins, Chaser, and Truck. Paddock follows the pin again once it is placed.
+
 **Decision — 2026-10-26 (clear):** Each silo, truck, and chaser has a Clear button, and it asks before it empties anything. A silo clear is one outward movement that zeroes that bin; earlier loads stay in the history. A truck or chaser clear zeroes the tonnes replayed onto that vehicle and does not put grain back into a bin. A load still being entered on screen is cleared too.
 
 ## What v1 is

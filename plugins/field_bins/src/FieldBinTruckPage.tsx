@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { recommendTruckBlend } from '../../../shared/farm/fieldBinBlend';
 import {
   formatMoisture,
   formatTonnes,
   planTruckLoad,
   truckColorId,
+  type FieldBinReceival,
   type FieldBinSettings,
   type FieldBinTrailer,
   type FieldBinVehicle,
   type TruckFill,
 } from '../../../shared/farm/fieldBinStock';
+import { fieldBinPlaces } from '../../../shared/farm/fieldBinPlace';
 import type { InfrastructurePin } from '../../../src/lib/mapStore';
+import { FieldBinBlendCard } from './FieldBinBlendCard';
 import { FieldBinClearConfirm } from './FieldBinClearConfirm';
 import { FieldBinKeypad } from './FieldBinKeypad';
 import { FieldBinModeSwitch, type FieldBinMode } from './FieldBinModeSwitch';
@@ -24,34 +26,6 @@ function savedTrailers(truck: FieldBinVehicle): FieldBinTrailer[] {
   return [{ id: truck.id, capacityT: truck.capacityT }];
 }
 
-function blendSentence(
-  fills: TruckFill[],
-  trailers: FieldBinTrailer[],
-  nameOf: (id: string) => string
-): { text: string; full: boolean } {
-  const share = (trailerId: string) =>
-    fills
-      .filter((fill) => fill.trailerId === trailerId)
-      .map((fill) => `${fill.percent}% ${nameOf(fill.binId)}`)
-      .join(', ');
-  const shares = trailers.map((trailer) => share(trailer.id)).filter((row) => row !== '');
-  const same = shares.every((row) => row === shares[0]);
-  const full = trailers.every((trailer) => {
-    const sum = fills.filter((fill) => fill.trailerId === trailer.id).reduce((total, fill) => total + fill.percent, 0);
-    return sum >= 100 - 1e-6;
-  });
-  const text = same
-    ? `${shares[0] ?? ''} of each trailer.`
-    : trailers
-        .map((trailer, index) => {
-          const row = share(trailer.id);
-          return row ? `Trailer ${index + 1}: ${row}.` : '';
-        })
-        .filter(Boolean)
-        .join(' ');
-  return { text, full };
-}
-
 /** Pick a saved truck profile, then say which bins fill each trailer. */
 export function FieldBinTruckPage({
   pins,
@@ -62,6 +36,7 @@ export function FieldBinTruckPage({
   onMode,
   onSaveTruck,
   onRemoveTruck,
+  onSaveReceival,
   onCommit,
   onClearVehicle,
 }: {
@@ -73,6 +48,7 @@ export function FieldBinTruckPage({
   onMode: (mode: FieldBinMode) => void;
   onSaveTruck: (truck: FieldBinVehicle) => void;
   onRemoveTruck: (id: string) => void;
+  onSaveReceival: (receival: FieldBinReceival) => void;
   onCommit: (draft: {
     vehicleId: string;
     trailers: FieldBinTrailer[];
@@ -81,10 +57,11 @@ export function FieldBinTruckPage({
   onClearVehicle: (vehicleId: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const trucks = settings.vehicles.filter((row) => row.kind === 'truck');
-  const bins = pins.filter((pin) => pin.type === 'field_bin');
+  const bins = fieldBinPlaces(pins, settings);
   const [truckId, setTruckId] = useState(trucks[0]?.id ?? '');
   const [profile, setProfile] = useState<FieldBinVehicle | null | 'closed'>('closed');
   const [fills, setFills] = useState<FillDraft[]>([]);
+  const [preview, setPreview] = useState<TruckFill[]>([]);
   const [keypad, setKeypad] = useState<{ fillKey: string; draft: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -141,41 +118,24 @@ export function FieldBinTruckPage({
     });
   }, [bins, fills, settings.bins, stock, trailers, truck]);
 
-  const binName = (id: string) => bins.find((pin) => pin.id === id)?.name || 'Field bin';
-  const blend = truck
-    ? recommendTruckBlend({
-        trailers,
-        bins: bins.map((pin) => ({
-          id: pin.id,
-          tonnes: stock[pin.id]?.tonnes ?? 0,
-          moisture: stock[pin.id]?.moisture ?? null,
-        })),
-      })
-    : null;
-  const blendPlan =
-    blend?.ok === true
-      ? planTruckLoad({
-          trailers,
-          fills: blend.fills,
-          bins: Object.fromEntries(
-            bins.map((pin) => {
-              const record = settings.bins[pin.id];
-              const held = stock[pin.id];
-              return [pin.id, { tonnes: held?.tonnes ?? 0, capacityT: record?.capacityT ?? 0, moisture: held?.moisture ?? null }];
-            })
-          ),
-        })
-      : null;
-  const blendCopy = blend?.ok === true ? blendSentence(blend.fills, trailers, binName) : null;
+  const manualLoad = fills.filter((fill) => fill.binId && Number(fill.percent) > 0);
+  const shownLoad =
+    manualLoad.length > 0
+      ? manualLoad.map((fill) => ({
+          trailerId: fill.trailerId,
+          binId: fill.binId,
+          percent: Math.round(Number(fill.percent)),
+        }))
+      : preview;
+  const binKey = bins.map((pin) => ({ id: pin.id, name: pin.name || 'Field bin' }));
 
-  const useBlend = () => {
-    if (!blend || blend.ok === false || blendPlan?.ok === false) return;
+  const useBlend = (next: TruckFill[]) => {
     setFills(
-      blend.fills.map((fill) => ({
+      next.map((fill) => ({
         key: crypto.randomUUID(),
         trailerId: fill.trailerId,
         binId: fill.binId,
-        percent: String(fill.percent),
+        percent: String(Math.round(fill.percent)),
       }))
     );
     setKeypad(null);
@@ -256,6 +216,8 @@ export function FieldBinTruckPage({
                     pendingLoad: row.id === truck?.id && fills.length > 0,
                   })
                 }
+                load={row.id === truck?.id ? shownLoad : undefined}
+                bins={row.id === truck?.id ? binKey : undefined}
               />
             ))}
           </div>
@@ -282,36 +244,26 @@ export function FieldBinTruckPage({
           />
         )}
 
-        {truck && blend && (
-          <section className="rounded-xl bg-white border border-slate-200 p-3 space-y-2">
-            <p className="text-sm font-semibold text-slate-800">Recommended blend</p>
-            {blend.ok === false || blendPlan?.ok === false || !blendCopy ? (
-              <p className="text-sm text-slate-600">
-                {blend.ok === false ? blend.error : blendPlan?.ok === false ? blendPlan.error : 'No blend.'}
-              </p>
-            ) : (
-              <>
-                <p className="text-sm text-slate-700">
-                  {blendCopy.text}
-                  {blendPlan?.ok ? ` Moisture ${formatMoisture(blendPlan.mixMoisture)}.` : ''}
-                  {blendCopy.full ? '' : ' The bins do not hold a full truck.'}
-                  {blend.skippedIds.length > 0
-                    ? ` ${blend.skippedIds.map(binName).join(', ')} ${
-                        blend.skippedIds.length === 1 ? 'has' : 'have'
-                      } grain and no moisture, so ${blend.skippedIds.length === 1 ? 'it stays' : 'they stay'} out.`
-                    : ''}
-                </p>
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={useBlend}
-                  className="px-4 py-2 rounded-xl bg-amber-700 text-white text-sm font-semibold disabled:opacity-40"
-                >
-                  Use this blend
-                </button>
-              </>
-            )}
-          </section>
+        {truck && (
+          <FieldBinBlendCard
+            bins={bins.map((pin) => {
+              const record = settings.bins[pin.id];
+              const held = stock[pin.id];
+              return {
+                id: pin.id,
+                name: pin.name || 'Field bin',
+                tonnes: held?.tonnes ?? 0,
+                moisture: held?.moisture ?? null,
+                capacityT: record?.capacityT ?? 0,
+              };
+            })}
+            trailers={trailers}
+            receival={settings.receival}
+            disabled={disabled}
+            onReceival={onSaveReceival}
+            onUse={useBlend}
+            onPreview={setPreview}
+          />
         )}
 
         {truck &&
@@ -359,7 +311,7 @@ export function FieldBinTruckPage({
                             % of this trailer
                           </span>
                           <span className="block text-3xl font-bold text-slate-900 tabular-nums">
-                            {fill.percent === '' ? '—' : fill.percent}
+                            {fill.percent === '' ? '—' : String(Math.round(Number(fill.percent)))}
                           </span>
                         </button>
                       )}

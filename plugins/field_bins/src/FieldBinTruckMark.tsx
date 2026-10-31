@@ -18,6 +18,12 @@ export const TRUCK_PAINT: Record<TruckColorId, { label: string; body: string; ca
   slate: { label: 'Slate', body: '#475569', cab: '#1e293b', soft: '#f8fafc', ink: '#1e293b' },
 };
 
+export const BIN_LOAD_COLORS = ['#b45309', '#1d4ed8', '#15803d', '#be185d', '#6d28d9', '#0f766e', '#c2410c', '#334155'];
+
+export function binLoadColor(index: number): string {
+  return BIN_LOAD_COLORS[index % BIN_LOAD_COLORS.length] ?? '#334155';
+}
+
 function trailersOf(truck: FieldBinVehicle) {
   if (truck.trailers?.length) return truck.trailers;
   return [{ id: truck.id, capacityT: truck.capacityT }];
@@ -32,6 +38,8 @@ export function FieldBinTruckMark({
   clearDisabled,
   onSelect,
   onAskClear,
+  load,
+  bins,
 }: {
   truck: FieldBinVehicle;
   index: number;
@@ -40,11 +48,18 @@ export function FieldBinTruckMark({
   clearDisabled: boolean;
   onSelect: () => void;
   onAskClear: () => void;
+  /** Blend shares for this truck. Each trailer is painted in the bin's colour. */
+  load?: { trailerId: string; binId: string; percent: number }[];
+  bins?: { id: string; name: string }[];
 }) {
   const paint = TRUCK_PAINT[truckColorId(truck.color, index)];
   const trailers = trailersOf(truck);
   const total = trailers.reduce((sum, trailer) => sum + trailer.capacityT, 0) || 1;
   const tonnes = held?.tonnes ?? 0;
+  const named = bins ?? [];
+  const colorOf = new Map(named.map((bin, binIndex) => [bin.id, binLoadColor(binIndex)]));
+  const shares = (load ?? []).filter((fill) => fill.percent > 0);
+  const keyBins = named.filter((bin) => shares.some((fill) => fill.binId === bin.id));
   return (
     <div
       className="w-full min-h-32 rounded-2xl border-2 px-4 py-3 text-left"
@@ -62,17 +77,35 @@ export function FieldBinTruckMark({
         <span className="relative shrink-0 w-16 h-14 rounded-md" style={{ backgroundColor: paint.cab }} aria-hidden>
           <span className="absolute top-1.5 left-1.5 h-4 w-6 rounded-sm bg-white/80" />
         </span>
-        {trailers.map((trailer) => (
-          <span
-            key={trailer.id}
-            aria-hidden
-            className="h-10 shrink-0 rounded-sm"
-            style={{
-              backgroundColor: paint.body,
-              width: `${Math.max(36, Math.round((trailer.capacityT / total) * 180))}px`,
-            }}
-          />
-        ))}
+        {trailers.map((trailer) => {
+          const parts = shares.filter((fill) => fill.trailerId === trailer.id);
+          const width = `${Math.max(36, Math.round((trailer.capacityT / total) * 180))}px`;
+          return (
+            <span
+              key={trailer.id}
+              aria-hidden
+              className="flex h-10 shrink-0 overflow-hidden rounded-sm bg-slate-200"
+              style={{ width }}
+            >
+              {parts.length === 0 ? (
+                <span className="h-full w-full" style={{ backgroundColor: paint.body }} />
+              ) : (
+                parts.map((part) => {
+                  const whole = Math.round(part.percent);
+                  return (
+                    <span
+                      key={part.binId}
+                      className="flex h-full items-center justify-center text-[11px] font-bold text-white"
+                      style={{ width: `${whole}%`, backgroundColor: colorOf.get(part.binId) ?? paint.body }}
+                    >
+                      {whole >= 18 ? `${whole}%` : ''}
+                    </span>
+                  );
+                })
+              )}
+            </span>
+          );
+        })}
       </span>
       <span className="mt-2 block text-sm font-semibold" style={{ color: paint.ink }}>
         {formatTonnes(truck.capacityT)} · {trailers.length} {trailers.length === 1 ? 'trailer' : 'trailers'}
@@ -81,6 +114,16 @@ export function FieldBinTruckMark({
         {tonnes > 0 ? `Holding ${formatTonnes(tonnes)} · ${formatMoisture(held?.moisture)}` : 'Empty'}
       </span>
       </button>
+      {keyBins.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+          {keyBins.map((bin) => (
+            <span key={bin.id} className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: paint.ink }}>
+              <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: colorOf.get(bin.id) }} />
+              {bin.name}
+            </span>
+          ))}
+        </div>
+      )}
       <button
         type="button"
         aria-label={`Clear ${truck.name}`}

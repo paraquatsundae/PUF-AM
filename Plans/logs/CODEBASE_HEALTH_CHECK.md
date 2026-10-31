@@ -12,9 +12,27 @@ Command (procedure A):
 npm test && npm run lint && npm run plugins:verify && npm run audit:codebase
 ```
 
-`npm run lint` is `tsc --noEmit` + desktop `tsc` + `eslint --quiet`. Procedure A is green as of 2026-09-08 (1116 tests). Latest run 2026-10-26 failed on the same Freenet / mist items as 2026-09-29; hosted gates passed.
+`npm run lint` is `tsc --noEmit` + desktop `tsc` + `eslint --quiet`. Procedure A is green as of 2026-09-08 (1116 tests). Latest run 2026-10-31 failed on the same Freenet / mist items as 2026-10-26; hosted gates passed.
 
 ---
+
+## 2026-10-31 — Procedure A (field bins move and blend, crop assessment)
+
+**Host:** Linux (Fedora), repo `PUF-AM`, HEAD `e93386e` plus a dirty tree (field-bin move, moisture blend, receival; crop assessment and drop-tray harvest loss).  
+**Why:** George asked for a health check of the new plugin code before it is committed and the live site is updated.  
+**Env:** `VITE_API_BASE_URL`, `VITE_APP_URL`, `VITE_WORKSHOP_MODE` unset. Node via fnm `v22.23.1`.
+
+| Gate | Result |
+|------|--------|
+| `npm test` | **Fail** — 1876 passed, 1 failed, 7 skipped. The failure is `tests/freenetTransportSelect.test.ts` pinned-transport identity. Field-bin, crop-pack, and harvest-loss suites passed. |
+| Root `tsc --noEmit` | **Fail** — the three known Freenet / diary errors only (`mistBonesBridge.ts`, `units/puf-freenet-host/contract-traffic.test.ts`, `tests/farmDiaryComposerSave.test.tsx`). No field-bin or wheat-yield error. |
+| Desktop `tsc` | **Pass** |
+| `npm run plugins:verify` | **Pass** — 11 packs, including `field_bins@0.1.0` and `wheat_yield@0.1.0` |
+| `npm run audit:codebase` | **Pass** — layering, SoC, cycles, leftover `harvest_drying`. Freenet size WARNs only |
+
+**Overall Procedure A: FAIL** on the same known Freenet / mist items. The field-bin and crop-assessment seams are clean.
+
+Core does not import `plugins/field_bins/src` or `plugins/wheat_yield/src`. New files are under the 600 hard cap. Largest in this pass: `fieldBinStock.ts` 557, `FieldBinChaserPage.tsx` 483, `FieldBinHistoryPage.tsx` 423, `HarvestLoss.tsx` 370, `fieldBinBlend.ts` 360.
 
 ## 2026-10-26 — Procedure A (field bins + core seam)
 

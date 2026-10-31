@@ -35,10 +35,10 @@ export function WheatBlockReadout({ block }: PackBlockReadoutProps) {
       <div className="flex items-center justify-between gap-3">
         <span className="inline-flex items-center gap-2 text-slate-600">
           <Wheat className="w-4 h-4 text-amber-600 shrink-0" />
-          Wheat yield
+          Crop assessment
         </span>
         <Link to={`${WHEAT_YIELD_PRIMARY_PATH}?paddock=${encodeURIComponent(block.id)}`} className="text-xs font-semibold text-emerald-700">
-          Scout
+          Open
         </Link>
       </div>
       {scout.loading ? (

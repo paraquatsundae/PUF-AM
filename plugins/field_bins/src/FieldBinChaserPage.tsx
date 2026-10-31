@@ -6,6 +6,7 @@ import {
   type FieldBinSettings,
   type FieldBinVehicle,
 } from '../../../shared/farm/fieldBinStock';
+import { fieldBinPlaces } from '../../../shared/farm/fieldBinPlace';
 import type { InfrastructurePin } from '../../../src/lib/mapStore';
 import { FieldBinClearConfirm } from './FieldBinClearConfirm';
 import { FieldBinKeypad } from './FieldBinKeypad';
@@ -50,7 +51,7 @@ export function FieldBinChaserPage({
   onClearVehicle: (vehicleId: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const chasers = settings.vehicles.filter((row) => row.kind === 'chaser');
-  const bins = pins.filter((pin) => pin.type === 'field_bin');
+  const bins = fieldBinPlaces(pins, settings);
   const [chaserId, setChaserId] = useState(chasers[0]?.id ?? '');
   const [quarter, setQuarter] = useState<number | null>(null);
   const [scaleTonnes, setScaleTonnes] = useState('');
@@ -120,9 +121,9 @@ export function FieldBinChaserPage({
     setKeypad(null);
   };
 
-  const unload = async (pin: InfrastructurePin) => {
+  const unload = async (pin: { id: string; name?: string }) => {
     if (!chaser || disabled || busy) return;
-    if (!settings.bins[pin.id]) {
+    if (settings.bins[pin.id]?.capacityT == null) {
       openKeypad('capacity', pin.id);
       setError('Set how many tonnes that bin holds, then tap it again.');
       return;

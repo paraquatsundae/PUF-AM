@@ -46,7 +46,7 @@ export function WheatYieldDashboardCard() {
         : `${count} paddock${count === 1 ? '' : 's'} scouted`;
 
   return (
-    <DashboardCard href={WHEAT_YIELD_PRIMARY_PATH} label="Wheat yield" icon={Wheat} tone="watch">
+    <DashboardCard href={WHEAT_YIELD_PRIMARY_PATH} label="Crop assessment" icon={Wheat} tone="watch">
       <div className="text-sm font-bold text-slate-900">{line}</div>
     </DashboardCard>
   );

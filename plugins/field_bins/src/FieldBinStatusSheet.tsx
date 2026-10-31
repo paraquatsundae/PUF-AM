@@ -5,6 +5,7 @@ import {
   type FieldBinSettings,
   type FieldBinVehicle,
 } from '../../../shared/farm/fieldBinStock';
+import { fieldBinPlaces } from '../../../shared/farm/fieldBinPlace';
 import { findBlockIdAtPoint } from '../../../src/lib/farmMapHit';
 import type { InfrastructurePin, OrchardBlock } from '../../../src/lib/mapStore';
 import { FieldBinVehicles } from './FieldBinVehicles';
@@ -29,7 +30,7 @@ export function FieldBinStatusSheet({
   onSelectPin: (id: string) => void;
   onVehicles: (vehicles: FieldBinVehicle[]) => void;
 }) {
-  const bins = pins.filter((pin) => pin.type === 'field_bin');
+  const bins = fieldBinPlaces(pins, settings);
 
   return (
     <div className="absolute inset-x-2 top-16 bottom-2 z-[800] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
@@ -47,8 +48,8 @@ export function FieldBinStatusSheet({
             {bins.map((pin) => {
               const record = settings.bins[pin.id];
               const held = stock[pin.id];
-              const paddockId = findBlockIdAtPoint(blocks, pin.lat, pin.lng);
-              const paddock = blocks.find((block) => block.id === paddockId)?.name;
+              const paddockId = pin.lat == null || pin.lng == null ? null : findBlockIdAtPoint(blocks, pin.lat, pin.lng);
+              const paddock = pin.lat == null ? 'Not on the map' : blocks.find((block) => block.id === paddockId)?.name;
               return (
                 <li key={pin.id}>
                   <button

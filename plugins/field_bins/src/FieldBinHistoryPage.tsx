@@ -9,6 +9,7 @@ import {
   type FieldBinMovement,
   type FieldBinSettings,
 } from '../../../shared/farm/fieldBinStock';
+import { fieldBinPlaces } from '../../../shared/farm/fieldBinPlace';
 import { findBlockIdAtPoint } from '../../../src/lib/farmMapHit';
 import type { InfrastructurePin, OrchardBlock } from '../../../src/lib/mapStore';
 import { FieldBinClearConfirm } from './FieldBinClearConfirm';
@@ -17,6 +18,8 @@ import { FieldBinModeSwitch, type FieldBinMode } from './FieldBinModeSwitch';
 import { FieldBinSilo } from './FieldBinSilo';
 
 type HistoryPick = { kind: 'bin'; id: string } | { kind: 'paddock'; id: string | null };
+
+const OFF_MAP = '__off_map__';
 
 function dayLabel(day: string): string {
   const [year, month, date] = day.split('-').map(Number);
@@ -49,6 +52,7 @@ export function FieldBinHistoryPage({
   onSaveCapacity,
   onSetLevel,
   onSetMoisture,
+  onMove,
 }: {
   pins: InfrastructurePin[];
   blocks: OrchardBlock[];
@@ -61,6 +65,7 @@ export function FieldBinHistoryPage({
   onSaveCapacity: (binId: string, capacityT: number) => void;
   onSetLevel: (binId: string, tonnes: number) => Promise<{ ok: boolean; error?: string }>;
   onSetMoisture: (binId: string, moisture: number) => Promise<{ ok: boolean; error?: string }>;
+  onMove: (binId: string) => void;
 }) {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [pick, setPick] = useState<HistoryPick | null>(null);
@@ -70,10 +75,12 @@ export function FieldBinHistoryPage({
   const [moistureEdit, setMoistureEdit] = useState<{ id: string; draft: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bins = useMemo(() => pins.filter((pin) => pin.type === 'field_bin'), [pins]);
+  const bins = useMemo(() => fieldBinPlaces(pins, settings), [pins, settings]);
   const binPaddock = useMemo(() => {
     const map: Record<string, string | null> = {};
-    for (const pin of bins) map[pin.id] = findBlockIdAtPoint(blocks, pin.lat, pin.lng);
+    for (const pin of bins) {
+      map[pin.id] = pin.lat == null || pin.lng == null ? OFF_MAP : findBlockIdAtPoint(blocks, pin.lat, pin.lng);
+    }
     return map;
   }, [bins, blocks]);
   const summary = useMemo(
@@ -108,7 +115,7 @@ export function FieldBinHistoryPage({
     return groups;
   }, [loads, timeZone]);
   const paddockName = (id: string | null) =>
-    (id && blocks.find((block) => block.id === id)?.name) || 'No paddock';
+    id === OFF_MAP ? 'Not on the map' : (id && blocks.find((block) => block.id === id)?.name) || 'No paddock';
   const binName = (id: string) => bins.find((pin) => pin.id === id)?.name || 'Field bin';
   const vehicleName = (id: string) => settings.vehicles.find((row) => row.id === id)?.name || 'Vehicle';
   const commitCapacity = () => {
@@ -245,6 +252,7 @@ export function FieldBinHistoryPage({
                           moisture: held?.moisture ?? null,
                         })
                       }
+                      onAskMove={() => onMove(pin.id)}
                     />
                   </li>
                 );

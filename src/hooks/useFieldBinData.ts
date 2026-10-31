@@ -157,7 +157,7 @@ export function useFieldBinData(farmId: string | undefined, canWrite = false) {
         const held = stock[line.binId];
         bins[line.binId] = {
           tonnes: held?.tonnes ?? 0,
-          capacityT: record.capacityT,
+          capacityT: record.capacityT ?? 0,
           moisture: held?.moisture ?? null,
         };
       }
@@ -200,7 +200,7 @@ export function useFieldBinData(farmId: string | undefined, canWrite = false) {
         const held = stock[fill.binId];
         bins[fill.binId] = {
           tonnes: held?.tonnes ?? 0,
-          capacityT: record.capacityT,
+          capacityT: record.capacityT ?? 0,
           moisture: held?.moisture ?? null,
         };
       }

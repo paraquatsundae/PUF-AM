@@ -29,7 +29,7 @@ describe('wheat yield package', () => {
 
   it('registers the pack and keeps engine defaults aligned with the calculator', () => {
     const pack = getCropPack('wheat_yield');
-    expect(pack.label).toBe('Wheat yield');
+    expect(pack.label).toBe('Crop assessment');
     expect(pack.modules).toEqual(['wheat']);
     expect(pack.category).toBe('crop');
     expect(pack.primaryPath).toBe('/wheat-yield');

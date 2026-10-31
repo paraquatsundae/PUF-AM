@@ -25,6 +25,7 @@ export function FieldBinTripSheet({
   onCommit,
   onSaveBin,
   onAddVehicle,
+  onUnpin,
 }: {
   pin: InfrastructurePin;
   blocks: OrchardBlock[];
@@ -40,6 +41,7 @@ export function FieldBinTripSheet({
   }) => Promise<{ ok: boolean; error?: string; movement?: FieldBinMovement }>;
   onSaveBin: (capacityT: number, cropLabel: string) => void;
   onAddVehicle: (kind: FieldBinVehicleKind, name: string, capacityT: number) => void;
+  onUnpin: () => void;
 }) {
   const record = settings.bins[pin.id];
   const held = stock[pin.id];
@@ -53,6 +55,7 @@ export function FieldBinTripSheet({
   const [capacity, setCapacity] = useState(record ? String(record.capacityT) : '');
   const [crop, setCrop] = useState(record?.cropLabel ?? '');
   const [showStatus, setShowStatus] = useState(false);
+  const [unpinAsk, setUnpinAsk] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -308,6 +311,39 @@ export function FieldBinTripSheet({
       >
         Bin status
       </button>
+      {unpinAsk ? (
+        <div className="mt-2 rounded-xl border border-slate-200 p-3">
+          <p className="text-sm text-slate-700">
+            Take {pin.name || 'this bin'} off the map? The name, capacity and grain stay, and you can place it again.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setUnpinAsk(false)}
+              className="py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onUnpin}
+              className="py-2 rounded-xl bg-slate-800 text-white text-sm font-semibold disabled:opacity-40"
+            >
+              Unpin
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setUnpinAsk(true)}
+          className="mt-2 w-full py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 disabled:opacity-40"
+        >
+          Unpin
+        </button>
+      )}
       {showStatus && (
         <div className="mt-2 rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-700 space-y-1">
           <p>
